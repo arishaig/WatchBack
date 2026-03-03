@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WatchALongAgo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 antialiased font-sans p-4" x-data="app()">
+    <div class="max-w-md mx-auto">
+        
+        <header class="flex justify-between items-center mb-6 mt-2">
+            <h1 class="text-2xl font-bold text-blue-400">WatchALongAgo</h1>
+            <button @click="sync()" 
+                    class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg flex items-center gap-2"
+                    :disabled="isLoading">
+                <span x-show="!isLoading">🔄 Sync</span>
+                <span x-show="isLoading" x-cloak>⏳ Syncing...</span>
+            </button>
+        </header>
+
+        <div x-show="error" x-cloak class="bg-red-900/50 border border-red-500 text-red-200 p-4 rounded-lg mb-6">
+            <p x-text="error"></p>
+        </div>
+
+        <main x-show="data && data.status === 'success'" x-cloak>
+            
+            <div class="bg-gray-800 p-4 rounded-xl mb-6 shadow-md border border-gray-700">
+                <h2 class="text-xl font-bold mb-1" x-text="data.title"></h2>
+                <p class="text-sm text-gray-400">Aired: <span x-text="formatDate(data.metadata.premiere)"></span></p>
+            </div>
+
+            <div class="flex gap-2 mb-6 bg-gray-800 p-1 rounded-lg border border-gray-700">
+                <button @click="mode = 'time'" 
+                        :class="mode === 'time' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'" 
+                        class="flex-1 py-2 rounded-md text-sm font-medium transition-colors">
+                    Time Machine ⏱️
+                </button>
+                <button @click="mode = 'all'" 
+                        :class="mode === 'all' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'" 
+                        class="flex-1 py-2 rounded-md text-sm font-medium transition-colors">
+                    All Comments 💬
+                </button>
+                <a :href="data.reddit_url" target="_blank" 
+                   class="flex-1 py-2 rounded-md text-sm font-medium text-center text-orange-400 hover:bg-gray-700 transition-colors">
+                    Reddit 🔍
+                </a>
+            </div>
+
+            <div class="space-y-4 pb-8">
+                <template x-for="comment in activeComments" :key="comment.id || Math.random()">
+                    <div class="bg-gray-800 p-4 rounded-xl shadow border border-gray-700">
+                        <p class="text-gray-200 text-sm leading-relaxed mb-3 whitespace-pre-wrap" x-text="comment.comment"></p>
+                        <div class="flex justify-between items-center text-xs text-gray-500">
+                            <span class="font-medium text-gray-400" x-text="'@' + comment.user.username"></span>
+                            <span x-text="formatDate(comment.created_at)"></span>
+                        </div>
+                    </div>
+                </template>
+                
+                <div x-show="activeComments.length === 0" class="text-center text-gray-500 py-8">
+                    No comments found for this view. Try checking Reddit!
+                </div>
+            </div>
+        </main>
+
+        <div x-show="data && data.status === 'idle'" x-cloak class="text-center text-gray-500 py-12">
+            <p class="text-lg">Nothing is currently playing.</p>
+            <p class="text-sm mt-2">Start a show and hit Sync!</p>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('app', () => ({
+                data: null,
+                error: null,
+                isLoading: false,
+                mode: 'time', 
+
+                init() {
+                    this.sync();
+                    
+                    const sse = new EventSource('/api/stream');
+                    sse.onmessage = (e) => {
+                        if (e.data === 'refresh') {
+                            this.sync();
+                        }
+                    };
+                },
+
+                get activeComments() {
+                    if (!this.data) return [];
+                    return this.mode === 'time' ? this.data.time_machine : this.data.all_comments;
+                },
+
+                async sync() {
+                    this.isLoading = true;
+                    this.error = null;
+                    try {
+                        const res = await fetch('/api/sync?t=' + Date.now());
+                        const json = await res.json();
+                        
+                        if (json.status === 'error' || json.status === 'setup_required') {
+                            this.error = json.message;
+                            this.data = null;
+                        } else {
+                            this.data = json;
+                            
+                            if (this.data.time_machine && this.data.time_machine.length === 0) {
+                                this.mode = 'all';
+                            } else {
+                                this.mode = 'time'; 
+                            }
+                        }
+                    } catch (e) {
+                        this.error = "Failed to connect to the WatchALongAgo API.";
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+
+                formatDate(isoString) {
+                    if (!isoString) return '';
+                    const date = new Date(isoString);
+                    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                }
+            }))
+        })
+    </script>
+</body>
+</html>
