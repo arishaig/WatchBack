@@ -413,7 +413,7 @@ wheels = [
 ]
 
 [[package]]
-name = "watchalongago"
+name = "watchback"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
