@@ -200,9 +200,9 @@ class TestApiConfigGet:
             "jf_api_key": "s1", "trakt_client_id": "s2", "trakt_access_token": "s3"
         })
         data = client.get("/api/config").json()
-        assert data["jf_api_key"]["effective_value"] == ""
-        assert data["trakt_client_id"]["effective_value"] == ""
-        assert data["trakt_access_token"]["effective_value"] == ""
+        assert data["jf_api_key"]["effective_value"] == "****"
+        assert data["trakt_client_id"]["effective_value"] == "****"
+        assert data["trakt_access_token"]["effective_value"] == "****"
 
     def test_secrets_is_set_true(self, fresh_cache, client):
         fresh_cache.set("ui_config", {"jf_api_key": "key"})
