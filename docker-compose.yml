@@ -1,16 +1,15 @@
 services:
-  watchalongago:
+  watchback:
     build: .
-    container_name: watchalongago
+    container_name: watchback
     env_file:
       - .env
     environment:
-      - PUID=1000 # Update to match your local Arch user ID
-      - PGID=1000 # Update to match your local Arch group ID
+      - PUID=1000
+      - PGID=1000
       - TZ=America/Los_Angeles
     volumes:
       - ./config:/config
-      - ./static:/app/static
     ports:
       - "8080:8000"
     restart: unless-stopped

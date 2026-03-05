@@ -44,6 +44,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy app code
 COPY --chown=abc:abc . .
+# Overwrite with compiled CSS from builder
+COPY --from=builder /app/static/tailwind.css /app/static/tailwind.css
 
 USER abc
 EXPOSE 8000

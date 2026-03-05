@@ -632,6 +632,22 @@ class TestWebhook:
         r = client.post("/api/webhook", json={"NotificationType": "PlaybackStart"})
         assert r.json()["status"] == "received"
 
+    def test_rejects_bad_secret(self, fresh_cache, client):
+        fresh_cache.set("ui_config", {"webhook_secret": "s3cret"})
+        r = client.post("/api/webhook", json={"NotificationType": "PlaybackStart"},
+                        headers={"X-Webhook-Secret": "wrong"})
+        assert r.json()["status"] == "unauthorized"
+
+    def test_accepts_correct_secret(self, fresh_cache, client):
+        fresh_cache.set("ui_config", {"webhook_secret": "s3cret"})
+        r = client.post("/api/webhook", json={"NotificationType": "PlaybackStart"},
+                        headers={"X-Webhook-Secret": "s3cret"})
+        assert r.json()["status"] == "received"
+
+    def test_no_secret_configured_accepts_all(self, client):
+        r = client.post("/api/webhook", json={"NotificationType": "PlaybackStart"})
+        assert r.json()["status"] == "received"
+
 
 # ---------------------------------------------------------------------------
 # POST /api/restart
@@ -640,5 +656,9 @@ class TestWebhook:
 class TestRestart:
     def test_returns_restarting(self, client):
         with patch("main.asyncio.create_task"):
-            r = client.post("/api/restart")
+            r = client.post("/api/restart", json={"confirm": True})
         assert r.json()["status"] == "restarting"
+
+    def test_rejects_without_confirm(self, client):
+        r = client.post("/api/restart", json={})
+        assert r.json()["status"] == "error"

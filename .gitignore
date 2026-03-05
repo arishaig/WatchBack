@@ -9,6 +9,12 @@ __pycache__/
 *.py[cod]
 *.class
 /.venv/
+/bin/
+/lib/
+/lib64/
+lib64
+/include/
+pyvenv.cfg
 .pytest_cache/
 .uv/
 
@@ -20,6 +26,7 @@ build/
 # Local
 .idea/
 .vscode/
+.python-version
 
 # Project Specific
 /config/
