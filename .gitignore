@@ -1,0 +1,25 @@
+# General
+.DS_Store
+.env
+.env*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+/.venv/
+.pytest_cache/
+.uv/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Local
+.idea/
+.vscode/
+
+# Project Specific
+/config/
