@@ -161,7 +161,7 @@ def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> l
     query = f"{series} S{s_long}E{e_long}"
     token = bsky_access_token()
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        "User-Agent": "WatchBack/1.0"
     }
     # Use api.bsky.app for authenticated, public.api.bsky.app for unauthenticated
     url = "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts" if token else "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts"
@@ -236,7 +236,6 @@ def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> l
                 f"{season}x{e_long}".lower(),
                 f"{season}x{episode}".lower(),
                 "playing",
-                "halt and catch fire", # Hardcoded fallback for current case
                 "watch along",
                 "watching"
             ]
@@ -272,15 +271,15 @@ def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> l
 @app.get("/api/sync")
 def sync_data():
     cfg = get_config()
-    HAS_JF = bool(cfg["jf_api_key"])
-    HAS_TRAKT_WATCH = bool(cfg["trakt_username"] or cfg["trakt_access_token"])
+    has_jf = bool(cfg["jf_api_key"])
+    has_trakt_watch = bool(cfg["trakt_username"] or cfg["trakt_access_token"])
     
-    if not HAS_JF and not HAS_TRAKT_WATCH:
+    if not has_jf and not has_trakt_watch:
         return {"status": "setup_required", "message": "No session source configured."}
 
     session_data = cache.get("jf_session")
     
-    if not session_data and HAS_JF:
+    if not session_data and has_jf:
         try:
             headers = {"Authorization": f"MediaBrowser Token={cfg['jf_api_key']}"}
             res = requests.get(f"{cfg['jf_url']}/Sessions", headers=headers, timeout=5)
@@ -293,7 +292,7 @@ def sync_data():
         except Exception as e:
             return {"status": "error", "message": f"Failed to reach Jellyfin: {str(e)}"}
 
-    if not session_data and HAS_TRAKT_WATCH:
+    if not session_data and has_trakt_watch:
         session_data = cache.get("trakt_session")
         if not session_data:
             try:

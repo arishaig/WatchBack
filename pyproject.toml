@@ -1,7 +1,7 @@
 [project]
 name = "watchback"
 version = "0.1.0"
-description = "Add your description here"
+description = "Self-hosted TV companion — aggregates reactions from Trakt, Bluesky, and Reddit filtered to the original air-date window"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

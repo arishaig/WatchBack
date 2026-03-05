@@ -23,8 +23,8 @@ App is available at `http://localhost:8080`.
 
 **Locally for development:**
 ```bash
-pip install -r requirements.txt
-JF_URL=http://localhost:8096 JF_API_KEY=xxx TRAKT_CLIENT_ID=yyy uvicorn main:app --reload
+uv sync
+uv run uvicorn main:app --reload
 ```
 App runs at `http://localhost:8000`.
 
