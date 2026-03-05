@@ -1,4 +1,4 @@
-"""Comprehensive tests for WatchALongAgo (main.py)."""
+"""Comprehensive tests for WatchBack (main.py)."""
 import json
 import pytest
 from diskcache import Cache
@@ -68,7 +68,7 @@ REDDIT_POSTS = {
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
-    """Strip all WatchALongAgo env vars before each test."""
+    """Strip all WatchBack env vars before each test."""
     for _, (env_name, _) in ENV_MAP.items():
         monkeypatch.delenv(env_name, raising=False)
 
