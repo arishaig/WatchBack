@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
     if poller_task: poller_task.cancel()
     cache.close()
 
-app = FastAPI(title="WatchALongAgo API", lifespan=lifespan)
+app = FastAPI(title="WatchBack API", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # --- Helpers ---
