@@ -101,10 +101,10 @@ class TestGetConfig:
         assert cfg["reddit_auto_open"] == ""
         assert cfg["reddit_max_threads"] == "3"
 
-    def test_env_var_overrides_stored(self, fresh_cache, monkeypatch):
+    def test_stored_overrides_env(self, fresh_cache, monkeypatch):
         fresh_cache.set("ui_config", {"jf_api_key": "stored-key"})
         monkeypatch.setenv("JF_API_KEY", "env-key")
-        assert get_config()["jf_api_key"] == "env-key"
+        assert get_config()["jf_api_key"] == "stored-key"
 
     def test_stored_used_when_no_env(self, fresh_cache):
         fresh_cache.set("ui_config", {"jf_api_key": "stored-key"})
@@ -190,43 +190,46 @@ class TestApiConfigGet:
         data = client.get("/api/config").json()
         for key in ENV_MAP:
             assert key in data
-            assert set(data[key].keys()) == {"value", "is_set", "source"}
+            assert set(data[key].keys()) == {
+                "effective_value", "env_value", "stored_value", 
+                "is_env_set", "is_stored_set", "source", "is_secret"
+            }
 
     def test_secrets_value_always_empty(self, fresh_cache, client):
         fresh_cache.set("ui_config", {
             "jf_api_key": "s1", "trakt_client_id": "s2", "trakt_access_token": "s3"
         })
         data = client.get("/api/config").json()
-        assert data["jf_api_key"]["value"] == ""
-        assert data["trakt_client_id"]["value"] == ""
-        assert data["trakt_access_token"]["value"] == ""
+        assert data["jf_api_key"]["effective_value"] == ""
+        assert data["trakt_client_id"]["effective_value"] == ""
+        assert data["trakt_access_token"]["effective_value"] == ""
 
     def test_secrets_is_set_true(self, fresh_cache, client):
         fresh_cache.set("ui_config", {"jf_api_key": "key"})
-        assert client.get("/api/config").json()["jf_api_key"]["is_set"] is True
+        assert client.get("/api/config").json()["jf_api_key"]["is_stored_set"] is True
 
     def test_non_secret_value_exposed(self, fresh_cache, client):
         fresh_cache.set("ui_config", {"trakt_username": "myuser"})
-        assert client.get("/api/config").json()["trakt_username"]["value"] == "myuser"
+        assert client.get("/api/config").json()["trakt_username"]["effective_value"] == "myuser"
 
     def test_source_env(self, monkeypatch, client):
         monkeypatch.setenv("TRAKT_CLIENT_ID", "env-id")
         data = client.get("/api/config").json()
         assert data["trakt_client_id"]["source"] == "env"
-        assert data["trakt_client_id"]["is_set"] is True
+        assert data["trakt_client_id"]["is_env_set"] is True
 
     def test_source_stored(self, fresh_cache, client):
         fresh_cache.set("ui_config", {"trakt_username": "u"})
         assert client.get("/api/config").json()["trakt_username"]["source"] == "stored"
 
-    def test_source_none(self, client):
-        assert client.get("/api/config").json()["trakt_client_id"]["source"] == "none"
+    def test_source_default(self, client):
+        assert client.get("/api/config").json()["trakt_client_id"]["source"] == "default"
 
     def test_default_jf_url_visible(self, client):
-        assert client.get("/api/config").json()["jf_url"]["value"] == "http://jellyfin:8096"
+        assert client.get("/api/config").json()["jf_url"]["effective_value"] == "http://jellyfin:8096"
 
     def test_default_max_threads(self, client):
-        assert client.get("/api/config").json()["reddit_max_threads"]["value"] == "3"
+        assert client.get("/api/config").json()["reddit_max_threads"]["effective_value"] == "3"
 
 
 # ---------------------------------------------------------------------------
