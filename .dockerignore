@@ -1,0 +1,28 @@
+# Git
+.git
+.github
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.pytest_cache/
+.python-version
+
+# Local config & storage
+.env
+.env*
+config/
+cache/
+
+# Project
+README.md
+CLAUDE.md
+tests/
+docker-compose.yml
+Dockerfile
+.dockerignore
+uv.lock
+pyproject.toml
+pytest.ini
