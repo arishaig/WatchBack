@@ -2,9 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+# WatchBack project details
 
-WatchALongAgo is a self-hosted web app that connects Jellyfin and Trakt.tv. When you start watching a TV episode in Jellyfin, it fetches Trakt comments for that episode and filters them to only show reactions posted within 14 days of the original air date — avoiding spoilers while letting you experience the community's first reactions.
+- **Project Name**: WatchBack
+- **Build & Run**:
+  - Dev: `uvicorn main:app --reload`
+  - Docker: `docker build -t watchback:dev .`
+  - Docker Run: `docker run -d --name watchback -p 8000:8000 --env-file .env watchback:dev`
+
+WatchBack is a self-hosted web app that connects Jellyfin and Trakt.tv. When you start watching a TV episode in Jellyfin, it fetches Trakt comments for that episode and filters them to only show reactions posted within 14 days of the original air date — avoiding spoilers while letting you experience the community's first reactions.
 
 ## Running the App
 

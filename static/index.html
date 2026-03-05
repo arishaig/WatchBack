@@ -11,6 +11,54 @@
         [x-cloak] {
             display: none !important;
         }
+
+        /* Foolproof Toggle Switch Styles */
+        .switch-container {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 24px;
+        }
+
+        .switch-input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .switch-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #4b5563;
+            /* Gray-600 */
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .switch-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        .switch-input:checked+.switch-slider {
+            background-color: #2563eb;
+            /* Blue-600 */
+        }
+
+        .switch-input:checked+.switch-slider:before {
+            transform: translateX(16px);
+        }
     </style>
 </head>
 
@@ -138,15 +186,12 @@
                         <p class="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Reddit</p>
                         <div class="flex items-center justify-between">
                             <label class="text-xs font-medium text-gray-300">Auto-open Reddit threads</label>
-                            <div class="relative inline-flex items-center">
-                                <input id="reddit-toggle" type="checkbox"
-                                    :checked="configDraft.reddit_auto_open === '1'"
+                            <label class="switch-container">
+                                <input type="checkbox" :checked="configDraft.reddit_auto_open === '1'"
                                     @change="configDraft.reddit_auto_open = $event.target.checked ? '1' : ''"
-                                    class="peer appearance-none w-10 h-5 bg-gray-600 rounded-full checked:bg-blue-600 transition-colors duration-300 cursor-pointer shadow-inner">
-                                <label for="reddit-toggle"
-                                    class="absolute top-0.5 left-0.5 w-4 h-4 bg-white border border-gray-300 rounded-full transition-transform duration-300 peer-checked:translate-x-5 cursor-pointer shadow-sm">
-                                </label>
-                            </div>
+                                    class="switch-input">
+                                <span class="switch-slider"></span>
+                            </label>
                         </div>
                     </div>
                 </div>
