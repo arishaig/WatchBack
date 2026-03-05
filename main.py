@@ -80,7 +80,7 @@ def trakt_headers(auth: bool = False) -> dict:
 def find_reddit_threads(series: str, season: int, episode: int, n: int = 3) -> list[dict]:
     query = f'"{series}" S{season:02d}E{episode:02d} discussion'
     try:
-        resp = requests.get("https://www.reddit.com/search.json", params={"q": query, "sort": "relevance", "limit": 25}, headers={"User-Agent": "WatchALongAgo/1.0"}, timeout=5)
+        resp = requests.get("https://www.reddit.com/search.json", params={"q": query, "sort": "relevance", "limit": 25}, headers={"User-Agent": "WatchBack/1.0"}, timeout=5)
         if resp.status_code != 200: return []
         posts = [p["data"] for p in resp.json()["data"]["children"]]
         episode_posts = [p for p in posts if _matches_episode(p.get("title", ""), season, episode)]
@@ -115,6 +115,45 @@ def bsky_access_token() -> str | None:
     except Exception as e:
         print(f"[bsky] auth exception: {e}", flush=True)
         return None
+
+async def trakt_watch_poller():
+    """Background task that polls Trakt /watching and clears cache on change."""
+    last_id = None
+    while True:
+        try:
+            cfg = get_config()
+            if not cfg["trakt_username"] and not cfg["trakt_access_token"]:
+                await asyncio.sleep(60)
+                continue
+
+            username = cfg["trakt_username"] or "me"
+            url = f"https://api.trakt.tv/users/{username}/watching"
+            resp = requests.get(url, headers=trakt_headers(auth=True), timeout=10)
+            
+            if resp.status_code == 204: # Nothing playing
+                current_id = None
+            elif resp.status_code == 200:
+                data = resp.json()
+                if data.get("type") == "episode":
+                    current_id = data["episode"]["ids"]["trakt"]
+                elif data.get("type") == "movie":
+                    current_id = data["movie"]["ids"]["trakt"]
+                else:
+                    current_id = None
+            else:
+                current_id = None
+
+            if current_id != last_id:
+                print(f"[trakt-poller] Session changed: {last_id} -> {current_id}", flush=True)
+                cache.delete("jf_session")
+                cache.delete("trakt_session")
+                cache.set("last_webhook_time", time.time())
+                last_id = current_id
+
+        except Exception as e:
+            print(f"[trakt-poller] Error: {e}", flush=True)
+        
+        await asyncio.sleep(30)
 
 def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> list[dict]:
     s_long = str(season).zfill(2)
@@ -253,6 +292,28 @@ def sync_data():
                 cache.set("jf_session", session_data, expire=10)
         except Exception as e:
             return {"status": "error", "message": f"Failed to reach Jellyfin: {str(e)}"}
+
+    if not session_data and HAS_TRAKT_WATCH:
+        session_data = cache.get("trakt_session")
+        if not session_data:
+            try:
+                username = cfg["trakt_username"] or "me"
+                res = requests.get(f"https://api.trakt.tv/users/{username}/watching", headers=trakt_headers(auth=True), timeout=5)
+                if res.status_code == 200:
+                    data = res.json()
+                    if data.get("type") == "episode":
+                        ep = data["episode"]
+                        show = data["show"]
+                        session_data = {
+                            "series": show["title"],
+                            "name": ep["title"],
+                            "season": ep["season"],
+                            "episode": ep["number"],
+                            "premiere": ep.get("first_aired")
+                        }
+                        cache.set("trakt_session", session_data, expire=30)
+            except Exception:
+                pass
 
     if not session_data: return {"status": "idle"}
 
