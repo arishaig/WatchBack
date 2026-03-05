@@ -16,12 +16,18 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # 2. Tailwind compilation
 COPY static/ /app/static/
-RUN apt-get update && apt-get install -y curl && \
+RUN set -e; \
+    apt-get update && apt-get install -y curl && \
+    echo "Downloading tailwindcss..." && \
     curl -sLo /tmp/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 && \
+    test -f /tmp/tailwindcss || (echo "Failed to download tailwindcss" && exit 1) && \
     chmod +x /tmp/tailwindcss && \
     printf '@import "tailwindcss";\n@source "./static/index.html";\n' > /app/tw.css && \
-    /tmp/tailwindcss -i /app/tw.css -o /app/static/tailwind.css --minify && \
-    rm /tmp/tailwindcss /app/tw.css
+    echo "Compiling tailwindcss..." && \
+    /tmp/tailwindcss -i /app/tw.css -o /data/static/tailwind.css --minify || (echo "Tailwind compilation failed" && exit 1) && \
+    test -f /data/static/tailwind.css || (echo "tailwind.css not created" && exit 1) && \
+    rm /tmp/tailwindcss /app/tw.css && \
+    ls -lh /data/static/
 
 # Stage 2: Runtime
 FROM python:3.12-slim-bookworm
@@ -31,12 +37,14 @@ ENV PUID=1000 \
     PGID=1000 \
     TZ=Etc/UTC \
     CONFIG_DIR="/config" \
+    DATA_DIR="/data" \
     PYTHONUNBUFFERED=1
 
-# Setup user
+# Setup user and directories
 RUN groupadd -g $PGID abc && \
     useradd -u $PUID -g abc -m abc && \
-    mkdir /config && chown abc:abc /config
+    mkdir -p /config /data/static && \
+    chown abc:abc /config /data /data/static
 
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
@@ -44,8 +52,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy app code
 COPY --chown=abc:abc . .
-# Overwrite with compiled CSS from builder
-COPY --from=builder /app/static/tailwind.css /app/static/tailwind.css
+# Copy compiled CSS and source static files from builder
+COPY --from=builder --chown=abc:abc /data/static/tailwind.css /data/static/tailwind.css
+COPY --chown=abc:abc static/ /data/static/
 
 USER abc
 EXPOSE 8000
