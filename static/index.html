@@ -341,6 +341,22 @@
                     <div class="wb-border border-t"></div>
 
                     <div>
+                        <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Comments</p>
+                        <div class="space-y-3">
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <label class="text-xs font-medium wb-text-muted">Time Machine Window (days)</label>
+                                </div>
+                                <input type="number" min="1" max="365" x-model="configDraft.time_machine_days"
+                                    :placeholder="configData?.time_machine_days?.effective_value || '14'"
+                                    class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="wb-border border-t"></div>
+
+                    <div>
                         <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Reddit</p>
                         <div class="flex items-center justify-between">
                             <label class="text-xs font-medium wb-text-muted">Auto-open Reddit threads</label>
@@ -377,7 +393,7 @@
                 </div>
 
                 <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border">
-                    <button @click="mode = 'time'"
+                    <button x-show="showTimeMachine" @click="mode = 'time'"
                         :class="mode === 'time' ? 'text-white shadow' : 'wb-text-muted'"
                         :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
                         class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">Time Machine
@@ -505,7 +521,7 @@
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('app', () => ({
-                data: null, error: null, isLoading: false, mode: 'time', sourceFilter: new Set(),
+                data: null, error: null, isLoading: false, mode: 'all', sourceFilter: new Set(),
                 status: null, showConfig: false, configData: null, configDraft: {},
                 async init() {
                     console.log("[WatchBack] Initializing application");
@@ -579,6 +595,19 @@
                 sourceActive(src) {
                     return this.sourceFilter.size === 0 || this.sourceFilter.has(src);
                 },
+                get showTimeMachine() {
+                    if (!this.data) return false;
+                    const tm = this.data.time_machine || [];
+                    if (tm.length === 0) return false;
+                    // Hide if the premiere window is still open — the filter has no meaning yet
+                    const premiere = this.data.metadata?.premiere;
+                    if (premiere) {
+                        const cutoff = new Date(premiere);
+                        cutoff.setDate(cutoff.getDate() + (this.data.time_machine_days || 14));
+                        if (cutoff >= new Date()) return false;
+                    }
+                    return true;
+                },
                 get activeComments() {
                     if (!this.data) return [];
                     const list = this.mode === 'time' ? this.data.time_machine : this.data.all_comments;
@@ -594,10 +623,6 @@
 
                         if (newData?.status === 'success') {
                             console.info(`[WatchBack] Synced: ${newData.title}`, { timeMachine: newData.time_machine?.length || 0, allComments: newData.all_comments?.length || 0 });
-                            if ((!newData.time_machine || newData.time_machine.length === 0) &&
-                                (newData.all_comments && newData.all_comments.length > 0)) {
-                                this.mode = 'all';
-                            }
                         } else if (newData?.status === 'idle') {
                             console.debug("[WatchBack] No active session");
                         } else {
@@ -605,6 +630,10 @@
                         }
 
                         this.data = newData;
+                        // Default to time machine when it has a meaningful subset, otherwise all
+                        if (this.data?.status === 'success') {
+                            this.mode = this.showTimeMachine ? 'time' : 'all';
+                        }
                     } catch (e) {
                         console.error("[WatchBack] Sync failed:", e);
                         this.error = "Connection failed";

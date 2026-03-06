@@ -38,6 +38,7 @@ ENV_MAP = {
     "bsky_app_password":   ("BSKY_APP_PASSWORD",   ""),
     "webhook_secret":      ("WEBHOOK_SECRET",      ""),
     "theme_mode":          ("THEME_MODE",          "dark"),
+    "time_machine_days":   ("TIME_MACHINE_DAYS",   "14"),
 }
 
 SECRET_KEYS = {"jf_api_key", "trakt_access_token", "bsky_app_password", "webhook_secret"}
@@ -642,6 +643,7 @@ def sync_data():
         reverse=True,
     )
 
+    tm_days = int(cfg.get("time_machine_days", 14))
     time_machine = []
     if session_data.get("premiere"):
         try:
@@ -649,7 +651,7 @@ def sync_data():
             time_machine = [
                 c for c in all_comments
                 if isinstance(c, dict) and c.get("created_at") and
-                p_date <= datetime.fromisoformat(c["created_at"].replace("Z", "+00:00")) <= p_date + timedelta(days=14)
+                p_date <= datetime.fromisoformat(c["created_at"].replace("Z", "+00:00")) <= p_date + timedelta(days=tm_days)
             ]
         except Exception:
             pass
@@ -660,6 +662,7 @@ def sync_data():
         "metadata": session_data,
         "all_comments": all_comments,
         "time_machine": time_machine,
+        "time_machine_days": tm_days,
         "reddit_url": reddit_url,
         "reddit_thread_found": bool(reddit_threads),
         "reddit_threads": reddit_threads,

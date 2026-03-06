@@ -38,6 +38,7 @@ App runs at `http://localhost:8000`.
 | `TRAKT_USERNAME` | Trakt.tv username (enables Trakt `/watching` as session source) |
 | `TRAKT_ACCESS_TOKEN` | Trakt.tv OAuth access token (enables private profile `/watching`) |
 | `REDDIT_AUTO_OPEN` | If set, attempts to find the actual Reddit discussion thread instead of a Google search link |
+| `TIME_MACHINE_DAYS` | Days after premiere to include in Time Machine filter (default: `14`) |
 | `CONFIG_DIR` | Path for diskcache storage (default: `/config`, mounted as volume) |
 | `DATA_DIR` | Path for static files (default: `/data`, not mounted—embedded in image) |
 
