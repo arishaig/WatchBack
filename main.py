@@ -34,6 +34,7 @@ ENV_MAP = {
     "bsky_identifier":     ("BSKY_IDENTIFIER",     ""),
     "bsky_app_password":   ("BSKY_APP_PASSWORD",   ""),
     "webhook_secret":      ("WEBHOOK_SECRET",      ""),
+    "theme_mode":          ("THEME_MODE",          "dark"),
 }
 
 SECRET_KEYS = {"jf_api_key", "trakt_access_token", "bsky_app_password", "webhook_secret"}

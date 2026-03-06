@@ -63,6 +63,41 @@
         .switch-input:checked+.switch-slider:before {
             transform: translateX(16px);
         }
+
+        /* Light Mode Theme */
+        html[data-theme="light"] {
+            color-scheme: light;
+        }
+
+        html[data-theme="light"] body {
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        html[data-theme="light"] .bg-gray-900 { background-color: #f3f4f6; }
+        html[data-theme="light"] .bg-gray-800 { background-color: #ffffff; }
+        html[data-theme="light"] .bg-gray-700 { background-color: #e5e7eb; }
+        html[data-theme="light"] .text-gray-100 { color: #1f2937; }
+        html[data-theme="light"] .text-gray-200 { color: #374151; }
+        html[data-theme="light"] .text-gray-300 { color: #6b7280; }
+        html[data-theme="light"] .text-gray-400 { color: #9ca3af; }
+        html[data-theme="light"] .text-gray-500 { color: #a8a9aa; }
+        html[data-theme="light"] .text-gray-600 { color: #9ca3af; }
+        html[data-theme="light"] .border-gray-700 { border-color: #e5e7eb; }
+        html[data-theme="light"] .border-gray-600 { border-color: #e5e7eb; }
+
+        html[data-theme="light"] .text-blue-400 { color: #3b82f6; }
+        html[data-theme="light"] .text-blue-600 { color: #2563eb; }
+
+        html[data-theme="light"] img.brightness-0 {
+            filter: brightness(1) !important;
+            -webkit-filter: brightness(1) !important;
+        }
+
+        html[data-theme="dark"] img.brightness-0 {
+            filter: brightness(0) invert(1) !important;
+            -webkit-filter: brightness(0) invert(1) !important;
+        }
     </style>
 </head>
 
@@ -200,6 +235,21 @@
                     <div class="border-t border-gray-700"></div>
 
                     <div>
+                        <p class="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Appearance</p>
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-medium text-gray-300">Light Mode</label>
+                            <label class="switch-container">
+                                <input type="checkbox" :checked="configDraft.theme_mode === 'light'"
+                                    @change="configDraft.theme_mode = $event.target.checked ? 'light' : 'dark'"
+                                    class="switch-input">
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-700"></div>
+
+                    <div>
                         <p class="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Reddit</p>
                         <div class="flex items-center justify-between">
                             <label class="text-xs font-medium text-gray-300">Auto-open Reddit threads</label>
@@ -311,6 +361,7 @@
                         this.status = await sRes.json();
                         this.configData = await cRes.json();
                         this.configDraft = this.buildDraft();
+                        this.applyTheme();
                         console.debug("[WatchBack] Configuration loaded", { jellyfin: this.status.jellyfin_configured, trakt: this.status.trakt_configured });
                     } catch (e) {
                         console.error("[WatchBack] Failed to initialize:", e);
@@ -327,6 +378,10 @@
                         es.close();
                         setTimeout(() => this.setupSSE(), 5000);
                     };
+                },
+                applyTheme() {
+                    const themeMode = this.configData?.theme_mode?.effective_value || 'dark';
+                    document.documentElement.setAttribute('data-theme', themeMode);
                 },
                 buildDraft() {
                     const draft = {};
@@ -402,6 +457,7 @@
                         const cRes = await fetch('/api/config');
                         this.configData = await cRes.json();
                         this.configDraft = this.buildDraft();
+                        this.applyTheme();
                         console.info("[WatchBack] Configuration saved successfully");
                         this.sync(); // Immediate refresh after saving
                     } catch (e) {
