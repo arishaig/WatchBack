@@ -4,6 +4,7 @@ import urllib.parse
 import requests
 import asyncio
 import time
+import logging
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from diskcache import Cache
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 # --- Configuration & Caching Setup ---
 CONFIG_DIR = os.environ.get("CONFIG_DIR", "/config")
@@ -359,6 +364,7 @@ def _fetch_trakt_comments(session_data: dict, cfg: dict) -> list[dict]:
 @app.get("/api/sync")
 def sync_data():
     """Orchestrate session detection, comment aggregation, and time-machine filtering."""
+    logger.debug("Sync request received")
     cfg = get_config()
     has_jf = bool(cfg["jf_api_key"])
     has_trakt_watch = bool(cfg["trakt_username"] or cfg["trakt_access_token"])
@@ -370,9 +376,11 @@ def sync_data():
     if isinstance(session_data, dict) and "_error" in session_data:
         return {"status": "error", "message": session_data["_error"]}
     if not session_data:
+        logger.warning("No active session found")
         return {"status": "idle"}
 
     # Gather data from all sources
+    logger.info(f"Session found: {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}")
     reddit_threads, reddit_url = _fetch_reddit_data(session_data, cfg)
 
     all_comments = []
@@ -469,23 +477,28 @@ def get_config_endpoint():
 @app.put("/api/config")
 async def save_config(request: Request):
     """Save UI configuration overrides."""
+    logger.debug(f"Config update request received with {len(await request.json())} fields")
     body = await request.json()
     stored = cache.get("ui_config")
     if stored is None:
         stored = {}
-        
+
     for key in ENV_MAP:
         if key in body:
             val = str(body[key]).strip()
             if len(val) > 500:
+                logger.warning(f"Rejected oversized value for {key}")
                 continue  # Silently reject oversized values
             if val:
                 stored[key] = val
+                logger.debug(f"Updated config key: {key}")
             else:
                 if key in stored:
                     del stored[key]
-    
+                    logger.debug(f"Cleared config key: {key}")
+
     cache.set("ui_config", stored)
+    logger.info("Configuration saved successfully")
     return {"status": "ok"}
 
 @app.post("/api/cache/clear")
