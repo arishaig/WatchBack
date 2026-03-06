@@ -418,10 +418,17 @@
                     <button @click="toggleSource('reddit')"
                         :class="sourceActive('reddit') ? 'filter-reddit' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit</button>
-                    <button x-show="hasThreadGroups" @click="groupByThread = !groupByThread"
+                </div>
+
+                <div x-show="hasThreadGroups" class="flex justify-center mb-4">
+                    <button @click="handleThreadToggle()"
                         :class="groupByThread ? 'filter-reddit' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer"
-                        title="Group by thread">&#x1F9F5; Threads</button>
+                        class="px-5 py-1.5 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer flex items-center gap-1.5"
+                        title="Click to toggle · Double-tap to set as default">
+                        <span x-text="groupByThread ? '&#x1F9F5; Grouped by thread' : '&#x1F9F5; Group by thread'"></span>
+                        <span x-show="threadGroupPinned"
+                            class="text-[9px] opacity-60">&#x1F4CC;</span>
+                    </button>
                 </div>
 
                 <div class="space-y-4 pb-8" x-show="!groupByThread">
@@ -666,7 +673,10 @@
         document.addEventListener('alpine:init', () => {
             Alpine.data('app', () => ({
                 data: null, error: null, isLoading: false, mode: 'all', sourceFilter: new Set(),
-                status: null, showConfig: false, configData: null, configDraft: {}, lightboxImg: null, groupByThread: false,
+                status: null, showConfig: false, configData: null, configDraft: {}, lightboxImg: null,
+                groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
+                threadGroupPinned: localStorage.getItem('wb_groupByThread') === 'true',
+                _threadTapTimer: null,
                 async init() {
                     console.log("[WatchBack] Initializing application");
                     try {
@@ -725,6 +735,25 @@
                         this.sync();
                     } catch (e) {
                         console.error(`[WatchBack] Failed to reset field ${key}:`, e);
+                    }
+                },
+                handleThreadToggle() {
+                    if (this._threadTapTimer) {
+                        clearTimeout(this._threadTapTimer);
+                        this._threadTapTimer = null;
+                        // Double-click/tap: toggle + save as default
+                        this.groupByThread = !this.groupByThread;
+                        this.threadGroupPinned = this.groupByThread;
+                        if (this.groupByThread) {
+                            localStorage.setItem('wb_groupByThread', 'true');
+                        } else {
+                            localStorage.removeItem('wb_groupByThread');
+                        }
+                    } else {
+                        this._threadTapTimer = setTimeout(() => {
+                            this._threadTapTimer = null;
+                            this.groupByThread = !this.groupByThread;
+                        }, 250);
                     }
                 },
                 toggleSource(src) {
