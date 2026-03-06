@@ -328,13 +328,13 @@
                     <div>
                         <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Appearance</p>
                         <div class="flex items-center justify-between">
-                            <label class="text-xs font-medium wb-text-muted">Light Mode</label>
-                            <label class="switch-container">
-                                <input type="checkbox" :checked="configDraft.theme_mode === 'light'"
-                                    @change="configDraft.theme_mode = $event.target.checked ? 'light' : 'dark'"
-                                    class="switch-input">
-                                <span class="switch-slider"></span>
-                            </label>
+                            <label class="text-xs font-medium wb-text-muted">Theme</label>
+                            <select x-model="configDraft.theme_mode"
+                                @change="applyTheme(configDraft.theme_mode)"
+                                class="wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-sm border cursor-pointer">
+                                <option value="dark">Dark</option>
+                                <option value="light">Light</option>
+                            </select>
                         </div>
                     </div>
 
@@ -702,21 +702,21 @@
                         setTimeout(() => this.setupSSE(), 5000);
                     };
                 },
-                applyTheme() {
-                    const themeMode = this.configData?.theme_mode?.effective_value || 'dark';
+                applyTheme(mode) {
+                    const themeMode = mode || this.configData?.theme_mode?.effective_value || 'dark';
                     document.documentElement.setAttribute('data-theme', themeMode);
                 },
                 buildDraft() {
                     const draft = {};
                     if (!this.configData) return {};
+                    // Fields that use <select> need a value (not empty string) to display correctly
+                    const selectFields = new Set(['theme_mode']);
                     Object.entries(this.configData).forEach(([key, meta]) => {
-                        // If it's a secret, we keep the draft empty so they can type a NEW one if desired.
-                        // Placeholder handles showing the masked ENV/previous value.
                         if (meta.is_secret) {
                             draft[key] = '';
+                        } else if (selectFields.has(key)) {
+                            draft[key] = meta.effective_value || meta.stored_value || '';
                         } else {
-                            // Only put it in the draft if it's a manual override.
-                            // If it's from ENV, we let the placeholder show it.
                             draft[key] = meta.source === 'stored' ? meta.stored_value : '';
                         }
                     });
