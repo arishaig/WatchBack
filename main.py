@@ -556,7 +556,7 @@ async def sse_stream():
             pass
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-DATA_DIR = os.environ.get("DATA_DIR", "/data")
+DATA_DIR = os.environ.get("DATA_DIR", "./data")
 STATIC_DIR = os.environ.get("STATIC_DIR", os.path.join(DATA_DIR, "static"))
 os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
