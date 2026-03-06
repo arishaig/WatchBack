@@ -345,13 +345,19 @@
                     return draft;
                 },
                 async resetField(key) {
-                    const payload = {};
-                    payload[key] = ''; // Sending empty string triggers removal of override in backend
-                    await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    const cRes = await fetch('/api/config');
-                    this.configData = await cRes.json();
-                    this.configDraft = this.buildDraft();
-                    this.sync();
+                    console.debug(`[WatchBack] Resetting field: ${key}`);
+                    try {
+                        const payload = {};
+                        payload[key] = ''; // Sending empty string triggers removal of override in backend
+                        await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        const cRes = await fetch('/api/config');
+                        this.configData = await cRes.json();
+                        this.configDraft = this.buildDraft();
+                        console.info(`[WatchBack] Field reset: ${key}`);
+                        this.sync();
+                    } catch (e) {
+                        console.error(`[WatchBack] Failed to reset field ${key}:`, e);
+                    }
                 },
                 get activeComments() {
                     if (!this.data) return [];
@@ -398,11 +404,29 @@
                     }
                 },
                 async clearCache() {
-                    await fetch('/api/cache/clear', { method: 'POST' });
-                    this.sync();
+                    console.warn("[WatchBack] Clearing cache...");
+                    try {
+                        const res = await fetch('/api/cache/clear', { method: 'POST' });
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        console.info("[WatchBack] Cache cleared");
+                        this.sync();
+                    } catch (e) {
+                        console.error("[WatchBack] Cache clear failed:", e);
+                    }
                 },
                 async restartServer() {
-                    await fetch('/api/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) });
+                    console.warn("[WatchBack] Restarting server...");
+                    try {
+                        const res = await fetch('/api/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) });
+                        const result = await res.json();
+                        if (result.status === 'restarting') {
+                            console.info("[WatchBack] Server restart initiated");
+                        } else {
+                            console.error("[WatchBack] Restart failed:", result);
+                        }
+                    } catch (e) {
+                        console.error("[WatchBack] Server restart request failed:", e);
+                    }
                 },
                 formatDate(iso) { return iso ? new Date(iso).toLocaleDateString() : ''; }
             }))

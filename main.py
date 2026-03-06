@@ -5,6 +5,7 @@ import requests
 import asyncio
 import time
 import logging
+import json
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
@@ -111,25 +112,29 @@ def bsky_access_token() -> str | None:
     """Fetch or return cached Bluesky access token using configured credentials."""
     cached = cache.get("bsky_token")
     if cached:
+        logger.debug("Bluesky token from cache")
         return cached
     cfg = get_config()
     if not cfg["bsky_identifier"] or not cfg["bsky_app_password"]:
+        logger.debug("Bluesky credentials not configured")
         return None
     try:
+        logger.debug("Fetching Bluesky access token")
         resp = requests.post(
             "https://bsky.social/xrpc/com.atproto.server.createSession",
             json={"identifier": cfg["bsky_identifier"], "password": cfg["bsky_app_password"]},
             timeout=5
         )
         if resp.status_code != 200:
-            print(f"[bsky] auth failed: {resp.status_code} {resp.text[:200]}", flush=True)
+            logger.error(f"Bluesky auth failed: {resp.status_code} {resp.text[:200]}")
             return None
         token = resp.json().get("accessJwt")
         if token:
+            logger.debug("Bluesky token obtained and cached")
             cache.set("bsky_token", token, expire=5400)  # 90 min (tokens last ~2h)
         return token
     except Exception as e:
-        print(f"[bsky] auth exception: {e}", flush=True)
+        logger.error(f"Bluesky auth exception: {e}")
         return None
 
 async def trakt_watch_poller():
@@ -160,14 +165,14 @@ async def trakt_watch_poller():
                 current_id = None
 
             if current_id != last_id:
-                print(f"[trakt-poller] Session changed: {last_id} -> {current_id}", flush=True)
+                logger.info(f"Trakt session changed: {last_id} -> {current_id}")
                 cache.delete("jf_session")
                 cache.delete("trakt_session")
                 cache.set("last_webhook_time", time.time())
                 last_id = current_id
 
         except Exception as e:
-            print(f"[trakt-poller] Error: {e}", flush=True)
+            logger.error(f"Trakt poller error: {e}")
         
         await asyncio.sleep(30)
 
@@ -217,16 +222,17 @@ def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> l
         headers["Authorization"] = f"Bearer {token}"
 
     try:
+        logger.debug(f"Searching Bluesky: {query}")
         resp = requests.get(url, params={"q": query, "sort": "latest", "limit": n}, headers=headers, timeout=5)
         if resp.status_code == 403:
-            print(f"[bsky] 403 Forbidden: API may be blocking the request.", flush=True)
+            logger.error("Bluesky API: 403 Forbidden")
             return []
         if resp.status_code != 200:
-            print(f"[bsky] error body: {resp.text[:200]}", flush=True)
+            logger.error(f"Bluesky API error {resp.status_code}: {resp.text[:200]}")
             return []
 
         posts = resp.json().get("posts", [])
-        print(f"[bsky] got {len(posts)} posts", flush=True)
+        logger.info(f"Bluesky search returned {len(posts)} post(s)")
         results = []
         seen = set()
 
@@ -258,7 +264,7 @@ def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> l
             })
         return results
     except Exception as e:
-        print(f"[bsky] exception: {e}", flush=True)
+        logger.error(f"Bluesky search exception: {e}")
         return []
 
 # --- Endpoints ---
@@ -267,15 +273,22 @@ def _fetch_session(cfg: dict) -> dict | None:
     """Try Jellyfin first, then Trakt /watching. Returns session dict or None."""
     has_jf = bool(cfg["jf_api_key"])
     has_trakt_watch = bool(cfg["trakt_username"] or cfg["trakt_access_token"])
+    logger.debug(f"_fetch_session: JF={has_jf}, Trakt={has_trakt_watch}")
 
     session_data = cache.get("jf_session")
+    if session_data:
+        logger.debug("Session hit: Jellyfin cache")
+        return session_data
 
     if not session_data and has_jf:
         try:
+            logger.debug("Querying Jellyfin /Sessions")
             headers = {"Authorization": f"MediaBrowser Token={cfg['jf_api_key']}"}
             res = requests.get(f"{cfg['jf_url']}/Sessions", headers=headers, timeout=5)
             if res.status_code != 200:
-                return {"_error": f"Jellyfin error: {res.status_code}"}
+                error_msg = f"Jellyfin error: {res.status_code}"
+                logger.error(error_msg)
+                return {"_error": error_msg}
             active = next((s for s in res.json() if "NowPlayingItem" in s), None)
             if active:
                 item = active["NowPlayingItem"]
@@ -284,28 +297,37 @@ def _fetch_session(cfg: dict) -> dict | None:
                     "season": item.get("ParentIndexNumber"), "episode": item.get("IndexNumber"),
                     "premiere": item.get("PremiereDate"),
                 }
+                logger.info(f"Session fetched from Jellyfin: {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}")
                 cache.set("jf_session", session_data, expire=10)
         except Exception as e:
-            return {"_error": f"Failed to reach Jellyfin: {str(e)}"}
+            error_msg = f"Failed to reach Jellyfin: {str(e)}"
+            logger.error(error_msg)
+            return {"_error": error_msg}
 
     if not session_data and has_trakt_watch:
         session_data = cache.get("trakt_session")
-        if not session_data:
-            try:
-                username = cfg["trakt_username"] or "me"
-                res = requests.get(f"https://api.trakt.tv/users/{username}/watching", headers=trakt_headers(auth=True), timeout=5)
-                if res.status_code == 200:
-                    data = res.json()
-                    if data.get("type") == "episode":
-                        ep, show = data["episode"], data["show"]
-                        session_data = {
-                            "series": show["title"], "name": ep["title"],
-                            "season": ep["season"], "episode": ep["number"],
-                            "premiere": ep.get("first_aired"),
-                        }
-                        cache.set("trakt_session", session_data, expire=30)
-            except Exception:
-                pass
+        if session_data:
+            logger.debug("Session hit: Trakt cache")
+            return session_data
+        try:
+            logger.debug("Querying Trakt /watching")
+            username = cfg["trakt_username"] or "me"
+            res = requests.get(f"https://api.trakt.tv/users/{username}/watching", headers=trakt_headers(auth=True), timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                if data.get("type") == "episode":
+                    ep, show = data["episode"], data["show"]
+                    session_data = {
+                        "series": show["title"], "name": ep["title"],
+                        "season": ep["season"], "episode": ep["number"],
+                        "premiere": ep.get("first_aired"),
+                    }
+                    logger.info(f"Session fetched from Trakt: {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}")
+                    cache.set("trakt_session", session_data, expire=30)
+            elif res.status_code == 204:
+                logger.debug("Trakt /watching: 204 No Content")
+        except Exception as e:
+            logger.warning(f"Failed to query Trakt: {str(e)}")
 
     return session_data
 
@@ -320,9 +342,12 @@ def _fetch_reddit_data(session_data: dict, cfg: dict) -> tuple[list, str]:
         cached_r = None
 
     if cached_r is not None:
+        logger.debug(f"Reddit hit cache: {len(cached_r)} threads")
         threads = cached_r
     else:
+        logger.info(f"Searching Reddit for {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}")
         threads = find_reddit_threads(session_data["series"], session_data["season"], session_data["episode"], n=int(cfg["reddit_max_threads"]))
+        logger.info(f"Reddit search returned {len(threads)} thread(s)")
         cache.set(r_cache_key, threads, expire=86400)
 
     url = threads[0]["url"] if threads else google_url
@@ -332,32 +357,40 @@ def _fetch_reddit_data(session_data: dict, cfg: dict) -> tuple[list, str]:
 def _fetch_trakt_comments(session_data: dict, cfg: dict) -> list[dict]:
     """Fetch and cache Trakt comments for the current episode."""
     if not cfg["trakt_client_id"]:
+        logger.debug("Trakt Client ID not configured, skipping comments")
         return []
     try:
         t_cache_key = f"trakt_{session_data['series']}_s{session_data['season']}e{session_data['episode']}"
         cached_t = cache.get(t_cache_key)
 
         if isinstance(cached_t, list):
+            logger.debug(f"Trakt hit cache: {len(cached_t)} comments")
             return [c for c in cached_t if isinstance(c, dict)]
 
+        logger.debug(f"Searching Trakt for {session_data['series']}")
         search_res = requests.get("https://api.trakt.tv/search/show", params={"query": session_data["series"]}, headers=trakt_headers(), timeout=5)
         if search_res.status_code == 401:
+            logger.error("Trakt API: 401 Unauthorized - check Client ID")
             return [{"_error": "Trakt error: 401 Unauthorized"}]
 
         search_json = search_res.json()
         if not search_json:
+            logger.warning(f"Trakt search returned no results for {session_data['series']}")
             return []
 
         slug = search_json[0]["show"]["ids"]["slug"]
+        logger.debug(f"Trakt slug resolved: {slug}")
         comments_url = f"https://api.trakt.tv/shows/{slug}/seasons/{session_data['season']}/episodes/{session_data['episode']}/comments/newest"
         comments = requests.get(comments_url, headers=trakt_headers(), timeout=5).json()
 
         if isinstance(comments, list):
             valid = [c for c in comments if isinstance(c, dict)]
+            logger.info(f"Trakt fetched {len(valid)} comment(s)")
             cache.set(t_cache_key, valid, expire=86400)
             return valid
         return []
-    except Exception:
+    except Exception as e:
+        logger.error(f"Trakt comments fetch failed: {str(e)}")
         return []
 
 
@@ -370,11 +403,15 @@ def sync_data():
     has_trakt_watch = bool(cfg["trakt_username"] or cfg["trakt_access_token"])
 
     if not has_jf and not has_trakt_watch:
-        return {"status": "setup_required", "message": "No session source configured."}
+        error_response = {"status": "setup_required", "message": "No session source configured."}
+        logger.error(json.dumps(error_response, indent=4))
+        return error_response
 
     session_data = _fetch_session(cfg)
     if isinstance(session_data, dict) and "_error" in session_data:
-        return {"status": "error", "message": session_data["_error"]}
+        error_response = {"status": "error", "message": session_data["_error"]}
+        logger.error(json.dumps(error_response, indent=4))
+        return error_response
     if not session_data:
         logger.warning("No active session found")
         return {"status": "idle"}
@@ -385,6 +422,7 @@ def sync_data():
 
     all_comments = []
     bsky_results = find_bluesky_posts(session_data["series"], session_data["season"], session_data["episode"])
+    logger.debug(json.dumps(bsky_results, indent=4))
     if isinstance(bsky_results, list):
         all_comments.extend([p for p in bsky_results if isinstance(p, dict)])
 
@@ -393,7 +431,7 @@ def sync_data():
         return {"status": "error", "message": trakt_comments[0]["_error"]}
     all_comments.extend(trakt_comments)
 
-    # Sort by date (crash-proof)
+    # Sort by date
     all_comments.sort(
         key=lambda x: x.get("created_at") if (isinstance(x, dict) and x.get("created_at")) else "",
         reverse=True,
@@ -505,28 +543,34 @@ async def save_config(request: Request):
 def clear_cache():
     """Clear all cached data while preserving UI configuration."""
     try:
+        logger.info("Cache clear requested")
         # 1. Capture the config so we don't log the user out of their settings
         ui_config = cache.get("ui_config")
-        
+
         # 2. Completely evict everything else
         cache.clear()
-        
+
         # 3. Restore the config
         if ui_config:
             cache.set("ui_config", ui_config)
-            
+
         # 4. Set the webhook time to 'now' so the UI knows to refresh via SSE
         cache.set("last_webhook_time", time.time())
-        
+
+        logger.info("Cache cleared successfully")
         return {"status": "ok"}
     except Exception as e:
+        logger.error(f"Cache clear failed: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 @app.post("/api/restart")
 async def restart_server(request: Request):
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     if not body.get("confirm"):
+        logger.warning("Restart requested without confirmation")
         return {"status": "error", "message": "Send {\"confirm\": true} to restart."}
+
+    logger.warning("Server restart initiated by user")
 
     async def _do_exit():
         await asyncio.sleep(0.3)
@@ -542,13 +586,19 @@ async def jellyfin_webhook(request: Request):
         cfg = get_config()
         secret = cfg.get("webhook_secret", "")
         if secret and request.headers.get("X-Webhook-Secret") != secret:
+            logger.warning("Webhook rejected: invalid secret")
             return {"status": "unauthorized"}
         payload = await request.json()
-        if payload.get("NotificationType") in ["PlaybackStart", "PlaybackStop"]:
+        event_type = payload.get("NotificationType")
+        if event_type in ["PlaybackStart", "PlaybackStop"]:
+            logger.info(f"Jellyfin webhook: {event_type}")
             cache.delete("jf_session")
             cache.set("last_webhook_time", time.time())
+        else:
+            logger.debug(f"Jellyfin webhook ignored: {event_type}")
         return {"status": "received"}
-    except Exception:
+    except Exception as e:
+        logger.error(f"Webhook processing failed: {str(e)}")
         return {"status": "error"}
 
 @app.get("/api/stream")
