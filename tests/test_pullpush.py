@@ -287,6 +287,25 @@ class TestFindPullpushFailures:
         assert len(results) == 1
         assert results[0]["user"]["username"] == "[deleted]"
 
+    def test_deleted_body_filtered_out(self, fresh_cache):
+        """Comments with [deleted] or [removed] body text are excluded."""
+        def side_effect(url, **kwargs):
+            if "submission" in url:
+                return mock_response(200, SUBMISSION_HIT)
+            return mock_response(200, {
+                "data": [
+                    _make_comment("c1", "[deleted]", score=50),
+                    _make_comment("c2", "[removed]", score=30),
+                    _make_comment("c3", "Actual comment", score=10),
+                ]
+            })
+
+        with patch("main.requests.get", side_effect=side_effect):
+            results = find_pullpush_comments("The Bear", 2, 5)
+
+        assert len(results) == 1
+        assert results[0]["comment"] == "Actual comment"
+
     def test_empty_comments_for_thread(self, fresh_cache):
         """Thread with no comments is skipped without error."""
         def side_effect(url, **kwargs):

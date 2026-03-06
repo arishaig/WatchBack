@@ -334,6 +334,9 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
             if not raw_comments:
                 continue
 
+            # Drop deleted/removed comments before building the reply tree
+            raw_comments = [c for c in raw_comments if c.get("body") not in ("[deleted]", "[removed]")]
+
             # Keyed by comment ID so replies can be attached to parents in a single pass
             by_id = {}
             for c in raw_comments:
@@ -437,6 +440,7 @@ def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> l
                     urllib.parse.quote(p["author"]["handle"], safe=""),
                     urllib.parse.quote(p["uri"].split("/")[-1], safe=""),
                 ),
+                "score": p.get("likeCount", 0),
                 "images": images,
                 "source": "bluesky",
             })
@@ -563,6 +567,9 @@ def _fetch_trakt_comments(session_data: dict, cfg: dict) -> list[dict]:
 
         if isinstance(comments, list):
             valid = [c for c in comments if isinstance(c, dict)]
+            for c in valid:
+                if "likes" in c and "score" not in c:
+                    c["score"] = c["likes"]
             logger.info(f"Trakt fetched {len(valid)} comment(s)")
             cache.set(t_cache_key, valid, expire=86400)
             return valid

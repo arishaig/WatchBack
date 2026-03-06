@@ -447,20 +447,24 @@
                                 <div class="grid gap-2 mb-3"
                                     :class="comment.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
                                     <template x-for="img in comment.images" :key="img">
-                                        <a :href="comment.url" target="_blank" rel="noopener noreferrer"
-                                            class="block overflow-hidden rounded-lg wb-border border"
+                                        <div @click="lightboxImg = img"
+                                            class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
                                             style="background-color: var(--wb-bg);">
                                             <img :src="img"
-                                                class="w-full h-auto object-cover hover:scale-105 transition-transform duration-300"
+                                                class="w-full h-auto object-cover hover:scale-110 transition-transform duration-300"
                                                 loading="lazy">
-                                        </a>
+                                        </div>
                                     </template>
                                 </div>
                             </template>
 
                             <div class="flex justify-between items-center text-xs wb-text-faint">
                                 <span class="font-medium wb-text-muted" x-text="'@' + comment.user.username"></span>
-                                <span x-text="formatDate(comment.created_at)"></span>
+                                <div class="flex items-center gap-3">
+                                    <span x-show="comment.score != null && comment.score !== 0"
+                                        class="wb-text-faint" x-text="'&#9650; ' + formatScore(comment.score)"></span>
+                                    <span x-text="formatDate(comment.created_at)"></span>
+                                </div>
                             </div>
 
                             <!-- Level 1 replies -->
@@ -474,7 +478,11 @@
                                                 <div class="flex justify-between items-center text-xs wb-text-faint">
                                                     <span class="font-medium wb-text-muted"
                                                         x-text="'@' + reply.user.username"></span>
-                                                    <span x-text="formatDate(reply.created_at)"></span>
+                                                    <div class="flex items-center gap-3">
+                                                        <span x-show="reply.score != null && reply.score !== 0"
+                                                            class="wb-text-faint" x-text="'&#9650; ' + formatScore(reply.score)"></span>
+                                                        <span x-text="formatDate(reply.created_at)"></span>
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -482,14 +490,25 @@
                                             <template x-if="reply.replies && reply.replies.length > 0">
                                                 <div class="mt-2 ml-3 border-l-2 reply-border pl-3 space-y-2">
                                                     <template x-for="subreply in reply.replies" :key="subreply.id">
-                                                        <div class="reply-bg p-3 rounded-lg">
-                                                            <p class="wb-text-secondary text-sm leading-relaxed mb-2 whitespace-pre-wrap"
-                                                                x-text="subreply.comment"></p>
-                                                            <div class="flex justify-between items-center text-xs wb-text-faint">
-                                                                <span class="font-medium wb-text-muted"
-                                                                    x-text="'@' + subreply.user.username"></span>
-                                                                <span x-text="formatDate(subreply.created_at)"></span>
+                                                        <div>
+                                                            <div class="reply-bg p-3 rounded-lg">
+                                                                <p class="wb-text-secondary text-sm leading-relaxed mb-2 whitespace-pre-wrap"
+                                                                    x-text="subreply.comment"></p>
+                                                                <div class="flex justify-between items-center text-xs wb-text-faint">
+                                                                    <span class="font-medium wb-text-muted"
+                                                                        x-text="'@' + subreply.user.username"></span>
+                                                                    <div class="flex items-center gap-3">
+                                                                        <span x-show="subreply.score != null && subreply.score !== 0"
+                                                                            class="wb-text-faint" x-text="'&#9650; ' + formatScore(subreply.score)"></span>
+                                                                        <span x-text="formatDate(subreply.created_at)"></span>
+                                                                    </div>
+                                                                </div>
                                                             </div>
+                                                            <template x-if="subreply.replies && subreply.replies.length > 0">
+                                                                <a :href="subreply.url" target="_blank" rel="noopener noreferrer"
+                                                                    class="block mt-1 ml-3 text-xs wb-text-faint hover:wb-text-muted transition-colors"
+                                                                    x-text="'&#8627; ' + countAllReplies(subreply) + ' more ' + (countAllReplies(subreply) === 1 ? 'reply' : 'replies') + ' in thread'"></a>
+                                                            </template>
                                                         </div>
                                                     </template>
                                                 </div>
@@ -516,13 +535,21 @@
                 <p class="text-xs wb-text-faint">The dashboard will update automatically when you start playback.</p>
             </div>
         </template>
+        <!-- Image lightbox overlay -->
+        <div x-show="lightboxImg" x-transition.opacity.duration.200ms
+            @click="lightboxImg = null" @keydown.escape.window="lightboxImg = null"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer"
+            style="background-color: rgba(0,0,0,0.85);" x-cloak>
+            <img :src="lightboxImg" @click.stop
+                class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl cursor-default">
+        </div>
     </div>
 
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('app', () => ({
                 data: null, error: null, isLoading: false, mode: 'all', sourceFilter: new Set(),
-                status: null, showConfig: false, configData: null, configDraft: {},
+                status: null, showConfig: false, configData: null, configDraft: {}, lightboxImg: null,
                 async init() {
                     console.log("[WatchBack] Initializing application");
                     try {
@@ -685,7 +712,16 @@
                         console.error("[WatchBack] Server restart request failed:", e);
                     }
                 },
-                formatDate(iso) { return iso ? new Date(iso).toLocaleDateString() : ''; }
+                formatDate(iso) { return iso ? new Date(iso).toLocaleDateString() : ''; },
+                countAllReplies(c) {
+                    if (!c.replies || !Array.isArray(c.replies)) return 0;
+                    return c.replies.reduce((n, r) => n + 1 + this.countAllReplies(r), 0);
+                },
+                formatScore(n) {
+                    if (n == null) return '';
+                    if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+                    return String(n);
+                }
             }))
         })
     </script>
