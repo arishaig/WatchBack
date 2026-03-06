@@ -201,7 +201,7 @@ class TestApiConfigGet:
         })
         data = client.get("/api/config").json()
         assert data["jf_api_key"]["effective_value"] == "****"
-        assert data["trakt_client_id"]["effective_value"] == "****"
+        assert data["trakt_client_id"]["effective_value"] == "s2"  # Client ID is public, not secret
         assert data["trakt_access_token"]["effective_value"] == "****"
 
     def test_secrets_is_set_true(self, fresh_cache, client):

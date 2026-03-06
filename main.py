@@ -30,7 +30,7 @@ ENV_MAP = {
     "webhook_secret":      ("WEBHOOK_SECRET",      ""),
 }
 
-SECRET_KEYS = {"jf_api_key", "trakt_client_id", "trakt_access_token", "bsky_app_password", "webhook_secret"}
+SECRET_KEYS = {"jf_api_key", "trakt_access_token", "bsky_app_password", "webhook_secret"}
 
 def get_config() -> dict:
     """Consolidate configuration from UI overrides, environment variables, and defaults."""

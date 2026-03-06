@@ -126,23 +126,9 @@
                     </div>
 
                     <div>
-                        <p class="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Trakt</p>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div
-                                x-show="!configDraft.trakt_client_id && !configData?.trakt_client_id?.is_env_set && !configData?.trakt_client_id?.is_stored_set">
-                                <div class="flex justify-between mb-1">
-                                    <label class="text-xs font-medium text-gray-300">Username</label>
-                                    <button x-show="configData?.trakt_username?.source === 'stored'"
-                                        @click="resetField('trakt_username')"
-                                        class="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer">Reset</button>
-                                </div>
-                                <input type="text" x-model="configDraft.trakt_username"
-                                    :placeholder="configData?.trakt_username?.env_value || 'Optional'"
-                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 transition-colors"
-                                    :class="configData?.trakt_username?.source === 'stored' ? 'border-blue-500 ring-1 ring-blue-500/20' : ''">
-                            </div>
-                            <div
-                                :class="(!configDraft.trakt_client_id && !configData?.trakt_client_id?.is_env_set && !configData?.trakt_client_id?.is_stored_set) ? '' : 'col-span-2'">
+                        <p class="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Trakt.tv</p>
+                        <div class="space-y-3">
+                            <div>
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium text-gray-300">Client ID</label>
                                     <button x-show="configData?.trakt_client_id?.source === 'stored'"
@@ -150,9 +136,33 @@
                                         class="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer">Reset</button>
                                 </div>
                                 <input type="text" x-model="configDraft.trakt_client_id"
-                                    :placeholder="configData?.trakt_client_id?.env_value || 'Optional'"
+                                    :placeholder="configData?.trakt_client_id?.env_value || 'Optional (for comments)'"
                                     class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 transition-colors"
                                     :class="configData?.trakt_client_id?.source === 'stored' ? 'border-blue-500 ring-1 ring-blue-500/20' : ''">
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <label class="text-xs font-medium text-gray-300">Access Token (OAuth)</label>
+                                    <button x-show="configData?.trakt_access_token?.source === 'stored'"
+                                        @click="resetField('trakt_access_token')"
+                                        class="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer">Reset</button>
+                                </div>
+                                <input type="password" x-model="configDraft.trakt_access_token"
+                                    :placeholder="configData?.trakt_access_token?.effective_value || 'Optional (for private profile)'"
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 transition-colors"
+                                    :class="configData?.trakt_access_token?.source === 'stored' ? 'border-blue-500 ring-1 ring-blue-500/20' : ''">
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <label class="text-xs font-medium text-gray-300">Username</label>
+                                    <button x-show="configData?.trakt_username?.source === 'stored'"
+                                        @click="resetField('trakt_username')"
+                                        class="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer">Reset</button>
+                                </div>
+                                <input type="text" x-model="configDraft.trakt_username"
+                                    :placeholder="configData?.trakt_username?.env_value || 'Optional (public profile)'"
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 transition-colors"
+                                    :class="configData?.trakt_username?.source === 'stored' ? 'border-blue-500 ring-1 ring-blue-500/20' : ''">
                             </div>
                         </div>
                     </div>
