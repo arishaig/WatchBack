@@ -38,8 +38,8 @@ App runs at `http://localhost:8000`.
 | `TRAKT_USERNAME` | Trakt.tv username (enables Trakt `/watching` as session source) |
 | `TRAKT_ACCESS_TOKEN` | Trakt.tv OAuth access token (enables private profile `/watching`) |
 | `REDDIT_AUTO_OPEN` | If set, attempts to find the actual Reddit discussion thread instead of a Google search link |
-| `CONFIG_DIR` | Path for diskcache storage (default: `/config`) |
-| `DATA_DIR` | Path for static files and other data (default: `/data`) |
+| `CONFIG_DIR` | Path for diskcache storage (default: `/config`, mounted as volume) |
+| `DATA_DIR` | Path for static files (default: `/data`, not mounted—embedded in image) |
 
 ## Architecture
 
