@@ -6,7 +6,7 @@ import asyncio
 import time
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -209,6 +209,104 @@ def _is_low_content_post(norm_text: str, series: str, season: int, episode: int,
     for char in "[]().,-_#":
         test = test.replace(char, "")
     return len(test.strip()) < 5 and len(norm_text) < 120 and not images
+
+
+def find_pullpush_comments(series: str, season: int, episode: int, max_threads: int = 3) -> list[dict]:
+    """Fetch Reddit comments via PullPush.io for the given episode, grouped by thread."""
+    s_long, e_long = str(season).zfill(2), str(episode).zfill(2)
+    query = f'"{series}" S{s_long}E{e_long}'
+
+    try:
+        # Step 1: Find submission threads
+        logger.debug(f"PullPush: searching submissions for {query}")
+        sub_resp = requests.get(
+            "https://api.pullpush.io/reddit/search/submission/",
+            params={"q": query, "size": max_threads, "sort_type": "score", "sort": "desc"},
+            headers={"User-Agent": "WatchBack/1.0"},
+            timeout=5,
+        )
+        if sub_resp.status_code != 200:
+            logger.error(f"PullPush submission search failed: {sub_resp.status_code}")
+            return []
+
+        submissions = sub_resp.json().get("data", [])
+        if not submissions:
+            logger.debug("PullPush: no submissions found")
+            return []
+        logger.info(f"PullPush: found {len(submissions)} submission(s)")
+
+        # Step 2: Fetch comments for each thread
+        all_results = []
+        for sub in submissions[:max_threads]:
+            sub_id = sub.get("id", "")
+            thread_title = sub.get("title", "")
+            thread_sub = sub.get("subreddit", "")
+            thread_url = f"https://www.reddit.com/r/{thread_sub}/comments/{sub_id}/"
+
+            logger.debug(f"PullPush: fetching comments for thread {sub_id}")
+            try:
+                com_resp = requests.get(
+                    "https://api.pullpush.io/reddit/search/comment/",
+                    params={"link_id": sub_id, "size": 100, "sort_type": "score", "sort": "desc"},
+                    headers={"User-Agent": "WatchBack/1.0"},
+                    timeout=5,
+                )
+                if com_resp.status_code != 200:
+                    logger.warning(f"PullPush comment fetch failed for {sub_id}: {com_resp.status_code}")
+                    continue
+                raw_comments = com_resp.json().get("data", [])
+            except Exception as e:
+                logger.warning(f"PullPush comment fetch exception for {sub_id}: {e}")
+                continue
+
+            if not raw_comments:
+                continue
+
+            # Build comment lookup and parent-child tree
+            by_id = {}
+            for c in raw_comments:
+                cid = c.get("id", "")
+                by_id[cid] = {
+                    "id": cid,
+                    "comment": c.get("body", ""),
+                    "user": {"username": c.get("author", "[deleted]")},
+                    "created_at": datetime.fromtimestamp(c.get("created_utc", 0), tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "score": c.get("score", 0),
+                    "url": f"https://www.reddit.com/r/{thread_sub}/comments/{sub_id}/_/{cid}/",
+                    "source": "reddit",
+                    "thread_title": thread_title,
+                    "thread_url": thread_url,
+                    "parent_id": c.get("parent_id", ""),
+                    "replies": [],
+                }
+
+            # Nest replies under parents; collect top-level comments
+            top_level = []
+            for cid, comment in by_id.items():
+                raw_parent = comment.pop("parent_id")
+                # t3_ prefix = parent is submission (top-level), t1_ = parent is comment
+                if raw_parent.startswith("t1_"):
+                    parent_cid = raw_parent[3:]
+                    if parent_cid in by_id:
+                        by_id[parent_cid]["replies"].append(comment)
+                    else:
+                        top_level.append(comment)
+                else:
+                    top_level.append(comment)
+
+            # Sort top-level by score descending, replies by score descending
+            top_level.sort(key=lambda c: c.get("score", 0), reverse=True)
+            for c in top_level:
+                c["replies"].sort(key=lambda r: r.get("score", 0), reverse=True)
+
+            all_results.extend(top_level)
+
+        logger.info(f"PullPush: returning {len(all_results)} top-level comment(s)")
+        return all_results
+
+    except Exception as e:
+        logger.error(f"PullPush search exception: {e}")
+        return []
 
 
 def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> list[dict]:
@@ -422,6 +520,19 @@ def sync_data():
     reddit_threads, reddit_url = _fetch_reddit_data(session_data, cfg)
 
     all_comments = []
+
+    # Fetch PullPush Reddit comments (cached separately)
+    pp_cache_key = f"pullpush_{session_data['series']}_s{session_data['season']}e{session_data['episode']}"
+    cached_pp = cache.get(pp_cache_key)
+    if isinstance(cached_pp, list):
+        logger.debug(f"PullPush hit cache: {len(cached_pp)} comments")
+        all_comments.extend(cached_pp)
+    else:
+        pp_results = find_pullpush_comments(session_data["series"], session_data["season"], session_data["episode"], max_threads=int(cfg["reddit_max_threads"]))
+        if pp_results:
+            cache.set(pp_cache_key, pp_results, expire=86400)
+        all_comments.extend(pp_results)
+
     bsky_results = find_bluesky_posts(session_data["series"], session_data["season"], session_data["episode"])
     logger.debug(json.dumps(bsky_results, indent=4))
     if isinstance(bsky_results, list):
