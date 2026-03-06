@@ -392,7 +392,12 @@
                 async saveConfig() {
                     console.log("[WatchBack] Saving configuration...");
                     try {
-                        const saveRes = await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.configDraft) });
+                        // Only send fields with non-empty values to avoid clearing untouched fields
+                        const payload = {};
+                        Object.entries(this.configDraft).forEach(([key, value]) => {
+                            if (value) payload[key] = value;
+                        });
+                        const saveRes = await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                         if (!saveRes.ok) throw new Error(`HTTP ${saveRes.status}`);
                         const cRes = await fetch('/api/config');
                         this.configData = await cRes.json();
