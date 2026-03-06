@@ -418,9 +418,13 @@
                     <button @click="toggleSource('reddit')"
                         :class="sourceActive('reddit') ? 'filter-reddit' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit</button>
+                    <button x-show="hasThreadGroups" @click="groupByThread = !groupByThread"
+                        :class="groupByThread ? 'filter-reddit' : 'filter-inactive'"
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer"
+                        title="Group by thread">&#x1F9F5; Threads</button>
                 </div>
 
-                <div class="space-y-4 pb-8">
+                <div class="space-y-4 pb-8" x-show="!groupByThread">
                     <template x-for="comment in activeComments" :key="comment.id">
                         <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group">
                             <div class="absolute top-2 right-2 flex gap-1">
@@ -526,6 +530,119 @@
                         </div>
                     </template>
                 </div>
+
+                <!-- Grouped-by-thread view -->
+                <div class="space-y-6 pb-8" x-show="groupByThread" x-cloak>
+                    <template x-for="(group, gi) in groupedComments" :key="gi">
+                        <div>
+                            <template x-if="group.title">
+                                <a :href="group.url" target="_blank" rel="noopener noreferrer"
+                                    class="block text-xs thread-title mb-2 truncate leading-tight font-semibold"
+                                    x-text="group.title"></a>
+                            </template>
+                            <div class="space-y-3" :class="group.title ? 'ml-2 border-l-2 reply-border pl-3' : ''">
+                                <template x-for="comment in group.comments" :key="comment.id">
+                                    <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group">
+                                        <div class="absolute top-2 right-2 flex gap-1">
+                                            <a x-show="comment.source === 'bluesky'" :href="comment.url" target="_blank" rel="noopener noreferrer"
+                                                class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
+                                                title="View original post">BlueSky &#x1F517;</a>
+                                            <a x-show="comment.source === 'reddit'" :href="comment.url" target="_blank" rel="noopener noreferrer"
+                                                class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
+                                                title="View on Reddit">Reddit &#x1F517;</a>
+                                            <span x-show="!comment.source"
+                                                class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
+                                        </div>
+
+                                        <p class="wb-text-secondary text-sm leading-relaxed mb-3 whitespace-pre-wrap"
+                                            x-text="comment.comment"></p>
+
+                                        <template x-if="comment.images && comment.images.length > 0">
+                                            <div class="grid gap-2 mb-3"
+                                                :class="comment.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
+                                                <template x-for="img in comment.images" :key="img">
+                                                    <div @click="lightboxImg = img"
+                                                        class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
+                                                        style="background-color: var(--wb-bg);">
+                                                        <img :src="img"
+                                                            class="w-full h-auto object-cover hover:scale-110 transition-transform duration-300"
+                                                            loading="lazy">
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+
+                                        <div class="flex justify-between items-center text-xs wb-text-faint">
+                                            <span class="font-medium wb-text-muted" x-text="'@' + comment.user.username"></span>
+                                            <div class="flex items-center gap-3">
+                                                <span x-show="comment.score != null && comment.score !== 0"
+                                                    class="wb-text-faint" x-text="'&#9650; ' + formatScore(comment.score)"></span>
+                                                <span x-text="formatDate(comment.created_at)"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Level 1 replies -->
+                                        <template x-if="comment.replies && comment.replies.length > 0">
+                                            <div class="mt-3 border-l-2 reply-border pl-3 space-y-3">
+                                                <template x-for="reply in comment.replies" :key="reply.id">
+                                                    <div>
+                                                        <div class="reply-bg p-3 rounded-lg">
+                                                            <p class="wb-text-secondary text-sm leading-relaxed mb-2 whitespace-pre-wrap"
+                                                                x-text="reply.comment"></p>
+                                                            <div class="flex justify-between items-center text-xs wb-text-faint">
+                                                                <span class="font-medium wb-text-muted"
+                                                                    x-text="'@' + reply.user.username"></span>
+                                                                <div class="flex items-center gap-3">
+                                                                    <span x-show="reply.score != null && reply.score !== 0"
+                                                                        class="wb-text-faint" x-text="'&#9650; ' + formatScore(reply.score)"></span>
+                                                                    <span x-text="formatDate(reply.created_at)"></span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Level 2 replies -->
+                                                        <template x-if="reply.replies && reply.replies.length > 0">
+                                                            <div class="mt-2 ml-3 border-l-2 reply-border pl-3 space-y-2">
+                                                                <template x-for="subreply in reply.replies" :key="subreply.id">
+                                                                    <div>
+                                                                        <div class="reply-bg p-3 rounded-lg">
+                                                                            <p class="wb-text-secondary text-sm leading-relaxed mb-2 whitespace-pre-wrap"
+                                                                                x-text="subreply.comment"></p>
+                                                                            <div class="flex justify-between items-center text-xs wb-text-faint">
+                                                                                <span class="font-medium wb-text-muted"
+                                                                                    x-text="'@' + subreply.user.username"></span>
+                                                                                <div class="flex items-center gap-3">
+                                                                                    <span x-show="subreply.score != null && subreply.score !== 0"
+                                                                                        class="wb-text-faint" x-text="'&#9650; ' + formatScore(subreply.score)"></span>
+                                                                                    <span x-text="formatDate(subreply.created_at)"></span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <template x-if="subreply.replies && subreply.replies.length > 0">
+                                                                            <a :href="subreply.url" target="_blank" rel="noopener noreferrer"
+                                                                                class="block mt-1 ml-3 text-xs wb-text-faint hover:wb-text-muted transition-colors"
+                                                                                x-text="'&#8627; ' + countAllReplies(subreply) + ' more ' + (countAllReplies(subreply) === 1 ? 'reply' : 'replies') + ' in thread'"></a>
+                                                                        </template>
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <template x-if="activeComments.length === 0">
+                        <div class="py-12 text-center">
+                            <p class="wb-text-faint">No comments found for this view.</p>
+                        </div>
+                    </template>
+                </div>
             </main>
         </template>
 
@@ -549,7 +666,7 @@
         document.addEventListener('alpine:init', () => {
             Alpine.data('app', () => ({
                 data: null, error: null, isLoading: false, mode: 'all', sourceFilter: new Set(),
-                status: null, showConfig: false, configData: null, configDraft: {}, lightboxImg: null,
+                status: null, showConfig: false, configData: null, configDraft: {}, lightboxImg: null, groupByThread: false,
                 async init() {
                     console.log("[WatchBack] Initializing application");
                     try {
@@ -640,6 +757,24 @@
                     const list = this.mode === 'time' ? this.data.time_machine : this.data.all_comments;
                     if (this.sourceFilter.size === 0) return list;
                     return list.filter(c => this.sourceFilter.has(c.source || 'trakt'));
+                },
+                get hasThreadGroups() {
+                    return this.activeComments.some(c => c.thread_title);
+                },
+                get groupedComments() {
+                    const comments = this.activeComments;
+                    const groups = [];
+                    const map = new Map();
+                    for (const c of comments) {
+                        const key = c.thread_title || '';
+                        if (!map.has(key)) {
+                            const g = { title: c.thread_title || null, url: c.thread_url || null, comments: [] };
+                            map.set(key, g);
+                            groups.push(g);
+                        }
+                        map.get(key).comments.push(c);
+                    }
+                    return groups;
                 },
                 async sync() {
                     console.debug("[WatchBack] Syncing data...");
