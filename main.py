@@ -245,7 +245,7 @@ def _ensure_comment_ids(comments: list[dict]) -> None:
         if not c.get("id"):
             key = f"{c.get('source', '')}:{c.get('comment', '')}:{c.get('created_at', '')}"
             c["id"] = f"wb_{hashlib.sha256(key.encode()).hexdigest()[:12]}"
-        if c.get("replies"):
+        if isinstance(c.get("replies"), list):
             _ensure_comment_ids(c["replies"])
 
 
