@@ -1,31 +1,8 @@
 """Tests for Trakt session fallthrough and background poller."""
 import pytest
 from unittest.mock import MagicMock, patch
-from fastapi.testclient import TestClient
-from diskcache import Cache
 
-import main
-from main import app, trakt_watch_poller
-
-
-@pytest.fixture(autouse=True)
-def clean_env(monkeypatch):
-    """Strip all WatchBack env vars before each test."""
-    for _, (env_name, _) in main.ENV_MAP.items():
-        monkeypatch.delenv(env_name, raising=False)
-
-
-@pytest.fixture
-def fresh_cache(tmp_path, monkeypatch):
-    c = Cache(str(tmp_path / "cache"))
-    monkeypatch.setattr(main, "cache", c)
-    yield c
-    c.close()
-
-
-@pytest.fixture
-def client(fresh_cache):
-    return TestClient(app)
+from main import trakt_watch_poller
 
 
 def test_sync_data_trakt_fallthrough(fresh_cache, client):

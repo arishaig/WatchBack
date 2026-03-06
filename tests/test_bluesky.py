@@ -1,39 +1,11 @@
 """Tests for Bluesky integration: auth, search, image extraction, dedup, and bot filtering."""
-import pytest
-from unittest.mock import MagicMock, patch
-from diskcache import Cache
+from unittest.mock import patch
 
-import main
 from main import (
     find_bluesky_posts, bsky_access_token,
     _extract_bsky_images, _is_low_content_post,
 )
-
-
-def mock_response(status_code=200, body=None):
-    m = MagicMock()
-    m.status_code = status_code
-    m.json.return_value = body if body is not None else {}
-    m.text = "Mock response"
-    return m
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(autouse=True)
-def clean_env(monkeypatch):
-    for _, (env_name, _) in main.ENV_MAP.items():
-        monkeypatch.delenv(env_name, raising=False)
-
-
-@pytest.fixture
-def fresh_cache(tmp_path, monkeypatch):
-    c = Cache(str(tmp_path / "cache"))
-    monkeypatch.setattr(main, "cache", c)
-    yield c
-    c.close()
+from tests.helpers import mock_response
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +22,7 @@ class TestBskyAccessToken:
         with patch("main.requests.post") as mock_post:
             mock_post.return_value = mock_response(200, {"accessJwt": "new_token"})
             assert bsky_access_token() == "new_token"
-            fresh_cache.get("bsky_token") == "new_token"
+            assert fresh_cache.get("bsky_token") == "new_token"
 
     def test_returns_none_without_credentials(self, fresh_cache):
         assert bsky_access_token() is None

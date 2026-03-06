@@ -1,5 +1,7 @@
 import os
 import re
+import hmac
+import hashlib
 import urllib.parse
 import requests
 import asyncio
@@ -8,6 +10,7 @@ import logging
 import json
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
@@ -69,6 +72,19 @@ app = FastAPI(title="WatchBack API", lifespan=lifespan)
 
 # --- Helpers ---
 
+def _get_show_subreddits(series: str) -> list[str]:
+    """Return subreddit names to search for a show, combining overrides with heuristic derivation."""
+    overrides = cache.get("subreddit_overrides") or {}
+    override = overrides.get(series.lower())
+    base = re.sub(r"[^a-z0-9]", "", series.lower())
+    subs = []
+    if override:
+        subs.append(override.lower())
+    if base not in subs:
+        subs.append(base)
+    return subs
+
+
 def _matches_episode(title: str, season: int, episode: int) -> bool:
     """Check if a title string contains a reference to the given season/episode."""
     t = title.upper()
@@ -100,12 +116,23 @@ def find_reddit_threads(series: str, season: int, episode: int, n: int = 3) -> l
         episode_posts = [p for p in posts if _matches_episode(p.get("title", ""), season, episode)]
 
         def rank(p):
-            sub = p.get("subreddit", "").lower()
-            base = re.sub(r"[^a-z0-9]", "", series.lower())
-            return (0 if sub in {base, base + "tv"} else 1, -p.get("score", 0))
+            sub = re.sub(r"[^a-z0-9]", "", p.get("subreddit", "").lower())
+            show_subs = set(_get_show_subreddits(series))
+            return (0 if sub in show_subs else 1, -p.get("score", 0))
 
         top = sorted(episode_posts, key=rank)[:n]
-        return [{"url": f"https://www.reddit.com{p['permalink']}", "title": p.get("title", ""), "subreddit": p.get("subreddit", ""), "score": p.get("score", 0)} for p in top]
+        results = []
+        for p in top:
+            permalink = p.get("permalink", "")
+            if not permalink.startswith("/r/"):
+                continue
+            results.append({
+                "url": f"https://www.reddit.com{permalink}",
+                "title": p.get("title", ""),
+                "subreddit": p.get("subreddit", ""),
+                "score": p.get("score", 0),
+            })
+        return results
     except Exception:
         return []
 
@@ -211,37 +238,81 @@ def _is_low_content_post(norm_text: str, series: str, season: int, episode: int,
     return len(test.strip()) < 5 and len(norm_text) < 120 and not images
 
 
+def _ensure_comment_ids(comments: list[dict]) -> None:
+    """Assign stable IDs to any comments/replies missing one, derived from content hash."""
+    for c in comments:
+        if not c.get("id"):
+            key = f"{c.get('source', '')}:{c.get('comment', '')}:{c.get('created_at', '')}"
+            c["id"] = f"wb_{hashlib.sha256(key.encode()).hexdigest()[:12]}"
+        if c.get("replies"):
+            _ensure_comment_ids(c["replies"])
+
+
 def find_pullpush_comments(series: str, season: int, episode: int, max_threads: int = 3) -> list[dict]:
     """Fetch Reddit comments via PullPush.io for the given episode, grouped by thread."""
     s_long, e_long = str(season).zfill(2), str(episode).zfill(2)
-    query = f'"{series}" S{s_long}E{e_long}'
 
     try:
-        # Step 1: Find submission threads
-        logger.debug(f"PullPush: searching submissions for {query}")
-        sub_resp = requests.get(
-            "https://api.pullpush.io/reddit/search/submission/",
-            params={"q": query, "size": max_threads, "sort_type": "score", "sort": "desc"},
-            headers={"User-Agent": "WatchBack/1.0"},
-            timeout=5,
-        )
-        if sub_resp.status_code != 200:
-            logger.error(f"PullPush submission search failed: {sub_resp.status_code}")
-            return []
+        # Build search queries: title searches with show name (padded + unpadded episode format),
+        # plus subreddit-targeted searches for threads that omit the show name from the title
+        show_subs = _get_show_subreddits(series)
+        searches = [
+            {"title": f"{series} S{season}E{episode}"},
+            {"title": f"{series} S{s_long}E{e_long}"},
+        ]
+        for sub_name in show_subs:
+            searches.append({"title": f"S{season}E{episode}", "subreddit": sub_name})
+            searches.append({"title": f"S{s_long}E{e_long}", "subreddit": sub_name})
+        seen_ids = {}
+        for params in searches:
+            search_params = {**params, "size": 25, "sort_type": "score", "sort": "desc"}
+            logger.debug(f"PullPush: searching submissions {params}")
+            try:
+                sub_resp = requests.get(
+                    "https://api.pullpush.io/reddit/search/submission/",
+                    params=search_params,
+                    headers={"User-Agent": "WatchBack/1.0"},
+                    timeout=5,
+                )
+                if sub_resp.status_code != 200:
+                    logger.warning(f"PullPush submission search failed: {sub_resp.status_code}")
+                    continue
+                for sub in sub_resp.json().get("data", []):
+                    sid = sub.get("id", "")
+                    if sid and sid not in seen_ids:
+                        seen_ids[sid] = sub
+            except Exception as e:
+                logger.warning(f"PullPush submission search exception: {e}")
+                continue
 
-        submissions = sub_resp.json().get("data", [])
+        # Keep submissions that reference this episode; for non-subreddit results also
+        # verify the series name appears in the title to avoid false positives
+        series_lower = series.lower()
+        show_sub_set = set(show_subs)
+        submissions = []
+        for sub in seen_ids.values():
+            title = sub.get("title", "")
+            if not _matches_episode(title, season, episode):
+                continue
+            sub_name = re.sub(r"[^a-z0-9]", "", sub.get("subreddit", "").lower())
+            if sub_name in show_sub_set or series_lower in title.lower():
+                submissions.append(sub)
+        submissions.sort(key=lambda s: s.get("score", 0), reverse=True)
+
         if not submissions:
-            logger.debug("PullPush: no submissions found")
+            logger.debug("PullPush: no matching submissions found")
             return []
-        logger.info(f"PullPush: found {len(submissions)} submission(s)")
+        logger.info(f"PullPush: found {len(submissions)} matching submission(s)")
 
-        # Step 2: Fetch comments for each thread
         all_results = []
+        # Belt-and-suspenders: score-sort above should give best threads first, but cap locally
         for sub in submissions[:max_threads]:
             sub_id = sub.get("id", "")
             thread_title = sub.get("title", "")
             thread_sub = sub.get("subreddit", "")
-            thread_url = f"https://www.reddit.com/r/{thread_sub}/comments/{sub_id}/"
+            safe_sub = urllib.parse.quote(thread_sub, safe="")
+            safe_sub_id = urllib.parse.quote(sub_id, safe="")
+            thread_url = f"https://www.reddit.com/r/{safe_sub}/comments/{safe_sub_id}/"
 
             logger.debug(f"PullPush: fetching comments for thread {sub_id}")
             try:
@@ -262,17 +333,23 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
             if not raw_comments:
                 continue
 
-            # Build comment lookup and parent-child tree
+            # Keyed by comment ID so replies can be attached to parents in a single pass
             by_id = {}
             for c in raw_comments:
                 cid = c.get("id", "")
+                safe_cid = urllib.parse.quote(cid, safe="")
+                # PullPush returns created_utc as int for recent posts but string for older ones
+                try:
+                    created_ts = float(c.get("created_utc", 0))
+                except (TypeError, ValueError):
+                    created_ts = 0.0
                 by_id[cid] = {
                     "id": cid,
                     "comment": c.get("body", ""),
                     "user": {"username": c.get("author", "[deleted]")},
-                    "created_at": datetime.fromtimestamp(c.get("created_utc", 0), tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "created_at": datetime.fromtimestamp(created_ts, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
                     "score": c.get("score", 0),
-                    "url": f"https://www.reddit.com/r/{thread_sub}/comments/{sub_id}/_/{cid}/",
+                    "url": f"https://www.reddit.com/r/{safe_sub}/comments/{safe_sub_id}/_/{safe_cid}/",
                     "source": "reddit",
                     "thread_title": thread_title,
                     "thread_url": thread_url,
@@ -280,11 +357,10 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
                     "replies": [],
                 }
 
-            # Nest replies under parents; collect top-level comments
             top_level = []
             for cid, comment in by_id.items():
                 raw_parent = comment.pop("parent_id")
-                # t3_ prefix = parent is submission (top-level), t1_ = parent is comment
+                # t3_ prefix = parent is the submission (top-level), t1_ = parent is another comment
                 if raw_parent.startswith("t1_"):
                     parent_cid = raw_parent[3:]
                     if parent_cid in by_id:
@@ -294,7 +370,6 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
                 else:
                     top_level.append(comment)
 
-            # Sort top-level by score descending, replies by score descending
             top_level.sort(key=lambda c: c.get("score", 0), reverse=True)
             for c in top_level:
                 c["replies"].sort(key=lambda r: r.get("score", 0), reverse=True)
@@ -357,7 +432,10 @@ def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> l
                 "comment": text,
                 "user": {"username": p["author"]["handle"]},
                 "created_at": p.get("record", {}).get("createdAt"),
-                "url": f"https://bsky.app/profile/{p['author']['handle']}/post/{p['uri'].split('/')[-1]}",
+                "url": "https://bsky.app/profile/{}/post/{}".format(
+                    urllib.parse.quote(p["author"]["handle"], safe=""),
+                    urllib.parse.quote(p["uri"].split("/")[-1], safe=""),
+                ),
                 "images": images,
                 "source": "bluesky",
             })
@@ -477,7 +555,7 @@ def _fetch_trakt_comments(session_data: dict, cfg: dict) -> list[dict]:
             logger.warning(f"Trakt search returned no results for {session_data['series']}")
             return []
 
-        slug = search_json[0]["show"]["ids"]["slug"]
+        slug = urllib.parse.quote(search_json[0]["show"]["ids"]["slug"], safe="")
         logger.debug(f"Trakt slug resolved: {slug}")
         comments_url = f"https://api.trakt.tv/shows/{slug}/seasons/{session_data['season']}/episodes/{session_data['episode']}/comments/newest"
         comments = requests.get(comments_url, headers=trakt_headers(), timeout=5).json()
@@ -493,6 +571,32 @@ def _fetch_trakt_comments(session_data: dict, cfg: dict) -> list[dict]:
         return []
 
 
+def _fetch_pullpush_data(session_data: dict, cfg: dict) -> list[dict]:
+    """Fetch and cache PullPush Reddit comments for the current episode."""
+    pp_cache_key = f"pullpush_{session_data['series']}_s{session_data['season']}e{session_data['episode']}"
+    cached_pp = cache.get(pp_cache_key)
+    if isinstance(cached_pp, list):
+        logger.debug(f"PullPush: cache hit ({len(cached_pp)} comments)")
+        return cached_pp
+    pp_results = find_pullpush_comments(
+        session_data["series"], session_data["season"], session_data["episode"],
+        max_threads=int(cfg["reddit_max_threads"]),
+    )
+    if pp_results:
+        cache.set(pp_cache_key, pp_results, expire=86400)
+    return pp_results
+
+
+def _fetch_bluesky_data(session_data: dict) -> list[dict]:
+    """Fetch Bluesky posts for the current episode."""
+    bsky_results = find_bluesky_posts(
+        session_data["series"], session_data["season"], session_data["episode"],
+    )
+    if isinstance(bsky_results, list):
+        return [p for p in bsky_results if isinstance(p, dict)]
+    return []
+
+
 @app.get("/api/sync")
 def sync_data():
     """Orchestrate session detection, comment aggregation, and time-machine filtering."""
@@ -502,54 +606,42 @@ def sync_data():
     has_trakt_watch = bool(cfg["trakt_username"] or cfg["trakt_access_token"])
 
     if not has_jf and not has_trakt_watch:
-        error_response = {"status": "setup_required", "message": "No session source configured."}
-        logger.error(json.dumps(error_response, indent=4))
-        return error_response
+        logger.error("No session source configured")
+        return {"status": "setup_required", "message": "No session source configured."}
 
     session_data = _fetch_session(cfg)
     if isinstance(session_data, dict) and "_error" in session_data:
-        error_response = {"status": "error", "message": session_data["_error"]}
-        logger.error(json.dumps(error_response, indent=4))
-        return error_response
+        logger.error(f"Session error: {session_data['_error']}")
+        return {"status": "error", "message": session_data["_error"]}
     if not session_data:
         logger.warning("No active session found")
         return {"status": "idle"}
 
-    # Gather data from all sources
     logger.info(f"Session found: {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}")
-    reddit_threads, reddit_url = _fetch_reddit_data(session_data, cfg)
 
-    all_comments = []
+    # Fetch all data sources in parallel since they're independent
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        reddit_future = executor.submit(_fetch_reddit_data, session_data, cfg)
+        pp_future = executor.submit(_fetch_pullpush_data, session_data, cfg)
+        bsky_future = executor.submit(_fetch_bluesky_data, session_data)
+        trakt_future = executor.submit(_fetch_trakt_comments, session_data, cfg)
 
-    # Fetch PullPush Reddit comments (cached separately)
-    pp_cache_key = f"pullpush_{session_data['series']}_s{session_data['season']}e{session_data['episode']}"
-    cached_pp = cache.get(pp_cache_key)
-    if isinstance(cached_pp, list):
-        logger.debug(f"PullPush hit cache: {len(cached_pp)} comments")
-        all_comments.extend(cached_pp)
-    else:
-        pp_results = find_pullpush_comments(session_data["series"], session_data["season"], session_data["episode"], max_threads=int(cfg["reddit_max_threads"]))
-        if pp_results:
-            cache.set(pp_cache_key, pp_results, expire=86400)
-        all_comments.extend(pp_results)
+        reddit_threads, reddit_url = reddit_future.result()
+        pp_results = pp_future.result()
+        bsky_results = bsky_future.result()
+        trakt_comments = trakt_future.result()
 
-    bsky_results = find_bluesky_posts(session_data["series"], session_data["season"], session_data["episode"])
-    logger.debug(json.dumps(bsky_results, indent=4))
-    if isinstance(bsky_results, list):
-        all_comments.extend([p for p in bsky_results if isinstance(p, dict)])
-
-    trakt_comments = _fetch_trakt_comments(session_data, cfg)
     if trakt_comments and isinstance(trakt_comments[0], dict) and "_error" in trakt_comments[0]:
         return {"status": "error", "message": trakt_comments[0]["_error"]}
-    all_comments.extend(trakt_comments)
 
-    # Sort by date
+    all_comments = pp_results + bsky_results + trakt_comments
+    _ensure_comment_ids(all_comments)
+
     all_comments.sort(
         key=lambda x: x.get("created_at") if (isinstance(x, dict) and x.get("created_at")) else "",
         reverse=True,
     )
 
-    # Time machine filter
     time_machine = []
     if session_data.get("premiere"):
         try:
@@ -651,22 +743,45 @@ async def save_config(request: Request):
     logger.info("Configuration saved successfully")
     return {"status": "ok"}
 
+@app.get("/api/subreddit-overrides")
+def get_subreddit_overrides():
+    """Return all series-to-subreddit overrides."""
+    return cache.get("subreddit_overrides") or {}
+
+@app.put("/api/subreddit-overrides")
+async def set_subreddit_override(request: Request):
+    """Set a subreddit override for a series. Body: {"series": "...", "subreddit": "..."}"""
+    body = await request.json()
+    series = str(body.get("series", "")).strip()
+    subreddit = str(body.get("subreddit", "")).strip()
+    if not series:
+        return {"status": "error", "message": "series is required"}
+    overrides = cache.get("subreddit_overrides") or {}
+    if subreddit:
+        overrides[series.lower()] = subreddit
+        logger.info(f"Subreddit override set: {series!r} -> r/{subreddit}")
+    else:
+        overrides.pop(series.lower(), None)
+        logger.info(f"Subreddit override removed: {series!r}")
+    cache.set("subreddit_overrides", overrides)
+    return {"status": "ok"}
+
 @app.post("/api/cache/clear")
 def clear_cache():
-    """Clear all cached data while preserving UI configuration."""
+    """Clear all cached data while preserving UI configuration and subreddit overrides."""
     try:
         logger.info("Cache clear requested")
-        # 1. Capture the config so we don't log the user out of their settings
+        # Capture persistent settings so we don't lose them
         ui_config = cache.get("ui_config")
+        sub_overrides = cache.get("subreddit_overrides")
 
-        # 2. Completely evict everything else
         cache.clear()
 
-        # 3. Restore the config
         if ui_config:
             cache.set("ui_config", ui_config)
+        if sub_overrides:
+            cache.set("subreddit_overrides", sub_overrides)
 
-        # 4. Set the webhook time to 'now' so the UI knows to refresh via SSE
         cache.set("last_webhook_time", time.time())
 
         logger.info("Cache cleared successfully")
@@ -697,7 +812,7 @@ async def jellyfin_webhook(request: Request):
     try:
         cfg = get_config()
         secret = cfg.get("webhook_secret", "")
-        if secret and request.headers.get("X-Webhook-Secret") != secret:
+        if secret and not hmac.compare_digest(request.headers.get("X-Webhook-Secret", ""), secret):
             logger.warning("Webhook rejected: invalid secret")
             return {"status": "unauthorized"}
         payload = await request.json()

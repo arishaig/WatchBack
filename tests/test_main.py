@@ -1,25 +1,9 @@
 """Comprehensive tests for WatchBack (main.py)."""
-import json
 import pytest
-from diskcache import Cache
-from unittest.mock import MagicMock, patch
-from fastapi.testclient import TestClient
+from unittest.mock import patch
 
-import main
-from main import app, _matches_episode, get_config, ENV_MAP
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def mock_response(status_code=200, body=None, text=None):
-    """Build a mock requests.Response."""
-    m = MagicMock()
-    m.status_code = status_code
-    m.json.return_value = body if body is not None else {}
-    m.text = text if text is not None else (json.dumps(body) if body is not None else "")
-    return m
+from main import _matches_episode, get_config, ENV_MAP
+from tests.helpers import mock_response
 
 
 # Shared fixture data
@@ -60,30 +44,6 @@ REDDIT_POSTS = {
         }},
     ]}
 }
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(autouse=True)
-def clean_env(monkeypatch):
-    """Strip all WatchBack env vars before each test."""
-    for _, (env_name, _) in ENV_MAP.items():
-        monkeypatch.delenv(env_name, raising=False)
-
-
-@pytest.fixture
-def fresh_cache(tmp_path, monkeypatch):
-    c = Cache(str(tmp_path / "cache")) 
-    monkeypatch.setattr(main, "cache", c)
-    yield c
-    c.close()
-
-
-@pytest.fixture
-def client(fresh_cache):
-    return TestClient(app)
 
 
 # ---------------------------------------------------------------------------
@@ -293,8 +253,49 @@ class TestCacheClear:
         client.post("/api/cache/clear")
         assert fresh_cache.get("ui_config") == {"jf_api_key": "keep-me"}
 
+    def test_preserves_subreddit_overrides(self, fresh_cache, client):
+        fresh_cache.set("subreddit_overrides", {"severance": "SeveranceAppleTVPlus"})
+        fresh_cache.set("jf_session", {"series": "Show"})
+        client.post("/api/cache/clear")
+        assert fresh_cache.get("subreddit_overrides") == {"severance": "SeveranceAppleTVPlus"}
+
     def test_returns_ok(self, client):
         assert client.post("/api/cache/clear").json() == {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Subreddit overrides
+# ---------------------------------------------------------------------------
+
+class TestSubredditOverrides:
+    def test_get_empty(self, client):
+        assert client.get("/api/subreddit-overrides").json() == {}
+
+    def test_set_and_get(self, fresh_cache, client):
+        client.put("/api/subreddit-overrides", json={"series": "Severance", "subreddit": "SeveranceAppleTVPlus"})
+        data = client.get("/api/subreddit-overrides").json()
+        assert data["severance"] == "SeveranceAppleTVPlus"
+
+    def test_case_insensitive_key(self, fresh_cache, client):
+        client.put("/api/subreddit-overrides", json={"series": "The Bear", "subreddit": "TheBear"})
+        data = client.get("/api/subreddit-overrides").json()
+        assert "the bear" in data
+
+    def test_remove_override(self, fresh_cache, client):
+        client.put("/api/subreddit-overrides", json={"series": "Severance", "subreddit": "SeveranceAppleTVPlus"})
+        client.put("/api/subreddit-overrides", json={"series": "Severance", "subreddit": ""})
+        assert client.get("/api/subreddit-overrides").json() == {}
+
+    def test_missing_series_returns_error(self, client):
+        r = client.put("/api/subreddit-overrides", json={"subreddit": "test"})
+        assert r.json()["status"] == "error"
+
+    def test_override_used_in_search(self, fresh_cache):
+        from main import _get_show_subreddits
+        fresh_cache.set("subreddit_overrides", {"severance": "SeveranceAppleTVPlus"})
+        subs = _get_show_subreddits("Severance")
+        assert subs[0] == "severanceappletvplus"
+        assert "severance" in subs  # derived name still present as fallback
 
 
 # ---------------------------------------------------------------------------
@@ -594,6 +595,83 @@ class TestApiSync:
             data = client.get("/api/sync").json()
         # Should have re-fetched and returned structured data
         assert isinstance(data["reddit_threads"], list)
+
+
+# ---------------------------------------------------------------------------
+# Sync endpoint integration -- PullPush caching
+# ---------------------------------------------------------------------------
+
+class TestSyncPullpushCaching:
+    """Verify that /api/sync caches and retrieves PullPush results correctly."""
+
+    SESSION = {
+        "series": "The Bear", "name": "Pop",
+        "season": 2, "episode": 5, "premiere": "2023-08-01T00:00:00Z",
+    }
+
+    def test_pullpush_results_cached(self, fresh_cache, monkeypatch):
+        """PullPush results are cached for 24h on first fetch."""
+        monkeypatch.setenv("JF_API_KEY", "test")
+        fresh_cache.set("jf_session", self.SESSION, expire=60)
+
+        pp_comment = {
+            "id": "c1", "comment": "Great episode", "source": "reddit",
+            "user": {"username": "user1"}, "created_at": "2023-08-02T00:00:00Z",
+            "score": 10, "url": "https://reddit.com/r/TheBear/comments/abc123/_/c1/",
+            "thread_title": "Discussion", "thread_url": "https://reddit.com/r/TheBear/comments/abc123/",
+            "replies": [],
+        }
+
+        with patch("main.find_pullpush_comments", return_value=[pp_comment]) as mock_pp, \
+             patch("main.find_bluesky_posts", return_value=[]), \
+             patch("main.find_reddit_threads", return_value=[]):
+            from main import sync_data
+            result = sync_data()
+            assert mock_pp.call_count == 1
+
+            # Second call should use cache
+            result2 = sync_data()
+            assert mock_pp.call_count == 1  # Not called again
+
+        assert result["status"] == "success"
+        reddit_comments = [c for c in result["all_comments"] if c.get("source") == "reddit"]
+        assert len(reddit_comments) == 1
+
+    def test_pullpush_failure_doesnt_break_sync(self, fresh_cache, monkeypatch):
+        """If PullPush returns empty, sync still succeeds with other sources."""
+        monkeypatch.setenv("JF_API_KEY", "test")
+        fresh_cache.set("jf_session", self.SESSION, expire=60)
+
+        bsky_comment = {
+            "id": "b1", "comment": "Bluesky post", "source": "bluesky",
+            "user": {"username": "user.bsky.social"}, "created_at": "2023-08-02T00:00:00Z",
+            "url": "https://bsky.app/profile/user.bsky.social/post/b1", "images": [],
+        }
+
+        with patch("main.find_pullpush_comments", return_value=[]), \
+             patch("main.find_bluesky_posts", return_value=[bsky_comment]), \
+             patch("main.find_reddit_threads", return_value=[]):
+            from main import sync_data
+            result = sync_data()
+
+        assert result["status"] == "success"
+        assert len(result["all_comments"]) == 1
+        assert result["all_comments"][0]["source"] == "bluesky"
+
+    def test_reddit_button_shown_regardless(self, fresh_cache, monkeypatch):
+        """reddit_url is always present even when PullPush returns nothing."""
+        monkeypatch.setenv("JF_API_KEY", "test")
+        fresh_cache.set("jf_session", self.SESSION, expire=60)
+
+        with patch("main.find_pullpush_comments", return_value=[]), \
+             patch("main.find_bluesky_posts", return_value=[]), \
+             patch("main.find_reddit_threads", return_value=[]):
+            from main import sync_data
+            result = sync_data()
+
+        assert result["status"] == "success"
+        assert "reddit_url" in result
+        assert result["reddit_url"]  # Not empty
 
 
 # ---------------------------------------------------------------------------
