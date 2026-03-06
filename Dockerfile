@@ -43,8 +43,8 @@ ENV PUID=1000 \
 # Setup user and directories
 RUN groupadd -g $PGID abc && \
     useradd -u $PUID -g abc -m abc && \
-    mkdir -p /config /data/static && \
-    chown abc:abc /config /data /data/static
+    mkdir -p /config && \
+    chown abc:abc /config
 
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
