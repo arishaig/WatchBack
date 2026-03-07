@@ -519,11 +519,11 @@
                         :class="mode === 'time' ? 'text-white shadow' : 'wb-text-muted'"
                         :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
                         class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">Time Machine
-                        &#x23F1;&#xFE0F;</button>
+                        &#x23F1;&#xFE0F; <span x-text="'(' + timeMachineCount + ')'" class="opacity-70 text-xs font-normal"></span></button>
                     <button @click="mode = 'all'" :class="mode === 'all' ? 'text-white shadow' : 'wb-text-muted'"
                         :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
                         class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">All Comments
-                        &#x1F4AC;</button>
+                        &#x1F4AC; <span x-text="'(' + allCommentsCount + ')'" class="opacity-70 text-xs font-normal"></span></button>
                     <a :href="data?.reddit_url" target="_blank" rel="noopener noreferrer"
                         class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer">Reddit
                         &#x1F50D;</a>
@@ -532,13 +532,13 @@
                 <div class="flex gap-2 mb-4 justify-center">
                     <button @click="toggleSource('trakt')"
                         :class="sourceActive('trakt') ? 'filter-trakt' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Trakt</button>
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Trakt <span x-text="'(' + sourceCount('trakt') + ')'" class="font-normal opacity-70"></span></button>
                     <button @click="toggleSource('bluesky')"
                         :class="sourceActive('bluesky') ? 'filter-bluesky' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">BlueSky</button>
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">BlueSky <span x-text="'(' + sourceCount('bluesky') + ')'" class="font-normal opacity-70"></span></button>
                     <button @click="toggleSource('reddit')"
                         :class="sourceActive('reddit') ? 'filter-reddit' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit</button>
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit <span x-text="'(' + sourceCount('reddit') + ')'" class="font-normal opacity-70"></span></button>
                 </div>
 
                 <div x-show="hasThreadGroups" class="flex justify-center mb-4">
@@ -546,7 +546,7 @@
                         class="px-5 py-1.5 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer flex items-center gap-1.5"
                         title="Click to toggle · Double-tap to set as default">
                         <span
-                            x-text="groupByThread ? '&#x1F9F5; Grouped by thread' : '&#x1F9F5; Group by thread'"></span>
+                            x-text="(groupByThread ? '&#x1F9F5; Grouped by thread' : '&#x1F9F5; Group by thread') + ' (' + threadCount + ')'"></span>
                         <span x-show="threadGroupPinned" class="text-[9px] opacity-60">&#x1F4CC;</span>
                     </button>
                 </div>
@@ -940,6 +940,26 @@
                 },
                 get hasThreadGroups() {
                     return this.activeComments.some(c => c.thread_title);
+                },
+                get timeMachineCount() {
+                    if (!this.data) return 0;
+                    const list = this.data.time_machine || [];
+                    if (this.sourceFilter.size === 0) return list.length;
+                    return list.filter(c => this.sourceFilter.has(c.source || 'trakt')).length;
+                },
+                get allCommentsCount() {
+                    if (!this.data) return 0;
+                    const list = this.data.all_comments || [];
+                    if (this.sourceFilter.size === 0) return list.length;
+                    return list.filter(c => this.sourceFilter.has(c.source || 'trakt')).length;
+                },
+                get threadCount() {
+                    return this.groupedComments.length;
+                },
+                sourceCount(src) {
+                    if (!this.data) return 0;
+                    const list = this.mode === 'time' ? (this.data.time_machine || []) : (this.data.all_comments || []);
+                    return list.filter(c => (c.source || 'trakt') === src).length;
                 },
                 get groupedComments() {
                     const comments = this.activeComments;
