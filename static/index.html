@@ -349,12 +349,12 @@
                         :class="mode === 'time' ? 'text-white shadow' : 'wb-text-muted'"
                         :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
                         class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">Time Machine
-                        <span x-text="'(' + timeMachineCount + ')'" class="opacity-70 text-xs font-normal"></span>
+                        <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
                     </button>
                     <button @click="mode = 'all'" :class="mode === 'all' ? 'text-white shadow' : 'wb-text-muted'"
                         :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
                         class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">All Comments
-                        <span x-text="'(' + allCommentsCount + ')'" class="opacity-70 text-xs font-normal"></span>
+                        <span x-text="'(' + allCommentsCount + ')'" class="text-xs font-normal"></span>
                     </button>
                     <a :href="data?.reddit_url" target="_blank" rel="noopener noreferrer"
                         class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer">Reddit
@@ -365,16 +365,16 @@
                     <button @click="toggleSource('trakt')"
                         :class="sourceActive('trakt') ? 'filter-trakt' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Trakt
-                        <span x-text="'(' + sourceCount('trakt') + ')'" class="font-normal opacity-70"></span></button>
+                        <span x-text="'(' + sourceCount('trakt') + ')'" class="font-normal"></span></button>
                     <button @click="toggleSource('bluesky')"
                         :class="sourceActive('bluesky') ? 'filter-bluesky' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">BlueSky
                         <span x-text="'(' + sourceCount('bluesky') + ')'"
-                            class="font-normal opacity-70"></span></button>
+                            class="font-normal"></span></button>
                     <button @click="toggleSource('reddit')"
                         :class="sourceActive('reddit') ? 'filter-reddit' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit
-                        <span x-text="'(' + sourceCount('reddit') + ')'" class="font-normal opacity-70"></span></button>
+                        <span x-text="'(' + sourceCount('reddit') + ')'" class="font-normal"></span></button>
                 </div>
 
                 <div x-show="hasThreadGroups" class="flex justify-center mb-4">
@@ -416,11 +416,12 @@
                             <template x-if="comment.images && comment.images.length > 0">
                                 <div class="grid gap-2 mb-3"
                                     :class="comment.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
-                                    <template x-for="img in comment.images" :key="img">
-                                        <div @click="lightboxImg = img"
+                                    <template x-for="img in comment.images" :key="img.url">
+                                        <div @click="lightboxImg = img.url"
                                             class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
                                             style="background-color: var(--wb-bg);">
-                                            <img :src="img"
+                                            <img :src="img.url"
+                                                :alt="img.alt || 'Image from post'"
                                                 class="w-full h-auto object-cover hover:scale-110 transition-transform duration-300"
                                                 loading="lazy">
                                         </div>
@@ -537,11 +538,12 @@
                                         <template x-if="comment.images && comment.images.length > 0">
                                             <div class="grid gap-2 mb-3"
                                                 :class="comment.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
-                                                <template x-for="img in comment.images" :key="img">
-                                                    <div @click="lightboxImg = img"
+                                                <template x-for="img in comment.images" :key="img.url">
+                                                    <div @click="lightboxImg = img.url"
                                                         class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
                                                         style="background-color: var(--wb-bg);">
-                                                        <img :src="img"
+                                                        <img :src="img.url"
+                                                            :alt="img.alt || 'Image from post'"
                                                             class="w-full h-auto object-cover hover:scale-110 transition-transform duration-300"
                                                             loading="lazy">
                                                     </div>
@@ -647,7 +649,7 @@
             @keydown.escape.window="lightboxImg = null"
             class="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer"
             style="background-color: rgba(0,0,0,0.85);" x-cloak>
-            <img :src="lightboxImg" @click.stop
+            <img :src="lightboxImg" @click.stop alt="Enlarged image"
                 class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl cursor-default">
         </div>
     </div>

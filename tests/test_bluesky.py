@@ -36,16 +36,17 @@ class TestExtractBskyImages:
     def test_images_view(self):
         embed = {
             "$type": "app.bsky.embed.images#view",
-            "images": [{"thumb": "http://img1.jpg"}, {"thumb": "http://img2.jpg"}],
+            "images": [{"thumb": "http://img1.jpg", "alt": "first"}, {"thumb": "http://img2.jpg"}],
         }
-        assert _extract_bsky_images(embed) == ["http://img1.jpg", "http://img2.jpg"]
+        result = _extract_bsky_images(embed)
+        assert result == [{"url": "http://img1.jpg", "alt": "first"}, {"url": "http://img2.jpg", "alt": ""}]
 
     def test_external_view(self):
         embed = {
             "$type": "app.bsky.embed.external#view",
             "external": {"thumb": "http://ext.jpg"},
         }
-        assert _extract_bsky_images(embed) == ["http://ext.jpg"]
+        assert _extract_bsky_images(embed) == [{"url": "http://ext.jpg", "alt": ""}]
 
     def test_record_with_media(self):
         embed = {
@@ -55,7 +56,7 @@ class TestExtractBskyImages:
                 "images": [{"thumb": "http://nested.jpg"}],
             },
         }
-        assert _extract_bsky_images(embed) == ["http://nested.jpg"]
+        assert _extract_bsky_images(embed) == [{"url": "http://nested.jpg", "alt": ""}]
 
     def test_empty_embed(self):
         assert _extract_bsky_images({}) == []
