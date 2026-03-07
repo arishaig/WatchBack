@@ -1,4 +1,6 @@
 """Tests for Trakt session fallthrough and background poller."""
+import asyncio
+import threading
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -31,8 +33,7 @@ def test_sync_data_trakt_fallthrough(fresh_cache, client):
     assert data["metadata"]["episode"] == 5
 
 
-@pytest.mark.asyncio
-async def test_trakt_watch_poller_change(fresh_cache):
+def test_trakt_watch_poller_change(fresh_cache):
     """Background poller detects session changes and updates webhook time."""
     fresh_cache.set("ui_config", {"trakt_username": "user1"})
     fresh_cache.set("last_webhook_time", 100)
@@ -45,12 +46,23 @@ async def test_trakt_watch_poller_change(fresh_cache):
     resp2.status_code = 200
     resp2.json.return_value = {"type": "episode", "episode": {"ids": {"trakt": 102}}}
 
-    with patch("main.requests.get", side_effect=[resp1, resp2]):
-        with patch("asyncio.sleep", side_effect=[None, Exception("Stop Poller")]):
-            try:
-                await trakt_watch_poller()
-            except Exception as e:
-                if str(e) != "Stop Poller":
-                    raise
+    errors = []
+
+    def run_poller():
+        # Run in a dedicated thread so asyncio.run() gets a clean loop regardless
+        # of whatever event loop pytest-playwright may leave running in the main thread.
+        with patch("main.requests.get", side_effect=[resp1, resp2]):
+            with patch("asyncio.sleep", side_effect=[None, Exception("Stop Poller")]):
+                try:
+                    asyncio.run(trakt_watch_poller())
+                except Exception as e:
+                    if str(e) != "Stop Poller":
+                        errors.append(e)
+
+    t = threading.Thread(target=run_poller)
+    t.start()
+    t.join(timeout=10)
+    if errors:
+        raise errors[0]
 
     assert fresh_cache.get("last_webhook_time") > 100
