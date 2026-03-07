@@ -28,5 +28,9 @@ build/
 .vscode/
 .python-version
 
+# Coverage
+htmlcov/
+.coverage
+
 # Project Specific
 /config/

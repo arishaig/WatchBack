@@ -11,7 +11,7 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="stylesheet" href="/tailwind.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="/app.css">
 </head>
 
@@ -635,6 +635,13 @@
                         </div>
                     </template>
                 </div>
+            </main>
+        </template>
+
+        <template x-if="data?.status === 'error'">
+            <main class="text-center py-20 px-6">
+                <p class="wb-error-text text-lg mb-2" x-text="data?.message || 'An error occurred.'"></p>
+                <p class="text-xs wb-text-faint">Check your configuration and try syncing again.</p>
             </main>
         </template>
 

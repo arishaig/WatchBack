@@ -30,14 +30,14 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
-      - name: Run unit tests
-        run: uv run python -m pytest tests -v -m "not a11y"
+      - name: Run unit tests with coverage
+        run: uv run python -m pytest tests -v
 
       - name: Install Playwright browsers
         run: uv run playwright install chromium --with-deps
 
       - name: Run accessibility tests
-        run: uv run python -m pytest tests -v -m a11y
+        run: uv run python -m pytest tests -v -m a11y --no-cov
 
   docker:
     runs-on: ubuntu-latest

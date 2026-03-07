@@ -1,23 +1,22 @@
 # Stage 1: Build & Compile
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 
-# Install uv
+# Install uv and build tools (curl for Tailwind download)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uv /usr/local/bin/
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # 1. Install dependencies directly into the system path
-# We use --system to avoid the virtualenv headache inside Docker
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     --mount=type=bind,source=uv.lock,target=uv.lock \
-    uv export --frozen --no-dev --format requirements-txt > requirements.txt && \
-    pip install --no-cache-dir -r requirements.txt
+    uv export --frozen --no-dev --no-hashes --format requirements-txt > requirements.txt && \
+    uv pip install --system -r requirements.txt
 
 # 2. Tailwind compilation
 COPY static/ /app/static/
 RUN set -e; \
-    apt-get update && apt-get install -y curl && \
     echo "Downloading tailwindcss..." && \
     curl -sLo /tmp/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 && \
     test -f /tmp/tailwindcss || (echo "Failed to download tailwindcss" && exit 1) && \
@@ -30,7 +29,7 @@ RUN set -e; \
     ls -lh /data/static/
 
 # Stage 2: Runtime
-FROM python:3.12-slim-bookworm
+FROM python:3.14-slim-bookworm
 WORKDIR /app
 
 ENV PUID=1000 \
@@ -47,7 +46,7 @@ RUN groupadd -g $PGID abc && \
     chown abc:abc /config
 
 # Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy app code
