@@ -1,0 +1,269 @@
+[x-cloak] {
+    display: none !important;
+}
+
+.switch-container {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 24px;
+}
+
+.switch-input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--wb-switch-bg);
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+.switch-input:checked+.switch-slider {
+    background-color: var(--wb-accent);
+}
+
+.switch-input:checked+.switch-slider:before {
+    transform: translateX(16px);
+}
+
+/*
+ * Theme system via CSS custom properties.
+ * To add a new theme, copy a block below and adjust the values.
+ * Then add the theme name as an option in the Appearance config section.
+ */
+
+/* --- Dark theme (default) --- */
+:root,
+html[data-theme="dark"] {
+    color-scheme: dark;
+
+    --wb-bg: #111827;
+    --wb-surface: #1f2937;
+    --wb-surface-alt: #374151;
+    --wb-border: #374151;
+    --wb-border-light: #4b5563;
+
+    --wb-text: #f3f4f6;
+    --wb-text-secondary: #e5e7eb;
+    --wb-text-muted: #b0b6bf;
+    --wb-text-faint: #9ea4ae;
+
+    --wb-accent: #2563eb;
+    --wb-accent-hover: #3b82f6;
+    --wb-accent-text: #60a5fa;
+
+    --wb-switch-bg: #4b5563;
+
+    /* Source: Reddit */
+    --wb-reddit-bg: rgba(124, 45, 18, 0.5);
+    --wb-reddit-text: #fdba74;
+    --wb-reddit-hover: rgba(146, 64, 14, 1);
+    --wb-reddit-muted: rgba(251, 146, 60, 0.7);
+    --wb-reddit-border: rgba(249, 115, 22, 0.3);
+
+    /* Source: Bluesky */
+    --wb-bluesky-bg: rgba(30, 58, 138, 0.5);
+    --wb-bluesky-text: #93c5fd;
+    --wb-bluesky-hover: rgba(30, 64, 175, 1);
+
+    /* Source: Trakt */
+    --wb-trakt-bg: #af0e13;
+    --wb-trakt-text: #cdd2d5;
+
+    /* Filter pills */
+    --wb-filter-inactive-bg: #1f2937;
+    --wb-filter-inactive-text: #bec3ca;
+
+    /* Reply nesting */
+    --wb-reply-bg: rgba(55, 65, 81, 0.5);
+
+    /* Logo filter */
+    --wb-logo-filter: brightness(0) invert(1);
+}
+
+/* --- Light theme --- */
+html[data-theme="light"] {
+    color-scheme: light;
+
+    --wb-bg: #f3f4f6;
+    --wb-surface: #ffffff;
+    --wb-surface-alt: #e5e7eb;
+    --wb-border: #e5e7eb;
+    --wb-border-light: #d1d5db;
+
+    --wb-text: #1f2937;
+    --wb-text-secondary: #374151;
+    --wb-text-muted: #616774;
+    --wb-text-faint: #6a6f78;
+
+    --wb-accent: #2563eb;
+    --wb-accent-hover: #3b82f6;
+    --wb-accent-text: #2563eb;
+
+    --wb-switch-bg: #d1d5db;
+
+    --wb-reddit-bg: rgba(255, 237, 213, 0.8);
+    --wb-reddit-text: #c2410c;
+    --wb-reddit-hover: rgba(255, 228, 196, 1);
+    --wb-reddit-muted: rgba(194, 65, 12, 0.7);
+    --wb-reddit-border: rgba(251, 146, 60, 0.4);
+
+    --wb-bluesky-bg: rgba(219, 234, 254, 0.8);
+    --wb-bluesky-text: #1d4ed8;
+    --wb-bluesky-hover: rgba(191, 219, 254, 1);
+
+    --wb-trakt-bg: #e5e7eb;
+    --wb-trakt-text: #616774;
+
+    --wb-filter-inactive-bg: #ffffff;
+    --wb-filter-inactive-text: #6a6f78;
+
+    --wb-reply-bg: rgba(229, 231, 235, 0.5);
+
+    --wb-logo-filter: brightness(1);
+}
+
+/* Themed overrides for Tailwind utility classes */
+body {
+    background-color: var(--wb-bg);
+    color: var(--wb-text);
+}
+
+.wb-surface {
+    background-color: var(--wb-surface);
+}
+
+.wb-surface-alt {
+    background-color: var(--wb-surface-alt);
+}
+
+.wb-border {
+    border-color: var(--wb-border);
+}
+
+.wb-text {
+    color: var(--wb-text);
+}
+
+.wb-text-secondary {
+    color: var(--wb-text-secondary);
+}
+
+.wb-text-muted {
+    color: var(--wb-text-muted);
+}
+
+.wb-text-faint {
+    color: var(--wb-text-faint);
+}
+
+.wb-accent-text {
+    color: var(--wb-accent-text);
+}
+
+/* Source badges */
+.badge-reddit {
+    background: var(--wb-reddit-bg);
+    color: var(--wb-reddit-text);
+}
+
+.badge-reddit:hover {
+    background: var(--wb-reddit-hover);
+}
+
+.badge-bluesky {
+    background: var(--wb-bluesky-bg);
+    color: var(--wb-bluesky-text);
+}
+
+.badge-bluesky:hover {
+    background: var(--wb-bluesky-hover);
+}
+
+.badge-trakt {
+    background: var(--wb-trakt-bg);
+    color: var(--wb-trakt-text);
+}
+
+/* Source filter pills */
+.filter-inactive {
+    background: var(--wb-filter-inactive-bg);
+    color: var(--wb-filter-inactive-text);
+}
+
+.filter-trakt {
+    background: var(--wb-trakt-bg);
+    color: var(--wb-text-secondary);
+}
+
+.filter-bluesky {
+    background: var(--wb-bluesky-bg);
+    color: var(--wb-bluesky-text);
+}
+
+.filter-reddit {
+    background: var(--wb-reddit-bg);
+    color: var(--wb-reddit-text);
+}
+
+/* Thread title link */
+.thread-title {
+    color: var(--wb-reddit-muted);
+}
+
+.thread-title:hover {
+    color: var(--wb-reddit-text);
+}
+
+/* Reply nesting */
+.reply-border {
+    border-color: var(--wb-reddit-border);
+}
+
+.reply-bg {
+    background: var(--wb-reply-bg);
+}
+
+/* Reddit search link */
+.reddit-link {
+    color: var(--wb-reddit-text);
+}
+
+/* Logo */
+img.wb-logo {
+    filter: var(--wb-logo-filter);
+    -webkit-filter: var(--wb-logo-filter);
+}
+
+@keyframes wb-spin {
+    to { transform: rotate(360deg); }
+}
+.wb-spinner {
+    width: 44px;
+    height: 44px;
+    border: 3px solid var(--wb-border);
+    border-top-color: var(--wb-accent);
+    border-radius: 50%;
+    animation: wb-spin 0.75s linear infinite;
+}
