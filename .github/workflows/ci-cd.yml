@@ -13,6 +13,7 @@ env:
 
 jobs:
   test:
+    if: !(github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +42,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'push'
+    if: always() && !failure() && !cancelled() && github.event_name == 'push'
     permissions:
       contents: read
       packages: write
