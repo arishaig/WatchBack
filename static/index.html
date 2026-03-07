@@ -1027,6 +1027,21 @@
                         console.error("[WatchBack] Server restart request failed:", e);
                     }
                 },
+                async autoSavePref(key, value) {
+                    try {
+                        const payload = { [key]: value };
+                        const res = await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const cRes = await fetch('/api/config');
+                        this.configData = await cRes.json();
+                        this.prefSaveStatus = 'Saved';
+                        setTimeout(() => { this.prefSaveStatus = ''; }, 2000);
+                    } catch (e) {
+                        console.error("[WatchBack] Failed to save preference:", e);
+                        this.prefSaveStatus = 'Error';
+                        setTimeout(() => { this.prefSaveStatus = ''; }, 2000);
+                    }
+                },
                 formatDate(iso) { return iso ? new Date(iso).toLocaleDateString() : ''; },
                 countAllReplies(c) {
                     if (!c.replies || !Array.isArray(c.replies)) return 0;
