@@ -77,6 +77,12 @@
                                     :placeholder="configData?.jf_api_key?.effective_value || 'Required'"
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
+                            <button @click="testService('jellyfin')"
+                                :disabled="testResults.jellyfin?.status === 'testing'"
+                                aria-live="polite"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                :class="testResults.jellyfin?.status === 'ok' ? 'test-ok' : testResults.jellyfin?.status === 'error' ? 'test-error' : ''"
+                                x-text="testResults.jellyfin?.status === 'testing' ? 'Testing\u2026' : testResults.jellyfin?.message || 'Test Connection'"></button>
                         </div>
                     </div>
 
@@ -116,6 +122,20 @@
                                     :placeholder="configData?.trakt_username?.env_value || 'Optional (public profile)'"
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
+                            <div class="flex gap-2">
+                                <button @click="testService('trakt')"
+                                    :disabled="testResults.trakt?.status === 'testing'"
+                                    aria-live="polite"
+                                    class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                    :class="testResults.trakt?.status === 'ok' ? 'test-ok' : testResults.trakt?.status === 'error' ? 'test-error' : ''"
+                                    x-text="testResults.trakt?.status === 'testing' ? 'Testing\u2026' : testResults.trakt?.message || 'Test API'"></button>
+                                <button @click="testService('trakt-watch')"
+                                    :disabled="testResults['trakt-watch']?.status === 'testing'"
+                                    aria-live="polite"
+                                    class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                    :class="testResults['trakt-watch']?.status === 'ok' ? 'test-ok' : testResults['trakt-watch']?.status === 'error' ? 'test-error' : ''"
+                                    x-text="testResults['trakt-watch']?.status === 'testing' ? 'Testing\u2026' : testResults['trakt-watch']?.message || 'Test Profile'"></button>
+                            </div>
                         </div>
                     </div>
 
@@ -144,6 +164,12 @@
                                     :placeholder="configData?.bsky_app_password?.effective_value || 'xxxx-xxxx-xxxx-xxxx'"
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
+                            <button @click="testService('bluesky')"
+                                :disabled="testResults.bluesky?.status === 'testing'"
+                                aria-live="polite"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                :class="testResults.bluesky?.status === 'ok' ? 'test-ok' : testResults.bluesky?.status === 'error' ? 'test-error' : ''"
+                                x-text="testResults.bluesky?.status === 'testing' ? 'Testing\u2026' : testResults.bluesky?.message || 'Test Connection'"></button>
                         </div>
                     </div>
 
@@ -161,31 +187,40 @@
 
                         <!-- Jellyfin session source -->
                         <li x-show="configData?.jf_api_key?.effective_value" class="flex items-start gap-2">
-                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span :class="testIcon('jellyfin').cls" class="mt-0.5"
+                                :aria-label="'Jellyfin: ' + testIcon('jellyfin').label"
+                                role="img" x-text="testIcon('jellyfin').icon"></span>
                             <span>Watch data from <strong class="wb-text-secondary">Jellyfin</strong></span>
                         </li>
                         <li x-show="configData?.jf_api_key?.effective_value" class="flex items-start gap-2">
-                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
-                            <span>Auto-refresh via Jellyfin webhook (if configured in Jellyfin)</span>
+                            <span :class="testIcon('jellyfin').cls" class="mt-0.5"
+                                aria-hidden="true" x-text="testIcon('jellyfin').icon"></span>
+                            <span>Auto-refresh via <strong class="wb-text-secondary">Jellyfin</strong> webhook (if configured)</span>
                         </li>
 
                         <!-- Trakt polling (no Jellyfin, has trakt_username/access_token) -->
                         <li x-show="!configData?.jf_api_key?.effective_value &&
                                     (configData?.trakt_username?.effective_value || configData?.trakt_access_token?.effective_value)"
                             class="flex items-start gap-2">
-                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span :class="testIcon('trakt-watch').cls" class="mt-0.5"
+                                :aria-label="'Trakt profile: ' + testIcon('trakt-watch').label"
+                                role="img" x-text="testIcon('trakt-watch').icon"></span>
                             <span>Watch data from <strong class="wb-text-secondary">Trakt</strong> (polling every 30s)</span>
                         </li>
 
                         <!-- Trakt comments -->
                         <li x-show="configData?.trakt_client_id?.effective_value" class="flex items-start gap-2">
-                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span :class="testIcon('trakt').cls" class="mt-0.5"
+                                :aria-label="'Trakt API: ' + testIcon('trakt').label"
+                                role="img" x-text="testIcon('trakt').icon"></span>
                             <span>Comments from <strong class="wb-text-secondary">Trakt</strong></span>
                         </li>
 
                         <!-- Reddit comments (always available when a session source exists) -->
                         <li class="flex items-start gap-2">
-                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span :class="testIcon('reddit').cls" class="mt-0.5"
+                                :aria-label="'Reddit: ' + testIcon('reddit').label"
+                                role="img" x-text="testIcon('reddit').icon"></span>
                             <span>Comments from <strong class="wb-text-secondary">Reddit</strong></span>
                         </li>
 
@@ -193,14 +228,23 @@
                         <li x-show="configData?.bsky_identifier?.effective_value &&
                                     configData?.bsky_app_password?.effective_value"
                             class="flex items-start gap-2">
-                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span :class="testIcon('bluesky').cls" class="mt-0.5"
+                                :aria-label="'Bluesky: ' + testIcon('bluesky').label"
+                                role="img" x-text="testIcon('bluesky').icon"></span>
                             <span>Posts from <strong class="wb-text-secondary">Bluesky</strong></span>
                         </li>
                         <li x-show="configData?.bsky_identifier?.effective_value &&
                                     !configData?.bsky_app_password?.effective_value"
                             class="flex items-start gap-2">
-                            <span class="wb-text-faint mt-0.5">&#x26A0;</span>
+                            <span class="wb-error-text mt-0.5" role="img" aria-label="Warning">&#x26A0;</span>
                             <span>Bluesky needs both handle <em>and</em> app password to work</span>
+                        </li>
+                        <li class="pt-1">
+                            <button @click="testAll()"
+                                :disabled="Object.values(testResults).some(r => r.status === 'testing')"
+                                aria-live="polite"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                x-text="Object.values(testResults).some(r => r.status === 'testing') ? 'Testing\u2026' : 'Test All Connections'"></button>
                         </li>
                     </ul>
                 </div>

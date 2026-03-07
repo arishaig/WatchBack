@@ -5,6 +5,8 @@ document.addEventListener('alpine:init', () => {
         groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
         prefSaveStatus: '',
         _prefSaveTimer: null,
+        testResults: {},
+        lastTestResults: {},
         async init() {
             console.log("[WatchBack] Initializing application");
             try {
@@ -227,6 +229,34 @@ document.addEventListener('alpine:init', () => {
                 this.prefSaveStatus = 'Error';
                 setTimeout(() => { this.prefSaveStatus = ''; }, 2000);
             }
+        },
+        testIcon(service) {
+            const r = this.lastTestResults[service];
+            if (!r) return { icon: '\u2713', cls: 'wb-accent-text', label: 'configured' };
+            if (r.status === 'ok') return { icon: '\u2713', cls: 'wb-success-text', label: 'connected' };
+            return { icon: '\u2717', cls: 'wb-error-text', label: 'connection failed' };
+        },
+        async testService(service) {
+            this.testResults = { ...this.testResults, [service]: { status: 'testing' } };
+            try {
+                const res = await fetch(`/api/test/${service}`);
+                const data = await res.json();
+                const result = { status: data.ok ? 'ok' : 'error', message: data.message };
+                this.testResults = { ...this.testResults, [service]: result };
+                this.lastTestResults = { ...this.lastTestResults, [service]: result };
+            } catch (e) {
+                const result = { status: 'error', message: 'Request failed' };
+                this.testResults = { ...this.testResults, [service]: result };
+                this.lastTestResults = { ...this.lastTestResults, [service]: result };
+            }
+            setTimeout(() => {
+                const { [service]: _, ...rest } = this.testResults;
+                this.testResults = rest;
+            }, 4000);
+        },
+        async testAll() {
+            const services = ['jellyfin', 'trakt', 'trakt-watch', 'bluesky', 'reddit'];
+            await Promise.all(services.map(s => this.testService(s)));
         },
         formatDate(iso) { return iso ? new Date(iso).toLocaleDateString() : ''; },
         countAllReplies(c) {
