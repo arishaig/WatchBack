@@ -519,11 +519,13 @@
                         :class="mode === 'time' ? 'text-white shadow' : 'wb-text-muted'"
                         :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
                         class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">Time Machine
-                        &#x23F1;&#xFE0F; <span x-text="'(' + timeMachineCount + ')'" class="opacity-70 text-xs font-normal"></span></button>
+                        <span x-text="'(' + timeMachineCount + ')'" class="opacity-70 text-xs font-normal"></span>
+                    </button>
                     <button @click="mode = 'all'" :class="mode === 'all' ? 'text-white shadow' : 'wb-text-muted'"
                         :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
                         class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">All Comments
-                        &#x1F4AC; <span x-text="'(' + allCommentsCount + ')'" class="opacity-70 text-xs font-normal"></span></button>
+                        <span x-text="'(' + allCommentsCount + ')'" class="opacity-70 text-xs font-normal"></span>
+                    </button>
                     <a :href="data?.reddit_url" target="_blank" rel="noopener noreferrer"
                         class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer">Reddit
                         &#x1F50D;</a>
@@ -546,8 +548,8 @@
                         class="px-5 py-1.5 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer flex items-center gap-1.5"
                         title="Click to toggle · Double-tap to set as default">
                         <span
-                            x-text="(groupByThread ? '&#x1F9F5; Grouped by thread' : '&#x1F9F5; Group by thread') + ' (' + threadCount + ')'"></span>
-                        <span x-show="threadGroupPinned" class="text-[9px] opacity-60">&#x1F4CC;</span>
+                            x-text="(groupByThread ? Grouped by thread' : 'Group by thread') + ' (' + threadCount + ')'"></span>
+                        <span x-show="threadGroupPinned" class="text-[9px] opacity-60">📁</span>
                     </button>
                 </div>
 
