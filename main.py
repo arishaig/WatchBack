@@ -206,18 +206,18 @@ async def trakt_watch_poller():
         
         await asyncio.sleep(30)
 
-def _extract_bsky_images(embed: dict) -> list[str]:
-    """Recursively extract image URLs from a Bluesky post's embed object."""
+def _extract_bsky_images(embed: dict) -> list[dict]:
+    """Recursively extract image URLs and alt text from a Bluesky post's embed object."""
     imgs = []
     t = embed.get("$type")
     if t == "app.bsky.embed.images#view":
         for img in embed.get("images", []):
             if img.get("thumb"):
-                imgs.append(img["thumb"])
+                imgs.append({"url": img["thumb"], "alt": img.get("alt", "")})
     elif t == "app.bsky.embed.external#view":
         thumb = embed.get("external", {}).get("thumb")
         if thumb:
-            imgs.append(thumb)
+            imgs.append({"url": thumb, "alt": ""})
     elif t == "app.bsky.embed.recordWithMedia#view":
         imgs.extend(_extract_bsky_images(embed.get("media", {})))
     return imgs
@@ -423,7 +423,7 @@ def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> l
             images = _extract_bsky_images(p.get("embed", {}))
 
             # Fuzzy dedup: skip if both text + images match a previous post
-            dedupe_key = (norm_text, frozenset(images))
+            dedupe_key = (norm_text, frozenset(img["url"] for img in images))
             if dedupe_key in seen:
                 continue
             seen.add(dedupe_key)

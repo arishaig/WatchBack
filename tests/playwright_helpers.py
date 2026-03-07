@@ -106,7 +106,7 @@ def bluesky_post(
         "user": {"username": username},
         "created_at": date,
         "url": f"https://bsky.app/profile/{username}/post/{id}",
-        "images": images or [],
+        "images": [{"url": url, "alt": ""} for url in (images or [])],
     }
 
 

@@ -79,7 +79,7 @@ html[data-theme="dark"] {
     --wb-reddit-bg: rgba(124, 45, 18, 0.5);
     --wb-reddit-text: #fdba74;
     --wb-reddit-hover: rgba(146, 64, 14, 1);
-    --wb-reddit-muted: rgba(251, 146, 60, 0.7);
+    --wb-reddit-muted: #e0934a;
     --wb-reddit-border: rgba(249, 115, 22, 0.3);
 
     /* Source: Bluesky */
@@ -134,7 +134,7 @@ html[data-theme="light"] {
     --wb-reddit-bg: rgba(255, 237, 213, 0.8);
     --wb-reddit-text: #c2410c;
     --wb-reddit-hover: rgba(255, 228, 196, 1);
-    --wb-reddit-muted: rgba(194, 65, 12, 0.7);
+    --wb-reddit-muted: #b5430a;
     --wb-reddit-border: rgba(251, 146, 60, 0.4);
 
     --wb-bluesky-bg: rgba(219, 234, 254, 0.8);
