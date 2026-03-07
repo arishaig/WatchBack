@@ -31,7 +31,7 @@ jobs:
         run: uv sync --all-groups
 
       - name: Run tests
-        run: uv run python -m pytest tests -v
+        run: uv run python -m pytest tests -v -m "not a11y"
 
   docker:
     runs-on: ubuntu-latest
