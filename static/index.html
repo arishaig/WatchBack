@@ -129,8 +129,8 @@
 
             --wb-text: #1f2937;
             --wb-text-secondary: #374151;
-            --wb-text-muted: #6b7280;
-            --wb-text-faint: #9ca3af;
+            --wb-text-muted: #616774;
+            --wb-text-faint: #6a6f78;
 
             --wb-accent: #2563eb;
             --wb-accent-hover: #3b82f6;
@@ -149,10 +149,10 @@
             --wb-bluesky-hover: rgba(191, 219, 254, 1);
 
             --wb-trakt-bg: #e5e7eb;
-            --wb-trakt-text: #6b7280;
+            --wb-trakt-text: #616774;
 
             --wb-filter-inactive-bg: #ffffff;
-            --wb-filter-inactive-text: #9ca3af;
+            --wb-filter-inactive-text: #6a6f78;
 
             --wb-reply-bg: rgba(229, 231, 235, 0.5);
 
@@ -295,10 +295,10 @@
             </div>
         </header>
 
-        <div x-show="showConfig" x-cloak class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
+        <div x-show="showConfig" x-cloak role="region" aria-label="Configuration" class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
             <div class="p-4">
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
-                <h3 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Integrations</h3>
+                <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Integrations</h2>
 
                 <div class="space-y-6">
                     <div>
@@ -414,7 +414,7 @@
                 <!-- ═══════════════════ Preferences ═══════════════════ -->
                 <div class="wb-border border-t mt-5 pt-5">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-xs font-semibold wb-text-muted uppercase tracking-wider">Preferences</h3>
+                        <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider">Preferences</h2>
                         <span class="text-[10px] wb-text-faint transition-opacity duration-500"
                             :class="prefSaveStatus ? 'opacity-100' : 'opacity-0'"
                             x-text="prefSaveStatus || 'Saved'"></span>
@@ -427,6 +427,7 @@
                                 <label class="text-xs font-medium wb-text-muted">Theme</label>
                                 <select x-model="configDraft.theme_mode"
                                     @change="applyTheme(configDraft.theme_mode); autoSavePref('theme_mode', configDraft.theme_mode)"
+                                    aria-label="Theme"
                                     class="wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-sm border cursor-pointer">
                                     <option value="dark">Dark</option>
                                     <option value="light">Light</option>
@@ -461,6 +462,7 @@
                                 <label class="switch-container">
                                     <input type="checkbox" :checked="configDraft.reddit_auto_open === '1'"
                                         @change="configDraft.reddit_auto_open = $event.target.checked ? '1' : ''; autoSavePref('reddit_auto_open', configDraft.reddit_auto_open)"
+                                        aria-label="Auto-open Reddit threads"
                                         class="switch-input">
                                     <span class="switch-slider"></span>
                                 </label>
@@ -765,10 +767,10 @@
         </template>
 
         <template x-if="data?.status === 'idle' || data?.status === 'setup_required'">
-            <div class="text-center py-20 px-6">
+            <main class="text-center py-20 px-6">
                 <p class="wb-text-muted text-lg mb-2" x-text="data?.message || 'Nothing playing.'"></p>
                 <p class="text-xs wb-text-faint">The dashboard will update automatically when you start playback.</p>
-            </div>
+            </main>
         </template>
         <!-- Image lightbox overlay -->
         <div x-show="lightboxImg" x-transition.opacity.duration.200ms @click="lightboxImg = null"

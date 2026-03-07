@@ -1,9 +1,10 @@
 import os
 import tempfile
 
-# Must be set before main.py is imported -- it creates CONFIG_DIR at module level.
+# Must be set before main.py is imported -- it reads these at module level.
 _tmp = tempfile.mkdtemp(prefix="watchback_test_")
 os.environ.setdefault("CONFIG_DIR", _tmp)
+os.environ.setdefault("STATIC_DIR", os.path.join(os.path.dirname(__file__), "..", "static"))
 
 import pytest
 from diskcache import Cache
