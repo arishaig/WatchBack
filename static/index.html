@@ -107,7 +107,7 @@
 
             /* Filter pills */
             --wb-filter-inactive-bg: #1f2937;
-            --wb-filter-inactive-text: #4b5563;
+            --wb-filter-inactive-text: #9ca3af;
 
             /* Reply nesting */
             --wb-reply-bg: rgba(55, 65, 81, 0.5);
@@ -223,7 +223,8 @@
 
         <div x-show="showConfig" x-cloak class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
             <div class="p-4">
-                <h3 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Configuration</h3>
+                <!-- ═══════════════════ Integrations ═══════════════════ -->
+                <h3 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Integrations</h3>
 
                 <div class="space-y-6">
                     <div>
@@ -322,52 +323,6 @@
                             </div>
                         </div>
                     </div>
-
-                    <div class="wb-border border-t"></div>
-
-                    <div>
-                        <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Appearance</p>
-                        <div class="flex items-center justify-between">
-                            <label class="text-xs font-medium wb-text-muted">Theme</label>
-                            <select x-model="configDraft.theme_mode"
-                                @change="applyTheme(configDraft.theme_mode)"
-                                class="wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-sm border cursor-pointer">
-                                <option value="dark">Dark</option>
-                                <option value="light">Light</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="wb-border border-t"></div>
-
-                    <div>
-                        <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Comments</p>
-                        <div class="space-y-3">
-                            <div>
-                                <div class="flex justify-between mb-1">
-                                    <label class="text-xs font-medium wb-text-muted">Time Machine Window (days)</label>
-                                </div>
-                                <input type="number" min="1" max="365" x-model="configDraft.time_machine_days"
-                                    :placeholder="configData?.time_machine_days?.effective_value || '14'"
-                                    class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="wb-border border-t"></div>
-
-                    <div>
-                        <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Reddit</p>
-                        <div class="flex items-center justify-between">
-                            <label class="text-xs font-medium wb-text-muted">Auto-open Reddit threads</label>
-                            <label class="switch-container">
-                                <input type="checkbox" :checked="configDraft.reddit_auto_open === '1'"
-                                    @change="configDraft.reddit_auto_open = $event.target.checked ? '1' : ''"
-                                    class="switch-input">
-                                <span class="switch-slider"></span>
-                            </label>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="mt-5 flex items-center gap-2">
@@ -380,6 +335,63 @@
                     <button @click="saveConfig()"
                         class="ml-auto text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors"
                         style="background-color: var(--wb-accent);">Save</button>
+                </div>
+
+                <!-- ═══════════════════ Preferences ═══════════════════ -->
+                <div class="wb-border border-t mt-5 pt-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs font-semibold wb-text-muted uppercase tracking-wider">Preferences</h3>
+                        <span class="text-[10px] wb-text-faint transition-opacity duration-500"
+                            :class="prefSaveStatus ? 'opacity-100' : 'opacity-0'"
+                            x-text="prefSaveStatus || 'Saved'"></span>
+                    </div>
+
+                    <div class="space-y-6">
+                        <div>
+                            <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Appearance</p>
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs font-medium wb-text-muted">Theme</label>
+                                <select x-model="configDraft.theme_mode"
+                                    @change="applyTheme(configDraft.theme_mode); autoSavePref('theme_mode', configDraft.theme_mode)"
+                                    class="wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-sm border cursor-pointer">
+                                    <option value="dark">Dark</option>
+                                    <option value="light">Light</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="wb-border border-t"></div>
+
+                        <div>
+                            <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Comments</p>
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <label class="text-xs font-medium wb-text-muted">Time Machine Window (days)</label>
+                                    </div>
+                                    <input type="number" min="1" max="365" x-model="configDraft.time_machine_days"
+                                        @change="autoSavePref('time_machine_days', configDraft.time_machine_days)"
+                                        :placeholder="configData?.time_machine_days?.effective_value || '14'"
+                                        class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="wb-border border-t"></div>
+
+                        <div>
+                            <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Reddit</p>
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs font-medium wb-text-muted">Auto-open Reddit threads</label>
+                                <label class="switch-container">
+                                    <input type="checkbox" :checked="configDraft.reddit_auto_open === '1'"
+                                        @change="configDraft.reddit_auto_open = $event.target.checked ? '1' : ''; autoSavePref('reddit_auto_open', configDraft.reddit_auto_open)"
+                                        class="switch-input">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -677,6 +689,8 @@
                 groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
                 threadGroupPinned: localStorage.getItem('wb_groupByThread') === 'true',
                 _threadTapTimer: null,
+                prefSaveStatus: '',
+                _prefSaveTimer: null,
                 async init() {
                     console.log("[WatchBack] Initializing application");
                     try {
