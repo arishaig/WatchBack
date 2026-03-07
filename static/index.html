@@ -277,7 +277,7 @@
         .wb-spinner {
             width: 44px;
             height: 44px;
-            border: 3px solid var(--wb-border-color);
+            border: 3px solid var(--wb-border);
             border-top-color: var(--wb-accent);
             border-radius: 50%;
             animation: wb-spin 0.75s linear infinite;
@@ -286,7 +286,7 @@
 </head>
 
 <body class="antialiased font-sans p-4" x-data="app()">
-    <div class="max-w-md mx-auto" x-cloak x-show="true">
+    <div class="max-w-md mx-auto overflow-x-hidden" x-cloak x-show="true">
 
         <header class="flex justify-between items-center mb-6 mt-2">
             <div class="flex items-center gap-3">
@@ -299,7 +299,7 @@
                     class="px-3 py-2 rounded-lg transition-colors text-lg leading-none"
                     title="Configuration">&#x2699;&#xFE0F;</button>
                 <button @click="sync()"
-                    class="text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg flex items-center gap-2"
+                    class="text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg flex items-center justify-center gap-2 min-w-[7rem]"
                     style="background-color: var(--wb-accent);" :disabled="isLoading">
                     <span x-show="!isLoading">&#x1F504; Sync</span>
                     <span x-show="isLoading" x-cloak>&#x23F3; Syncing...</span>
@@ -311,10 +311,7 @@
         <div x-show="isLoading" x-cloak
             class="fixed inset-0 z-50 flex items-center justify-center"
             style="background-color: rgba(0,0,0,0.45);" aria-live="polite" aria-label="Loading">
-            <div class="wb-surface rounded-2xl p-8 flex flex-col items-center gap-4 shadow-2xl wb-border border">
-                <div class="wb-spinner" role="status"></div>
-                <p class="wb-text-muted text-sm font-medium">Loading comments…</p>
-            </div>
+            <div class="wb-spinner" role="status"></div>
         </div>
 
         <div x-show="showConfig" x-cloak role="region" aria-label="Configuration" class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
@@ -557,13 +554,14 @@
                 <div class="space-y-4 pb-8" x-show="!groupByThread">
                     <template x-for="comment in activeComments" :key="comment.id">
                         <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group">
-                            <div class="flex justify-between items-start mb-2">
-                                <template x-if="comment.thread_title">
-                                    <a :href="comment.thread_url" target="_blank" rel="noopener noreferrer"
-                                        class="text-[11px] thread-title truncate leading-tight"
-                                        x-text="comment.thread_title"></a>
-                                </template>
-
+                            <div class="flex items-start mb-2 gap-2">
+                                <div class="flex-1 min-w-0">
+                                    <template x-if="comment.thread_title">
+                                        <a :href="comment.thread_url" target="_blank" rel="noopener noreferrer"
+                                            class="text-[11px] thread-title truncate leading-tight block"
+                                            x-text="comment.thread_title"></a>
+                                    </template>
+                                </div>
                                 <div class="flex gap-1 shrink-0">
                                     <a x-show="comment.source === 'bluesky'" :href="comment.url" target="_blank"
                                         rel="noopener noreferrer"
@@ -573,7 +571,7 @@
                                         rel="noopener noreferrer"
                                         class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
                                         title="View on Reddit">Reddit &#x1F517;</a>
-                                    <span x-show="!comment.source"
+                                    <span x-show="comment.source === 'trakt' || !comment.source"
                                         class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
                                 </div>
                             </div>
@@ -683,18 +681,20 @@
                             </template>
                             <div class="space-y-3" :class="group.title ? 'ml-2 border-l-2 reply-border pl-3' : ''">
                                 <template x-for="comment in group.comments" :key="comment.id">
-                                    <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group">
-                                        <div class="absolute top-2 right-2 flex gap-1">
-                                            <a x-show="comment.source === 'bluesky'" :href="comment.url" target="_blank"
-                                                rel="noopener noreferrer"
-                                                class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                                title="View original post">BlueSky &#x1F517;</a>
-                                            <a x-show="comment.source === 'reddit'" :href="comment.url" target="_blank"
-                                                rel="noopener noreferrer"
-                                                class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                                title="View on Reddit">Reddit &#x1F517;</a>
-                                            <span x-show="!comment.source"
-                                                class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
+                                    <div class="wb-surface p-4 rounded-xl shadow wb-border border group">
+                                        <div class="flex justify-end mb-2">
+                                            <div class="flex gap-1">
+                                                <a x-show="comment.source === 'bluesky'" :href="comment.url" target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
+                                                    title="View original post">BlueSky &#x1F517;</a>
+                                                <a x-show="comment.source === 'reddit'" :href="comment.url" target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
+                                                    title="View on Reddit">Reddit &#x1F517;</a>
+                                                <span x-show="comment.source === 'trakt' || !comment.source"
+                                                    class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
+                                            </div>
                                         </div>
 
                                         <p class="wb-text-secondary text-sm leading-relaxed mb-3 whitespace-pre-wrap"
