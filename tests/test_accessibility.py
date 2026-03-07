@@ -130,6 +130,7 @@ def assert_no_violations(page):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.a11y
 class TestAccessibility:
     def test_setup_required(self, page, live_server_url, theme):
         """No configuration: setup-required screen."""
