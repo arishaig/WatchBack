@@ -147,79 +147,61 @@
                         </div>
                     </div>
 
-                    <!-- Nothing configured -->
-                    <div x-show="
-                                !configData?.jf_url?.effective_value &&
-                                !configData?.trakt_client_id?.effective_value
-                                ">
-                        No session tracking configured. WatchBack <span>won't work!</span>
+                    <!-- Feature summary based on current config -->
+                    <div x-show="!configData?.jf_api_key?.effective_value &&
+                                 !(configData?.trakt_username?.effective_value || configData?.trakt_access_token?.effective_value)"
+                        class="wb-surface-alt rounded-lg p-3 text-sm wb-text-muted">
+                        No session source configured. Add a Jellyfin API key or Trakt username to get started.
                     </div>
 
-                    <ul x-show="
-                                configData?.jf_url?.effective_value ||
-                                configData?.trakt_client_id?.effective_value
-                                ">
-                        <div>
-                            <li>
-                                You will see comments from Reddit
-                            </li>
-                            <li>
-                                Reddit search will work
-                            </li>
-                        </div>
+                    <ul x-show="configData?.jf_api_key?.effective_value ||
+                                configData?.trakt_username?.effective_value ||
+                                configData?.trakt_access_token?.effective_value"
+                        class="space-y-1.5 text-sm wb-text-muted" role="list">
 
-                        <!-- Only Trakt client ID and access token-->
-                        <div x-show="
-                                !configData?.jf_url?.effective_value &&
-                                configData?.trakt_client_id?.effective_value ||
-                                configData?.trakt_access_token?.effective_value
-                                ">
-                            <li>
-                                WatchBack will poll Trakt to get the currently watched content    
-                            </li>
-                        </div>
+                        <!-- Jellyfin session source -->
+                        <li x-show="configData?.jf_api_key?.effective_value" class="flex items-start gap-2">
+                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span>Watch data from <strong class="wb-text-secondary">Jellyfin</strong></span>
+                        </li>
+                        <li x-show="configData?.jf_api_key?.effective_value" class="flex items-start gap-2">
+                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span>Auto-refresh via Jellyfin webhook (if configured in Jellyfin)</span>
+                        </li>
 
-                        <!-- Trakt client ID -->
-                        <div x-show="
-                                configData?.trakt_client_id?.effective_value
-                                ">
-                            <li>
-                                You will see comments from Trakt   
-                            </li>
-                        </div>
+                        <!-- Trakt polling (no Jellyfin, has trakt_username/access_token) -->
+                        <li x-show="!configData?.jf_api_key?.effective_value &&
+                                    (configData?.trakt_username?.effective_value || configData?.trakt_access_token?.effective_value)"
+                            class="flex items-start gap-2">
+                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span>Watch data from <strong class="wb-text-secondary">Trakt</strong> (polling every 30s)</span>
+                        </li>
 
-                        <!-- Jellfin -->
-                        <div x-show="
-                                configData?.jf_url?.effective_value
-                                ">
-                            <li>
-                                WatchBack will pull watch data from Jellyfin  
-                            </li>
+                        <!-- Trakt comments -->
+                        <li x-show="configData?.trakt_client_id?.effective_value" class="flex items-start gap-2">
+                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span>Comments from <strong class="wb-text-secondary">Trakt</strong></span>
+                        </li>
 
-                            <li>
-                                If you have a webhook configured in Jellyfin, watch data will update automatically 
-                            </li>
-                        </div>
+                        <!-- Reddit comments (always available when a session source exists) -->
+                        <li class="flex items-start gap-2">
+                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span>Comments from <strong class="wb-text-secondary">Reddit</strong></span>
+                        </li>
 
-                        <!-- Bluesky no auth -->
-                        <div x-show="
-                                configData?.bsky_identifier?.effective_value &&
-                                !configData?.bsky_app_password?.effective_value
-                                ">
-                            <li>
-                                You will sometimes see Bluesky content (without authentication, the API often fails) 
-                            </li>
-                        </div>
-
-                        <!-- Bluesky no auth -->
-                        <div x-show="
-                                configData?.bsky_identifier?.effective_value &&
-                                configData?.bsky_app_password?.effective_value
-                                ">
-                            <li>
-                                You will see Bluesky content
-                            </li>
-                        </div>
+                        <!-- Bluesky (needs both identifier AND password) -->
+                        <li x-show="configData?.bsky_identifier?.effective_value &&
+                                    configData?.bsky_app_password?.effective_value"
+                            class="flex items-start gap-2">
+                            <span class="wb-accent-text mt-0.5">&#x2713;</span>
+                            <span>Posts from <strong class="wb-text-secondary">Bluesky</strong></span>
+                        </li>
+                        <li x-show="configData?.bsky_identifier?.effective_value &&
+                                    !configData?.bsky_app_password?.effective_value"
+                            class="flex items-start gap-2">
+                            <span class="wb-text-faint mt-0.5">&#x26A0;</span>
+                            <span>Bluesky needs both handle <em>and</em> app password to work</span>
+                        </li>
                     </ul>
                 </div>
 
