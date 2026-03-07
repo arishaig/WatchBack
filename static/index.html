@@ -38,13 +38,13 @@
         </header>
 
         <!-- Loading overlay -->
-        <div x-show="isLoading" x-cloak
-            class="fixed inset-0 z-50 flex items-center justify-center"
+        <div x-show="isLoading" x-cloak class="fixed inset-0 z-50 flex items-center justify-center"
             style="background-color: rgba(0,0,0,0.45);" aria-live="polite" aria-label="Loading">
             <div class="wb-spinner" role="status"></div>
         </div>
 
-        <div x-show="showConfig" x-cloak role="region" aria-label="Configuration" class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
+        <div x-show="showConfig" x-cloak role="region" aria-label="Configuration"
+            class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
             <div class="p-4">
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
                 <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Integrations</h2>
@@ -146,6 +146,81 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Nothing configured -->
+                    <div x-show="
+                                !configData?.jf_url?.effective_value &&
+                                !configData?.trakt_client_id?.effective_value
+                                ">
+                        No session tracking configured. WatchBack <span>won't work!</span>
+                    </div>
+
+                    <ul x-show="
+                                configData?.jf_url?.effective_value ||
+                                configData?.trakt_client_id?.effective_value
+                                ">
+                        <div>
+                            <li>
+                                You will see comments from Reddit
+                            </li>
+                            <li>
+                                Reddit search will work
+                            </li>
+                        </div>
+
+                        <!-- Only Trakt client ID and access token-->
+                        <div x-show="
+                                !configData?.jf_url?.effective_value &&
+                                configData?.trakt_client_id?.effective_value ||
+                                configData?.trakt_access_token?.effective_value
+                                ">
+                            <li>
+                                WatchBack will poll Trakt to get the currently watched content    
+                            </li>
+                        </div>
+
+                        <!-- Trakt client ID -->
+                        <div x-show="
+                                configData?.trakt_client_id?.effective_value
+                                ">
+                            <li>
+                                You will see comments from Trakt   
+                            </li>
+                        </div>
+
+                        <!-- Jellfin -->
+                        <div x-show="
+                                configData?.jf_url?.effective_value
+                                ">
+                            <li>
+                                WatchBack will pull watch data from Jellyfin  
+                            </li>
+
+                            <li>
+                                If you have a webhook configured in Jellyfin, watch data will update automatically 
+                            </li>
+                        </div>
+
+                        <!-- Bluesky no auth -->
+                        <div x-show="
+                                configData?.bsky_identifier?.effective_value &&
+                                !configData?.bsky_app_password?.effective_value
+                                ">
+                            <li>
+                                You will sometimes see Bluesky content (without authentication, the API often fails) 
+                            </li>
+                        </div>
+
+                        <!-- Bluesky no auth -->
+                        <div x-show="
+                                configData?.bsky_identifier?.effective_value &&
+                                configData?.bsky_app_password?.effective_value
+                                ">
+                            <li>
+                                You will see Bluesky content
+                            </li>
+                        </div>
+                    </ul>
                 </div>
 
                 <div class="mt-5 flex items-center gap-2">
@@ -212,8 +287,7 @@
                                     <label class="switch-container">
                                         <input type="checkbox" :checked="configDraft.reddit_auto_open === '1'"
                                             @change="configDraft.reddit_auto_open = $event.target.checked ? '1' : ''; autoSavePref('reddit_auto_open', configDraft.reddit_auto_open)"
-                                            aria-label="Auto-open Reddit threads"
-                                            class="switch-input">
+                                            aria-label="Auto-open Reddit threads" class="switch-input">
                                         <span class="switch-slider"></span>
                                     </label>
                                 </div>
@@ -221,13 +295,13 @@
                                     <div class="flex justify-between mb-1">
                                         <label class="text-xs font-medium wb-text-muted">Comments per thread</label>
                                     </div>
-                                    <input type="number" min="10" max="250"
-                                        x-model="configDraft.reddit_max_comments"
+                                    <input type="number" min="10" max="250" x-model="configDraft.reddit_max_comments"
                                         @change="autoSavePref('reddit_max_comments', configDraft.reddit_max_comments)"
                                         :placeholder="configData?.reddit_max_comments?.effective_value || '250'"
                                         aria-label="Comments per thread"
                                         class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
-                                    <p class="text-[10px] wb-text-faint mt-1">Max 250. Lower for faster loads per episode.</p>
+                                    <p class="text-[10px] wb-text-faint mt-1">Max 250. Lower for faster loads per
+                                        episode.</p>
                                 </div>
                             </div>
                         </div>
@@ -264,13 +338,17 @@
                 <div class="flex gap-2 mb-4 justify-center">
                     <button @click="toggleSource('trakt')"
                         :class="sourceActive('trakt') ? 'filter-trakt' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Trakt <span x-text="'(' + sourceCount('trakt') + ')'" class="font-normal opacity-70"></span></button>
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Trakt
+                        <span x-text="'(' + sourceCount('trakt') + ')'" class="font-normal opacity-70"></span></button>
                     <button @click="toggleSource('bluesky')"
                         :class="sourceActive('bluesky') ? 'filter-bluesky' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">BlueSky <span x-text="'(' + sourceCount('bluesky') + ')'" class="font-normal opacity-70"></span></button>
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">BlueSky
+                        <span x-text="'(' + sourceCount('bluesky') + ')'"
+                            class="font-normal opacity-70"></span></button>
                     <button @click="toggleSource('reddit')"
                         :class="sourceActive('reddit') ? 'filter-reddit' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit <span x-text="'(' + sourceCount('reddit') + ')'" class="font-normal opacity-70"></span></button>
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit
+                        <span x-text="'(' + sourceCount('reddit') + ')'" class="font-normal opacity-70"></span></button>
                 </div>
 
                 <div x-show="hasThreadGroups" class="flex justify-center mb-4">
@@ -414,12 +492,12 @@
                                     <div class="wb-surface p-4 rounded-xl shadow wb-border border group">
                                         <div class="flex justify-end mb-2">
                                             <div class="flex gap-1">
-                                                <a x-show="comment.source === 'bluesky'" :href="comment.url" target="_blank"
-                                                    rel="noopener noreferrer"
+                                                <a x-show="comment.source === 'bluesky'" :href="comment.url"
+                                                    target="_blank" rel="noopener noreferrer"
                                                     class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
                                                     title="View original post">BlueSky &#x1F517;</a>
-                                                <a x-show="comment.source === 'reddit'" :href="comment.url" target="_blank"
-                                                    rel="noopener noreferrer"
+                                                <a x-show="comment.source === 'reddit'" :href="comment.url"
+                                                    target="_blank" rel="noopener noreferrer"
                                                     class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
                                                     title="View on Reddit">Reddit &#x1F517;</a>
                                                 <span x-show="comment.source === 'trakt' || !comment.source"
