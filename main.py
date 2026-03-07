@@ -20,6 +20,7 @@ from diskcache import Cache
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 # --- Configuration & Caching Setup ---
 CONFIG_DIR = os.environ.get("CONFIG_DIR", "/config")
