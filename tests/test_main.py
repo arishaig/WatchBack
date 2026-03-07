@@ -733,7 +733,10 @@ class TestWebhook:
 
 class TestRestart:
     def test_returns_restarting(self, client):
-        with patch("main.asyncio.create_task"):
+        def _sink_coroutine(coro):
+            """Accept and close the coroutine so it doesn't leak."""
+            coro.close()
+        with patch("main.asyncio.create_task", side_effect=_sink_coroutine):
             r = client.post("/api/restart", json={"confirm": True})
         assert r.json()["status"] == "restarting"
 

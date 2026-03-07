@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import hmac
 import hashlib
 import urllib.parse
@@ -7,7 +8,6 @@ import requests
 import asyncio
 import time
 import logging
-import json
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
@@ -20,6 +20,7 @@ from diskcache import Cache
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 # --- Configuration & Caching Setup ---
 CONFIG_DIR = os.environ.get("CONFIG_DIR", "/config")
@@ -179,7 +180,9 @@ async def trakt_watch_poller():
 
             username = cfg["trakt_username"] or "me"
             url = f"https://api.trakt.tv/users/{username}/watching"
-            resp = requests.get(url, headers=trakt_headers(auth=True), timeout=10)
+            resp = await asyncio.to_thread(
+                requests.get, url, headers=trakt_headers(auth=True), timeout=10
+            )
             
             if resp.status_code == 204: # Nothing playing
                 current_id = None
@@ -805,8 +808,8 @@ def get_config_endpoint():
 @app.put("/api/config")
 async def save_config(request: Request):
     """Save UI configuration overrides."""
-    logger.debug(f"Config update request received with {len(await request.json())} fields")
     body = await request.json()
+    logger.debug(f"Config update request received with {len(body)} fields")
     stored = cache.get("ui_config")
     if stored is None:
         stored = {}
@@ -887,7 +890,7 @@ async def restart_server(request: Request):
 
     async def _do_exit():
         await asyncio.sleep(0.3)
-        os._exit(0)
+        sys.exit(0)
 
     asyncio.create_task(_do_exit())
     return {"status": "restarting"}
