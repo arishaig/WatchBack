@@ -13,17 +13,13 @@
   </a>
 </p>
 
-A self-hosted companion for your TV watching. WatchBack connects to **Jellyfin** or **Trakt** to detect what you're watching, then pulls in reactions from **Trakt comments**, **Bluesky**, and **Reddit** — filtered to the original air-date window so you can relive the "live" experience without spoilers.
+A self-hosted companion for your TV watching. WatchBack connects to **Jellyfin** or **Trakt** to detect what you're watching, then pulls in reactions from **Trakt comments**, **Bluesky**, and **Reddit**. For older episodes, comments are filtered to the original air-date window so you can relive the "live" experience.
 
 ## Features
 
-- ⏱️ **Time Machine** — Shows only comments posted within 14 days of the episode's premiere
+- ⏱️ **Time Machine** — Shows only comments posted within 14 days (configurable) of the episode's premiere
 - 💬 **Multi-Source** — Aggregates reactions from Trakt, Bluesky, and Reddit in one view
-- 🗂️ **Thread Grouping** — Group Reddit comments by discussion thread, with persistence
-- 🔍 **Source Filtering** — Toggle individual sources; counts update live
-- 🔄 **Auto-Refresh** — SSE-based live updates via Jellyfin webhooks or Trakt background polling
-- ⚙️ **UI Configuration** — Manage all settings from the web interface (overrides env vars)
-- 🐳 **Docker-Ready** — Multi-stage build with Tailwind CSS compilation
+- 🗂️ **Thread Grouping** — Optionally group Reddit comments by discussion thread
 
 ## Quick Start
 
@@ -33,7 +29,7 @@ A self-hosted companion for your TV watching. WatchBack connects to **Jellyfin**
 # 1. Clone and configure
 git clone https://github.com/arishaig/WatchBack.git
 cd WatchBack
-cp .env.example .env   # Edit with your API keys
+cp .env.example .env   # Edit with your API keys, or skip this step and configure directly in the UI
 
 # 2. Run
 docker compose up -d --build

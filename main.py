@@ -700,6 +700,81 @@ def _mask(val: str, key: str) -> str:
         return "****"
     return f"{val[:4]}****{val[-4:]}"
 
+@app.get("/api/test/{service}")
+def test_service(service: str):
+    """Test connectivity to an integration. Returns {ok, message}."""
+    cfg = get_config()
+
+    if service == "jellyfin":
+        if not cfg["jf_api_key"]:
+            return {"ok": False, "message": "No API key configured"}
+        try:
+            headers = {"Authorization": f"MediaBrowser Token={cfg['jf_api_key']}"}
+            res = requests.get(f"{cfg['jf_url']}/System/Info/Public", headers=headers, timeout=5)
+            if res.status_code == 200:
+                info = res.json()
+                return {"ok": True, "message": f"Connected to {info.get('ServerName', 'Jellyfin')} v{info.get('Version', '?')}"}
+            return {"ok": False, "message": f"HTTP {res.status_code}"}
+        except Exception as e:
+            return {"ok": False, "message": str(e)}
+
+    elif service == "trakt":
+        if not cfg["trakt_client_id"]:
+            return {"ok": False, "message": "No Client ID configured"}
+        try:
+            res = requests.get("https://api.trakt.tv/shows/trending?limit=1", headers=trakt_headers(), timeout=5)
+            if res.status_code == 200:
+                return {"ok": True, "message": "API key valid"}
+            return {"ok": False, "message": f"HTTP {res.status_code}"}
+        except Exception as e:
+            return {"ok": False, "message": str(e)}
+
+    elif service == "trakt-watch":
+        if not (cfg["trakt_username"] or cfg["trakt_access_token"]):
+            return {"ok": False, "message": "No username or access token configured"}
+        try:
+            username = cfg["trakt_username"] or "me"
+            res = requests.get(f"https://api.trakt.tv/users/{username}/watching", headers=trakt_headers(auth=True), timeout=5)
+            if res.status_code in (200, 204):
+                watching = "currently watching" if res.status_code == 200 else "idle"
+                return {"ok": True, "message": f"Profile reachable ({watching})"}
+            if res.status_code == 401:
+                return {"ok": False, "message": "Unauthorized — check access token"}
+            return {"ok": False, "message": f"HTTP {res.status_code}"}
+        except Exception as e:
+            return {"ok": False, "message": str(e)}
+
+    elif service == "bluesky":
+        if not cfg["bsky_identifier"] or not cfg["bsky_app_password"]:
+            return {"ok": False, "message": "Handle and app password both required"}
+        try:
+            res = requests.post(
+                "https://bsky.social/xrpc/com.atproto.server.createSession",
+                json={"identifier": cfg["bsky_identifier"], "password": cfg["bsky_app_password"]},
+                timeout=5,
+            )
+            if res.status_code == 200:
+                handle = res.json().get("handle", cfg["bsky_identifier"])
+                return {"ok": True, "message": f"Authenticated as @{handle}"}
+            return {"ok": False, "message": f"Auth failed (HTTP {res.status_code})"}
+        except Exception as e:
+            return {"ok": False, "message": str(e)}
+
+    elif service == "reddit":
+        try:
+            res = requests.get(
+                "https://www.reddit.com/search.json?q=test&limit=1",
+                headers={"User-Agent": "WatchBack/1.0"},
+                timeout=5,
+            )
+            if res.status_code == 200:
+                return {"ok": True, "message": "Reddit API reachable"}
+            return {"ok": False, "message": f"HTTP {res.status_code}"}
+        except Exception as e:
+            return {"ok": False, "message": str(e)}
+
+    return {"ok": False, "message": f"Unknown service: {service}"}
+
 @app.get("/api/config")
 def get_config_endpoint():
     """Return all config keys with masked values, sources, and metadata."""

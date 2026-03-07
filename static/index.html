@@ -38,13 +38,13 @@
         </header>
 
         <!-- Loading overlay -->
-        <div x-show="isLoading" x-cloak
-            class="fixed inset-0 z-50 flex items-center justify-center"
+        <div x-show="isLoading" x-cloak class="fixed inset-0 z-50 flex items-center justify-center"
             style="background-color: rgba(0,0,0,0.45);" aria-live="polite" aria-label="Loading">
             <div class="wb-spinner" role="status"></div>
         </div>
 
-        <div x-show="showConfig" x-cloak role="region" aria-label="Configuration" class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
+        <div x-show="showConfig" x-cloak role="region" aria-label="Configuration"
+            class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
             <div class="p-4">
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
                 <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Integrations</h2>
@@ -77,6 +77,12 @@
                                     :placeholder="configData?.jf_api_key?.effective_value || 'Required'"
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
+                            <button @click="testService('jellyfin')"
+                                :disabled="testResults.jellyfin?.status === 'testing'"
+                                aria-live="polite"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                :class="testResults.jellyfin?.status === 'ok' ? 'test-ok' : testResults.jellyfin?.status === 'error' ? 'test-error' : ''"
+                                x-text="testResults.jellyfin?.status === 'testing' ? 'Testing\u2026' : testResults.jellyfin?.message || 'Test Connection'"></button>
                         </div>
                     </div>
 
@@ -116,6 +122,20 @@
                                     :placeholder="configData?.trakt_username?.env_value || 'Optional (public profile)'"
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
+                            <div class="flex gap-2">
+                                <button @click="testService('trakt')"
+                                    :disabled="testResults.trakt?.status === 'testing'"
+                                    aria-live="polite"
+                                    class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                    :class="testResults.trakt?.status === 'ok' ? 'test-ok' : testResults.trakt?.status === 'error' ? 'test-error' : ''"
+                                    x-text="testResults.trakt?.status === 'testing' ? 'Testing\u2026' : testResults.trakt?.message || 'Test API'"></button>
+                                <button @click="testService('trakt-watch')"
+                                    :disabled="testResults['trakt-watch']?.status === 'testing'"
+                                    aria-live="polite"
+                                    class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                    :class="testResults['trakt-watch']?.status === 'ok' ? 'test-ok' : testResults['trakt-watch']?.status === 'error' ? 'test-error' : ''"
+                                    x-text="testResults['trakt-watch']?.status === 'testing' ? 'Testing\u2026' : testResults['trakt-watch']?.message || 'Test Profile'"></button>
+                            </div>
                         </div>
                     </div>
 
@@ -144,8 +164,89 @@
                                     :placeholder="configData?.bsky_app_password?.effective_value || 'xxxx-xxxx-xxxx-xxxx'"
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
+                            <button @click="testService('bluesky')"
+                                :disabled="testResults.bluesky?.status === 'testing'"
+                                aria-live="polite"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                :class="testResults.bluesky?.status === 'ok' ? 'test-ok' : testResults.bluesky?.status === 'error' ? 'test-error' : ''"
+                                x-text="testResults.bluesky?.status === 'testing' ? 'Testing\u2026' : testResults.bluesky?.message || 'Test Connection'"></button>
                         </div>
                     </div>
+
+                    <!-- Feature summary based on current config -->
+                    <div x-show="!configData?.jf_api_key?.effective_value &&
+                                 !(configData?.trakt_username?.effective_value || configData?.trakt_access_token?.effective_value)"
+                        class="wb-surface-alt rounded-lg p-3 text-sm wb-text-muted">
+                        No session source configured. Add a Jellyfin API key or Trakt username to get started.
+                    </div>
+
+                    <ul x-show="configData?.jf_api_key?.effective_value ||
+                                configData?.trakt_username?.effective_value ||
+                                configData?.trakt_access_token?.effective_value"
+                        class="space-y-1.5 text-sm wb-text-muted" role="list">
+
+                        <!-- Jellyfin session source -->
+                        <li x-show="configData?.jf_api_key?.effective_value" class="flex items-start gap-2">
+                            <span :class="testIcon('jellyfin').cls" class="mt-0.5"
+                                :aria-label="'Jellyfin: ' + testIcon('jellyfin').label"
+                                role="img" x-text="testIcon('jellyfin').icon"></span>
+                            <span>Watch data from <strong class="wb-text-secondary">Jellyfin</strong></span>
+                        </li>
+                        <li x-show="configData?.jf_api_key?.effective_value" class="flex items-start gap-2">
+                            <span :class="testIcon('jellyfin').cls" class="mt-0.5"
+                                aria-hidden="true" x-text="testIcon('jellyfin').icon"></span>
+                            <span>Auto-refresh via <strong class="wb-text-secondary">Jellyfin</strong> webhook (if configured)</span>
+                        </li>
+
+                        <!-- Trakt polling (no Jellyfin, has trakt_username/access_token) -->
+                        <li x-show="!configData?.jf_api_key?.effective_value &&
+                                    (configData?.trakt_username?.effective_value || configData?.trakt_access_token?.effective_value)"
+                            class="flex items-start gap-2">
+                            <span :class="testIcon('trakt-watch').cls" class="mt-0.5"
+                                :aria-label="'Trakt profile: ' + testIcon('trakt-watch').label"
+                                role="img" x-text="testIcon('trakt-watch').icon"></span>
+                            <span>Watch data from <strong class="wb-text-secondary">Trakt</strong> (polling every 30s)</span>
+                        </li>
+
+                        <!-- Trakt comments -->
+                        <li x-show="configData?.trakt_client_id?.effective_value" class="flex items-start gap-2">
+                            <span :class="testIcon('trakt').cls" class="mt-0.5"
+                                :aria-label="'Trakt API: ' + testIcon('trakt').label"
+                                role="img" x-text="testIcon('trakt').icon"></span>
+                            <span>Comments from <strong class="wb-text-secondary">Trakt</strong></span>
+                        </li>
+
+                        <!-- Reddit comments (always available when a session source exists) -->
+                        <li class="flex items-start gap-2">
+                            <span :class="testIcon('reddit').cls" class="mt-0.5"
+                                :aria-label="'Reddit: ' + testIcon('reddit').label"
+                                role="img" x-text="testIcon('reddit').icon"></span>
+                            <span>Comments from <strong class="wb-text-secondary">Reddit</strong></span>
+                        </li>
+
+                        <!-- Bluesky (needs both identifier AND password) -->
+                        <li x-show="configData?.bsky_identifier?.effective_value &&
+                                    configData?.bsky_app_password?.effective_value"
+                            class="flex items-start gap-2">
+                            <span :class="testIcon('bluesky').cls" class="mt-0.5"
+                                :aria-label="'Bluesky: ' + testIcon('bluesky').label"
+                                role="img" x-text="testIcon('bluesky').icon"></span>
+                            <span>Posts from <strong class="wb-text-secondary">Bluesky</strong></span>
+                        </li>
+                        <li x-show="configData?.bsky_identifier?.effective_value &&
+                                    !configData?.bsky_app_password?.effective_value"
+                            class="flex items-start gap-2">
+                            <span class="wb-error-text mt-0.5" role="img" aria-label="Warning">&#x26A0;</span>
+                            <span>Bluesky needs both handle <em>and</em> app password to work</span>
+                        </li>
+                        <li class="pt-1">
+                            <button @click="testAll()"
+                                :disabled="Object.values(testResults).some(r => r.status === 'testing')"
+                                aria-live="polite"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                x-text="Object.values(testResults).some(r => r.status === 'testing') ? 'Testing\u2026' : 'Test All Connections'"></button>
+                        </li>
+                    </ul>
                 </div>
 
                 <div class="mt-5 flex items-center gap-2">
@@ -212,8 +313,7 @@
                                     <label class="switch-container">
                                         <input type="checkbox" :checked="configDraft.reddit_auto_open === '1'"
                                             @change="configDraft.reddit_auto_open = $event.target.checked ? '1' : ''; autoSavePref('reddit_auto_open', configDraft.reddit_auto_open)"
-                                            aria-label="Auto-open Reddit threads"
-                                            class="switch-input">
+                                            aria-label="Auto-open Reddit threads" class="switch-input">
                                         <span class="switch-slider"></span>
                                     </label>
                                 </div>
@@ -221,13 +321,13 @@
                                     <div class="flex justify-between mb-1">
                                         <label class="text-xs font-medium wb-text-muted">Comments per thread</label>
                                     </div>
-                                    <input type="number" min="10" max="250"
-                                        x-model="configDraft.reddit_max_comments"
+                                    <input type="number" min="10" max="250" x-model="configDraft.reddit_max_comments"
                                         @change="autoSavePref('reddit_max_comments', configDraft.reddit_max_comments)"
                                         :placeholder="configData?.reddit_max_comments?.effective_value || '250'"
                                         aria-label="Comments per thread"
                                         class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
-                                    <p class="text-[10px] wb-text-faint mt-1">Max 250. Lower for faster loads per episode.</p>
+                                    <p class="text-[10px] wb-text-faint mt-1">Max 250. Lower for faster loads per
+                                        episode.</p>
                                 </div>
                             </div>
                         </div>
@@ -264,13 +364,17 @@
                 <div class="flex gap-2 mb-4 justify-center">
                     <button @click="toggleSource('trakt')"
                         :class="sourceActive('trakt') ? 'filter-trakt' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Trakt <span x-text="'(' + sourceCount('trakt') + ')'" class="font-normal opacity-70"></span></button>
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Trakt
+                        <span x-text="'(' + sourceCount('trakt') + ')'" class="font-normal opacity-70"></span></button>
                     <button @click="toggleSource('bluesky')"
                         :class="sourceActive('bluesky') ? 'filter-bluesky' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">BlueSky <span x-text="'(' + sourceCount('bluesky') + ')'" class="font-normal opacity-70"></span></button>
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">BlueSky
+                        <span x-text="'(' + sourceCount('bluesky') + ')'"
+                            class="font-normal opacity-70"></span></button>
                     <button @click="toggleSource('reddit')"
                         :class="sourceActive('reddit') ? 'filter-reddit' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit <span x-text="'(' + sourceCount('reddit') + ')'" class="font-normal opacity-70"></span></button>
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit
+                        <span x-text="'(' + sourceCount('reddit') + ')'" class="font-normal opacity-70"></span></button>
                 </div>
 
                 <div x-show="hasThreadGroups" class="flex justify-center mb-4">
@@ -414,12 +518,12 @@
                                     <div class="wb-surface p-4 rounded-xl shadow wb-border border group">
                                         <div class="flex justify-end mb-2">
                                             <div class="flex gap-1">
-                                                <a x-show="comment.source === 'bluesky'" :href="comment.url" target="_blank"
-                                                    rel="noopener noreferrer"
+                                                <a x-show="comment.source === 'bluesky'" :href="comment.url"
+                                                    target="_blank" rel="noopener noreferrer"
                                                     class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
                                                     title="View original post">BlueSky &#x1F517;</a>
-                                                <a x-show="comment.source === 'reddit'" :href="comment.url" target="_blank"
-                                                    rel="noopener noreferrer"
+                                                <a x-show="comment.source === 'reddit'" :href="comment.url"
+                                                    target="_blank" rel="noopener noreferrer"
                                                     class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
                                                     title="View on Reddit">Reddit &#x1F517;</a>
                                                 <span x-show="comment.source === 'trakt' || !comment.source"
