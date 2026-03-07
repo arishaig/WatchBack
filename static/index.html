@@ -545,11 +545,9 @@
 
                 <div x-show="hasThreadGroups" class="flex justify-center mb-4">
                     <button @click="handleThreadToggle()" :class="groupByThread ? 'filter-reddit' : 'filter-inactive'"
-                        class="px-5 py-1.5 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer flex items-center gap-1.5"
-                        title="Click to toggle · Double-tap to set as default">
+                        class="px-5 py-1.5 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer flex items-center gap-1.5">
                         <span
-                            x-text="(groupByThread ? Grouped by thread' : 'Group by thread') + ' (' + threadCount + ')'"></span>
-                        <span x-show="threadGroupPinned" class="text-[9px] opacity-60">📁</span>
+                            x-text="(groupByThread ? '📁 Grouped by thread' : '📁 Group by thread') + ' (' + threadCount + ')'"></span>
                     </button>
                 </div>
 
@@ -826,8 +824,6 @@
                 data: null, error: null, isLoading: false, mode: 'all', sourceFilter: new Set(),
                 status: null, showConfig: false, configData: null, configDraft: {}, lightboxImg: null,
                 groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
-                threadGroupPinned: localStorage.getItem('wb_groupByThread') === 'true',
-                _threadTapTimer: null,
                 prefSaveStatus: '',
                 _prefSaveTimer: null,
                 async init() {
@@ -891,22 +887,11 @@
                     }
                 },
                 handleThreadToggle() {
-                    if (this._threadTapTimer) {
-                        clearTimeout(this._threadTapTimer);
-                        this._threadTapTimer = null;
-                        // Double-click/tap: toggle + save as default
-                        this.groupByThread = !this.groupByThread;
-                        this.threadGroupPinned = this.groupByThread;
-                        if (this.groupByThread) {
-                            localStorage.setItem('wb_groupByThread', 'true');
-                        } else {
-                            localStorage.removeItem('wb_groupByThread');
-                        }
+                    this.groupByThread = !this.groupByThread;
+                    if (this.groupByThread) {
+                        localStorage.setItem('wb_groupByThread', 'true');
                     } else {
-                        this._threadTapTimer = setTimeout(() => {
-                            this._threadTapTimer = null;
-                            this.groupByThread = !this.groupByThread;
-                        }, 250);
+                        localStorage.removeItem('wb_groupByThread');
                     }
                 },
                 toggleSource(src) {
