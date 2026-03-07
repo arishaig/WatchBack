@@ -164,13 +164,14 @@ def make_sync_success(
 # All keys from ENV_MAP (must stay in sync with main.py)
 _CONFIG_KEYS = [
     "jf_url", "jf_api_key", "trakt_client_id", "trakt_username", "trakt_access_token",
-    "reddit_auto_open", "reddit_max_threads", "bsky_identifier", "bsky_app_password",
+    "reddit_auto_open", "reddit_max_threads", "reddit_max_comments", "bsky_identifier", "bsky_app_password",
     "webhook_secret", "theme_mode", "time_machine_days",
 ]
 _SECRET_KEYS = {"jf_api_key", "trakt_access_token", "bsky_app_password", "webhook_secret"}
 _DEFAULTS = {
     "jf_url": "http://jellyfin:8096",
     "reddit_max_threads": "3",
+    "reddit_max_comments": "250",
     "theme_mode": "dark",
     "time_machine_days": "14",
 }

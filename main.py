@@ -34,6 +34,7 @@ ENV_MAP = {
     "trakt_access_token":  ("TRAKT_ACCESS_TOKEN",  ""),
     "reddit_auto_open":    ("REDDIT_AUTO_OPEN",     ""),
     "reddit_max_threads":  ("REDDIT_MAX_THREADS",  "3"),
+    "reddit_max_comments": ("REDDIT_MAX_COMMENTS", "250"),
     "bsky_identifier":     ("BSKY_IDENTIFIER",     ""),
     "bsky_app_password":   ("BSKY_APP_PASSWORD",   ""),
     "webhook_secret":      ("WEBHOOK_SECRET",      ""),
@@ -249,7 +250,7 @@ def _ensure_comment_ids(comments: list[dict]) -> None:
             _ensure_comment_ids(c["replies"])
 
 
-def find_pullpush_comments(series: str, season: int, episode: int, max_threads: int = 3) -> list[dict]:
+def find_pullpush_comments(series: str, season: int, episode: int, max_threads: int = 3, max_comments: int = 250) -> list[dict]:
     """Fetch Reddit comments via PullPush.io for the given episode, grouped by thread."""
     s_long, e_long = str(season).zfill(2), str(episode).zfill(2)
 
@@ -319,7 +320,7 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
             try:
                 com_resp = requests.get(
                     "https://api.pullpush.io/reddit/search/comment/",
-                    params={"link_id": sub_id, "size": 100, "sort_type": "score", "sort": "desc"},
+                    params={"link_id": sub_id, "size": max_comments, "sort_type": "score", "sort": "desc"},
                     headers={"User-Agent": "WatchBack/1.0"},
                     timeout=5,
                 )
@@ -369,8 +370,7 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
                     parent_cid = raw_parent[3:]
                     if parent_cid in by_id:
                         by_id[parent_cid]["replies"].append(comment)
-                    else:
-                        top_level.append(comment)
+                    # else: parent not fetched — drop orphaned reply rather than surface it out of context
                 else:
                     top_level.append(comment)
 
@@ -589,6 +589,7 @@ def _fetch_pullpush_data(session_data: dict, cfg: dict) -> list[dict]:
     pp_results = find_pullpush_comments(
         session_data["series"], session_data["season"], session_data["episode"],
         max_threads=int(cfg["reddit_max_threads"]),
+        max_comments=int(cfg.get("reddit_max_comments") or 250),
     )
     if pp_results:
         cache.set(pp_cache_key, pp_results, expire=86400)

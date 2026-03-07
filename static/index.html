@@ -270,6 +270,18 @@
             filter: var(--wb-logo-filter);
             -webkit-filter: var(--wb-logo-filter);
         }
+
+        @keyframes wb-spin {
+            to { transform: rotate(360deg); }
+        }
+        .wb-spinner {
+            width: 44px;
+            height: 44px;
+            border: 3px solid var(--wb-border-color);
+            border-top-color: var(--wb-accent);
+            border-radius: 50%;
+            animation: wb-spin 0.75s linear infinite;
+        }
     </style>
 </head>
 
@@ -294,6 +306,16 @@
                 </button>
             </div>
         </header>
+
+        <!-- Loading overlay -->
+        <div x-show="isLoading" x-cloak
+            class="fixed inset-0 z-50 flex items-center justify-center"
+            style="background-color: rgba(0,0,0,0.45);" aria-live="polite" aria-label="Loading">
+            <div class="wb-surface rounded-2xl p-8 flex flex-col items-center gap-4 shadow-2xl wb-border border">
+                <div class="wb-spinner" role="status"></div>
+                <p class="wb-text-muted text-sm font-medium">Loading comments…</p>
+            </div>
+        </div>
 
         <div x-show="showConfig" x-cloak role="region" aria-label="Configuration" class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
             <div class="p-4">
@@ -457,15 +479,29 @@
 
                         <div>
                             <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Reddit</p>
-                            <div class="flex items-center justify-between">
-                                <label class="text-xs font-medium wb-text-muted">Auto-open Reddit threads</label>
-                                <label class="switch-container">
-                                    <input type="checkbox" :checked="configDraft.reddit_auto_open === '1'"
-                                        @change="configDraft.reddit_auto_open = $event.target.checked ? '1' : ''; autoSavePref('reddit_auto_open', configDraft.reddit_auto_open)"
-                                        aria-label="Auto-open Reddit threads"
-                                        class="switch-input">
-                                    <span class="switch-slider"></span>
-                                </label>
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <label class="text-xs font-medium wb-text-muted">Auto-open Reddit threads</label>
+                                    <label class="switch-container">
+                                        <input type="checkbox" :checked="configDraft.reddit_auto_open === '1'"
+                                            @change="configDraft.reddit_auto_open = $event.target.checked ? '1' : ''; autoSavePref('reddit_auto_open', configDraft.reddit_auto_open)"
+                                            aria-label="Auto-open Reddit threads"
+                                            class="switch-input">
+                                        <span class="switch-slider"></span>
+                                    </label>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <label class="text-xs font-medium wb-text-muted">Comments per thread</label>
+                                    </div>
+                                    <input type="number" min="10" max="250"
+                                        x-model="configDraft.reddit_max_comments"
+                                        @change="autoSavePref('reddit_max_comments', configDraft.reddit_max_comments)"
+                                        :placeholder="configData?.reddit_max_comments?.effective_value || '250'"
+                                        aria-label="Comments per thread"
+                                        class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
+                                    <p class="text-[10px] wb-text-faint mt-1">Max 250. Lower for faster loads per episode.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
