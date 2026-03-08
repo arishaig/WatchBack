@@ -22,20 +22,21 @@ html[data-theme="dark"] {
     --wb-accent: #2563eb;
     --wb-accent-hover: #3b82f6;
     --wb-accent-text: #60a5fa;
+    --wb-on-accent: #ffffff;
 
     --wb-switch-bg: #4b5563;
 
     /* Source: Reddit */
-    --wb-reddit-bg: rgba(124, 45, 18, 0.5);
+    --wb-reddit-bg: #4e2b24;
     --wb-reddit-text: #fdba74;
-    --wb-reddit-hover: rgba(146, 64, 14, 1);
+    --wb-reddit-hover: #92400e;
     --wb-reddit-muted: #e0934a;
-    --wb-reddit-border: rgba(249, 115, 22, 0.3);
+    --wb-reddit-border: #603f2d;
 
     /* Source: Bluesky */
-    --wb-bluesky-bg: rgba(30, 58, 138, 0.5);
+    --wb-bluesky-bg: #1e3260;
     --wb-bluesky-text: #93c5fd;
-    --wb-bluesky-hover: rgba(30, 64, 175, 1);
+    --wb-bluesky-hover: #1e40af;
 
     /* Source: Trakt */
     --wb-trakt-bg: #af0e13;
@@ -46,15 +47,15 @@ html[data-theme="dark"] {
     --wb-filter-inactive-text: #bec3ca;
 
     /* Reply nesting */
-    --wb-reply-bg: rgba(55, 65, 81, 0.5);
+    --wb-reply-bg: #2b3544;
 
     /* Status: success / error */
     --wb-success-text: #4ade80;
-    --wb-success-bg: rgba(34, 197, 94, 0.15);
-    --wb-success-border: rgba(34, 197, 94, 0.3);
+    --wb-success-bg: #1f403d;
+    --wb-success-border: #205843;
     --wb-error-text: #f87171;
-    --wb-error-bg: rgba(239, 68, 68, 0.15);
-    --wb-error-border: rgba(239, 68, 68, 0.3);
+    --wb-error-bg: #3e2d39;
+    --wb-error-border: #5d313b;
 
     /* Logo filter */
     --wb-logo-filter: brightness(0) invert(1);

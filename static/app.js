@@ -1,6 +1,6 @@
 document.addEventListener('alpine:init', () => {
     Alpine.data('app', () => ({
-        data: null, error: null, isLoading: false, mode: 'all', sourceFilter: new Set(),
+        data: null, error: null, isLoading: false, isRestarting: false, restartSuccess: false, mode: 'all', sourceFilter: new Set(),
         status: null, showConfig: false, configData: null, configDraft: {}, lightboxImg: null,
         groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
         prefSaveStatus: '',
@@ -129,6 +129,9 @@ document.addEventListener('alpine:init', () => {
             const list = this.mode === 'time' ? (this.data.time_machine || []) : (this.data.all_comments || []);
             return list.filter(c => (c.source || 'trakt') === src).length;
         },
+        get availableSources() {
+            return ['trakt', 'bluesky', 'reddit'].filter(s => this.sourceCount(s) > 0);
+        },
         get groupedComments() {
             const comments = this.activeComments;
             const groups = [];
@@ -203,17 +206,47 @@ document.addEventListener('alpine:init', () => {
         },
         async restartServer() {
             console.warn("[WatchBack] Restarting server...");
+            this.isRestarting = true;
+            this.restartSuccess = false;
             try {
                 const res = await fetch('/api/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) });
                 const result = await res.json();
                 if (result.status === 'restarting') {
-                    console.info("[WatchBack] Server restart initiated");
+                    console.info("[WatchBack] Server restart initiated, waiting for recovery...");
+                    await this._waitForServer();
                 } else {
                     console.error("[WatchBack] Restart failed:", result);
                 }
             } catch (e) {
-                console.error("[WatchBack] Server restart request failed:", e);
+                // Request may fail if server exits before responding — still wait for recovery
+                console.info("[WatchBack] Server went down, waiting for recovery...");
+                await this._waitForServer();
             }
+            // Show success state briefly, then clear
+            this.restartSuccess = true;
+            await new Promise(r => setTimeout(r, 1200));
+            this.isRestarting = false;
+            this.restartSuccess = false;
+        },
+        async _waitForServer(maxWait = 30000) {
+            const start = Date.now();
+            while (Date.now() - start < maxWait) {
+                await new Promise(r => setTimeout(r, 1000));
+                try {
+                    const res = await fetch('/api/status');
+                    if (res.ok) {
+                        console.info("[WatchBack] Server is back, re-initializing...");
+                        const [sRes, cRes] = await Promise.all([fetch('/api/status'), fetch('/api/config')]);
+                        this.status = await sRes.json();
+                        this.configData = await cRes.json();
+                        this.configDraft = this.buildDraft();
+                        this.applyTheme();
+                        await this.sync();
+                        return;
+                    }
+                } catch {}
+            }
+            console.warn("[WatchBack] Server did not recover within timeout");
         },
         async autoSavePref(key, value) {
             try {
