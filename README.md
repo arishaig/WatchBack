@@ -77,7 +77,7 @@ The app works progressively — configure only what you have:
 ## Architecture
 
 - **Backend**: Single-file FastAPI app ([main.py](main.py))
-- **Frontend**: Alpine.js SPA with Tailwind CSS ([static/index.html](static/index.html), [static/app.js](static/app.js), [static/app.css](static/app.css))
+- **Frontend**: Alpine.js SPA with Tailwind CSS ([static/index.html](static/index.html), [static/app.js](static/app.js), [static/css/](static/css/))
 - **Storage**: DiskCache for session data, config overrides, and API response caching
 - **Refresh**: SSE endpoint (`/api/stream`) driven by Jellyfin webhooks (`/api/webhook`) or a Trakt background poller
 

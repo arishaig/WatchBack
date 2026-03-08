@@ -1,0 +1,27 @@
+/* Alpine.js cloak — hide elements until Alpine initializes */
+[x-cloak] {
+    display: none !important;
+}
+
+/* Global body styling (themed) */
+body {
+    background-color: var(--wb-bg);
+    color: var(--wb-text);
+}
+
+/* Themed utility classes — surface & text */
+.wb-surface     { background-color: var(--wb-surface); }
+.wb-surface-alt { background-color: var(--wb-surface-alt); }
+.wb-border      { border-color: var(--wb-border); }
+
+.wb-text           { color: var(--wb-text); }
+.wb-text-secondary { color: var(--wb-text-secondary); }
+.wb-text-muted     { color: var(--wb-text-muted); }
+.wb-text-faint     { color: var(--wb-text-faint); }
+.wb-accent-text    { color: var(--wb-accent-text); }
+
+/* Logo */
+img.wb-logo {
+    filter: var(--wb-logo-filter);
+    -webkit-filter: var(--wb-logo-filter);
+}

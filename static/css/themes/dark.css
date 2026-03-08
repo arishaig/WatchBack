@@ -1,0 +1,61 @@
+/*
+ * Dark theme (default)
+ * To add a new theme, copy this file and adjust the values.
+ * Then add the theme name as an option in the Appearance config section.
+ */
+
+:root,
+html[data-theme="dark"] {
+    color-scheme: dark;
+
+    --wb-bg: #111827;
+    --wb-surface: #1f2937;
+    --wb-surface-alt: #374151;
+    --wb-border: #374151;
+    --wb-border-light: #4b5563;
+
+    --wb-text: #f3f4f6;
+    --wb-text-secondary: #e5e7eb;
+    --wb-text-muted: #b0b6bf;
+    --wb-text-faint: #9ea4ae;
+
+    --wb-accent: #2563eb;
+    --wb-accent-hover: #3b82f6;
+    --wb-accent-text: #60a5fa;
+
+    --wb-switch-bg: #4b5563;
+
+    /* Source: Reddit */
+    --wb-reddit-bg: rgba(124, 45, 18, 0.5);
+    --wb-reddit-text: #fdba74;
+    --wb-reddit-hover: rgba(146, 64, 14, 1);
+    --wb-reddit-muted: #e0934a;
+    --wb-reddit-border: rgba(249, 115, 22, 0.3);
+
+    /* Source: Bluesky */
+    --wb-bluesky-bg: rgba(30, 58, 138, 0.5);
+    --wb-bluesky-text: #93c5fd;
+    --wb-bluesky-hover: rgba(30, 64, 175, 1);
+
+    /* Source: Trakt */
+    --wb-trakt-bg: #af0e13;
+    --wb-trakt-text: #cdd2d5;
+
+    /* Filter pills */
+    --wb-filter-inactive-bg: #1f2937;
+    --wb-filter-inactive-text: #bec3ca;
+
+    /* Reply nesting */
+    --wb-reply-bg: rgba(55, 65, 81, 0.5);
+
+    /* Status: success / error */
+    --wb-success-text: #4ade80;
+    --wb-success-bg: rgba(34, 197, 94, 0.15);
+    --wb-success-border: rgba(34, 197, 94, 0.3);
+    --wb-error-text: #f87171;
+    --wb-error-bg: rgba(239, 68, 68, 0.15);
+    --wb-error-border: rgba(239, 68, 68, 0.3);
+
+    /* Logo filter */
+    --wb-logo-filter: brightness(0) invert(1);
+}
