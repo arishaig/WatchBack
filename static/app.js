@@ -129,6 +129,9 @@ document.addEventListener('alpine:init', () => {
             const list = this.mode === 'time' ? (this.data.time_machine || []) : (this.data.all_comments || []);
             return list.filter(c => (c.source || 'trakt') === src).length;
         },
+        get availableSources() {
+            return ['trakt', 'bluesky', 'reddit'].filter(s => this.sourceCount(s) > 0);
+        },
         get groupedComments() {
             const comments = this.activeComments;
             const groups = [];

@@ -32,7 +32,8 @@
                     class="wb-on-accent px-4 py-2 rounded-lg font-medium transition-colors shadow-lg flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer"
                     style="background-color: var(--wb-accent);" :disabled="isLoading">
                     <span x-show="!isLoading">&#x1F504; Sync</span>
-                    <span x-show="isLoading" x-cloak>&#x23F3; Syncing...</span>
+                    <span x-show="isLoading" x-cloak class="inline-block w-5 h-5 border-2 border-transparent border-t-current rounded-full animate-spin" aria-hidden="true"></span>
+                    <span x-show="isLoading" class="sr-only">Syncing</span>
                 </button>
             </div>
         </header>
@@ -362,17 +363,17 @@
                         &#x1F50D;</a>
                 </div>
 
-                <div class="flex gap-2 mb-4 justify-center comment-card" style="animation-delay:0.1s">
-                    <button @click="toggleSource('trakt')"
+                <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card" style="animation-delay:0.1s">
+                    <button x-show="sourceCount('trakt') > 0" @click="toggleSource('trakt')"
                         :class="sourceActive('trakt') ? 'filter-trakt' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Trakt
                         <span x-text="'(' + sourceCount('trakt') + ')'" class="font-normal"></span></button>
-                    <button @click="toggleSource('bluesky')"
+                    <button x-show="sourceCount('bluesky') > 0" @click="toggleSource('bluesky')"
                         :class="sourceActive('bluesky') ? 'filter-bluesky' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">BlueSky
                         <span x-text="'(' + sourceCount('bluesky') + ')'"
                             class="font-normal"></span></button>
-                    <button @click="toggleSource('reddit')"
+                    <button x-show="sourceCount('reddit') > 0" @click="toggleSource('reddit')"
                         :class="sourceActive('reddit') ? 'filter-reddit' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit
                         <span x-text="'(' + sourceCount('reddit') + ')'" class="font-normal"></span></button>
