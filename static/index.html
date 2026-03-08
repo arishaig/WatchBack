@@ -26,10 +26,10 @@
             <div class="flex gap-2">
                 <button @click="showConfig = !showConfig"
                     :class="showConfig ? 'wb-surface-alt wb-text' : 'wb-surface-alt wb-text-muted'"
-                    class="px-3 py-2 rounded-lg transition-colors text-lg leading-none"
+                    class="px-3 py-2 rounded-lg transition-colors text-lg leading-none cursor-pointer"
                     title="Configuration">&#x2699;&#xFE0F;</button>
                 <button @click="sync()"
-                    class="text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg flex items-center justify-center gap-2 min-w-[7rem]"
+                    class="text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer"
                     style="background-color: var(--wb-accent);" :disabled="isLoading">
                     <span x-show="!isLoading">&#x1F504; Sync</span>
                     <span x-show="isLoading" x-cloak>&#x23F3; Syncing...</span>
@@ -38,10 +38,17 @@
         </header>
 
         <!-- Loading overlay -->
-        <div x-show="isLoading" x-cloak x-transition.opacity.duration.200ms
-            class="fixed inset-0 z-50 flex items-center justify-center"
+        <div x-show="isLoading || isRestarting" x-cloak x-transition.opacity.duration.200ms
+            class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4"
             style="background-color: rgba(0,0,0,0.45);" aria-live="polite" aria-label="Loading">
-            <div class="wb-spinner" role="status"></div>
+            <template x-if="!restartSuccess">
+                <div class="wb-spinner" role="status"></div>
+            </template>
+            <template x-if="restartSuccess">
+                <div class="restart-check" role="status">&#x2713;</div>
+            </template>
+            <span x-show="isRestarting" class="text-sm font-medium" style="color: var(--wb-text-muted);"
+                x-text="restartSuccess ? 'Reconnected' : 'Restarting\u2026'"></span>
         </div>
 
         <div x-show="showConfig" x-cloak role="region" aria-label="Configuration"
@@ -255,9 +262,11 @@
                     <button @click="clearCache()"
                         class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors">&#x1F5D1;
                         Cache</button>
-                    <button @click="restartServer()"
-                        class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors">&#x21BA;
-                        Restart</button>
+                    <button @click="restartServer()" :disabled="isRestarting"
+                        class="px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all disabled:opacity-50"
+                        :class="restartSuccess ? 'test-ok' : ''"
+                        :style="restartSuccess ? '' : 'background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);'"
+                        x-text="restartSuccess ? '&#x2713; Restarted' : isRestarting ? '&#x21BA; Restarting\u2026' : '&#x21BA; Restart'"></button>
                     <button @click="saveConfig()"
                         class="ml-auto text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors"
                         style="background-color: var(--wb-accent);">Save</button>
@@ -272,66 +281,50 @@
                             x-text="prefSaveStatus || 'Saved'"></span>
                     </div>
 
-                    <div class="space-y-6">
-                        <div>
-                            <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Appearance</p>
-                            <div class="flex items-center justify-between">
-                                <label class="text-xs font-medium wb-text-muted">Theme</label>
-                                <select x-model="configDraft.theme_mode"
-                                    @change="applyTheme(configDraft.theme_mode); autoSavePref('theme_mode', configDraft.theme_mode)"
-                                    aria-label="Theme"
-                                    class="wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-sm border cursor-pointer">
-                                    <option value="dark">Dark</option>
-                                    <option value="light">Light</option>
-                                </select>
-                            </div>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-medium wb-text-muted">Theme</label>
+                            <select x-model="configDraft.theme_mode"
+                                @change="applyTheme(configDraft.theme_mode); autoSavePref('theme_mode', configDraft.theme_mode)"
+                                aria-label="Theme"
+                                class="wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-sm border cursor-pointer">
+                                <option value="dark">Dark</option>
+                                <option value="light">Light</option>
+                            </select>
                         </div>
 
-                        <div class="wb-border border-t"></div>
-
                         <div>
-                            <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Comments</p>
-                            <div class="space-y-3">
-                                <div>
-                                    <div class="flex justify-between mb-1">
-                                        <label class="text-xs font-medium wb-text-muted">Time Machine Window
-                                            (days)</label>
-                                    </div>
-                                    <input type="number" min="1" max="365" x-model="configDraft.time_machine_days"
-                                        @change="autoSavePref('time_machine_days', configDraft.time_machine_days)"
-                                        :placeholder="configData?.time_machine_days?.effective_value || '14'"
-                                        class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium wb-text-muted">Time Machine Window</label>
+                                <div class="flex items-center gap-1">
+                                    <input type="number" min="1" max="365"
+                                        :value="configDraft.time_machine_days || configData?.time_machine_days?.effective_value || 14"
+                                        @change="configDraft.time_machine_days = $event.target.value; autoSavePref('time_machine_days', $event.target.value)"
+                                        class="w-16 wb-surface-alt wb-border wb-text-secondary rounded-lg px-2 py-1 text-xs text-center border">
+                                    <span class="text-xs wb-text-faint">days</span>
                                 </div>
                             </div>
+                            <input type="range" min="1" max="90"
+                                :value="configDraft.time_machine_days || configData?.time_machine_days?.effective_value || 14"
+                                @input="configDraft.time_machine_days = $event.target.value"
+                                @change="autoSavePref('time_machine_days', configDraft.time_machine_days)"
+                                class="wb-range w-full">
                         </div>
 
-                        <div class="wb-border border-t"></div>
-
                         <div>
-                            <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide">Reddit</p>
-                            <div class="space-y-3">
-                                <div class="flex items-center justify-between">
-                                    <label class="text-xs font-medium wb-text-muted">Auto-open Reddit threads</label>
-                                    <label class="switch-container">
-                                        <input type="checkbox" :checked="configDraft.reddit_auto_open === '1'"
-                                            @change="configDraft.reddit_auto_open = $event.target.checked ? '1' : ''; autoSavePref('reddit_auto_open', configDraft.reddit_auto_open)"
-                                            aria-label="Auto-open Reddit threads" class="switch-input">
-                                        <span class="switch-slider"></span>
-                                    </label>
-                                </div>
-                                <div>
-                                    <div class="flex justify-between mb-1">
-                                        <label class="text-xs font-medium wb-text-muted">Comments per thread</label>
-                                    </div>
-                                    <input type="number" min="10" max="250" x-model="configDraft.reddit_max_comments"
-                                        @change="autoSavePref('reddit_max_comments', configDraft.reddit_max_comments)"
-                                        :placeholder="configData?.reddit_max_comments?.effective_value || '250'"
-                                        aria-label="Comments per thread"
-                                        class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
-                                    <p class="text-[10px] wb-text-faint mt-1">Max 250. Lower for faster loads per
-                                        episode.</p>
-                                </div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium wb-text-muted">Reddit comments per thread</label>
+                                <input type="number" min="10" max="250"
+                                    :value="configDraft.reddit_max_comments || configData?.reddit_max_comments?.effective_value || 250"
+                                    @change="configDraft.reddit_max_comments = $event.target.value; autoSavePref('reddit_max_comments', $event.target.value)"
+                                    aria-label="Comments per thread"
+                                    class="w-16 wb-surface-alt wb-border wb-text-secondary rounded-lg px-2 py-1 text-xs text-center border">
                             </div>
+                            <input type="range" min="10" max="250" step="10"
+                                :value="configDraft.reddit_max_comments || configData?.reddit_max_comments?.effective_value || 250"
+                                @input="configDraft.reddit_max_comments = $event.target.value"
+                                @change="autoSavePref('reddit_max_comments', configDraft.reddit_max_comments)"
+                                class="wb-range w-full">
                         </div>
                     </div>
                 </div>

@@ -81,3 +81,49 @@
     background: var(--wb-error-bg);
     border-color: var(--wb-error-border);
 }
+
+/* ─── Range slider ─── */
+.wb-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--wb-surface-alt);
+    outline: none;
+    cursor: pointer;
+}
+
+.wb-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--wb-accent);
+    border: 2px solid var(--wb-bg);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.wb-range::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.wb-range::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--wb-accent);
+    border: 2px solid var(--wb-bg);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.wb-range::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
+.wb-range::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--wb-surface-alt);
+}

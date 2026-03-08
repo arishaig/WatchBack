@@ -45,6 +45,27 @@
     animation: group-in 0.35s ease-out both;
 }
 
+/* ─── Restart success checkmark ─── */
+@keyframes check-pop {
+    0%   { opacity: 0; transform: scale(0.3); }
+    50%  { opacity: 1; transform: scale(1.15); }
+    100% { opacity: 1; transform: scale(1); }
+}
+.restart-check {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--wb-success-bg);
+    border: 2px solid var(--wb-success-border);
+    color: var(--wb-success-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    animation: check-pop 0.35s ease-out both;
+}
+
 /* ─── Respect reduced motion ─── */
 @media (prefers-reduced-motion: reduce) {
     .comment-card,
