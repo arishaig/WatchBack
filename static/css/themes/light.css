@@ -1,0 +1,49 @@
+/* Light theme */
+
+html[data-theme="light"] {
+    color-scheme: light;
+
+    --wb-bg: #f3f4f6;
+    --wb-surface: #ffffff;
+    --wb-surface-alt: #e5e7eb;
+    --wb-border: #e5e7eb;
+    --wb-border-light: #d1d5db;
+
+    --wb-text: #1f2937;
+    --wb-text-secondary: #374151;
+    --wb-text-muted: #616774;
+    --wb-text-faint: #6a6f78;
+
+    --wb-accent: #2563eb;
+    --wb-accent-hover: #3b82f6;
+    --wb-accent-text: #2563eb;
+
+    --wb-switch-bg: #d1d5db;
+
+    --wb-reddit-bg: rgba(255, 237, 213, 0.8);
+    --wb-reddit-text: #c2410c;
+    --wb-reddit-hover: rgba(255, 228, 196, 1);
+    --wb-reddit-muted: #b5430a;
+    --wb-reddit-border: rgba(251, 146, 60, 0.4);
+
+    --wb-bluesky-bg: rgba(219, 234, 254, 0.8);
+    --wb-bluesky-text: #1d4ed8;
+    --wb-bluesky-hover: rgba(191, 219, 254, 1);
+
+    --wb-trakt-bg: #e5e7eb;
+    --wb-trakt-text: #616774;
+
+    --wb-filter-inactive-bg: #ffffff;
+    --wb-filter-inactive-text: #6a6f78;
+
+    --wb-reply-bg: rgba(229, 231, 235, 0.5);
+
+    --wb-success-text: #16a34a;
+    --wb-success-bg: rgba(22, 163, 74, 0.1);
+    --wb-success-border: rgba(22, 163, 74, 0.3);
+    --wb-error-text: #dc2626;
+    --wb-error-bg: rgba(220, 38, 38, 0.1);
+    --wb-error-border: rgba(220, 38, 38, 0.3);
+
+    --wb-logo-filter: brightness(1);
+}

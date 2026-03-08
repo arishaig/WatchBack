@@ -1,0 +1,56 @@
+/* ─── Loading spinner ─── */
+@keyframes wb-spin {
+    to { transform: rotate(360deg); }
+}
+.wb-spinner {
+    width: 44px;
+    height: 44px;
+    border: 3px solid var(--wb-border);
+    border-top-color: var(--wb-accent);
+    border-radius: 50%;
+    animation: wb-spin 0.75s linear infinite;
+}
+
+/* ─── Config panel slide/fade ─── */
+.config-enter {
+    animation: config-slide-in 0.25s ease-out both;
+}
+.config-leave {
+    animation: config-slide-out 0.2s ease-in both;
+}
+@keyframes config-slide-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes config-slide-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-8px); }
+}
+
+/* ─── Comment card cascade ─── */
+@keyframes comment-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.comment-card {
+    animation: comment-in 0.3s ease-out both;
+}
+
+/* ─── Thread group entrance ─── */
+@keyframes group-in {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.thread-group {
+    animation: group-in 0.35s ease-out both;
+}
+
+/* ─── Respect reduced motion ─── */
+@media (prefers-reduced-motion: reduce) {
+    .comment-card,
+    .thread-group,
+    .config-enter,
+    .config-leave {
+        animation: none !important;
+    }
+}

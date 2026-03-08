@@ -1,0 +1,83 @@
+/* ─── Toggle switch ─── */
+.switch-container {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 24px;
+}
+
+.switch-input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--wb-switch-bg);
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+.switch-input:checked+.switch-slider {
+    background-color: var(--wb-accent);
+}
+
+.switch-input:checked+.switch-slider:before {
+    transform: translateX(16px);
+}
+
+/* ─── Source badges ─── */
+.badge-reddit            { background: var(--wb-reddit-bg);  color: var(--wb-reddit-text); }
+.badge-reddit:hover      { background: var(--wb-reddit-hover); }
+.badge-bluesky           { background: var(--wb-bluesky-bg); color: var(--wb-bluesky-text); }
+.badge-bluesky:hover     { background: var(--wb-bluesky-hover); }
+.badge-trakt             { background: var(--wb-trakt-bg);   color: var(--wb-trakt-text); }
+
+/* ─── Source filter pills ─── */
+.filter-inactive { background: var(--wb-filter-inactive-bg); color: var(--wb-filter-inactive-text); }
+.filter-trakt    { background: var(--wb-trakt-bg);           color: var(--wb-text-secondary); }
+.filter-bluesky  { background: var(--wb-bluesky-bg);         color: var(--wb-bluesky-text); }
+.filter-reddit   { background: var(--wb-reddit-bg);          color: var(--wb-reddit-text); }
+
+/* ─── Thread & reply styling ─── */
+.thread-title       { color: var(--wb-reddit-muted); }
+.thread-title:hover { color: var(--wb-reddit-text); }
+
+.reply-border { border-color: var(--wb-reddit-border); }
+.reply-bg     { background: var(--wb-reply-bg); }
+
+.reddit-link { color: var(--wb-reddit-text); }
+
+/* ─── Status indicators (test buttons, feature list) ─── */
+.wb-success-text { color: var(--wb-success-text); }
+.wb-error-text   { color: var(--wb-error-text); }
+
+.test-ok {
+    color: var(--wb-success-text);
+    background: var(--wb-success-bg);
+    border-color: var(--wb-success-border);
+}
+
+.test-error {
+    color: var(--wb-error-text);
+    background: var(--wb-error-bg);
+    border-color: var(--wb-error-border);
+}

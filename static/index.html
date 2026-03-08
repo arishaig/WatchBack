@@ -5,14 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WatchBack</title>
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="stylesheet" href="/tailwind.css">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="/app.css">
+    <link rel="stylesheet" href="/css/app.css">
 </head>
 
 <body class="antialiased font-sans p-4" x-data="app()">
@@ -38,12 +38,14 @@
         </header>
 
         <!-- Loading overlay -->
-        <div x-show="isLoading" x-cloak class="fixed inset-0 z-50 flex items-center justify-center"
+        <div x-show="isLoading" x-cloak x-transition.opacity.duration.200ms
+            class="fixed inset-0 z-50 flex items-center justify-center"
             style="background-color: rgba(0,0,0,0.45);" aria-live="polite" aria-label="Loading">
             <div class="wb-spinner" role="status"></div>
         </div>
 
         <div x-show="showConfig" x-cloak role="region" aria-label="Configuration"
+            x-transition:enter="config-enter" x-transition:leave="config-leave"
             class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
             <div class="p-4">
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
@@ -338,13 +340,13 @@
 
         <template x-if="data?.status === 'success'">
             <main>
-                <div class="wb-surface p-4 rounded-xl mb-6 shadow-md wb-border border">
+                <div class="wb-surface p-4 rounded-xl mb-6 shadow-md wb-border border comment-card">
                     <h2 class="text-xl font-bold mb-1" x-text="data?.title"></h2>
                     <p class="text-sm wb-text-muted">Aired: <span x-text="formatDate(data?.metadata?.premiere)"></span>
                     </p>
                 </div>
 
-                <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border">
+                <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border comment-card" style="animation-delay:0.05s">
                     <button x-show="showTimeMachine" @click="mode = 'time'"
                         :class="mode === 'time' ? 'text-white shadow' : 'wb-text-muted'"
                         :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
@@ -361,7 +363,7 @@
                         &#x1F50D;</a>
                 </div>
 
-                <div class="flex gap-2 mb-4 justify-center">
+                <div class="flex gap-2 mb-4 justify-center comment-card" style="animation-delay:0.1s">
                     <button @click="toggleSource('trakt')"
                         :class="sourceActive('trakt') ? 'filter-trakt' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Trakt
@@ -386,8 +388,9 @@
                 </div>
 
                 <div class="space-y-4 pb-8" x-show="!groupByThread">
-                    <template x-for="comment in activeComments" :key="comment.id">
-                        <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group">
+                    <template x-for="(comment, ci) in activeComments" :key="comment.id">
+                        <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card"
+                            :style="'animation-delay:' + Math.min(ci * 0.04, 0.6) + 's'">
                             <div class="flex items-start mb-2 gap-2">
                                 <div class="flex-1 min-w-0">
                                     <template x-if="comment.thread_title">
@@ -508,15 +511,16 @@
                 <!-- Grouped-by-thread view -->
                 <div class="space-y-6 pb-8" x-show="groupByThread" x-cloak>
                     <template x-for="(group, gi) in groupedComments" :key="gi">
-                        <div>
+                        <div class="thread-group" :style="'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's'">
                             <template x-if="group.title">
                                 <a :href="group.url" target="_blank" rel="noopener noreferrer"
                                     class="block text-xs thread-title mb-2 truncate leading-tight font-semibold"
                                     x-text="group.title"></a>
                             </template>
                             <div class="space-y-3" :class="group.title ? 'ml-2 border-l-2 reply-border pl-3' : ''">
-                                <template x-for="comment in group.comments" :key="comment.id">
-                                    <div class="wb-surface p-4 rounded-xl shadow wb-border border group">
+                                <template x-for="(comment, ci) in group.comments" :key="comment.id">
+                                    <div class="wb-surface p-4 rounded-xl shadow wb-border border group comment-card"
+                                        :style="'animation-delay:' + Math.min(ci * 0.04, 0.6) + 's'">
                                         <div class="flex justify-end mb-2">
                                             <div class="flex gap-1">
                                                 <a x-show="comment.source === 'bluesky'" :href="comment.url"
