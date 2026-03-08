@@ -1,0 +1,63 @@
+/* Monokai theme
+ * Based on the classic Monokai palette from Sublime Text.
+ * Colors tuned for WCAG AA (4.5:1 normal text, 3:1 large text/UI).
+ */
+
+html[data-theme="monokai"] {
+    color-scheme: dark;
+
+    --wb-bg: #272822;
+    --wb-surface: #3e3d32;
+    --wb-surface-alt: #49483e;
+    --wb-border: #49483e;
+    --wb-border-light: #75715e;
+
+    /* Monokai foreground — ~15:1 on bg */
+    --wb-text: #f8f8f2;
+    --wb-text-secondary: #e0ddd0;
+    /* Brightened from #b0ac98 — ~4.8:1 on surface-alt */
+    --wb-text-muted: #c0bcaa;
+    /* Brightened from Monokai comment #75715e — ~4.7:1 on surface */
+    --wb-text-faint: #adaa9a;
+
+    /* Monokai cyan */
+    --wb-accent: #66d9ef;
+    --wb-accent-hover: #80e3f5;
+    --wb-accent-text: #66d9ef;
+    --wb-on-accent: #272822;
+
+    --wb-switch-bg: #75715e;
+
+    /* Source: Reddit — Monokai orange */
+    --wb-reddit-bg: rgba(253, 151, 31, 0.2);
+    --wb-reddit-text: #fd971f;
+    --wb-reddit-hover: rgba(253, 151, 31, 0.4);
+    --wb-reddit-muted: #e6891c;
+    --wb-reddit-border: rgba(253, 151, 31, 0.3);
+
+    /* Source: Bluesky — Monokai purple */
+    --wb-bluesky-bg: rgba(174, 129, 255, 0.2);
+    --wb-bluesky-text: #ae81ff;
+    --wb-bluesky-hover: rgba(174, 129, 255, 0.4);
+
+    /* Source: Trakt */
+    --wb-trakt-bg: #af0e13;
+    --wb-trakt-text: #f8f8f2;
+
+    /* Filter pills */
+    --wb-filter-inactive-bg: #3e3d32;
+    --wb-filter-inactive-text: #c0bcaa;
+
+    /* Reply nesting */
+    --wb-reply-bg: rgba(62, 61, 50, 0.7);
+
+    /* Status — brightened Monokai pink for WCAG AA on dark surfaces */
+    --wb-success-text: #a6e22e;
+    --wb-success-bg: rgba(166, 226, 46, 0.15);
+    --wb-success-border: rgba(166, 226, 46, 0.3);
+    --wb-error-text: #ff92b8;
+    --wb-error-bg: rgba(255, 146, 184, 0.08);
+    --wb-error-border: rgba(255, 146, 184, 0.25);
+
+    --wb-logo-filter: brightness(0) invert(1);
+}
