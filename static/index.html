@@ -29,7 +29,7 @@
                     class="px-3 py-2 rounded-lg transition-colors text-lg leading-none cursor-pointer"
                     title="Configuration">&#x2699;&#xFE0F;</button>
                 <button @click="sync()"
-                    class="text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer"
+                    class="wb-on-accent px-4 py-2 rounded-lg font-medium transition-colors shadow-lg flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer"
                     style="background-color: var(--wb-accent);" :disabled="isLoading">
                     <span x-show="!isLoading">&#x1F504; Sync</span>
                     <span x-show="isLoading" x-cloak>&#x23F3; Syncing...</span>
@@ -268,7 +268,7 @@
                         :style="restartSuccess ? '' : 'background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);'"
                         x-text="restartSuccess ? '&#x2713; Restarted' : isRestarting ? '&#x21BA; Restarting\u2026' : '&#x21BA; Restart'"></button>
                     <button @click="saveConfig()"
-                        class="ml-auto text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors"
+                        class="ml-auto wb-on-accent px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors"
                         style="background-color: var(--wb-accent);">Save</button>
                 </div>
 
@@ -290,6 +290,9 @@
                                 class="wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-sm border cursor-pointer">
                                 <option value="dark">Dark</option>
                                 <option value="light">Light</option>
+                                <option value="solarized-dark">Solarized Dark</option>
+                                <option value="solarized-light">Solarized Light</option>
+                                <option value="monokai">Monokai</option>
                             </select>
                         </div>
 
@@ -300,6 +303,7 @@
                                     <input type="number" min="1" max="365"
                                         :value="configDraft.time_machine_days || configData?.time_machine_days?.effective_value || 14"
                                         @change="configDraft.time_machine_days = $event.target.value; autoSavePref('time_machine_days', $event.target.value)"
+                                        aria-label="Time Machine days"
                                         class="w-16 wb-surface-alt wb-border wb-text-secondary rounded-lg px-2 py-1 text-xs text-center border">
                                     <span class="text-xs wb-text-faint">days</span>
                                 </div>
@@ -308,6 +312,7 @@
                                 :value="configDraft.time_machine_days || configData?.time_machine_days?.effective_value || 14"
                                 @input="configDraft.time_machine_days = $event.target.value"
                                 @change="autoSavePref('time_machine_days', configDraft.time_machine_days)"
+                                aria-label="Time Machine days"
                                 class="wb-range w-full">
                         </div>
 
@@ -324,6 +329,7 @@
                                 :value="configDraft.reddit_max_comments || configData?.reddit_max_comments?.effective_value || 250"
                                 @input="configDraft.reddit_max_comments = $event.target.value"
                                 @change="autoSavePref('reddit_max_comments', configDraft.reddit_max_comments)"
+                                aria-label="Comments per thread"
                                 class="wb-range w-full">
                         </div>
                     </div>
@@ -341,12 +347,12 @@
 
                 <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border comment-card" style="animation-delay:0.05s">
                     <button x-show="showTimeMachine" @click="mode = 'time'"
-                        :class="mode === 'time' ? 'text-white shadow' : 'wb-text-muted'"
+                        :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
                         :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
                         class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">Time Machine
                         <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
                     </button>
-                    <button @click="mode = 'all'" :class="mode === 'all' ? 'text-white shadow' : 'wb-text-muted'"
+                    <button @click="mode = 'all'" :class="mode === 'all' ? 'wb-on-accent shadow' : 'wb-text-muted'"
                         :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
                         class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">All Comments
                         <span x-text="'(' + allCommentsCount + ')'" class="text-xs font-normal"></span>

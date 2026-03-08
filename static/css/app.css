@@ -7,6 +7,9 @@
 /* Themes (custom properties) */
 @import "themes/dark.css";
 @import "themes/light.css";
+@import "themes/solarized-dark.css";
+@import "themes/solarized-light.css";
+@import "themes/monokai.css";
 
 /* Base utilities & body */
 @import "base.css";

@@ -17,6 +17,7 @@ html[data-theme="light"] {
     --wb-accent: #2563eb;
     --wb-accent-hover: #3b82f6;
     --wb-accent-text: #2563eb;
+    --wb-on-accent: #ffffff;
 
     --wb-switch-bg: #d1d5db;
 
@@ -41,7 +42,7 @@ html[data-theme="light"] {
     --wb-success-text: #16a34a;
     --wb-success-bg: rgba(22, 163, 74, 0.1);
     --wb-success-border: rgba(22, 163, 74, 0.3);
-    --wb-error-text: #dc2626;
+    --wb-error-text: #c72020;
     --wb-error-bg: rgba(220, 38, 38, 0.1);
     --wb-error-border: rgba(220, 38, 38, 0.3);
 
