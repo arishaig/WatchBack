@@ -26,10 +26,10 @@
             <div class="flex gap-2">
                 <button @click="showConfig = !showConfig"
                     :class="showConfig ? 'wb-surface-alt wb-text' : 'wb-surface-alt wb-text-muted'"
-                    class="px-3 py-2 rounded-lg transition-colors text-lg leading-none cursor-pointer"
+                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-border border"
                     title="Configuration">&#x2699;&#xFE0F;</button>
                 <button @click="sync()"
-                    class="wb-on-accent px-4 py-2 rounded-lg font-medium transition-colors shadow-lg flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer"
+                    class="wb-on-accent px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer wb-btn wb-border border"
                     style="background-color: var(--wb-accent);" :disabled="isLoading">
                     <span x-show="!isLoading">&#x1F504; Sync</span>
                     <span x-show="isLoading" x-cloak class="inline-block w-5 h-5 border-2 border-transparent border-t-current rounded-full animate-spin" aria-hidden="true"></span>
@@ -53,6 +53,7 @@
         </div>
 
         <div x-show="showConfig" x-cloak role="region" aria-label="Configuration"
+            @keydown.escape="showConfig = false"
             x-transition:enter="config-enter" x-transition:leave="config-leave"
             class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
             <div class="p-4">
@@ -67,7 +68,7 @@
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium wb-text-muted">Server URL</label>
                                     <button x-show="configData?.jf_url?.source === 'stored'"
-                                        @click="resetField('jf_url')"
+                                        @click="resetField('jf_url')" aria-label="Reset Server URL to environment value"
                                         class="text-[10px] wb-accent-text cursor-pointer">Reset to
                                         ENV</button>
                                 </div>
@@ -79,7 +80,7 @@
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium wb-text-muted">API Key</label>
                                     <button x-show="configData?.jf_api_key?.source === 'stored'"
-                                        @click="resetField('jf_api_key')"
+                                        @click="resetField('jf_api_key')" aria-label="Reset API Key to environment value"
                                         class="text-[10px] wb-accent-text cursor-pointer">Reset to
                                         ENV</button>
                                 </div>
@@ -90,7 +91,7 @@
                             <button @click="testService('jellyfin')"
                                 :disabled="testResults.jellyfin?.status === 'testing'"
                                 aria-live="polite"
-                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                 :class="testResults.jellyfin?.status === 'ok' ? 'test-ok' : testResults.jellyfin?.status === 'error' ? 'test-error' : ''"
                                 x-text="testResults.jellyfin?.status === 'testing' ? 'Testing\u2026' : testResults.jellyfin?.message || 'Test Connection'"></button>
                         </div>
@@ -103,7 +104,7 @@
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium wb-text-muted">Client ID</label>
                                     <button x-show="configData?.trakt_client_id?.source === 'stored'"
-                                        @click="resetField('trakt_client_id')"
+                                        @click="resetField('trakt_client_id')" aria-label="Reset Client ID"
                                         class="text-[10px] wb-accent-text cursor-pointer">Reset</button>
                                 </div>
                                 <input type="text" x-model="configDraft.trakt_client_id"
@@ -114,7 +115,7 @@
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium wb-text-muted">Access Token (OAuth)</label>
                                     <button x-show="configData?.trakt_access_token?.source === 'stored'"
-                                        @click="resetField('trakt_access_token')"
+                                        @click="resetField('trakt_access_token')" aria-label="Reset Access Token"
                                         class="text-[10px] wb-accent-text cursor-pointer">Reset</button>
                                 </div>
                                 <input type="password" x-model="configDraft.trakt_access_token"
@@ -125,7 +126,7 @@
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium wb-text-muted">Username</label>
                                     <button x-show="configData?.trakt_username?.source === 'stored'"
-                                        @click="resetField('trakt_username')"
+                                        @click="resetField('trakt_username')" aria-label="Reset Username"
                                         class="text-[10px] wb-accent-text cursor-pointer">Reset</button>
                                 </div>
                                 <input type="text" x-model="configDraft.trakt_username"
@@ -136,13 +137,13 @@
                                 <button @click="testService('trakt')"
                                     :disabled="testResults.trakt?.status === 'testing'"
                                     aria-live="polite"
-                                    class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                    class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                     :class="testResults.trakt?.status === 'ok' ? 'test-ok' : testResults.trakt?.status === 'error' ? 'test-error' : ''"
                                     x-text="testResults.trakt?.status === 'testing' ? 'Testing\u2026' : testResults.trakt?.message || 'Test API'"></button>
                                 <button @click="testService('trakt-watch')"
                                     :disabled="testResults['trakt-watch']?.status === 'testing'"
                                     aria-live="polite"
-                                    class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                    class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                     :class="testResults['trakt-watch']?.status === 'ok' ? 'test-ok' : testResults['trakt-watch']?.status === 'error' ? 'test-error' : ''"
                                     x-text="testResults['trakt-watch']?.status === 'testing' ? 'Testing\u2026' : testResults['trakt-watch']?.message || 'Test Profile'"></button>
                             </div>
@@ -156,7 +157,7 @@
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium wb-text-muted">Handle/Email</label>
                                     <button x-show="configData?.bsky_identifier?.source === 'stored'"
-                                        @click="resetField('bsky_identifier')"
+                                        @click="resetField('bsky_identifier')" aria-label="Reset Handle"
                                         class="text-[10px] wb-accent-text cursor-pointer">Reset</button>
                                 </div>
                                 <input type="text" x-model="configDraft.bsky_identifier"
@@ -167,7 +168,7 @@
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium wb-text-muted">App Password</label>
                                     <button x-show="configData?.bsky_app_password?.source === 'stored'"
-                                        @click="resetField('bsky_app_password')"
+                                        @click="resetField('bsky_app_password')" aria-label="Reset App Password"
                                         class="text-[10px] wb-accent-text cursor-pointer">Reset</button>
                                 </div>
                                 <input type="password" x-model="configDraft.bsky_app_password"
@@ -177,7 +178,7 @@
                             <button @click="testService('bluesky')"
                                 :disabled="testResults.bluesky?.status === 'testing'"
                                 aria-live="polite"
-                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                 :class="testResults.bluesky?.status === 'ok' ? 'test-ok' : testResults.bluesky?.status === 'error' ? 'test-error' : ''"
                                 x-text="testResults.bluesky?.status === 'testing' ? 'Testing\u2026' : testResults.bluesky?.message || 'Test Connection'"></button>
                         </div>
@@ -253,7 +254,7 @@
                             <button @click="testAll()"
                                 :disabled="Object.values(testResults).some(r => r.status === 'testing')"
                                 aria-live="polite"
-                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-text-muted cursor-pointer transition-colors disabled:opacity-50"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                 x-text="Object.values(testResults).some(r => r.status === 'testing') ? 'Testing\u2026' : 'Test All Connections'"></button>
                         </li>
                     </ul>
@@ -261,15 +262,15 @@
 
                 <div class="mt-5 flex items-center gap-2">
                     <button @click="clearCache()"
-                        class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors">&#x1F5D1;
+                        class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm font-medium cursor-pointer wb-btn wb-border border">&#x1F5D1;
                         Cache</button>
                     <button @click="restartServer()" :disabled="isRestarting"
-                        class="px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all disabled:opacity-50"
+                        class="px-3 py-2 rounded-lg text-sm font-medium cursor-pointer disabled:opacity-50 wb-btn"
                         :class="restartSuccess ? 'test-ok' : ''"
                         :style="restartSuccess ? '' : 'background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);'"
                         x-text="restartSuccess ? '&#x2713; Restarted' : isRestarting ? '&#x21BA; Restarting\u2026' : '&#x21BA; Restart'"></button>
                     <button @click="saveConfig()"
-                        class="ml-auto wb-on-accent px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors"
+                        class="ml-auto wb-on-accent px-4 py-2 rounded-lg text-sm font-medium cursor-pointer wb-btn wb-border border"
                         style="background-color: var(--wb-accent);">Save</button>
                 </div>
 
@@ -350,38 +351,38 @@
                     <button x-show="showTimeMachine" @click="mode = 'time'"
                         :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
                         :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
-                        class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">Time Machine
+                        class="flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">Time Machine
                         <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
                     </button>
                     <button @click="mode = 'all'" :class="mode === 'all' ? 'wb-on-accent shadow' : 'wb-text-muted'"
                         :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
-                        class="flex-1 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer">All Comments
+                        class="flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">All Comments
                         <span x-text="'(' + allCommentsCount + ')'" class="text-xs font-normal"></span>
                     </button>
                     <a :href="data?.reddit_url" target="_blank" rel="noopener noreferrer"
-                        class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer">Reddit
+                        class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn">Reddit
                         &#x1F50D;</a>
                 </div>
 
                 <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card" style="animation-delay:0.1s">
                     <button x-show="sourceCount('trakt') > 0" @click="toggleSource('trakt')"
                         :class="sourceActive('trakt') ? 'filter-trakt' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Trakt
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer wb-btn">Trakt
                         <span x-text="'(' + sourceCount('trakt') + ')'" class="font-normal"></span></button>
                     <button x-show="sourceCount('bluesky') > 0" @click="toggleSource('bluesky')"
                         :class="sourceActive('bluesky') ? 'filter-bluesky' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">BlueSky
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer wb-btn">BlueSky
                         <span x-text="'(' + sourceCount('bluesky') + ')'"
                             class="font-normal"></span></button>
                     <button x-show="sourceCount('reddit') > 0" @click="toggleSource('reddit')"
                         :class="sourceActive('reddit') ? 'filter-reddit' : 'filter-inactive'"
-                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer">Reddit
+                        class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer wb-btn">Reddit
                         <span x-text="'(' + sourceCount('reddit') + ')'" class="font-normal"></span></button>
                 </div>
 
                 <div x-show="hasThreadGroups" class="flex justify-center mb-4">
                     <button @click="handleThreadToggle()" :class="groupByThread ? 'filter-reddit' : 'filter-inactive'"
-                        class="px-5 py-1.5 rounded-full text-xs font-bold uppercase wb-border border transition-colors cursor-pointer flex items-center gap-1.5">
+                        class="px-5 py-1.5 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer flex items-center gap-1.5 wb-btn">
                         <span
                             x-text="(groupByThread ? '📁 Grouped by thread' : '📁 Group by thread') + ' (' + threadCount + ')'"></span>
                     </button>
@@ -421,6 +422,8 @@
                                     :class="comment.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
                                     <template x-for="img in comment.images" :key="img.url">
                                         <div @click="lightboxImg = img.url"
+                                            @keydown.enter="lightboxImg = img.url"
+                                            tabindex="0" role="button" aria-label="View full image"
                                             class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
                                             style="background-color: var(--wb-bg);">
                                             <img :src="img.url"
@@ -658,6 +661,7 @@
         <!-- Image lightbox overlay -->
         <div x-show="lightboxImg" x-transition.opacity.duration.200ms @click="lightboxImg = null"
             @keydown.escape.window="lightboxImg = null"
+            role="dialog" aria-label="Image viewer" aria-modal="true"
             class="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer"
             style="background-color: rgba(0,0,0,0.85);" x-cloak>
             <img :src="lightboxImg" @click.stop alt="Enlarged image"

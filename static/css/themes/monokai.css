@@ -28,17 +28,17 @@ html[data-theme="monokai"] {
 
     --wb-switch-bg: #75715e;
 
-    /* Source: Reddit — Monokai orange */
-    --wb-reddit-bg: rgba(253, 151, 31, 0.2);
-    --wb-reddit-text: #fd971f;
-    --wb-reddit-hover: rgba(253, 151, 31, 0.4);
-    --wb-reddit-muted: #e6891c;
-    --wb-reddit-border: rgba(253, 151, 31, 0.3);
+    /* Source: Reddit — Monokai orange, brightened for WCAG AA on surface */
+    --wb-reddit-bg: #644f2e;
+    --wb-reddit-text: #ffb861;
+    --wb-reddit-hover: #8a612a;
+    --wb-reddit-muted: #f0a64a;
+    --wb-reddit-border: #77582c;
 
     /* Source: Bluesky — Monokai purple */
-    --wb-bluesky-bg: rgba(174, 129, 255, 0.2);
+    --wb-bluesky-bg: #544b5b;
     --wb-bluesky-text: #ae81ff;
-    --wb-bluesky-hover: rgba(174, 129, 255, 0.4);
+    --wb-bluesky-hover: #6b5884;
 
     /* Source: Trakt */
     --wb-trakt-bg: #af0e13;
@@ -49,15 +49,15 @@ html[data-theme="monokai"] {
     --wb-filter-inactive-text: #c0bcaa;
 
     /* Reply nesting */
-    --wb-reply-bg: rgba(62, 61, 50, 0.7);
+    --wb-reply-bg: #37372d;
 
     /* Status — brightened Monokai pink for WCAG AA on dark surfaces */
     --wb-success-text: #a6e22e;
-    --wb-success-bg: rgba(166, 226, 46, 0.15);
-    --wb-success-border: rgba(166, 226, 46, 0.3);
+    --wb-success-bg: #4e5631;
+    --wb-success-border: #5d6e31;
     --wb-error-text: #ff92b8;
-    --wb-error-bg: rgba(255, 146, 184, 0.08);
-    --wb-error-border: rgba(255, 146, 184, 0.25);
+    --wb-error-bg: #4d443d;
+    --wb-error-border: #6e5254;
 
     --wb-logo-filter: brightness(0) invert(1);
 }

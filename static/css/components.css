@@ -45,26 +45,32 @@
 }
 
 /* ─── Source badges ─── */
-.badge-reddit            { background: var(--wb-reddit-bg);  color: var(--wb-reddit-text); }
-.badge-reddit:hover      { background: var(--wb-reddit-hover); }
-.badge-bluesky           { background: var(--wb-bluesky-bg); color: var(--wb-bluesky-text); }
-.badge-bluesky:hover     { background: var(--wb-bluesky-hover); }
+.badge-reddit            { background: var(--wb-reddit-bg);  color: var(--wb-reddit-text); transition: background 0.15s ease; }
+.badge-bluesky           { background: var(--wb-bluesky-bg); color: var(--wb-bluesky-text); transition: background 0.15s ease; }
 .badge-trakt             { background: var(--wb-trakt-bg);   color: var(--wb-trakt-text); }
+
+@media (hover: hover) {
+    .badge-reddit:hover  { background: var(--wb-reddit-hover); }
+    .badge-bluesky:hover { background: var(--wb-bluesky-hover); }
+}
 
 /* ─── Source filter pills ─── */
 .filter-inactive { background: var(--wb-filter-inactive-bg); color: var(--wb-filter-inactive-text); }
-.filter-trakt    { background: var(--wb-trakt-bg);           color: var(--wb-text-secondary); }
+.filter-trakt    { background: var(--wb-trakt-bg);           color: var(--wb-trakt-text); }
 .filter-bluesky  { background: var(--wb-bluesky-bg);         color: var(--wb-bluesky-text); }
 .filter-reddit   { background: var(--wb-reddit-bg);          color: var(--wb-reddit-text); }
 
 /* ─── Thread & reply styling ─── */
-.thread-title       { color: var(--wb-reddit-muted); }
-.thread-title:hover { color: var(--wb-reddit-text); }
+.thread-title       { color: var(--wb-reddit-muted); transition: color 0.15s ease; }
+.reddit-link        { color: var(--wb-reddit-text);  transition: color 0.15s ease; }
+
+@media (hover: hover) {
+    .thread-title:hover { color: var(--wb-reddit-text); }
+    .reddit-link:hover  { color: var(--wb-reddit-muted); }
+}
 
 .reply-border { border-color: var(--wb-reddit-border); }
 .reply-bg     { background: var(--wb-reply-bg); }
-
-.reddit-link { color: var(--wb-reddit-text); }
 
 /* ─── Skeuomorphic button ─── */
 .wb-btn {
@@ -77,16 +83,22 @@
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.08),
         0 1px 2px rgba(0, 0, 0, 0.15);
-    transition: all 0.15s ease;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
-.wb-btn:hover {
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.12),
-        0 2px 4px rgba(0, 0, 0, 0.2);
+@media (hover: hover) {
+    .wb-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        filter: brightness(1.08);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.14),
+            0 3px 6px rgba(0, 0, 0, 0.2);
+    }
 }
 
 .wb-btn:active:not(:disabled) {
+    transform: translateY(0.5px);
+    filter: brightness(0.97);
     background-image: linear-gradient(
         to bottom,
         rgba(0, 0, 0, 0.06) 0%,
@@ -96,7 +108,39 @@
     box-shadow:
         inset 0 2px 3px rgba(0, 0, 0, 0.2),
         inset 0 0 2px rgba(0, 0, 0, 0.1);
-    transform: translateY(0.5px);
+}
+
+.wb-btn:disabled {
+    filter: none;
+    transform: none;
+}
+
+/* ─── Focus-visible ring (keyboard navigation) ─── */
+:focus-visible {
+    outline: 2px solid var(--wb-accent);
+    outline-offset: 2px;
+}
+
+/* Buttons with wb-btn get a combined ring + shadow */
+.wb-btn:focus-visible {
+    outline: 2px solid var(--wb-accent);
+    outline-offset: 2px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 1px 2px rgba(0, 0, 0, 0.15),
+        0 0 0 4px color-mix(in srgb, var(--wb-accent) 25%, transparent);
+}
+
+/* Toggle switch: show ring on the slider when input is focused */
+.switch-input:focus-visible + .switch-slider {
+    outline: 2px solid var(--wb-accent);
+    outline-offset: 2px;
+}
+
+/* Range slider */
+.wb-range:focus-visible {
+    outline: 2px solid var(--wb-accent);
+    outline-offset: 4px;
 }
 
 /* ─── Status indicators (test buttons, feature list) ─── */
