@@ -11,6 +11,7 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="stylesheet" href="/tailwind.css">
+    <script src="https://cdn.jsdelivr.net/npm/reconnecting-eventsource@1.6.2/dist/ReconnectingEventSource.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="/css/app.css">
 </head>
@@ -37,6 +38,17 @@
                 </button>
             </div>
         </header>
+
+        <!-- Error banner -->
+        <div x-show="error" x-cloak x-transition:enter="config-enter" x-transition:leave="config-leave"
+            class="mb-4 p-3 rounded-lg text-sm flex items-center justify-between"
+            style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
+            role="alert">
+            <span x-text="error"></span>
+            <button @click="error = null; clearTimeout(errorTimer)"
+                class="ml-3 shrink-0 text-xs font-bold cursor-pointer opacity-70 hover:opacity-100"
+                aria-label="Dismiss">&#x2715;</button>
+        </div>
 
         <!-- Loading overlay -->
         <div x-show="isLoading || isRestarting" x-cloak x-transition.opacity.duration.200ms
@@ -388,144 +400,27 @@
                     </button>
                 </div>
 
-                <div class="space-y-4 pb-8" x-show="!groupByThread">
-                    <template x-for="(comment, ci) in activeComments" :key="comment.id">
-                        <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card"
-                            :style="'animation-delay:' + Math.min(ci * 0.04, 0.6) + 's'">
-                            <div class="flex items-start mb-2 gap-2">
-                                <div class="flex-1 min-w-0">
-                                    <template x-if="comment.thread_title">
-                                        <a :href="comment.thread_url" target="_blank" rel="noopener noreferrer"
-                                            class="text-[11px] thread-title truncate leading-tight block"
-                                            x-text="comment.thread_title"></a>
-                                    </template>
-                                </div>
-                                <div class="flex gap-1 shrink-0">
-                                    <a x-show="comment.source === 'bluesky'" :href="comment.url" target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                        title="View original post">BlueSky &#x1F517;</a>
-                                    <a x-show="comment.source === 'reddit'" :href="comment.url" target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                        title="View on Reddit">Reddit &#x1F517;</a>
-                                    <span x-show="comment.source === 'trakt' || !comment.source"
-                                        class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
-                                </div>
-                            </div>
-
-                            <p class="wb-text-secondary text-sm leading-relaxed mb-3 whitespace-pre-wrap"
-                                x-text="comment.comment"></p>
-
-                            <template x-if="comment.images && comment.images.length > 0">
-                                <div class="grid gap-2 mb-3"
-                                    :class="comment.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
-                                    <template x-for="img in comment.images" :key="img.url">
-                                        <div @click="lightboxImg = img.url"
-                                            @keydown.enter="lightboxImg = img.url"
-                                            tabindex="0" role="button" aria-label="View full image"
-                                            class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
-                                            style="background-color: var(--wb-bg);">
-                                            <img :src="img.url"
-                                                :alt="img.alt || 'Image from post'"
-                                                class="w-full h-auto object-cover hover:scale-110 transition-transform duration-300"
-                                                loading="lazy">
-                                        </div>
-                                    </template>
-                                </div>
-                            </template>
-
-                            <div class="flex justify-between items-center text-xs wb-text-faint">
-                                <span class="font-medium wb-text-muted" x-text="'@' + comment.user.username"></span>
-                                <div class="flex items-center gap-3">
-                                    <span x-show="comment.score != null && comment.score !== 0" class="wb-text-faint"
-                                        x-text="'&#9650; ' + formatScore(comment.score)"></span>
-                                    <span x-text="formatDate(comment.created_at)"></span>
-                                </div>
-                            </div>
-
-                            <!-- Level 1 replies -->
-                            <template x-if="comment.replies && comment.replies.length > 0">
-                                <div class="mt-3 border-l-2 reply-border pl-3 space-y-3">
-                                    <template x-for="reply in comment.replies" :key="reply.id">
-                                        <div>
-                                            <div class="reply-bg p-3 rounded-lg">
-                                                <p class="wb-text-secondary text-sm leading-relaxed mb-2 whitespace-pre-wrap"
-                                                    x-text="reply.comment"></p>
-                                                <div class="flex justify-between items-center text-xs wb-text-faint">
-                                                    <span class="font-medium wb-text-muted"
-                                                        x-text="'@' + reply.user.username"></span>
-                                                    <div class="flex items-center gap-3">
-                                                        <span x-show="reply.score != null && reply.score !== 0"
-                                                            class="wb-text-faint"
-                                                            x-text="'&#9650; ' + formatScore(reply.score)"></span>
-                                                        <span x-text="formatDate(reply.created_at)"></span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <!-- Level 2 replies (reply-to-reply) -->
-                                            <template x-if="reply.replies && reply.replies.length > 0">
-                                                <div class="mt-2 ml-3 border-l-2 reply-border pl-3 space-y-2">
-                                                    <template x-for="subreply in reply.replies" :key="subreply.id">
-                                                        <div>
-                                                            <div class="reply-bg p-3 rounded-lg">
-                                                                <p class="wb-text-secondary text-sm leading-relaxed mb-2 whitespace-pre-wrap"
-                                                                    x-text="subreply.comment"></p>
-                                                                <div
-                                                                    class="flex justify-between items-center text-xs wb-text-faint">
-                                                                    <span class="font-medium wb-text-muted"
-                                                                        x-text="'@' + subreply.user.username"></span>
-                                                                    <div class="flex items-center gap-3">
-                                                                        <span
-                                                                            x-show="subreply.score != null && subreply.score !== 0"
-                                                                            class="wb-text-faint"
-                                                                            x-text="'&#9650; ' + formatScore(subreply.score)"></span>
-                                                                        <span
-                                                                            x-text="formatDate(subreply.created_at)"></span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <template
-                                                                x-if="subreply.replies && subreply.replies.length > 0">
-                                                                <a :href="subreply.url" target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    class="block mt-1 ml-3 text-xs wb-text-faint hover:wb-text-muted transition-colors"
-                                                                    x-text="'&#8627; ' + countAllReplies(subreply) + ' more ' + (countAllReplies(subreply) === 1 ? 'reply' : 'replies') + ' in thread'"></a>
-                                                            </template>
-                                                        </div>
-                                                    </template>
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </template>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
-
-                    <template x-if="activeComments.length === 0">
-                        <div class="py-12 text-center">
-                            <p class="wb-text-faint">No comments found for this view.</p>
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Grouped-by-thread view -->
-                <div class="space-y-6 pb-8" x-show="groupByThread" x-cloak>
-                    <template x-for="(group, gi) in groupedComments" :key="gi">
-                        <div class="thread-group" :style="'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's'">
-                            <template x-if="group.title">
+                <div class="pb-8" :class="groupByThread ? 'space-y-6' : 'space-y-4'">
+                    <template x-for="(group, gi) in renderGroups" :key="gi">
+                        <div :class="groupByThread && group.title ? 'thread-group' : ''"
+                            :style="groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's' : ''">
+                            <template x-if="groupByThread && group.title">
                                 <a :href="group.url" target="_blank" rel="noopener noreferrer"
                                     class="block text-xs thread-title mb-2 truncate leading-tight font-semibold"
                                     x-text="group.title"></a>
                             </template>
-                            <div class="space-y-3" :class="group.title ? 'ml-2 border-l-2 reply-border pl-3' : ''">
+                            <div :class="groupByThread && group.title ? 'ml-2 border-l-2 reply-border pl-3 space-y-3' : (groupByThread ? 'space-y-3' : '')">
                                 <template x-for="(comment, ci) in group.comments" :key="comment.id">
-                                    <div class="wb-surface p-4 rounded-xl shadow wb-border border group comment-card"
-                                        :style="'animation-delay:' + Math.min(ci * 0.04, 0.6) + 's'">
-                                        <div class="flex justify-end mb-2">
-                                            <div class="flex gap-1">
+                                    <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card"
+                                        :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's'">
+                                        <div class="flex items-start mb-2 gap-2">
+                                            <div class="flex-1 min-w-0" x-show="!groupByThread && comment.thread_title">
+                                                <a :href="comment.thread_url" target="_blank" rel="noopener noreferrer"
+                                                    class="text-[11px] thread-title truncate leading-tight block"
+                                                    x-text="comment.thread_title"></a>
+                                            </div>
+                                            <div class="flex gap-1"
+                                                :class="groupByThread || !comment.thread_title ? 'ml-auto' : 'shrink-0'">
                                                 <a x-show="comment.source === 'bluesky'" :href="comment.url"
                                                     target="_blank" rel="noopener noreferrer"
                                                     class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
@@ -539,14 +434,16 @@
                                             </div>
                                         </div>
 
-                                        <p class="wb-text-secondary text-sm leading-relaxed mb-3 whitespace-pre-wrap"
-                                            x-text="comment.comment"></p>
+                                        <div class="wb-text-secondary text-sm leading-relaxed mb-3 wb-md"
+                                            x-html="renderMarkdown(comment.comment)"></div>
 
                                         <template x-if="comment.images && comment.images.length > 0">
                                             <div class="grid gap-2 mb-3"
                                                 :class="comment.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
                                                 <template x-for="img in comment.images" :key="img.url">
                                                     <div @click="lightboxImg = img.url"
+                                                        @keydown.enter="lightboxImg = img.url"
+                                                        tabindex="0" role="button" aria-label="View full image"
                                                         class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
                                                         style="background-color: var(--wb-bg);">
                                                         <img :src="img.url"
@@ -575,8 +472,8 @@
                                                 <template x-for="reply in comment.replies" :key="reply.id">
                                                     <div>
                                                         <div class="reply-bg p-3 rounded-lg">
-                                                            <p class="wb-text-secondary text-sm leading-relaxed mb-2 whitespace-pre-wrap"
-                                                                x-text="reply.comment"></p>
+                                                            <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
+                                                                x-html="renderMarkdown(reply.comment)"></div>
                                                             <div
                                                                 class="flex justify-between items-center text-xs wb-text-faint">
                                                                 <span class="font-medium wb-text-muted"
@@ -586,7 +483,8 @@
                                                                         x-show="reply.score != null && reply.score !== 0"
                                                                         class="wb-text-faint"
                                                                         x-text="'&#9650; ' + formatScore(reply.score)"></span>
-                                                                    <span x-text="formatDate(reply.created_at)"></span>
+                                                                    <span
+                                                                        x-text="formatDate(reply.created_at)"></span>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -599,13 +497,15 @@
                                                                     :key="subreply.id">
                                                                     <div>
                                                                         <div class="reply-bg p-3 rounded-lg">
-                                                                            <p class="wb-text-secondary text-sm leading-relaxed mb-2 whitespace-pre-wrap"
-                                                                                x-text="subreply.comment"></p>
+                                                                            <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
+                                                                                x-html="renderMarkdown(subreply.comment)"></div>
                                                                             <div
                                                                                 class="flex justify-between items-center text-xs wb-text-faint">
-                                                                                <span class="font-medium wb-text-muted"
+                                                                                <span
+                                                                                    class="font-medium wb-text-muted"
                                                                                     x-text="'@' + subreply.user.username"></span>
-                                                                                <div class="flex items-center gap-3">
+                                                                                <div
+                                                                                    class="flex items-center gap-3">
                                                                                     <span
                                                                                         x-show="subreply.score != null && subreply.score !== 0"
                                                                                         class="wb-text-faint"
