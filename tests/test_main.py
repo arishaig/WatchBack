@@ -2,7 +2,12 @@
 import pytest
 from unittest.mock import patch
 
-from main import _matches_episode, get_config, ENV_MAP
+from main import (
+    _matches_episode, get_config, ENV_MAP, _safe_int,
+    _extract_bsky_images, _is_low_content_post,
+    find_bluesky_posts, find_pullpush_comments,
+    SessionData, trakt_headers,
+)
 from tests.helpers import mock_response
 
 
@@ -397,13 +402,13 @@ class TestApiSync:
 
     def test_idle_when_jellyfin_nothing_playing(self, fresh_cache, client):
         fresh_cache.set("ui_config", {"jf_api_key": "key"})
-        with patch("main.requests.get", return_value=mock_response(200, [])):
+        with patch("main.http.get", return_value=mock_response(200, [])):
             r = client.get("/api/sync")
         assert r.json()["status"] == "idle"
 
     def test_jellyfin_unreachable_returns_error(self, fresh_cache, client):
         fresh_cache.set("ui_config", {"jf_api_key": "key"})
-        with patch("main.requests.get", side_effect=Exception("refused")):
+        with patch("main.http.get", side_effect=Exception("refused")):
             r = client.get("/api/sync")
         data = r.json()
         assert data["status"] == "error"
@@ -412,7 +417,7 @@ class TestApiSync:
     def test_tier1_jellyfin_only_no_comments(self, fresh_cache, client):
         """Tier 1: Jellyfin session, no Trakt → empty comment arrays."""
         fresh_cache.set("ui_config", {"jf_api_key": "key"})
-        with patch("main.requests.get", return_value=mock_response(200, [JF_SESSION_ITEM])):
+        with patch("main.http.get", return_value=mock_response(200, [JF_SESSION_ITEM])):
             r = client.get("/api/sync")
         data = r.json()
         assert data["status"] == "success"
@@ -422,7 +427,7 @@ class TestApiSync:
 
     def test_google_reddit_url_always_present(self, fresh_cache, client):
         fresh_cache.set("ui_config", {"jf_api_key": "key"})
-        with patch("main.requests.get", return_value=mock_response(200, [JF_SESSION_ITEM])):
+        with patch("main.http.get", return_value=mock_response(200, [JF_SESSION_ITEM])):
             data = client.get("/api/sync").json()
         assert "google.com/search" in data["reddit_url"]
         assert data["reddit_thread_found"] is False
@@ -440,7 +445,7 @@ class TestApiSync:
                 return mock_response(200, TRAKT_COMMENTS)
             return mock_response(200, [])
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             data = client.get("/api/sync").json()
         assert data["status"] == "success"
         assert len(data["all_comments"]) == 2
@@ -458,7 +463,7 @@ class TestApiSync:
                 return mock_response(200, TRAKT_COMMENTS)
             return mock_response(200, [])
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             data = client.get("/api/sync").json()
         # id=1 is 2 days after premiere; id=2 is 8 years later
         assert len(data["time_machine"]) == 1
@@ -475,7 +480,7 @@ class TestApiSync:
                 return mock_response(401, text="Unauthorized")
             return mock_response(200, [])
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             data = client.get("/api/sync").json()
         assert data["status"] == "error"
         assert "401" in data["message"]
@@ -493,7 +498,7 @@ class TestApiSync:
                 return mock_response(204, text="")
             return mock_response(200, [])
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             data = client.get("/api/sync").json()
         assert data["status"] == "success"
         assert data["all_comments"] == []
@@ -511,7 +516,7 @@ class TestApiSync:
                 return mock_response(200, {"error": "not found"})
             return mock_response(200, [])
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             data = client.get("/api/sync").json()
         assert data["all_comments"] == []
 
@@ -525,7 +530,7 @@ class TestApiSync:
                 return mock_response(200, REDDIT_POSTS)
             return mock_response(200, [])
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             data = client.get("/api/sync").json()
         assert data["reddit_thread_found"] is True
         assert len(data["reddit_threads"]) >= 1
@@ -544,7 +549,7 @@ class TestApiSync:
                 return mock_response(200, REDDIT_POSTS)
             return mock_response(200, [])
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             data = client.get("/api/sync").json()
         # "testshow" sub (tier 0) should beat "television" (tier 1) even with lower score
         assert data["reddit_threads"][0]["subreddit"] == "testshow"
@@ -562,7 +567,7 @@ class TestApiSync:
                 return mock_response(200, TRAKT_COMMENTS)
             return mock_response(200, [])
 
-        with patch("main.requests.get", side_effect=side_effect) as mock_get:
+        with patch("main.http.get", side_effect=side_effect) as mock_get:
             client.get("/api/sync")
             first_count = mock_get.call_count
             # Expire only the short-lived session cache
@@ -591,7 +596,7 @@ class TestApiSync:
                 return mock_response(200, REDDIT_POSTS)
             return mock_response(200, [])
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             data = client.get("/api/sync").json()
         # Should have re-fetched and returned structured data
         assert isinstance(data["reddit_threads"], list)
@@ -743,3 +748,435 @@ class TestRestart:
     def test_rejects_without_confirm(self, client):
         r = client.post("/api/restart", json={})
         assert r.json()["status"] == "error"
+
+
+# ---------------------------------------------------------------------------
+# _safe_int()
+# ---------------------------------------------------------------------------
+
+class TestSafeInt:
+    def test_valid_string(self):
+        assert _safe_int("14", 7) == 14
+
+    def test_non_numeric_string(self):
+        assert _safe_int("abc", 7) == 7
+
+    def test_empty_string(self):
+        assert _safe_int("", 7) == 7
+
+    def test_none(self):
+        assert _safe_int(None, 7) == 7
+
+    def test_int_passthrough(self):
+        assert _safe_int(42, 7) == 42
+
+
+# ---------------------------------------------------------------------------
+# trakt_headers()
+# ---------------------------------------------------------------------------
+
+class TestTraktHeaders:
+    def test_basic_headers(self):
+        cfg = {"trakt_client_id": "my-client-id", "trakt_access_token": ""}
+        h = trakt_headers(cfg)
+        assert h["trakt-api-key"] == "my-client-id"
+        assert h["trakt-api-version"] == "2"
+        assert "Authorization" not in h
+
+    def test_auth_included_when_token_present(self):
+        cfg = {"trakt_client_id": "cid", "trakt_access_token": "my-token"}
+        h = trakt_headers(cfg, auth=True)
+        assert h["Authorization"] == "Bearer my-token"
+
+    def test_no_auth_when_token_missing(self):
+        cfg = {"trakt_client_id": "cid", "trakt_access_token": ""}
+        h = trakt_headers(cfg, auth=True)
+        assert "Authorization" not in h
+
+
+# ---------------------------------------------------------------------------
+# _extract_bsky_images()
+# ---------------------------------------------------------------------------
+
+class TestExtractBskyImages:
+    def test_images_view(self):
+        embed = {
+            "$type": "app.bsky.embed.images#view",
+            "images": [
+                {"thumb": "https://cdn.bsky.app/img/1.jpg", "alt": "screenshot"},
+                {"thumb": "https://cdn.bsky.app/img/2.jpg"},
+            ],
+        }
+        imgs = _extract_bsky_images(embed)
+        assert len(imgs) == 2
+        assert imgs[0] == {"url": "https://cdn.bsky.app/img/1.jpg", "alt": "screenshot"}
+        assert imgs[1]["alt"] == ""
+
+    def test_external_view(self):
+        embed = {
+            "$type": "app.bsky.embed.external#view",
+            "external": {"thumb": "https://cdn.bsky.app/ext.jpg"},
+        }
+        imgs = _extract_bsky_images(embed)
+        assert len(imgs) == 1
+        assert imgs[0] == {"url": "https://cdn.bsky.app/ext.jpg", "alt": ""}
+
+    def test_record_with_media_view(self):
+        embed = {
+            "$type": "app.bsky.embed.recordWithMedia#view",
+            "media": {
+                "$type": "app.bsky.embed.images#view",
+                "images": [{"thumb": "https://cdn.bsky.app/nested.jpg", "alt": "nested"}],
+            },
+        }
+        imgs = _extract_bsky_images(embed)
+        assert len(imgs) == 1
+        assert imgs[0]["url"] == "https://cdn.bsky.app/nested.jpg"
+
+    def test_empty_embed(self):
+        assert _extract_bsky_images({}) == []
+
+    def test_missing_thumb(self):
+        embed = {
+            "$type": "app.bsky.embed.images#view",
+            "images": [{"alt": "no thumb here"}],
+        }
+        assert _extract_bsky_images(embed) == []
+
+
+# ---------------------------------------------------------------------------
+# _is_low_content_post()
+# ---------------------------------------------------------------------------
+
+class TestIsLowContentPost:
+    def test_bot_like_post(self):
+        text = "watching test show s01e01"
+        assert _is_low_content_post(text, "Test Show", 1, 1, []) is True
+
+    def test_substantial_commentary(self):
+        text = "this episode of test show s01e01 completely blew my mind, the writing was incredible and the twist at the end was perfect"
+        assert _is_low_content_post(text, "Test Show", 1, 1, []) is False
+
+    def test_short_text_with_images(self):
+        text = "test show s01e01"
+        images = [{"url": "https://example.com/img.jpg", "alt": ""}]
+        assert _is_low_content_post(text, "Test Show", 1, 1, images) is False
+
+    def test_just_watching_show_name(self):
+        text = "watching test show s01e01 #tv"
+        assert _is_low_content_post(text, "Test Show", 1, 1, []) is True
+
+    def test_episode_code_variants(self):
+        text = "test show 1x01"
+        assert _is_low_content_post(text, "Test Show", 1, 1, []) is True
+
+
+# ---------------------------------------------------------------------------
+# find_bluesky_posts()
+# ---------------------------------------------------------------------------
+
+class TestFindBlueskyPosts:
+    SAMPLE_BSKY_RESPONSE = {
+        "posts": [
+            {
+                "cid": "cid1",
+                "uri": "at://did:plc:abc/app.bsky.feed.post/post1",
+                "author": {"handle": "alice.bsky.social"},
+                "record": {
+                    "text": "Just watched Test Show S01E01 and it was amazing! Great pilot episode.",
+                    "createdAt": "2024-01-15T20:00:00Z",
+                },
+                "embed": {},
+                "likeCount": 5,
+            },
+            {
+                "cid": "cid2",
+                "uri": "at://did:plc:def/app.bsky.feed.post/post2",
+                "author": {"handle": "bob.bsky.social"},
+                "record": {
+                    "text": "Test Show S01E01 has an incredible opening scene, loved the cinematography",
+                    "createdAt": "2024-01-15T21:00:00Z",
+                },
+                "embed": {},
+                "likeCount": 3,
+            },
+        ],
+    }
+
+    @patch("main.bsky_access_token", return_value=None)
+    @patch("main.http.get")
+    def test_returns_posts(self, mock_get, _mock_token):
+        mock_get.return_value = mock_response(200, self.SAMPLE_BSKY_RESPONSE)
+        results = find_bluesky_posts("Test Show", 1, 1)
+        assert len(results) == 2
+        assert results[0]["id"] == "cid1"
+        assert results[0]["source"] == "bluesky"
+        assert results[0]["user"]["username"] == "alice.bsky.social"
+        assert "bsky.app/profile/alice.bsky.social/post/post1" in results[0]["url"]
+
+    @patch("main.bsky_access_token", return_value=None)
+    @patch("main.http.get")
+    def test_403_returns_empty(self, mock_get, _mock_token):
+        mock_get.return_value = mock_response(403, text="Forbidden")
+        assert find_bluesky_posts("Test Show", 1, 1) == []
+
+    @patch("main.bsky_access_token", return_value=None)
+    @patch("main.http.get")
+    def test_network_error_returns_empty(self, mock_get, _mock_token):
+        mock_get.side_effect = Exception("Connection refused")
+        assert find_bluesky_posts("Test Show", 1, 1) == []
+
+    @patch("main.bsky_access_token", return_value=None)
+    @patch("main.http.get")
+    def test_dedup_identical_posts(self, mock_get, _mock_token):
+        duped_response = {
+            "posts": [
+                {
+                    "cid": "cid1",
+                    "uri": "at://did:plc:abc/app.bsky.feed.post/post1",
+                    "author": {"handle": "alice.bsky.social"},
+                    "record": {
+                        "text": "Just watched Test Show S01E01 and it was amazing! Great pilot episode.",
+                        "createdAt": "2024-01-15T20:00:00Z",
+                    },
+                    "embed": {},
+                    "likeCount": 5,
+                },
+                {
+                    "cid": "cid_dup",
+                    "uri": "at://did:plc:xyz/app.bsky.feed.post/post_dup",
+                    "author": {"handle": "repost.bsky.social"},
+                    "record": {
+                        "text": "Just watched Test Show S01E01 and it was amazing! Great pilot episode.",
+                        "createdAt": "2024-01-15T20:05:00Z",
+                    },
+                    "embed": {},
+                    "likeCount": 1,
+                },
+            ],
+        }
+        mock_get.return_value = mock_response(200, duped_response)
+        results = find_bluesky_posts("Test Show", 1, 1)
+        assert len(results) == 1
+
+    @patch("main.bsky_access_token", return_value=None)
+    @patch("main.http.get")
+    def test_bot_posts_filtered(self, mock_get, _mock_token):
+        bot_response = {
+            "posts": [
+                {
+                    "cid": "cid_bot",
+                    "uri": "at://did:plc:bot/app.bsky.feed.post/botpost",
+                    "author": {"handle": "bot.bsky.social"},
+                    "record": {
+                        "text": "watching Test Show S01E01",
+                        "createdAt": "2024-01-15T20:00:00Z",
+                    },
+                    "embed": {},
+                    "likeCount": 0,
+                },
+            ],
+        }
+        mock_get.return_value = mock_response(200, bot_response)
+        results = find_bluesky_posts("Test Show", 1, 1)
+        assert len(results) == 0
+
+    @patch("main.bsky_access_token", return_value=None)
+    @patch("main.http.get")
+    def test_uses_public_api_without_token(self, mock_get, _mock_token):
+        mock_get.return_value = mock_response(200, {"posts": []})
+        find_bluesky_posts("Test Show", 1, 1)
+        call_url = mock_get.call_args[0][0]
+        assert "public.api.bsky.app" in call_url
+
+
+# ---------------------------------------------------------------------------
+# find_pullpush_comments()
+# ---------------------------------------------------------------------------
+
+class TestFindPullpushComments:
+    SUBMISSION_RESPONSE = {
+        "data": [
+            {
+                "id": "abc123",
+                "title": "Test Show S01E01 - Discussion Thread",
+                "subreddit": "TestShow",
+                "score": 500,
+            },
+        ],
+    }
+
+    COMMENT_RESPONSE = {
+        "data": [
+            {
+                "id": "c1",
+                "body": "Great episode!",
+                "author": "user1",
+                "created_utc": 1700000000,
+                "score": 42,
+                "parent_id": "t3_abc123",
+            },
+            {
+                "id": "c2",
+                "body": "I agree, the writing was superb",
+                "author": "user2",
+                "created_utc": 1700001000,
+                "score": 15,
+                "parent_id": "t1_c1",
+            },
+            {
+                "id": "c3",
+                "body": "Another top-level thought about the episode",
+                "author": "user3",
+                "created_utc": 1700002000,
+                "score": 30,
+                "parent_id": "t3_abc123",
+            },
+        ],
+    }
+
+    @patch("main.http.get")
+    def test_returns_comments_with_reply_tree(self, mock_get):
+        def side_effect(url, **kwargs):
+            if "submission" in url:
+                return mock_response(200, self.SUBMISSION_RESPONSE)
+            if "comment" in url:
+                return mock_response(200, self.COMMENT_RESPONSE)
+            return mock_response(200, {"data": []})
+
+        mock_get.side_effect = side_effect
+        results = find_pullpush_comments("Test Show", 1, 1)
+        assert len(results) >= 1
+        # All results should be top-level (parent_id = t3_)
+        for r in results:
+            assert r["source"] == "reddit"
+            assert "parent_id" not in r  # popped during tree building
+
+    @patch("main.http.get")
+    def test_reply_attached_to_parent(self, mock_get):
+        def side_effect(url, **kwargs):
+            if "submission" in url:
+                return mock_response(200, self.SUBMISSION_RESPONSE)
+            if "comment" in url:
+                return mock_response(200, self.COMMENT_RESPONSE)
+            return mock_response(200, {"data": []})
+
+        mock_get.side_effect = side_effect
+        results = find_pullpush_comments("Test Show", 1, 1)
+        # c1 is top-level with c2 as a reply
+        c1 = next((c for c in results if c["id"] == "c1"), None)
+        assert c1 is not None
+        assert len(c1["replies"]) == 1
+        assert c1["replies"][0]["id"] == "c2"
+
+    @patch("main.http.get")
+    def test_deleted_comments_filtered(self, mock_get):
+        comment_data = {
+            "data": [
+                {
+                    "id": "c_del",
+                    "body": "[deleted]",
+                    "author": "[deleted]",
+                    "created_utc": 1700000000,
+                    "score": 0,
+                    "parent_id": "t3_abc123",
+                },
+                {
+                    "id": "c_rem",
+                    "body": "[removed]",
+                    "author": "[deleted]",
+                    "created_utc": 1700000100,
+                    "score": 0,
+                    "parent_id": "t3_abc123",
+                },
+                {
+                    "id": "c_ok",
+                    "body": "This is a real comment about the episode",
+                    "author": "realuser",
+                    "created_utc": 1700000200,
+                    "score": 10,
+                    "parent_id": "t3_abc123",
+                },
+            ],
+        }
+
+        def side_effect(url, **kwargs):
+            if "submission" in url:
+                return mock_response(200, self.SUBMISSION_RESPONSE)
+            if "comment" in url:
+                return mock_response(200, comment_data)
+            return mock_response(200, {"data": []})
+
+        mock_get.side_effect = side_effect
+        results = find_pullpush_comments("Test Show", 1, 1)
+        ids = [c["id"] for c in results]
+        assert "c_del" not in ids
+        assert "c_rem" not in ids
+        assert "c_ok" in ids
+
+    @patch("main.http.get")
+    def test_episode_title_filtering(self, mock_get):
+        """Submissions that don't match the episode code are filtered out."""
+        wrong_ep_submissions = {
+            "data": [
+                {
+                    "id": "wrong1",
+                    "title": "Test Show S01E05 - Wrong Episode",
+                    "subreddit": "TestShow",
+                    "score": 100,
+                },
+            ],
+        }
+
+        def side_effect(url, **kwargs):
+            if "submission" in url:
+                return mock_response(200, wrong_ep_submissions)
+            return mock_response(200, {"data": []})
+
+        mock_get.side_effect = side_effect
+        results = find_pullpush_comments("Test Show", 1, 1)
+        assert results == []
+
+    @patch("main.http.get")
+    def test_empty_results(self, mock_get):
+        mock_get.return_value = mock_response(200, {"data": []})
+        results = find_pullpush_comments("Test Show", 1, 1)
+        assert results == []
+
+    @patch("main.http.get")
+    def test_network_error_returns_empty(self, mock_get):
+        mock_get.side_effect = Exception("Connection refused")
+        results = find_pullpush_comments("Test Show", 1, 1)
+        assert results == []
+
+    @patch("main.http.get")
+    def test_thread_url_built_correctly(self, mock_get):
+        def side_effect(url, **kwargs):
+            if "submission" in url:
+                return mock_response(200, self.SUBMISSION_RESPONSE)
+            if "comment" in url:
+                return mock_response(200, self.COMMENT_RESPONSE)
+            return mock_response(200, {"data": []})
+
+        mock_get.side_effect = side_effect
+        results = find_pullpush_comments("Test Show", 1, 1)
+        assert len(results) >= 1
+        assert "reddit.com/r/TestShow/comments/abc123/" in results[0]["thread_url"]
+
+    @patch("main.http.get")
+    def test_submission_dedup_across_searches(self, mock_get):
+        """Same submission ID from multiple search queries is only processed once."""
+        call_count = {"comment": 0}
+
+        def side_effect(url, **kwargs):
+            if "submission" in url:
+                return mock_response(200, self.SUBMISSION_RESPONSE)
+            if "comment" in url:
+                call_count["comment"] += 1
+                return mock_response(200, self.COMMENT_RESPONSE)
+            return mock_response(200, {"data": []})
+
+        mock_get.side_effect = side_effect
+        find_pullpush_comments("Test Show", 1, 1)
+        # Comment fetch should happen only once per unique submission
+        assert call_count["comment"] == 1

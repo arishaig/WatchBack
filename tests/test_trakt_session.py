@@ -22,7 +22,7 @@ def test_sync_data_trakt_fallthrough(fresh_cache, client):
         "show": {"title": "Test Show"},
     }
 
-    with patch("main.requests.get", return_value=mock_response):
+    with patch("main.http.get", return_value=mock_response):
         response = client.get("/api/sync")
         data = response.json()
 
@@ -51,7 +51,7 @@ def test_trakt_watch_poller_change(fresh_cache):
     def run_poller():
         # Run in a dedicated thread so asyncio.run() gets a clean loop regardless
         # of whatever event loop pytest-playwright may leave running in the main thread.
-        with patch("main.requests.get", side_effect=[resp1, resp2]):
+        with patch("main.http.get", side_effect=[resp1, resp2]):
             with patch("asyncio.sleep", side_effect=[None, Exception("Stop Poller")]):
                 try:
                     asyncio.run(trakt_watch_poller())

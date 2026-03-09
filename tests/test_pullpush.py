@@ -86,7 +86,7 @@ class TestFindPullpushComments:
                 return mock_response(200, SUBMISSION_HIT)
             return mock_response(200, COMMENTS_FLAT)
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5)
 
         assert len(results) == 2
@@ -106,7 +106,7 @@ class TestFindPullpushComments:
                 return mock_response(200, SUBMISSION_HIT)
             return mock_response(200, COMMENTS_NESTED)
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5)
 
         # Two top-level comments: c1 (score 50) and c4 (score 40)
@@ -125,7 +125,7 @@ class TestFindPullpushComments:
                 return mock_response(200, SUBMISSION_HIT)
             return mock_response(200, COMMENTS_DEEP_NEST)
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5)
 
         top = next(r for r in results if r["id"] == "c1")
@@ -149,7 +149,7 @@ class TestFindPullpushComments:
                 "data": [_make_comment("d1", "Great discussion here too", score=15)]
             })
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5, max_threads=2)
 
         assert len(results) == 3
@@ -166,7 +166,7 @@ class TestFindPullpushComments:
                 return mock_response(200, SUBMISSION_MULTI)
             return mock_response(200, {"data": []})
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             find_pullpush_comments("The Bear", 2, 5, max_threads=1)
 
         comment_calls = [c for c in calls if "comment" in c]
@@ -181,7 +181,7 @@ class TestFindPullpushComments:
                 "data": [_make_comment("c1", "Test", created_utc=1700000000)]
             })
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5)
 
         assert results[0]["created_at"].endswith("Z")
@@ -195,7 +195,7 @@ class TestFindPullpushComments:
                 return mock_response(200, SUBMISSION_HIT)
             return mock_response(200, COMMENTS_FLAT)
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             find_pullpush_comments("The Bear", 2, 5)
 
 
@@ -206,19 +206,19 @@ class TestFindPullpushComments:
 class TestFindPullpushFailures:
     def test_submission_search_http_error(self, fresh_cache):
         """Non-200 from submission search returns empty list."""
-        with patch("main.requests.get", return_value=mock_response(500)):
+        with patch("main.http.get", return_value=mock_response(500)):
             results = find_pullpush_comments("The Bear", 2, 5)
         assert results == []
 
     def test_submission_search_timeout(self, fresh_cache):
         """Network timeout on submission search returns empty list."""
-        with patch("main.requests.get", side_effect=Exception("Connection timed out")):
+        with patch("main.http.get", side_effect=Exception("Connection timed out")):
             results = find_pullpush_comments("The Bear", 2, 5)
         assert results == []
 
     def test_no_submissions_found(self, fresh_cache):
         """Empty submission results return empty list."""
-        with patch("main.requests.get", return_value=mock_response(200, {"data": []})):
+        with patch("main.http.get", return_value=mock_response(200, {"data": []})):
             results = find_pullpush_comments("The Bear", 2, 5)
         assert results == []
 
@@ -236,7 +236,7 @@ class TestFindPullpushFailures:
                 "data": [_make_comment("d1", "From second thread", score=10)]
             })
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5, max_threads=2)
 
         assert len(results) == 1
@@ -251,13 +251,13 @@ class TestFindPullpushFailures:
                 return mock_response(200, SUBMISSION_HIT)
             raise Exception("Read timed out")
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5)
         assert results == []
 
     def test_malformed_submission_response(self, fresh_cache):
         """Missing 'data' key in submission response returns empty list."""
-        with patch("main.requests.get", return_value=mock_response(200, {"weird": "response"})):
+        with patch("main.http.get", return_value=mock_response(200, {"weird": "response"})):
             results = find_pullpush_comments("The Bear", 2, 5)
         assert results == []
 
@@ -268,7 +268,7 @@ class TestFindPullpushFailures:
                 return mock_response(200, SUBMISSION_HIT)
             return mock_response(200, {"weird": "response"})
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5)
         assert results == []
 
@@ -281,7 +281,7 @@ class TestFindPullpushFailures:
                 "data": [_make_comment("c1", "I was wrong about this", author="[deleted]")]
             })
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5)
 
         assert len(results) == 1
@@ -300,7 +300,7 @@ class TestFindPullpushFailures:
                 ]
             })
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5)
 
         assert len(results) == 1
@@ -313,6 +313,6 @@ class TestFindPullpushFailures:
                 return mock_response(200, SUBMISSION_HIT)
             return mock_response(200, {"data": []})
 
-        with patch("main.requests.get", side_effect=side_effect):
+        with patch("main.http.get", side_effect=side_effect):
             results = find_pullpush_comments("The Bear", 2, 5)
         assert results == []

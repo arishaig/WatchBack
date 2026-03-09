@@ -19,7 +19,7 @@ class TestBskyAccessToken:
 
     def test_fetch(self, fresh_cache):
         fresh_cache.set("ui_config", {"bsky_identifier": "user", "bsky_app_password": "pass"})
-        with patch("main.requests.post") as mock_post:
+        with patch("main.http.post") as mock_post:
             mock_post.return_value = mock_response(200, {"accessJwt": "new_token"})
             assert bsky_access_token() == "new_token"
             assert fresh_cache.get("bsky_token") == "new_token"
@@ -118,7 +118,7 @@ class TestFindBlueskyPosts:
 
     def test_basic_search(self, fresh_cache):
         posts = {"posts": [self._make_post("1", "Great episode discussion here!")]}
-        with patch("main.requests.get", return_value=mock_response(200, posts)):
+        with patch("main.http.get", return_value=mock_response(200, posts)):
             with patch("main.bsky_access_token", return_value="token"):
                 results = find_bluesky_posts("Test Show", 1, 1)
         assert len(results) == 1
@@ -131,7 +131,7 @@ class TestFindBlueskyPosts:
             self._make_post("1", "Same text here"),
             self._make_post("2", "Same text here"),
         ]}
-        with patch("main.requests.get", return_value=mock_response(200, posts)):
+        with patch("main.http.get", return_value=mock_response(200, posts)):
             with patch("main.bsky_access_token", return_value=None):
                 results = find_bluesky_posts("Test Show", 1, 1)
         assert len(results) == 1
@@ -142,7 +142,7 @@ class TestFindBlueskyPosts:
             self._make_post("1", "Check this out", images=["http://a.jpg"]),
             self._make_post("2", "Check this out", images=["http://b.jpg"]),
         ]}
-        with patch("main.requests.get", return_value=mock_response(200, posts)):
+        with patch("main.http.get", return_value=mock_response(200, posts)):
             with patch("main.bsky_access_token", return_value=None):
                 results = find_bluesky_posts("Test Show", 1, 1)
         assert len(results) == 2
@@ -153,7 +153,7 @@ class TestFindBlueskyPosts:
             self._make_post("1", "Test Show S01E01"),  # Bot — just the show name
             self._make_post("2", "This show is incredible, what a season premiere!"),
         ]}
-        with patch("main.requests.get", return_value=mock_response(200, posts)):
+        with patch("main.http.get", return_value=mock_response(200, posts)):
             with patch("main.bsky_access_token", return_value=None):
                 results = find_bluesky_posts("Test Show", 1, 1)
         assert len(results) == 1
@@ -161,13 +161,13 @@ class TestFindBlueskyPosts:
 
     def test_empty_text_skipped(self, fresh_cache):
         posts = {"posts": [self._make_post("1", "")]}
-        with patch("main.requests.get", return_value=mock_response(200, posts)):
+        with patch("main.http.get", return_value=mock_response(200, posts)):
             with patch("main.bsky_access_token", return_value=None):
                 results = find_bluesky_posts("Test Show", 1, 1)
         assert results == []
 
     def test_no_auth_header_when_no_token(self, fresh_cache):
-        with patch("main.requests.get", return_value=mock_response(200, {"posts": []})) as mock_get:
+        with patch("main.http.get", return_value=mock_response(200, {"posts": []})) as mock_get:
             with patch("main.bsky_access_token", return_value=None):
                 find_bluesky_posts("Test Show", 1, 1)
                 _, kwargs = mock_get.call_args
@@ -175,6 +175,6 @@ class TestFindBlueskyPosts:
                 assert kwargs["headers"]["User-Agent"] == "WatchBack/1.0"
 
     def test_403_returns_empty(self, fresh_cache):
-        with patch("main.requests.get", return_value=mock_response(403)):
+        with patch("main.http.get", return_value=mock_response(403)):
             with patch("main.bsky_access_token", return_value=None):
                 assert find_bluesky_posts("Test Show", 1, 1) == []

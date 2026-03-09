@@ -32,6 +32,8 @@ RUN set -e; \
 FROM python:3.14-slim-bookworm
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
+
 ENV PUID=1000 \
     PGID=1000 \
     TZ=Etc/UTC \
@@ -39,9 +41,9 @@ ENV PUID=1000 \
     DATA_DIR="/data" \
     PYTHONUNBUFFERED=1
 
-# Setup user and directories
-RUN groupadd -g $PGID abc && \
-    useradd -u $PUID -g abc -m abc && \
+# Setup default user and directories (entrypoint adjusts UID/GID at runtime)
+RUN groupadd -g 1000 abc && \
+    useradd -u 1000 -g abc -m abc && \
     mkdir -p /config && \
     chown abc:abc /config
 
@@ -49,17 +51,17 @@ RUN groupadd -g $PGID abc && \
 COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy app code
-COPY --chown=abc:abc . .
-# Copy compiled CSS and source static files from builder
-COPY --from=builder --chown=abc:abc /data/static/tailwind.css /data/static/tailwind.css
-COPY --chown=abc:abc static/ /data/static/
+# Copy app code and entrypoint
+COPY . .
+COPY --from=builder /data/static/tailwind.css /data/static/tailwind.css
+COPY static/ /data/static/
+RUN chmod +x /app/entrypoint.sh
 
-USER abc
 EXPOSE 8000
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/status')" || exit 1
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
