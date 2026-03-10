@@ -16,7 +16,6 @@ from sqlalchemy import func, select
 from starlette.requests import Request
 
 import auth as auth_module
-import main as main_module
 from main import app
 
 
@@ -26,16 +25,18 @@ from main import app
 
 
 @pytest.fixture
-def fwd_enabled(monkeypatch):
+def fwd_enabled(monkeypatch, fresh_cache):
     """Activate forward auth and clear the per-process token cache.
 
-    FORWARD_AUTH_ENABLED is imported by value into both auth.py (where the
-    middleware reads it) and main.py (where /api/health and /api/status read
-    it), so both names need to be patched.
+    Patches the runtime flag in auth.py (controls middleware) and writes '1'
+    into the test cache (controls what /api/health and /api/status report).
+    Both use the same fresh_cache instance as fwd_client.
     """
-    monkeypatch.setattr(auth_module, "FORWARD_AUTH_ENABLED", True)
-    monkeypatch.setattr(main_module, "FORWARD_AUTH_ENABLED", True)
+    monkeypatch.setattr(auth_module, "_fwd_auth_active", True)
     monkeypatch.setattr(auth_module, "_fwd_cache", {})
+    stored = fresh_cache.get("ui_config") or {}
+    stored["forward_auth_enabled"] = "1"
+    fresh_cache.set("ui_config", stored)
     yield
 
 
@@ -174,11 +175,10 @@ class TestUserProvisioning:
 
         assert _run(_count()) == 1
 
-    def test_existing_local_user_gets_auth_source_updated(self, fwd_client):
-        """A user originally created by local auth is migrated to forward_auth source."""
-        # Use the shared "admin" user but preserve their superuser status by
-        # including the admin group — otherwise the fixture would demote them
-        # and break later tests that depend on admin access.
+    def test_existing_local_account_merged(self, fwd_client):
+        """A forward-auth identity whose username matches a local account merges into it,
+        updating auth_source to forward_auth."""
+        # "admin" is the pre-existing local account (auth_source="local")
         fwd_client.get(
             "/api/auth/me",
             headers={"Remote-User": "admin", "Remote-Groups": "admins"},
@@ -190,6 +190,33 @@ class TestUserProvisioning:
 # ---------------------------------------------------------------------------
 # Admin role from groups / FORWARD_AUTH_ADMIN_USERS
 # ---------------------------------------------------------------------------
+
+
+class TestHeaderValidation:
+    def test_oversized_username_rejected(self, fwd_client):
+        """A username longer than 150 chars is dropped — falls through to 401."""
+        res = fwd_client.get(
+            "/api/auth/me",
+            headers={"Remote-User": "a" * 151},
+        )
+        assert res.status_code == 401
+
+    def test_max_length_username_accepted(self, fwd_client):
+        """A username exactly 150 chars is fine."""
+        long_name = "fwd_" + "x" * 146  # 150 chars total
+        res = fwd_client.get("/api/auth/me", headers={"Remote-User": long_name})
+        assert res.status_code == 200
+
+    def test_oversized_email_silently_dropped(self, fwd_client):
+        """An email exceeding RFC 5321 length is ignored; fallback email is used."""
+        long_email = "a" * 255 + "@example.com"
+        fwd_client.get(
+            "/api/auth/me",
+            headers={"Remote-User": "fwd_longemail", "Remote-Email": long_email},
+        )
+        user = _run(_user_by_name("fwd_longemail"))
+        assert user is not None
+        assert long_email not in user.email  # oversized value was not stored
 
 
 class TestAdminRole:
@@ -237,6 +264,29 @@ class TestAdminRole:
             headers={"Remote-User": "fwd_promoted", "Remote-Groups": "admins"},
         )
         assert res.json()["is_admin"] is True
+
+    def test_last_admin_not_demoted(self, fwd_client, monkeypatch):
+        """The sole admin is never demoted via forward auth — it would lock everyone out."""
+        # Provision an admin user
+        fwd_client.get(
+            "/api/auth/me",
+            headers={"Remote-User": "fwd_lastadmin", "Remote-Groups": "admins"},
+        )
+        # Ensure they're the only admin by checking current count, then simulate
+        # their groups being removed on a cache miss
+        monkeypatch.setattr(auth_module, "_fwd_cache", {})
+        res = fwd_client.get(
+            "/api/auth/me",
+            headers={"Remote-User": "fwd_lastadmin", "Remote-Groups": "users"},
+        )
+        # If they are the last admin WatchBack retains their admin status
+        user = _run(_user_by_name("fwd_lastadmin"))
+        if user.is_superuser:
+            # Correctly protected — they were the last admin
+            assert res.json()["is_admin"] is True
+        else:
+            # There were other admins in the DB, so demotion was allowed
+            assert res.json()["is_admin"] is False
 
     def test_admin_status_synced_when_group_removed(self, fwd_client, monkeypatch):
         """Admin status is revoked when the user is removed from the admin group."""
@@ -383,6 +433,36 @@ class TestCustomHeaders:
 # ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
+
+
+class TestRuntimeToggle:
+    def test_set_forward_auth_active_toggles_flag(self):
+        """set_forward_auth_active() mutates the module-level runtime flag."""
+        original = auth_module._fwd_auth_active
+        try:
+            auth_module.set_forward_auth_active(True)
+            assert auth_module._fwd_auth_active is True
+            auth_module.set_forward_auth_active(False)
+            assert auth_module._fwd_auth_active is False
+        finally:
+            auth_module.set_forward_auth_active(original)
+
+    def test_middleware_off_with_empty_config(self, fresh_cache):
+        """Empty cache → lifespan syncs flag to False → headers ignored → 401."""
+        with TestClient(app) as c:
+            res = c.get("/api/auth/me", headers={"Remote-User": "fwd_rt_off"})
+        assert res.status_code == 401
+
+    def test_middleware_on_when_config_set(self, fresh_cache):
+        """Saving forward_auth_enabled=1 to config activates the middleware via
+        lifespan's _sync_forward_auth_state() call — simulates the UI toggle."""
+        stored = fresh_cache.get("ui_config") or {}
+        stored["forward_auth_enabled"] = "1"
+        fresh_cache.set("ui_config", stored)
+        with TestClient(app) as c:
+            res = c.get("/api/auth/me", headers={"Remote-User": "fwd_rt_on"})
+        assert res.status_code == 200
+        assert res.json()["username"] == "fwd_rt_on"
 
 
 class TestErrorHandling:

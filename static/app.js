@@ -98,6 +98,8 @@ document.addEventListener('alpine:init', () => {
         _prefSaveTimer: null,
         testResults: {},
         lastTestResults: {},
+        // Forward auth warning modal
+        fwdAuthWarning: false,
         // Admin user management
         adminUsers: null,
         showCreateUser: false,
@@ -412,6 +414,24 @@ document.addEventListener('alpine:init', () => {
             } catch (e) {
                 console.error("[WatchBack] Failed to save configuration:", e);
             }
+        },
+        toggleForwardAuth(enabled) {
+            if (enabled) {
+                this.fwdAuthWarning = true;
+            } else {
+                this.resetField('forward_auth_enabled').then(() => {
+                    this.forwardAuthEnabled = false;
+                });
+            }
+        },
+        async confirmEnableForwardAuth() {
+            this.configDraft.forward_auth_enabled = '1';
+            this.fwdAuthWarning = false;
+            await this.saveConfig();
+            this.forwardAuthEnabled = true;
+        },
+        cancelEnableForwardAuth() {
+            this.fwdAuthWarning = false;
         },
         async clearCache() {
             console.warn("[WatchBack] Clearing cache...");

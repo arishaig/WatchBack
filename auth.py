@@ -88,6 +88,16 @@ _COOKIE_SECURE = os.environ.get("WATCHBACK_SECURE_COOKIES", "").lower() in ("1",
 _fwd_cache: dict[str, tuple[str, bool, float]] = {}
 _FWD_CACHE_TTL = 86400 * 20  # 20 days (well within 30-day DB token lifetime)
 
+# Runtime enable flag — initialised from env var, updated at runtime by main.py
+# so that the UI setting takes effect without restart.
+_fwd_auth_active: bool = FORWARD_AUTH_ENABLED
+
+
+def set_forward_auth_active(value: bool) -> None:
+    """Called by main.py to sync the runtime forward-auth state from config."""
+    global _fwd_auth_active
+    _fwd_auth_active = bool(value)
+
 # ─── Database ─────────────────────────────────────────────────────────────────
 
 engine = create_async_engine(DATABASE_URL)
@@ -525,7 +535,15 @@ async def delete_user(user_id: str, admin: User = Depends(require_admin)):
 async def _find_or_provision_fwd_user(
     db: AsyncSession, username: str, email: str, is_admin: bool
 ) -> "User":
-    """Find an existing user by username/email or create one for forward-auth."""
+    """Find an existing user by username/email or create one for forward-auth.
+
+    Existing accounts (including local ones) are merged: auth_source is updated
+    to "forward_auth" and admin status is synced from group headers.
+
+    Last-admin protection: if the user is currently the only admin and the proxy
+    no longer grants them admin, the demotion is skipped to avoid locking out all
+    administrators.
+    """
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
     if user is None and email:
@@ -553,9 +571,23 @@ async def _find_or_provision_fwd_user(
         await db.refresh(user)
         logger.info("ForwardAuth: provisioned user '%s'", username)
     else:
+        effective_is_admin = is_admin
+        # Last-admin protection: never demote the only remaining admin
+        if user.is_superuser and not is_admin:
+            admin_count = await db.execute(
+                select(func.count())
+                .select_from(User)
+                .where(User.is_superuser == True)  # noqa: E712
+            )
+            if admin_count.scalar() <= 1:
+                logger.warning(
+                    "ForwardAuth: not demoting '%s' — would remove last admin", username
+                )
+                effective_is_admin = True
+
         dirty = False
-        if user.is_superuser != is_admin:
-            user.is_superuser = is_admin
+        if user.is_superuser != effective_is_admin:
+            user.is_superuser = effective_is_admin
             dirty = True
         if email and user.email != email:
             user.email = email
@@ -567,7 +599,9 @@ async def _find_or_provision_fwd_user(
         await db.commit()
         if dirty:
             await db.refresh(user)
-            logger.info("ForwardAuth: updated user '%s' (admin=%s)", username, is_admin)
+            logger.info(
+                "ForwardAuth: updated user '%s' (admin=%s)", username, effective_is_admin
+            )
 
     return user
 
@@ -617,14 +651,21 @@ class ForwardAuthMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        if not FORWARD_AUTH_ENABLED:
+        if not _fwd_auth_active:
             return await call_next(request)
 
         username = request.headers.get(_FWD_USER_HEADER, "").strip()
         if not username:
             return await call_next(request)
 
+        # Reject obviously invalid header values before touching the DB
+        if len(username) > 150:
+            logger.warning("ForwardAuth: rejected oversized username header (%d chars)", len(username))
+            return await call_next(request)
+
         email = request.headers.get(_FWD_EMAIL_HEADER, "").strip()
+        if len(email) > 254:  # RFC 5321 maximum
+            email = ""
         groups = {
             g.strip().lower()
             for g in request.headers.get(_FWD_GROUPS_HEADER, "").split(",")

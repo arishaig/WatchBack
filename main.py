@@ -22,7 +22,7 @@ from diskcache import Cache
 
 from auth import (
     auth_router, admin_router, init_db, require_auth, require_admin, User,
-    ForwardAuthMiddleware, FORWARD_AUTH_ENABLED,
+    ForwardAuthMiddleware, set_forward_auth_active,
 )
 
 # Configure logging
@@ -52,19 +52,20 @@ os.makedirs(CONFIG_DIR, exist_ok=True)
 cache = Cache(os.path.join(CONFIG_DIR, "cache"))
 
 ENV_MAP = {
-    "jf_url":              ("JF_URL",              "http://jellyfin:8096"),
-    "jf_api_key":          ("JF_API_KEY",          ""),
-    "trakt_client_id":     ("TRAKT_CLIENT_ID",     ""),
-    "trakt_username":      ("TRAKT_USERNAME",       ""),
-    "trakt_access_token":  ("TRAKT_ACCESS_TOKEN",  ""),
-    "reddit_auto_open":    ("REDDIT_AUTO_OPEN",     ""),
-    "reddit_max_threads":  ("REDDIT_MAX_THREADS",  "3"),
-    "reddit_max_comments": ("REDDIT_MAX_COMMENTS", "250"),
-    "bsky_identifier":     ("BSKY_IDENTIFIER",     ""),
-    "bsky_app_password":   ("BSKY_APP_PASSWORD",   ""),
-    "webhook_secret":      ("WEBHOOK_SECRET",      ""),
-    "theme_mode":          ("THEME_MODE",          "dark"),
-    "time_machine_days":   ("TIME_MACHINE_DAYS",   "14"),
+    "jf_url":                ("JF_URL",              "http://jellyfin:8096"),
+    "jf_api_key":            ("JF_API_KEY",          ""),
+    "trakt_client_id":       ("TRAKT_CLIENT_ID",     ""),
+    "trakt_username":        ("TRAKT_USERNAME",       ""),
+    "trakt_access_token":    ("TRAKT_ACCESS_TOKEN",  ""),
+    "reddit_auto_open":      ("REDDIT_AUTO_OPEN",     ""),
+    "reddit_max_threads":    ("REDDIT_MAX_THREADS",  "3"),
+    "reddit_max_comments":   ("REDDIT_MAX_COMMENTS", "250"),
+    "bsky_identifier":       ("BSKY_IDENTIFIER",     ""),
+    "bsky_app_password":     ("BSKY_APP_PASSWORD",   ""),
+    "webhook_secret":        ("WEBHOOK_SECRET",      ""),
+    "theme_mode":            ("THEME_MODE",          "dark"),
+    "time_machine_days":     ("TIME_MACHINE_DAYS",   "14"),
+    "forward_auth_enabled":  ("FORWARD_AUTH_ENABLED", ""),
 }
 
 SECRET_KEYS = {"jf_api_key", "trakt_access_token", "bsky_app_password", "webhook_secret"}
@@ -90,10 +91,16 @@ def get_config() -> dict:
     result["jf_url"] = result["jf_url"].rstrip("/")
     return result
 
+def _sync_forward_auth_state() -> None:
+    """Push the current effective forward_auth_enabled value into auth.py's runtime flag."""
+    set_forward_auth_active(bool(get_config()["forward_auth_enabled"]))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle application startup and shutdown tasks (background workers/cache)."""
     await init_db()
+    _sync_forward_auth_state()
     cfg = get_config()
     has_trakt_watch = bool(cfg["trakt_username"] or cfg["trakt_access_token"])
     has_jellyfin = bool(cfg["jf_api_key"])
@@ -116,7 +123,7 @@ app.include_router(admin_router)
 @app.get("/api/health")
 def health_check():
     """Unauthenticated health endpoint for Docker healthcheck."""
-    return {"status": "ok", "forward_auth_enabled": FORWARD_AUTH_ENABLED}
+    return {"status": "ok", "forward_auth_enabled": bool(get_config()["forward_auth_enabled"])}
 
 
 # --- Helpers ---
@@ -750,7 +757,7 @@ def get_status(_user: User = Depends(require_auth)):
         "jf_url": cfg["jf_url"],
         "reddit_auto_open": bool(cfg["reddit_auto_open"]),
         "sources": {k: source(k) for k in ENV_MAP},
-        "forward_auth_enabled": FORWARD_AUTH_ENABLED,
+        "forward_auth_enabled": bool(get_config()["forward_auth_enabled"]),
     }
 
 def _mask(val: str, key: str) -> str:
@@ -887,6 +894,7 @@ async def save_config(request: Request, _user: User = Depends(require_admin)):
                     logger.debug(f"Cleared config key: {key}")
 
     cache.set("ui_config", stored)
+    _sync_forward_auth_state()
     logger.info("Configuration saved successfully")
     return {"status": "ok"}
 
