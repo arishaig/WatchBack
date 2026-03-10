@@ -20,7 +20,10 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from diskcache import Cache
 
-from auth import auth_router, admin_router, init_db, require_auth, require_admin, User
+from auth import (
+    auth_router, admin_router, init_db, require_auth, require_admin, User,
+    ForwardAuthMiddleware, FORWARD_AUTH_ENABLED,
+)
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -103,6 +106,7 @@ async def lifespan(app: FastAPI):
     cache.close()
 
 app = FastAPI(title="WatchBack API", lifespan=lifespan)
+app.add_middleware(ForwardAuthMiddleware)
 
 # --- Auth Routers ---
 app.include_router(auth_router)
@@ -112,7 +116,7 @@ app.include_router(admin_router)
 @app.get("/api/health")
 def health_check():
     """Unauthenticated health endpoint for Docker healthcheck."""
-    return {"status": "ok"}
+    return {"status": "ok", "forward_auth_enabled": FORWARD_AUTH_ENABLED}
 
 
 # --- Helpers ---
@@ -746,6 +750,7 @@ def get_status(_user: User = Depends(require_auth)):
         "jf_url": cfg["jf_url"],
         "reddit_auto_open": bool(cfg["reddit_auto_open"]),
         "sources": {k: source(k) for k in ENV_MAP},
+        "forward_auth_enabled": FORWARD_AUTH_ENABLED,
     }
 
 def _mask(val: str, key: str) -> str:

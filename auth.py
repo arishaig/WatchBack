@@ -6,12 +6,13 @@ using fastapi-users with SQLAlchemy + SQLite backend.
 """
 
 import os
+import time as _time
 import uuid
 import secrets
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import Boolean, DateTime, String, select, func
 from sqlalchemy.ext.asyncio import (
@@ -20,6 +21,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
 from fastapi_users.authentication import AuthenticationBackend, CookieTransport
@@ -60,6 +62,31 @@ def _get_secret(name: str, env_var: str) -> str:
 
 SECRET_KEY = _get_secret("secret_key", "WATCHBACK_SECRET_KEY")
 DATABASE_URL = f"sqlite+aiosqlite:///{os.path.join(CONFIG_DIR, 'watchback.db')}"
+
+# ─── Forward Auth Configuration ───────────────────────────────────────────────
+
+FORWARD_AUTH_ENABLED = os.environ.get("FORWARD_AUTH_ENABLED", "").lower() in ("1", "true")
+_FWD_USER_HEADER = os.environ.get("FORWARD_AUTH_USER_HEADER", "Remote-User")
+_FWD_EMAIL_HEADER = os.environ.get("FORWARD_AUTH_EMAIL_HEADER", "Remote-Email")
+_FWD_GROUPS_HEADER = os.environ.get("FORWARD_AUTH_GROUPS_HEADER", "Remote-Groups")
+_FWD_ADMIN_GROUPS = {
+    g.strip().lower()
+    for g in os.environ.get("FORWARD_AUTH_ADMIN_GROUPS", "admins,admin,watchback-admin").split(",")
+    if g.strip()
+}
+_FWD_ADMIN_USERS = {
+    u.strip()
+    for u in os.environ.get("FORWARD_AUTH_ADMIN_USERS", "").split(",")
+    if u.strip()
+}
+
+_COOKIE_NAME = "watchback_session"
+_COOKIE_MAX_AGE = 86400 * 30
+_COOKIE_SECURE = os.environ.get("WATCHBACK_SECURE_COOKIES", "").lower() in ("1", "true")
+
+# In-memory cache: username -> (token_str, is_admin, expiry_monotonic)
+_fwd_cache: dict[str, tuple[str, bool, float]] = {}
+_FWD_CACHE_TTL = 86400 * 20  # 20 days (well within 30-day DB token lifetime)
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
@@ -490,6 +517,147 @@ async def delete_user(user_id: str, admin: User = Depends(require_admin)):
         await session.commit()
 
     return {"status": "ok"}
+
+
+# ─── Forward Auth Middleware ──────────────────────────────────────────────────
+
+
+async def _find_or_provision_fwd_user(
+    db: AsyncSession, username: str, email: str, is_admin: bool
+) -> "User":
+    """Find an existing user by username/email or create one for forward-auth."""
+    result = await db.execute(select(User).where(User.username == username))
+    user = result.scalar_one_or_none()
+    if user is None and email:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+    now = datetime.now(timezone.utc)
+    if user is None:
+        ph = PasswordHelper()
+        effective_email = email or f"{username}@forward-auth.local"
+        user = User(
+            id=uuid.uuid4(),
+            email=effective_email,
+            username=username,
+            hashed_password=ph.hash(secrets.token_urlsafe(32)),
+            is_active=True,
+            is_superuser=is_admin,
+            is_verified=True,
+            must_change_password=False,
+            auth_source="forward_auth",
+            last_login_at=now,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        logger.info("ForwardAuth: provisioned user '%s'", username)
+    else:
+        dirty = False
+        if user.is_superuser != is_admin:
+            user.is_superuser = is_admin
+            dirty = True
+        if email and user.email != email:
+            user.email = email
+            dirty = True
+        if user.auth_source != "forward_auth":
+            user.auth_source = "forward_auth"
+            dirty = True
+        user.last_login_at = now
+        await db.commit()
+        if dirty:
+            await db.refresh(user)
+            logger.info("ForwardAuth: updated user '%s' (admin=%s)", username, is_admin)
+
+    return user
+
+
+async def _create_fwd_token(db: AsyncSession, user: "User") -> str:
+    """Create and persist a new access token for a forward-auth user."""
+    token_value = secrets.token_urlsafe(32)
+    token = AccessToken(
+        token=token_value,
+        user_id=user.id,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(token)
+    await db.commit()
+    logger.debug("ForwardAuth: created session token for user '%s'", user.username)
+    return token_value
+
+
+def _inject_request_cookie(request: Request, name: str, value: str) -> None:
+    """Replace or add a named cookie in the ASGI request scope headers."""
+    existing: dict[str, str] = {}
+    other_headers = []
+    for k, v in request.scope["headers"]:
+        if k == b"cookie":
+            for part in v.decode("latin-1").split(";"):
+                part = part.strip()
+                if "=" in part:
+                    ck, cv = part.split("=", 1)
+                    existing[ck.strip()] = cv.strip()
+        else:
+            other_headers.append((k, v))
+    existing[name] = value
+    cookie_str = "; ".join(f"{k}={v}" for k, v in existing.items())
+    other_headers.append((b"cookie", cookie_str.encode("latin-1")))
+    request.scope["headers"] = other_headers
+
+
+class ForwardAuthMiddleware(BaseHTTPMiddleware):
+    """Authenticate requests via forward-auth proxy headers (Authelia, Authentik, etc.).
+
+    When FORWARD_AUTH_ENABLED is set, reads user identity from trusted headers,
+    provisions the user in the DB if needed, and injects a valid session cookie so
+    downstream auth dependencies work transparently.
+
+    SECURITY: Only enable when WatchBack is exclusively accessed through the reverse
+    proxy. Direct access that bypasses the proxy must be blocked at the network level.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if not FORWARD_AUTH_ENABLED:
+            return await call_next(request)
+
+        username = request.headers.get(_FWD_USER_HEADER, "").strip()
+        if not username:
+            return await call_next(request)
+
+        email = request.headers.get(_FWD_EMAIL_HEADER, "").strip()
+        groups = {
+            g.strip().lower()
+            for g in request.headers.get(_FWD_GROUPS_HEADER, "").split(",")
+            if g.strip()
+        }
+        is_admin = bool(groups & _FWD_ADMIN_GROUPS) or (username in _FWD_ADMIN_USERS)
+
+        # Check in-memory cache (keyed by username + admin status to detect group changes)
+        entry = _fwd_cache.get(username)
+        if entry and entry[1] == is_admin and entry[2] > _time.monotonic():
+            token = entry[0]
+        else:
+            # Full DB provision/sync + token creation
+            try:
+                async with async_session_maker() as db:
+                    user = await _find_or_provision_fwd_user(db, username, email, is_admin)
+                    token = await _create_fwd_token(db, user)
+            except Exception:
+                logger.exception("ForwardAuth: error provisioning user '%s'", username)
+                return await call_next(request)
+            _fwd_cache[username] = (token, is_admin, _time.monotonic() + _FWD_CACHE_TTL)
+
+        _inject_request_cookie(request, _COOKIE_NAME, token)
+        response = await call_next(request)
+        response.set_cookie(
+            _COOKIE_NAME,
+            token,
+            max_age=_COOKIE_MAX_AGE,
+            httponly=True,
+            samesite="lax",
+            secure=_COOKIE_SECURE,
+        )
+        return response
 
 
 # ─── Database Init ────────────────────────────────────────────────────────────

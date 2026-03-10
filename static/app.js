@@ -77,6 +77,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('app', () => ({
         // Auth state
         authState: 'loading', // 'loading' | 'login' | 'setup' | 'ready'
+        forwardAuthEnabled: false,
         authUser: null,
         loginUsername: '',
         loginPassword: '',
@@ -107,7 +108,15 @@ document.addEventListener('alpine:init', () => {
         createUserLoading: false,
         async init() {
             console.log("[WatchBack] Initializing application");
-            // Check auth first
+            // Probe auth config (unauthenticated) to know if forward auth is active
+            try {
+                const hRes = await fetch('/api/health');
+                if (hRes.ok) {
+                    const h = await hRes.json();
+                    this.forwardAuthEnabled = h.forward_auth_enabled || false;
+                }
+            } catch (e) { /* non-fatal */ }
+            // Check auth
             try {
                 const res = await fetch('/api/auth/me');
                 if (res.ok) {
@@ -136,6 +145,7 @@ document.addEventListener('alpine:init', () => {
                 }
                 this.status = await sRes.json();
                 this.configData = await cRes.json();
+                this.forwardAuthEnabled = this.status.forward_auth_enabled || false;
                 this.configDraft = this.buildDraft();
                 this.applyTheme();
                 console.debug("[WatchBack] Configuration loaded", { jellyfin: this.status.jellyfin_configured, trakt: this.status.trakt_configured });

@@ -33,7 +33,20 @@
                 <img src="/watchback.png" alt="WatchBack" class="w-16 h-16 mx-auto mb-3 object-contain wb-logo">
                 <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
             </div>
-            <form @submit.prevent="login()" class="wb-surface wb-border rounded-xl p-6 border space-y-4">
+
+            <!-- Forward auth: session unavailable -->
+            <div x-show="forwardAuthEnabled" x-cloak
+                class="wb-surface wb-border rounded-xl p-6 border space-y-4 text-center">
+                <p class="text-sm wb-text-secondary">Your session is unavailable.</p>
+                <p class="text-xs wb-text-muted">Sign in through your identity provider, then refresh this page.</p>
+                <button @click="window.location.reload()"
+                    class="w-full wb-on-accent py-2.5 rounded-lg text-sm font-medium cursor-pointer wb-btn wb-border border"
+                    style="background-color: var(--wb-accent);">Refresh</button>
+            </div>
+
+            <!-- Local auth form -->
+            <form x-show="!forwardAuthEnabled" @submit.prevent="login()"
+                class="wb-surface wb-border rounded-xl p-6 border space-y-4">
                 <div x-show="loginError" x-cloak class="p-3 rounded-lg text-sm text-center"
                     style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
                     x-text="loginError"></div>
@@ -511,6 +524,8 @@
                                             x-text="u.username"></span>
                                         <span x-show="u.is_admin"
                                             class="text-[9px] uppercase font-bold wb-accent-text tracking-wide">admin</span>
+                                        <span x-show="u.auth_source === 'forward_auth'"
+                                            class="text-[9px] uppercase font-bold wb-text-faint tracking-wide">SSO</span>
                                         <span x-show="!u.is_active"
                                             class="text-[9px] uppercase font-bold wb-error-text tracking-wide">disabled</span>
                                         <span x-show="u.must_change_password"
@@ -520,7 +535,8 @@
                                     <div class="text-[10px] wb-text-faint truncate" x-text="u.email"></div>
                                 </div>
                                 <div class="flex gap-1 shrink-0" x-show="u.id !== authUser?.id">
-                                    <button @click="resetUserPassword(u)"
+                                    <button x-show="u.auth_source !== 'forward_auth'"
+                                        @click="resetUserPassword(u)"
                                         class="px-2 py-1 rounded text-[10px] wb-surface wb-border border wb-text-muted cursor-pointer wb-btn"
                                         title="Reset password"><ion-icon name="key-sharp" aria-hidden="true"></ion-icon></button>
                                     <button @click="deleteUser(u)"
