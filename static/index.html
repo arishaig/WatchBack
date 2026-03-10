@@ -482,6 +482,7 @@
                             <input type="checkbox"
                                 :checked="configData?.forward_auth_enabled?.effective_value === '1'"
                                 @change="toggleForwardAuth($event.target.checked)"
+                                aria-label="Enable forward authentication"
                                 class="sr-only peer">
                             <div class="w-9 h-5 rounded-full peer wb-surface-alt wb-border border
                                 peer-checked:after:translate-x-full after:content-[''] after:absolute
