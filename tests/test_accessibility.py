@@ -78,6 +78,8 @@ def load_page(page, url, theme, *, sync=None, status=None, config=None):
     setup_api_routes(page, sync=sync, status=status, config=config)
     page.goto(url)
     page.wait_for_load_state("networkidle", timeout=15_000)
+    # Wait for Alpine auth flow to complete
+    page.wait_for_timeout(500)
     apply_theme(page, theme)
 
 

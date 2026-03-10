@@ -75,6 +75,21 @@ function renderMarkdown(src) {
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('app', () => ({
+        // Auth state
+        authState: 'loading', // 'loading' | 'login' | 'setup' | 'ready'
+        authUser: null,
+        loginUsername: '',
+        loginPassword: '',
+        loginError: '',
+        loginLoading: false,
+        setupUsername: '',
+        setupEmail: '',
+        setupPassword: '',
+        setupConfirm: '',
+        setupError: '',
+        setupLoading: false,
+
+        // App state
         data: null, error: null, errorTimer: null, isLoading: false, isRestarting: false, restartSuccess: false, mode: 'all', sourceFilter: new Set(),
         status: null, showConfig: false, configData: null, configDraft: {}, lightboxImg: null,
         groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
@@ -82,10 +97,43 @@ document.addEventListener('alpine:init', () => {
         _prefSaveTimer: null,
         testResults: {},
         lastTestResults: {},
+        // Admin user management
+        adminUsers: null,
+        showCreateUser: false,
+        newUser: { username: '', email: '', is_admin: false },
+        createUserError: '',
+        createUserSuccess: false,
+        createUserTempPass: '',
+        createUserLoading: false,
         async init() {
             console.log("[WatchBack] Initializing application");
+            // Check auth first
+            try {
+                const res = await fetch('/api/auth/me');
+                if (res.ok) {
+                    this.authUser = await res.json();
+                    if (this.authUser.must_change_password) {
+                        this.authState = 'setup';
+                        return;
+                    }
+                    this.authState = 'ready';
+                } else {
+                    this.authState = 'login';
+                    return;
+                }
+            } catch (e) {
+                this.authState = 'login';
+                return;
+            }
+            await this._initApp();
+        },
+        async _initApp() {
             try {
                 const [sRes, cRes] = await Promise.all([fetch('/api/status'), fetch('/api/config')]);
+                if (sRes.status === 401 || cRes.status === 401) {
+                    this.authState = 'login';
+                    return;
+                }
                 this.status = await sRes.json();
                 this.configData = await cRes.json();
                 this.configDraft = this.buildDraft();
@@ -96,6 +144,81 @@ document.addEventListener('alpine:init', () => {
             }
             this.sync();
             this.setupSSE();
+        },
+        async login() {
+            this.loginError = '';
+            this.loginLoading = true;
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ username: this.loginUsername, password: this.loginPassword }),
+                });
+                if (res.status === 204 || res.ok) {
+                    const meRes = await fetch('/api/auth/me');
+                    if (meRes.ok) {
+                        this.authUser = await meRes.json();
+                        if (this.authUser.must_change_password) {
+                            this.authState = 'setup';
+                        } else {
+                            this.authState = 'ready';
+                            this.$nextTick(() => this._initApp());
+                        }
+                    }
+                } else {
+                    this.loginError = 'Invalid username or password';
+                }
+            } catch (e) {
+                this.loginError = 'Connection failed';
+            }
+            this.loginLoading = false;
+        },
+        async submitSetup() {
+            this.setupError = '';
+            if (!this.setupUsername || !this.setupEmail || !this.setupPassword) {
+                this.setupError = 'All fields are required';
+                return;
+            }
+            if (this.setupPassword !== this.setupConfirm) {
+                this.setupError = 'Passwords do not match';
+                return;
+            }
+            if (this.setupPassword.length < 8) {
+                this.setupError = 'Password must be at least 8 characters';
+                return;
+            }
+            this.setupLoading = true;
+            try {
+                const res = await fetch('/api/auth/setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: this.setupUsername,
+                        email: this.setupEmail,
+                        password: this.setupPassword,
+                    }),
+                });
+                if (res.ok) {
+                    this.authUser.must_change_password = false;
+                    this.authUser.username = this.setupUsername;
+                    this.authState = 'ready';
+                    this.$nextTick(() => this._initApp());
+                } else {
+                    const data = await res.json();
+                    this.setupError = data.detail || 'Setup failed';
+                }
+            } catch (e) {
+                this.setupError = 'Connection failed';
+            }
+            this.setupLoading = false;
+        },
+        async logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            this.authState = 'login';
+            this.authUser = null;
+            this.data = null;
+            this.loginUsername = '';
+            this.loginPassword = '';
         },
         setupSSE() {
             const es = new ReconnectingEventSource('/api/stream', { max_retry_time: 60000 });
@@ -230,10 +353,12 @@ document.addEventListener('alpine:init', () => {
             this.errorTimer = setTimeout(() => { this.error = null; }, 8000);
         },
         async sync() {
+            if (this.authState !== 'ready') return;
             console.debug("[WatchBack] Syncing data...");
             this.isLoading = true;
             try {
                 const res = await fetch('/api/sync?t=' + Date.now());
+                if (res.status === 401) { this.authState = 'login'; this.isLoading = false; return; }
                 const newData = await res.json();
 
                 if (newData?.status === 'success') {
@@ -374,6 +499,64 @@ document.addEventListener('alpine:init', () => {
         async testAll() {
             const services = ['jellyfin', 'trakt', 'trakt-watch', 'bluesky', 'reddit'];
             await Promise.all(services.map(s => this.testService(s)));
+        },
+        async loadUsers() {
+            try {
+                const res = await fetch('/api/admin/users');
+                if (res.ok) this.adminUsers = await res.json();
+            } catch (e) { console.error('[WatchBack] Failed to load users:', e); }
+        },
+        async createUser() {
+            this.createUserError = '';
+            this.createUserSuccess = false;
+            if (!this.newUser.username || !this.newUser.email) {
+                this.createUserError = 'Username and email are required';
+                return;
+            }
+            this.createUserLoading = true;
+            try {
+                const res = await fetch('/api/admin/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.newUser),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.createUserTempPass = data.temporary_password;
+                    this.createUserSuccess = true;
+                    this.newUser = { username: '', email: '', is_admin: false };
+                    await this.loadUsers();
+                } else {
+                    this.createUserError = data.detail || 'Failed to create user';
+                }
+            } catch (e) {
+                this.createUserError = 'Connection failed';
+            }
+            this.createUserLoading = false;
+        },
+        async resetUserPassword(user) {
+            if (!confirm(`Reset password for ${user.username}? The temporary password will appear in container logs.`)) return;
+            try {
+                const res = await fetch(`/api/admin/users/${user.id}/reset-password`, { method: 'POST' });
+                if (res.ok) {
+                    await this.loadUsers();
+                } else {
+                    const data = await res.json();
+                    alert(data.detail || 'Failed to reset password');
+                }
+            } catch (e) { alert('Connection failed'); }
+        },
+        async deleteUser(user) {
+            if (!confirm(`Delete user "${user.username}"? This cannot be undone.`)) return;
+            try {
+                const res = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    await this.loadUsers();
+                } else {
+                    const data = await res.json();
+                    alert(data.detail || 'Failed to delete user');
+                }
+            } catch (e) { alert('Connection failed'); }
         },
         formatDate(iso) { return iso ? new Date(iso).toLocaleDateString() : ''; },
         countAllReplies(c) {

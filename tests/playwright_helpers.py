@@ -243,11 +243,22 @@ def _fulfill_json(route, body: Any) -> None:
     route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
 
+_MOCK_AUTH_ME: dict = {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "username": "testadmin",
+    "email": "admin@test.local",
+    "is_admin": True,
+    "must_change_password": False,
+    "auth_source": "local",
+}
+
+
 def setup_api_routes(page, *, sync=None, status=None, config=None) -> None:
     """Intercept WatchBack API calls with mock responses.
 
     Always blocks /api/stream (SSE) so ``wait_for_load_state("networkidle")``
-    can settle. Pass a dict for any endpoint you want to mock; omit to let it
+    can settle. Always mocks /api/auth/me to bypass the login screen.
+    Pass a dict for any endpoint you want to mock; omit to let it
     hit the real server.
 
     Args:
@@ -257,9 +268,10 @@ def setup_api_routes(page, *, sync=None, status=None, config=None) -> None:
         config: Mock body for GET /api/config, or None to pass through.
     """
     page.route("**/api/stream", lambda route: route.abort())
+    page.route("**/api/auth/me", lambda route: _fulfill_json(route, _MOCK_AUTH_ME))
 
     if sync is not None:
-        page.route("**/api/sync", lambda route: _fulfill_json(route, sync))
+        page.route("**/api/sync*", lambda route: _fulfill_json(route, sync))
     if status is not None:
         page.route("**/api/status", lambda route: _fulfill_json(route, status))
     if config is not None:

@@ -5,11 +5,17 @@ description = "Self-hosted TV companion — aggregates reactions from Trakt, Blu
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "aiosqlite>=0.22.1",
+    "cryptography>=46.0.5",
     "diskcache>=5.6.3",
     "fastapi>=0.135.1",
+    "fastapi-users[sqlalchemy]>=15.0.4",
     "requests>=2.32.5",
     "uvicorn>=0.41.0",
 ]
+
+[project.scripts]
+watchback = "cli:main"
 
 [dependency-groups]
 dev = [
@@ -23,7 +29,7 @@ dev = [
 ]
 
 [tool.coverage.run]
-source = ["main"]
+source = ["main", "auth", "cli"]
 omit = ["tests/*"]
 
 [tool.coverage.report]

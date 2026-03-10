@@ -17,7 +17,88 @@
 </head>
 
 <body class="antialiased font-sans p-4" x-data="app()">
-    <div class="max-w-md mx-auto overflow-x-hidden" x-cloak x-show="true">
+
+    <!-- Loading state -->
+    <div x-show="authState === 'loading'" class="fixed inset-0 flex items-center justify-center" style="background-color: var(--wb-bg, #1a1a2e);">
+        <div class="wb-spinner" role="status"></div>
+    </div>
+
+    <!-- Login screen -->
+    <main x-show="authState === 'login'" x-cloak class="min-h-screen flex items-center justify-center" aria-label="Login">
+        <div class="w-full max-w-xs">
+            <div class="text-center mb-8">
+                <img src="/watchback.png" alt="WatchBack" class="w-16 h-16 mx-auto mb-3 object-contain wb-logo">
+                <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
+            </div>
+            <form @submit.prevent="login()" class="wb-surface wb-border rounded-xl p-6 border space-y-4">
+                <div x-show="loginError" x-cloak class="p-3 rounded-lg text-sm text-center"
+                    style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
+                    x-text="loginError"></div>
+                <div>
+                    <label for="login-username" class="block text-xs font-medium wb-text-muted mb-1">Username</label>
+                    <input id="login-username" type="text" x-model="loginUsername" required autofocus autocomplete="username"
+                        class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
+                        @keydown.enter="$refs.loginPass.focus()">
+                </div>
+                <div>
+                    <label for="login-password" class="block text-xs font-medium wb-text-muted mb-1">Password</label>
+                    <input id="login-password" type="password" x-model="loginPassword" required x-ref="loginPass" autocomplete="current-password"
+                        class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                </div>
+                <button type="submit" :disabled="loginLoading"
+                    class="w-full wb-on-accent py-2.5 rounded-lg text-sm font-medium cursor-pointer wb-btn wb-border border disabled:opacity-50"
+                    style="background-color: var(--wb-accent);"
+                    x-text="loginLoading ? 'Signing in...' : 'Sign In'"></button>
+                <p class="text-[11px] wb-text-faint text-center leading-snug">
+                    First run? Check your container logs for the default password.<br>
+                    <code class="text-[10px]">docker logs watchback</code>
+                </p>
+            </form>
+        </div>
+    </main>
+
+    <!-- First-run setup screen -->
+    <main x-show="authState === 'setup'" x-cloak class="min-h-screen flex items-center justify-center" aria-label="Account setup">
+        <div class="w-full max-w-xs">
+            <div class="text-center mb-6">
+                <img src="/watchback.png" alt="WatchBack" class="w-16 h-16 mx-auto mb-3 object-contain wb-logo">
+                <h1 class="text-xl font-bold wb-accent-text mb-1">Welcome to WatchBack</h1>
+                <p class="text-xs wb-text-muted">Set up your admin account to get started.</p>
+            </div>
+            <form @submit.prevent="submitSetup()" class="wb-surface wb-border rounded-xl p-6 border space-y-4">
+                <div x-show="setupError" x-cloak class="p-3 rounded-lg text-sm text-center"
+                    style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
+                    x-text="setupError"></div>
+                <div>
+                    <label for="setup-username" class="block text-xs font-medium wb-text-muted mb-1">Username</label>
+                    <input id="setup-username" type="text" x-model="setupUsername" required autofocus autocomplete="username"
+                        class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                </div>
+                <div>
+                    <label for="setup-email" class="block text-xs font-medium wb-text-muted mb-1">Email</label>
+                    <input id="setup-email" type="email" x-model="setupEmail" required autocomplete="email"
+                        class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                </div>
+                <div>
+                    <label for="setup-password" class="block text-xs font-medium wb-text-muted mb-1">New Password</label>
+                    <input id="setup-password" type="password" x-model="setupPassword" required minlength="8" autocomplete="new-password"
+                        class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                </div>
+                <div>
+                    <label for="setup-confirm" class="block text-xs font-medium wb-text-muted mb-1">Confirm Password</label>
+                    <input id="setup-confirm" type="password" x-model="setupConfirm" required minlength="8" autocomplete="new-password"
+                        class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                </div>
+                <button type="submit" :disabled="setupLoading"
+                    class="w-full wb-on-accent py-2.5 rounded-lg text-sm font-medium cursor-pointer wb-btn wb-border border disabled:opacity-50"
+                    style="background-color: var(--wb-accent);"
+                    x-text="setupLoading ? 'Setting up...' : 'Complete Setup'"></button>
+            </form>
+        </div>
+    </main>
+
+    <!-- Main app (only shown when authenticated) -->
+    <div x-show="authState === 'ready'" x-cloak class="max-w-md mx-auto overflow-x-hidden">
 
         <header class="flex justify-between items-center mb-6 mt-2">
             <div class="flex items-center gap-3">
@@ -25,7 +106,10 @@
                 <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
             </div>
             <div class="flex gap-2">
-                <button @click="showConfig = !showConfig"
+                <button @click="logout()"
+                    class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm leading-none cursor-pointer wb-btn wb-border border"
+                    title="Sign out">&#x23FB;</button>
+                <button @click="showConfig = !showConfig; if (showConfig && authUser?.is_admin && adminUsers === null) loadUsers()"
                     :class="showConfig ? 'wb-surface-alt wb-text' : 'wb-surface-alt wb-text-muted'"
                     class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-border border"
                     title="Configuration">&#x2699;&#xFE0F;</button>
@@ -348,6 +432,77 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ═══════════════════ Users (admin only) ═══════════════════ -->
+                <div x-show="authUser?.is_admin" class="wb-border border-t mt-5 pt-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider">Users</h2>
+                        <button @click="showCreateUser = !showCreateUser"
+                            class="text-[10px] wb-accent-text cursor-pointer"
+                            x-text="showCreateUser ? 'Cancel' : '+ New User'"></button>
+                    </div>
+
+                    <!-- Create user form -->
+                    <div x-show="showCreateUser" x-cloak class="wb-surface-alt rounded-lg p-3 mb-3 space-y-2">
+                        <div x-show="createUserError" x-cloak class="p-2 rounded text-xs text-center"
+                            style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
+                            x-text="createUserError"></div>
+                        <div x-show="createUserSuccess" x-cloak class="p-2 rounded text-xs text-center"
+                            style="background: var(--wb-success-bg, rgba(34,197,94,0.1)); color: var(--wb-success-text); border: 1px solid var(--wb-success-border, rgba(34,197,94,0.3));">
+                            <span x-text="'User created. Temporary password: ' + createUserTempPass"></span>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium wb-text-muted mb-0.5">Username</label>
+                            <input type="text" x-model="newUser.username" autocomplete="off"
+                                class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-2.5 py-1.5 text-sm border">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium wb-text-muted mb-0.5">Email</label>
+                            <input type="email" x-model="newUser.email" autocomplete="off"
+                                class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-2.5 py-1.5 text-sm border">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="newUserAdmin" x-model="newUser.is_admin"
+                                class="rounded wb-border border cursor-pointer">
+                            <label for="newUserAdmin" class="text-xs wb-text-muted cursor-pointer">Admin</label>
+                        </div>
+                        <button @click="createUser()" :disabled="createUserLoading"
+                            class="w-full py-2 rounded-lg text-xs font-medium wb-on-accent cursor-pointer wb-btn wb-border border disabled:opacity-50"
+                            style="background-color: var(--wb-accent);"
+                            x-text="createUserLoading ? 'Creating...' : 'Create User'"></button>
+                    </div>
+
+                    <!-- User list -->
+                    <div x-show="adminUsers === null" class="text-xs wb-text-faint text-center py-3">
+                        <button @click="loadUsers()" class="wb-accent-text cursor-pointer">Load users</button>
+                    </div>
+                    <div x-show="adminUsers && adminUsers.length === 0" class="text-xs wb-text-faint text-center py-3">No users found.</div>
+                    <div class="space-y-2">
+                        <template x-for="u in (adminUsers || [])" :key="u.id">
+                            <div class="wb-surface-alt rounded-lg px-3 py-2.5 flex items-center justify-between gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-sm font-medium wb-text-secondary truncate" x-text="u.username"></span>
+                                        <span x-show="u.is_admin" class="text-[9px] uppercase font-bold wb-accent-text tracking-wide">admin</span>
+                                        <span x-show="!u.is_active" class="text-[9px] uppercase font-bold wb-error-text tracking-wide">disabled</span>
+                                        <span x-show="u.must_change_password" class="text-[9px] uppercase font-bold wb-text-faint tracking-wide">setup pending</span>
+                                    </div>
+                                    <div class="text-[10px] wb-text-faint truncate" x-text="u.email"></div>
+                                </div>
+                                <div class="flex gap-1 shrink-0" x-show="u.id !== authUser?.id">
+                                    <button @click="resetUserPassword(u)"
+                                        class="px-2 py-1 rounded text-[10px] wb-surface wb-border border wb-text-muted cursor-pointer wb-btn"
+                                        title="Reset password">&#x1F511;</button>
+                                    <button @click="deleteUser(u)"
+                                        class="px-2 py-1 rounded text-[10px] cursor-pointer wb-btn"
+                                        style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
+                                        title="Delete user">&#x2717;</button>
+                                </div>
+                                <span x-show="u.id === authUser?.id" class="text-[10px] wb-text-faint italic">you</span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -567,7 +722,7 @@
             <img :src="lightboxImg" @click.stop alt="Enlarged image"
                 class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl cursor-default">
         </div>
-    </div>
+    </div><!-- /authState=ready -->
 
     <script src="/app.js"></script>
 </body>

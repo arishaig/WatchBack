@@ -34,14 +34,14 @@ html[data-theme="solarized-light"] {
 
     /* Source: Reddit — warm Solarized orange, darkened for light bg */
     --wb-reddit-bg: #ead5be;
-    --wb-reddit-text: #8e380c;
+    --wb-reddit-text: #7a300a;
     --wb-reddit-hover: #e6c5ab;
     --wb-reddit-muted: #8a3a0e;
     --wb-reddit-border: #e4b99c;
 
     /* Source: Bluesky — Solarized blue */
     --wb-bluesky-bg: #d6ddd5;
-    --wb-bluesky-text: #165d92;
+    --wb-bluesky-text: #13527f;
     --wb-bluesky-hover: #c2d4d4;
 
     /* Source: Trakt — darkened text for 5.5:1 on trakt-bg */
