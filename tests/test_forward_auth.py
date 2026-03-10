@@ -5,8 +5,9 @@ runtime (it's a module-level constant read from the environment at import
 time, so monkeypatch.setattr is the right tool).  The TestClient passes
 request headers through to Starlette, which the middleware reads normally.
 
-DB-side assertions use asyncio.run() inside synchronous test functions —
-the same pattern established in conftest.py.
+DB-side assertions run async SQLAlchemy queries via _run(), which always
+executes in a fresh thread to avoid conflicts with the running event loop
+left behind by Playwright accessibility tests.
 """
 import asyncio
 import pytest
@@ -51,8 +52,15 @@ def fwd_client(fresh_cache, fwd_enabled):
 
 
 def _run(coro):
-    """Run a coroutine from inside a synchronous test."""
-    return asyncio.run(coro)
+    """Run a coroutine from inside a synchronous test.
+
+    Uses a dedicated thread so asyncio.run() always gets a clean event loop,
+    even when Playwright (or another async test framework) leaves one running
+    in the main thread.
+    """
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
 
 async def _user_by_name(username: str):
