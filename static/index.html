@@ -33,7 +33,20 @@
                 <img src="/watchback.png" alt="WatchBack" class="w-16 h-16 mx-auto mb-3 object-contain wb-logo">
                 <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
             </div>
-            <form @submit.prevent="login()" class="wb-surface wb-border rounded-xl p-6 border space-y-4">
+
+            <!-- Forward auth: session unavailable -->
+            <div x-show="forwardAuthEnabled" x-cloak
+                class="wb-surface wb-border rounded-xl p-6 border space-y-4 text-center">
+                <p class="text-sm wb-text-secondary">Your session is unavailable.</p>
+                <p class="text-xs wb-text-muted">Sign in through your identity provider, then refresh this page.</p>
+                <button @click="window.location.reload()"
+                    class="w-full wb-on-accent py-2.5 rounded-lg text-sm font-medium cursor-pointer wb-btn wb-border border"
+                    style="background-color: var(--wb-accent);">Refresh</button>
+            </div>
+
+            <!-- Local auth form -->
+            <form x-show="!forwardAuthEnabled" @submit.prevent="login()"
+                class="wb-surface wb-border rounded-xl p-6 border space-y-4">
                 <div x-show="loginError" x-cloak class="p-3 rounded-lg text-sm text-center"
                     style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
                     x-text="loginError"></div>
@@ -457,6 +470,33 @@
                     </div>
                 </div>
 
+                <!-- ═══════════════════ Authentication (admin only) ═══════════════════ -->
+                <div x-show="authUser?.is_admin" class="wb-border border-t mt-5 pt-5">
+                    <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Authentication</h2>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-medium wb-text-secondary">Forward Auth</p>
+                            <p class="text-[10px] wb-text-faint mt-0.5">Trust proxy headers from Authelia / Authentik</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox"
+                                :checked="configData?.forward_auth_enabled?.effective_value === '1'"
+                                @change="toggleForwardAuth($event.target.checked)"
+                                aria-label="Enable forward authentication"
+                                class="sr-only peer">
+                            <div class="w-9 h-5 rounded-full peer wb-surface-alt wb-border border
+                                peer-checked:after:translate-x-full after:content-[''] after:absolute
+                                after:top-0.5 after:left-0.5 after:rounded-full after:h-4 after:w-4
+                                after:transition-all after:wb-surface
+                                peer-checked:bg-[var(--wb-accent)]"></div>
+                        </label>
+                    </div>
+                    <div x-show="configData?.forward_auth_enabled?.source === 'env'"
+                        class="text-[10px] wb-text-faint mt-1.5">
+                        Enabled via <code>FORWARD_AUTH_ENABLED</code> environment variable.
+                    </div>
+                </div>
+
                 <!-- ═══════════════════ Users (admin only) ═══════════════════ -->
                 <div x-show="authUser?.is_admin" class="wb-border border-t mt-5 pt-5">
                     <div class="flex items-center justify-between mb-3">
@@ -511,6 +551,8 @@
                                             x-text="u.username"></span>
                                         <span x-show="u.is_admin"
                                             class="text-[9px] uppercase font-bold wb-accent-text tracking-wide">admin</span>
+                                        <span x-show="u.auth_source === 'forward_auth'"
+                                            class="text-[9px] uppercase font-bold wb-text-faint tracking-wide">SSO</span>
                                         <span x-show="!u.is_active"
                                             class="text-[9px] uppercase font-bold wb-error-text tracking-wide">disabled</span>
                                         <span x-show="u.must_change_password"
@@ -520,7 +562,8 @@
                                     <div class="text-[10px] wb-text-faint truncate" x-text="u.email"></div>
                                 </div>
                                 <div class="flex gap-1 shrink-0" x-show="u.id !== authUser?.id">
-                                    <button @click="resetUserPassword(u)"
+                                    <button x-show="u.auth_source !== 'forward_auth'"
+                                        @click="resetUserPassword(u)"
                                         class="px-2 py-1 rounded text-[10px] wb-surface wb-border border wb-text-muted cursor-pointer wb-btn"
                                         title="Reset password"><ion-icon name="key-sharp" aria-hidden="true"></ion-icon></button>
                                     <button @click="deleteUser(u)"
@@ -754,6 +797,45 @@
     <script src="/app.js"></script>
     <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
     <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+
+    <!-- Forward auth security warning modal -->
+    <div x-show="fwdAuthWarning" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        style="background: rgba(0,0,0,0.6);"
+        @keydown.escape.window="cancelEnableForwardAuth()">
+        <div class="wb-surface wb-border rounded-xl p-6 border max-w-sm mx-4 space-y-4"
+            role="dialog" aria-modal="true" aria-labelledby="fwd-auth-modal-title">
+            <h3 id="fwd-auth-modal-title" class="text-sm font-semibold"
+                style="color: var(--wb-error-text);">
+                &#9888; Security Notice
+            </h3>
+            <p class="text-xs wb-text-secondary leading-relaxed">
+                Enabling forward authentication means WatchBack will trust HTTP headers
+                set by your reverse proxy to identify users. This is only secure if
+                WatchBack <strong>cannot be reached directly</strong> &mdash; if it can,
+                any client can forge those headers and gain access as any user.
+            </p>
+            <p class="text-[11px] wb-text-faint leading-relaxed">
+                Ensure your firewall or Docker network blocks direct access to this
+                container before enabling. See the
+                <a href="https://www.authelia.com/integration/proxies/introduction/"
+                    target="_blank" rel="noopener noreferrer"
+                    class="wb-accent-text underline">Authelia integration docs</a>
+                for the recommended network topology.
+            </p>
+            <div class="flex gap-2 pt-1">
+                <button @click="cancelEnableForwardAuth()"
+                    class="flex-1 py-2 rounded-lg text-xs cursor-pointer wb-btn wb-border border wb-text-muted">
+                    Cancel
+                </button>
+                <button @click="confirmEnableForwardAuth()"
+                    class="flex-1 py-2 rounded-lg text-xs font-medium cursor-pointer wb-btn"
+                    style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);">
+                    Enable Anyway
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
