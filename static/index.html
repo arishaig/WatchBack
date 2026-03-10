@@ -11,7 +11,8 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="stylesheet" href="/tailwind.css">
-    <script src="https://cdn.jsdelivr.net/npm/reconnecting-eventsource@1.6.2/dist/ReconnectingEventSource.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/reconnecting-eventsource@1.6.2/dist/ReconnectingEventSource.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="/css/app.css">
 </head>
@@ -19,12 +20,14 @@
 <body class="antialiased font-sans p-4" x-data="app()">
 
     <!-- Loading state -->
-    <div x-show="authState === 'loading'" class="fixed inset-0 flex items-center justify-center" style="background-color: var(--wb-bg, #1a1a2e);">
+    <div x-show="authState === 'loading'" class="fixed inset-0 flex items-center justify-center"
+        style="background-color: var(--wb-bg, #1a1a2e);">
         <div class="wb-spinner" role="status"></div>
     </div>
 
     <!-- Login screen -->
-    <main x-show="authState === 'login'" x-cloak class="min-h-screen flex items-center justify-center" aria-label="Login">
+    <main x-show="authState === 'login'" x-cloak class="min-h-screen flex items-center justify-center"
+        aria-label="Login">
         <div class="w-full max-w-xs">
             <div class="text-center mb-8">
                 <img src="/watchback.png" alt="WatchBack" class="w-16 h-16 mx-auto mb-3 object-contain wb-logo">
@@ -36,13 +39,15 @@
                     x-text="loginError"></div>
                 <div>
                     <label for="login-username" class="block text-xs font-medium wb-text-muted mb-1">Username</label>
-                    <input id="login-username" type="text" x-model="loginUsername" required autofocus autocomplete="username"
+                    <input id="login-username" type="text" x-model="loginUsername" required autofocus
+                        autocomplete="username"
                         class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
                         @keydown.enter="$refs.loginPass.focus()">
                 </div>
                 <div>
                     <label for="login-password" class="block text-xs font-medium wb-text-muted mb-1">Password</label>
-                    <input id="login-password" type="password" x-model="loginPassword" required x-ref="loginPass" autocomplete="current-password"
+                    <input id="login-password" type="password" x-model="loginPassword" required x-ref="loginPass"
+                        autocomplete="current-password"
                         class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                 </div>
                 <button type="submit" :disabled="loginLoading"
@@ -58,7 +63,8 @@
     </main>
 
     <!-- First-run setup screen -->
-    <main x-show="authState === 'setup'" x-cloak class="min-h-screen flex items-center justify-center" aria-label="Account setup">
+    <main x-show="authState === 'setup'" x-cloak class="min-h-screen flex items-center justify-center"
+        aria-label="Account setup">
         <div class="w-full max-w-xs">
             <div class="text-center mb-6">
                 <img src="/watchback.png" alt="WatchBack" class="w-16 h-16 mx-auto mb-3 object-contain wb-logo">
@@ -71,7 +77,8 @@
                     x-text="setupError"></div>
                 <div>
                     <label for="setup-username" class="block text-xs font-medium wb-text-muted mb-1">Username</label>
-                    <input id="setup-username" type="text" x-model="setupUsername" required autofocus autocomplete="username"
+                    <input id="setup-username" type="text" x-model="setupUsername" required autofocus
+                        autocomplete="username"
                         class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                 </div>
                 <div>
@@ -80,13 +87,17 @@
                         class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                 </div>
                 <div>
-                    <label for="setup-password" class="block text-xs font-medium wb-text-muted mb-1">New Password</label>
-                    <input id="setup-password" type="password" x-model="setupPassword" required minlength="8" autocomplete="new-password"
+                    <label for="setup-password" class="block text-xs font-medium wb-text-muted mb-1">New
+                        Password</label>
+                    <input id="setup-password" type="password" x-model="setupPassword" required minlength="8"
+                        autocomplete="new-password"
                         class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                 </div>
                 <div>
-                    <label for="setup-confirm" class="block text-xs font-medium wb-text-muted mb-1">Confirm Password</label>
-                    <input id="setup-confirm" type="password" x-model="setupConfirm" required minlength="8" autocomplete="new-password"
+                    <label for="setup-confirm" class="block text-xs font-medium wb-text-muted mb-1">Confirm
+                        Password</label>
+                    <input id="setup-confirm" type="password" x-model="setupConfirm" required minlength="8"
+                        autocomplete="new-password"
                         class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                 </div>
                 <button type="submit" :disabled="setupLoading"
@@ -108,16 +119,25 @@
             <div class="flex gap-2">
                 <button @click="logout()"
                     class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm leading-none cursor-pointer wb-btn wb-border border"
-                    title="Sign out">&#x23FB;</button>
-                <button @click="showConfig = !showConfig; if (showConfig && authUser?.is_admin && adminUsers === null) loadUsers()"
+                    title="Sign out">
+                    <ion-icon name="log-out-sharp" aria-hidden="true"></ion-icon>
+                </button>
+                <button
+                    @click="showConfig = !showConfig; if (showConfig && authUser?.is_admin && adminUsers === null) loadUsers()"
                     :class="showConfig ? 'wb-surface-alt wb-text' : 'wb-surface-alt wb-text-muted'"
                     class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-border border"
-                    title="Configuration">&#x2699;&#xFE0F;</button>
+                    title="Configuration">
+                    <ion-icon name="settings-sharp" aria-hidden="true"></ion-icon>
+                </button>
                 <button @click="sync()"
                     class="wb-on-accent px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer wb-btn wb-border border"
                     style="background-color: var(--wb-accent);" :disabled="isLoading">
-                    <span x-show="!isLoading">&#x1F504; Sync</span>
-                    <span x-show="isLoading" x-cloak class="inline-block w-5 h-5 border-2 border-transparent border-t-current rounded-full animate-spin" aria-hidden="true"></span>
+                    <span x-show="!isLoading" class="flex items-center gap-2">
+                        <ion-icon name="sync-sharp" aria-hidden="true"></ion-icon> Sync
+                    </span>
+                    <span x-show="isLoading" x-cloak
+                        class="inline-block w-5 h-5 border-2 border-transparent border-t-current rounded-full animate-spin"
+                        aria-hidden="true"></span>
                     <span x-show="isLoading" class="sr-only">Syncing</span>
                 </button>
             </div>
@@ -131,7 +151,9 @@
             <span x-text="error"></span>
             <button @click="error = null; clearTimeout(errorTimer)"
                 class="ml-3 shrink-0 text-xs font-bold cursor-pointer opacity-70 hover:opacity-100"
-                aria-label="Dismiss">&#x2715;</button>
+                aria-label="Dismiss">
+                <ion-icon name="close-sharp"></ion-icon>
+            </button>
         </div>
 
         <!-- Loading overlay -->
@@ -142,14 +164,15 @@
                 <div class="wb-spinner" role="status"></div>
             </template>
             <template x-if="restartSuccess">
-                <div class="restart-check" role="status">&#x2713;</div>
+                <div class="restart-check" role="status">
+                    <ion-icon name="checkmark-sharp"></ion-icon>
+                </div>
             </template>
             <span x-show="isRestarting" class="text-sm font-medium" style="color: var(--wb-text-muted);"
                 x-text="restartSuccess ? 'Reconnected' : 'Restarting\u2026'"></span>
         </div>
 
-        <div x-show="showConfig" x-cloak role="region" aria-label="Configuration"
-            @keydown.escape="showConfig = false"
+        <div x-show="showConfig" x-cloak role="region" aria-label="Configuration" @keydown.escape="showConfig = false"
             x-transition:enter="config-enter" x-transition:leave="config-leave"
             class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
             <div class="p-4">
@@ -176,7 +199,8 @@
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium wb-text-muted">API Key</label>
                                     <button x-show="configData?.jf_api_key?.source === 'stored'"
-                                        @click="resetField('jf_api_key')" aria-label="Reset API Key to environment value"
+                                        @click="resetField('jf_api_key')"
+                                        aria-label="Reset API Key to environment value"
                                         class="text-[10px] wb-accent-text cursor-pointer">Reset to
                                         ENV</button>
                                 </div>
@@ -185,8 +209,7 @@
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
                             <button @click="testService('jellyfin')"
-                                :disabled="testResults.jellyfin?.status === 'testing'"
-                                aria-live="polite"
+                                :disabled="testResults.jellyfin?.status === 'testing'" aria-live="polite"
                                 class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                 :class="testResults.jellyfin?.status === 'ok' ? 'test-ok' : testResults.jellyfin?.status === 'error' ? 'test-error' : ''"
                                 x-text="testResults.jellyfin?.status === 'testing' ? 'Testing\u2026' : testResults.jellyfin?.message || 'Test Connection'"></button>
@@ -231,14 +254,12 @@
                             </div>
                             <div class="flex gap-2">
                                 <button @click="testService('trakt')"
-                                    :disabled="testResults.trakt?.status === 'testing'"
-                                    aria-live="polite"
+                                    :disabled="testResults.trakt?.status === 'testing'" aria-live="polite"
                                     class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                     :class="testResults.trakt?.status === 'ok' ? 'test-ok' : testResults.trakt?.status === 'error' ? 'test-error' : ''"
                                     x-text="testResults.trakt?.status === 'testing' ? 'Testing\u2026' : testResults.trakt?.message || 'Test API'"></button>
                                 <button @click="testService('trakt-watch')"
-                                    :disabled="testResults['trakt-watch']?.status === 'testing'"
-                                    aria-live="polite"
+                                    :disabled="testResults['trakt-watch']?.status === 'testing'" aria-live="polite"
                                     class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                     :class="testResults['trakt-watch']?.status === 'ok' ? 'test-ok' : testResults['trakt-watch']?.status === 'error' ? 'test-error' : ''"
                                     x-text="testResults['trakt-watch']?.status === 'testing' ? 'Testing\u2026' : testResults['trakt-watch']?.message || 'Test Profile'"></button>
@@ -272,8 +293,7 @@
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
                             <button @click="testService('bluesky')"
-                                :disabled="testResults.bluesky?.status === 'testing'"
-                                aria-live="polite"
+                                :disabled="testResults.bluesky?.status === 'testing'" aria-live="polite"
                                 class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                 :class="testResults.bluesky?.status === 'ok' ? 'test-ok' : testResults.bluesky?.status === 'error' ? 'test-error' : ''"
                                 x-text="testResults.bluesky?.status === 'testing' ? 'Testing\u2026' : testResults.bluesky?.message || 'Test Connection'"></button>
@@ -295,14 +315,15 @@
                         <!-- Jellyfin session source -->
                         <li x-show="configData?.jf_api_key?.effective_value" class="flex items-start gap-2">
                             <span :class="testIcon('jellyfin').cls" class="mt-0.5"
-                                :aria-label="'Jellyfin: ' + testIcon('jellyfin').label"
-                                role="img" x-text="testIcon('jellyfin').icon"></span>
+                                :aria-label="'Jellyfin: ' + testIcon('jellyfin').label" role="img"
+                                x-text="testIcon('jellyfin').icon"></span>
                             <span>Watch data from <strong class="wb-text-secondary">Jellyfin</strong></span>
                         </li>
                         <li x-show="configData?.jf_api_key?.effective_value" class="flex items-start gap-2">
-                            <span :class="testIcon('jellyfin').cls" class="mt-0.5"
-                                aria-hidden="true" x-text="testIcon('jellyfin').icon"></span>
-                            <span>Auto-refresh via <strong class="wb-text-secondary">Jellyfin</strong> webhook (if configured)</span>
+                            <span :class="testIcon('jellyfin').cls" class="mt-0.5" aria-hidden="true"
+                                x-text="testIcon('jellyfin').icon"></span>
+                            <span>Auto-refresh via <strong class="wb-text-secondary">Jellyfin</strong> webhook (if
+                                configured)</span>
                         </li>
 
                         <!-- Trakt polling (no Jellyfin, has trakt_username/access_token) -->
@@ -310,40 +331,41 @@
                                     (configData?.trakt_username?.effective_value || configData?.trakt_access_token?.effective_value)"
                             class="flex items-start gap-2">
                             <span :class="testIcon('trakt-watch').cls" class="mt-0.5"
-                                :aria-label="'Trakt profile: ' + testIcon('trakt-watch').label"
-                                role="img" x-text="testIcon('trakt-watch').icon"></span>
-                            <span>Watch data from <strong class="wb-text-secondary">Trakt</strong> (polling every 30s)</span>
+                                :aria-label="'Trakt profile: ' + testIcon('trakt-watch').label" role="img"
+                                x-text="testIcon('trakt-watch').icon"></span>
+                            <span>Watch data from <strong class="wb-text-secondary">Trakt</strong> (polling every
+                                30s)</span>
                         </li>
 
                         <!-- Trakt comments -->
                         <li x-show="configData?.trakt_client_id?.effective_value" class="flex items-start gap-2">
                             <span :class="testIcon('trakt').cls" class="mt-0.5"
-                                :aria-label="'Trakt API: ' + testIcon('trakt').label"
-                                role="img" x-text="testIcon('trakt').icon"></span>
+                                :aria-label="'Trakt API: ' + testIcon('trakt').label" role="img"
+                                x-text="testIcon('trakt').icon"></span>
                             <span>Comments from <strong class="wb-text-secondary">Trakt</strong></span>
                         </li>
 
                         <!-- Reddit comments (always available when a session source exists) -->
                         <li class="flex items-start gap-2">
                             <span :class="testIcon('reddit').cls" class="mt-0.5"
-                                :aria-label="'Reddit: ' + testIcon('reddit').label"
-                                role="img" x-text="testIcon('reddit').icon"></span>
+                                :aria-label="'Reddit: ' + testIcon('reddit').label" role="img"
+                                x-text="testIcon('reddit').icon"></span>
                             <span>Comments from <strong class="wb-text-secondary">Reddit</strong></span>
                         </li>
 
                         <!-- Bluesky (needs both identifier AND password) -->
                         <li x-show="configData?.bsky_identifier?.effective_value &&
-                                    configData?.bsky_app_password?.effective_value"
-                            class="flex items-start gap-2">
+                                    configData?.bsky_app_password?.effective_value" class="flex items-start gap-2">
                             <span :class="testIcon('bluesky').cls" class="mt-0.5"
-                                :aria-label="'Bluesky: ' + testIcon('bluesky').label"
-                                role="img" x-text="testIcon('bluesky').icon"></span>
+                                :aria-label="'Bluesky: ' + testIcon('bluesky').label" role="img"
+                                x-text="testIcon('bluesky').icon"></span>
                             <span>Posts from <strong class="wb-text-secondary">Bluesky</strong></span>
                         </li>
                         <li x-show="configData?.bsky_identifier?.effective_value &&
-                                    !configData?.bsky_app_password?.effective_value"
-                            class="flex items-start gap-2">
-                            <span class="wb-error-text mt-0.5" role="img" aria-label="Warning">&#x26A0;</span>
+                                    !configData?.bsky_app_password?.effective_value" class="flex items-start gap-2">
+                            <span class="wb-error-text mt-0.5" role="img" aria-label="Warning">
+                                <ion-icon name="alert-sharp"></ion-icon>
+                            </span>
                             <span>Bluesky needs both handle <em>and</em> app password to work</span>
                         </li>
                         <li class="pt-1">
@@ -358,13 +380,17 @@
 
                 <div class="mt-5 flex items-center gap-2">
                     <button @click="clearCache()"
-                        class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm font-medium cursor-pointer wb-btn wb-border border">&#x1F5D1;
+                        class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm font-medium cursor-pointer wb-btn wb-border border">
+                        <ion-icon name="trash-sharp" aria-hidden="true"></ion-icon>
                         Cache</button>
                     <button @click="restartServer()" :disabled="isRestarting"
-                        class="px-3 py-2 rounded-lg text-sm font-medium cursor-pointer disabled:opacity-50 wb-btn"
+                        class="px-3 py-2 rounded-lg text-sm font-medium cursor-pointer disabled:opacity-50 wb-btn flex items-center gap-1.5"
                         :class="restartSuccess ? 'test-ok' : ''"
-                        :style="restartSuccess ? '' : 'background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);'"
-                        x-text="restartSuccess ? '&#x2713; Restarted' : isRestarting ? '&#x21BA; Restarting\u2026' : '&#x21BA; Restart'"></button>
+                        :style="restartSuccess ? '' : 'background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);'">
+                        <span x-show="restartSuccess"><ion-icon name="checkmark-sharp" aria-hidden="true"></ion-icon> Restarted</span>
+                        <span x-show="isRestarting && !restartSuccess"><ion-icon name="sync-sharp" aria-hidden="true"></ion-icon> Restarting&hellip;</span>
+                        <span x-show="!isRestarting && !restartSuccess"><ion-icon name="sync-sharp" aria-hidden="true"></ion-icon> Restart</span>
+                    </button>
                     <button @click="saveConfig()"
                         class="ml-auto wb-on-accent px-4 py-2 rounded-lg text-sm font-medium cursor-pointer wb-btn wb-border border"
                         style="background-color: var(--wb-accent);">Save</button>
@@ -410,8 +436,7 @@
                                 :value="configDraft.time_machine_days || configData?.time_machine_days?.effective_value || 14"
                                 @input="configDraft.time_machine_days = $event.target.value"
                                 @change="autoSavePref('time_machine_days', configDraft.time_machine_days)"
-                                aria-label="Time Machine days"
-                                class="wb-range w-full">
+                                aria-label="Time Machine days" class="wb-range w-full">
                         </div>
 
                         <div>
@@ -427,8 +452,7 @@
                                 :value="configDraft.reddit_max_comments || configData?.reddit_max_comments?.effective_value || 250"
                                 @input="configDraft.reddit_max_comments = $event.target.value"
                                 @change="autoSavePref('reddit_max_comments', configDraft.reddit_max_comments)"
-                                aria-label="Comments per thread"
-                                class="wb-range w-full">
+                                aria-label="Comments per thread" class="wb-range w-full">
                         </div>
                     </div>
                 </div>
@@ -476,27 +500,33 @@
                     <div x-show="adminUsers === null" class="text-xs wb-text-faint text-center py-3">
                         <button @click="loadUsers()" class="wb-accent-text cursor-pointer">Load users</button>
                     </div>
-                    <div x-show="adminUsers && adminUsers.length === 0" class="text-xs wb-text-faint text-center py-3">No users found.</div>
+                    <div x-show="adminUsers && adminUsers.length === 0" class="text-xs wb-text-faint text-center py-3">
+                        No users found.</div>
                     <div class="space-y-2">
                         <template x-for="u in (adminUsers || [])" :key="u.id">
                             <div class="wb-surface-alt rounded-lg px-3 py-2.5 flex items-center justify-between gap-2">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center gap-1.5">
-                                        <span class="text-sm font-medium wb-text-secondary truncate" x-text="u.username"></span>
-                                        <span x-show="u.is_admin" class="text-[9px] uppercase font-bold wb-accent-text tracking-wide">admin</span>
-                                        <span x-show="!u.is_active" class="text-[9px] uppercase font-bold wb-error-text tracking-wide">disabled</span>
-                                        <span x-show="u.must_change_password" class="text-[9px] uppercase font-bold wb-text-faint tracking-wide">setup pending</span>
+                                        <span class="text-sm font-medium wb-text-secondary truncate"
+                                            x-text="u.username"></span>
+                                        <span x-show="u.is_admin"
+                                            class="text-[9px] uppercase font-bold wb-accent-text tracking-wide">admin</span>
+                                        <span x-show="!u.is_active"
+                                            class="text-[9px] uppercase font-bold wb-error-text tracking-wide">disabled</span>
+                                        <span x-show="u.must_change_password"
+                                            class="text-[9px] uppercase font-bold wb-text-faint tracking-wide">setup
+                                            pending</span>
                                     </div>
                                     <div class="text-[10px] wb-text-faint truncate" x-text="u.email"></div>
                                 </div>
                                 <div class="flex gap-1 shrink-0" x-show="u.id !== authUser?.id">
                                     <button @click="resetUserPassword(u)"
                                         class="px-2 py-1 rounded text-[10px] wb-surface wb-border border wb-text-muted cursor-pointer wb-btn"
-                                        title="Reset password">&#x1F511;</button>
+                                        title="Reset password"><ion-icon name="key-sharp" aria-hidden="true"></ion-icon></button>
                                     <button @click="deleteUser(u)"
                                         class="px-2 py-1 rounded text-[10px] cursor-pointer wb-btn"
                                         style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
-                                        title="Delete user">&#x2717;</button>
+                                        title="Delete user"><ion-icon name="close-sharp" aria-hidden="true"></ion-icon></button>
                                 </div>
                                 <span x-show="u.id === authUser?.id" class="text-[10px] wb-text-faint italic">you</span>
                             </div>
@@ -514,7 +544,8 @@
                     </p>
                 </div>
 
-                <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border comment-card" style="animation-delay:0.05s">
+                <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border comment-card"
+                    style="animation-delay:0.05s">
                     <button x-show="showTimeMachine" @click="mode = 'time'"
                         :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
                         :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
@@ -527,11 +558,11 @@
                         <span x-text="'(' + allCommentsCount + ')'" class="text-xs font-normal"></span>
                     </button>
                     <a :href="data?.reddit_url" target="_blank" rel="noopener noreferrer"
-                        class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn">Reddit
-                        &#x1F50D;</a>
+                        class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn flex items-center justify-center gap-1.5"><ion-icon name="logo-reddit" aria-hidden="true"></ion-icon> Reddit <ion-icon name="search-sharp" aria-hidden="true"></ion-icon></a>
                 </div>
 
-                <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card" style="animation-delay:0.1s">
+                <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card"
+                    style="animation-delay:0.1s">
                     <button x-show="sourceCount('trakt') > 0" @click="toggleSource('trakt')"
                         :class="sourceActive('trakt') ? 'filter-trakt' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer wb-btn">Trakt
@@ -539,8 +570,7 @@
                     <button x-show="sourceCount('bluesky') > 0" @click="toggleSource('bluesky')"
                         :class="sourceActive('bluesky') ? 'filter-bluesky' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer wb-btn">BlueSky
-                        <span x-text="'(' + sourceCount('bluesky') + ')'"
-                            class="font-normal"></span></button>
+                        <span x-text="'(' + sourceCount('bluesky') + ')'" class="font-normal"></span></button>
                     <button x-show="sourceCount('reddit') > 0" @click="toggleSource('reddit')"
                         :class="sourceActive('reddit') ? 'filter-reddit' : 'filter-inactive'"
                         class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer wb-btn">Reddit
@@ -564,7 +594,8 @@
                                     class="block text-xs thread-title mb-2 truncate leading-tight font-semibold"
                                     x-text="group.title"></a>
                             </template>
-                            <div :class="groupByThread && group.title ? 'ml-2 border-l-2 reply-border pl-3 space-y-3' : (groupByThread ? 'space-y-3' : '')">
+                            <div
+                                :class="groupByThread && group.title ? 'ml-2 border-l-2 reply-border pl-3 space-y-3' : (groupByThread ? 'space-y-3' : '')">
                                 <template x-for="(comment, ci) in group.comments" :key="comment.id">
                                     <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card"
                                         :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's'">
@@ -579,11 +610,11 @@
                                                 <a x-show="comment.source === 'bluesky'" :href="comment.url"
                                                     target="_blank" rel="noopener noreferrer"
                                                     class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                                    title="View original post">BlueSky &#x1F517;</a>
+                                                    title="View original post"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 320" class="inline-block w-[1em] h-[1em] align-[-0.1em]" aria-hidden="true" fill="currentColor"><path d="M180 142c-16.3-34.8-60.2-99.7-101.5-127.8C50.8-9.5 23.8.4 12.5 7.2-6.8 18.5 5.4 56.7 22 74c22 23 45.8 32.8 79.3 33.5-31.4 5.8-62.1 22.7-79.8 41.7C6.2 166.6 0 177.5 0 188.6c0 28 39.5 58.1 72.5 48.1C133 218 163.5 159.5 180 130c16.5 29.5 47 88 107.5 106.7 33 10 72.5-20.1 72.5-48.1 0-11.1-6.2-22-21.5-39.4-17.7-19-48.4-35.9-79.8-41.7 33.5-.7 57.3-10.5 79.3-33.5 16.6-17.3 28.8-55.5 9.5-66.8C336.2.4 309.2-9.5 281.5 14.2 240.2 42.3 196.3 107.2 180 142z"/></svg> BlueSky <ion-icon name="open-sharp" aria-hidden="true"></ion-icon></a>
                                                 <a x-show="comment.source === 'reddit'" :href="comment.url"
                                                     target="_blank" rel="noopener noreferrer"
                                                     class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                                    title="View on Reddit">Reddit &#x1F517;</a>
+                                                    title="View on Reddit"><ion-icon name="logo-reddit" aria-hidden="true"></ion-icon> Reddit <ion-icon name="open-sharp" aria-hidden="true"></ion-icon></a>
                                                 <span x-show="comment.source === 'trakt' || !comment.source"
                                                     class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
                                             </div>
@@ -597,12 +628,11 @@
                                                 :class="comment.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
                                                 <template x-for="img in comment.images" :key="img.url">
                                                     <div @click="lightboxImg = img.url"
-                                                        @keydown.enter="lightboxImg = img.url"
-                                                        tabindex="0" role="button" aria-label="View full image"
+                                                        @keydown.enter="lightboxImg = img.url" tabindex="0"
+                                                        role="button" aria-label="View full image"
                                                         class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
                                                         style="background-color: var(--wb-bg);">
-                                                        <img :src="img.url"
-                                                            :alt="img.alt || 'Image from post'"
+                                                        <img :src="img.url" :alt="img.alt || 'Image from post'"
                                                             class="w-full h-auto object-cover hover:scale-110 transition-transform duration-300"
                                                             loading="lazy">
                                                     </div>
@@ -638,8 +668,7 @@
                                                                         x-show="reply.score != null && reply.score !== 0"
                                                                         class="wb-text-faint"
                                                                         x-text="'&#9650; ' + formatScore(reply.score)"></span>
-                                                                    <span
-                                                                        x-text="formatDate(reply.created_at)"></span>
+                                                                    <span x-text="formatDate(reply.created_at)"></span>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -653,14 +682,13 @@
                                                                     <div>
                                                                         <div class="reply-bg p-3 rounded-lg">
                                                                             <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
-                                                                                x-html="renderMarkdown(subreply.comment)"></div>
+                                                                                x-html="renderMarkdown(subreply.comment)">
+                                                                            </div>
                                                                             <div
                                                                                 class="flex justify-between items-center text-xs wb-text-faint">
-                                                                                <span
-                                                                                    class="font-medium wb-text-muted"
+                                                                                <span class="font-medium wb-text-muted"
                                                                                     x-text="'@' + subreply.user.username"></span>
-                                                                                <div
-                                                                                    class="flex items-center gap-3">
+                                                                                <div class="flex items-center gap-3">
                                                                                     <span
                                                                                         x-show="subreply.score != null && subreply.score !== 0"
                                                                                         class="wb-text-faint"
@@ -715,8 +743,7 @@
         </template>
         <!-- Image lightbox overlay -->
         <div x-show="lightboxImg" x-transition.opacity.duration.200ms @click="lightboxImg = null"
-            @keydown.escape.window="lightboxImg = null"
-            role="dialog" aria-label="Image viewer" aria-modal="true"
+            @keydown.escape.window="lightboxImg = null" role="dialog" aria-label="Image viewer" aria-modal="true"
             class="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer"
             style="background-color: rgba(0,0,0,0.85);" x-cloak>
             <img :src="lightboxImg" @click.stop alt="Enlarged image"
@@ -725,6 +752,8 @@
     </div><!-- /authState=ready -->
 
     <script src="/app.js"></script>
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
 </body>
 
 </html>
