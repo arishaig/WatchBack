@@ -479,6 +479,17 @@ document.addEventListener('alpine:init', () => {
             return { icon: '\u2717', cls: 'wb-error-text', label: 'connection failed' };
         },
         async testService(service) {
+            // Save current draft values first so the test uses the latest input
+            try {
+                const payload = {};
+                Object.entries(this.configDraft).forEach(([key, value]) => { if (value) payload[key] = value; });
+                await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const cRes = await fetch('/api/config');
+                this.configData = await cRes.json();
+                this.configDraft = this.buildDraft();
+            } catch (e) {
+                console.warn("[WatchBack] Could not save before test:", e);
+            }
             this.testResults = { ...this.testResults, [service]: { status: 'testing' } };
             try {
                 const res = await fetch(`/api/test/${service}`);

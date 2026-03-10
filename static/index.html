@@ -209,7 +209,7 @@
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
                             <button @click="testService('jellyfin')"
-                                :disabled="testResults.jellyfin?.status === 'testing'" aria-live="polite"
+                                :disabled="testResults.jellyfin?.status === 'testing' || (!configDraft.jf_api_key && !configData?.jf_api_key?.effective_value)" aria-live="polite"
                                 class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                 :class="testResults.jellyfin?.status === 'ok' ? 'test-ok' : testResults.jellyfin?.status === 'error' ? 'test-error' : ''"
                                 x-text="testResults.jellyfin?.status === 'testing' ? 'Testing\u2026' : testResults.jellyfin?.message || 'Test Connection'"></button>
@@ -254,12 +254,12 @@
                             </div>
                             <div class="flex gap-2">
                                 <button @click="testService('trakt')"
-                                    :disabled="testResults.trakt?.status === 'testing'" aria-live="polite"
+                                    :disabled="testResults.trakt?.status === 'testing' || (!configDraft.trakt_client_id && !configData?.trakt_client_id?.effective_value)" aria-live="polite"
                                     class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                     :class="testResults.trakt?.status === 'ok' ? 'test-ok' : testResults.trakt?.status === 'error' ? 'test-error' : ''"
                                     x-text="testResults.trakt?.status === 'testing' ? 'Testing\u2026' : testResults.trakt?.message || 'Test API'"></button>
                                 <button @click="testService('trakt-watch')"
-                                    :disabled="testResults['trakt-watch']?.status === 'testing'" aria-live="polite"
+                                    :disabled="testResults['trakt-watch']?.status === 'testing' || (!configDraft.trakt_username && !configDraft.trakt_access_token && !configData?.trakt_username?.effective_value && !configData?.trakt_access_token?.effective_value)" aria-live="polite"
                                     class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                     :class="testResults['trakt-watch']?.status === 'ok' ? 'test-ok' : testResults['trakt-watch']?.status === 'error' ? 'test-error' : ''"
                                     x-text="testResults['trakt-watch']?.status === 'testing' ? 'Testing\u2026' : testResults['trakt-watch']?.message || 'Test Profile'"></button>
@@ -293,7 +293,7 @@
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
                             <button @click="testService('bluesky')"
-                                :disabled="testResults.bluesky?.status === 'testing'" aria-live="polite"
+                                :disabled="testResults.bluesky?.status === 'testing' || ((!configDraft.bsky_identifier && !configData?.bsky_identifier?.effective_value) || (!configDraft.bsky_app_password && !configData?.bsky_app_password?.effective_value))" aria-live="polite"
                                 class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                 :class="testResults.bluesky?.status === 'ok' ? 'test-ok' : testResults.bluesky?.status === 'error' ? 'test-error' : ''"
                                 x-text="testResults.bluesky?.status === 'testing' ? 'Testing\u2026' : testResults.bluesky?.message || 'Test Connection'"></button>
