@@ -35,9 +35,9 @@ html[data-theme="monokai"] {
     --wb-reddit-muted: #f0a64a;
     --wb-reddit-border: #77582c;
 
-    /* Source: Bluesky — Monokai purple */
+    /* Source: Bluesky — Monokai purple; text brightened from #cdb0ff (4.43:1) to meet 4.5:1 */
     --wb-bluesky-bg: #544b5b;
-    --wb-bluesky-text: #cdb0ff;
+    --wb-bluesky-text: #d2b8ff;
     --wb-bluesky-hover: #6b5884;
 
     /* Source: Trakt */
