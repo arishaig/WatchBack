@@ -1,4 +1,5 @@
 """Comprehensive tests for WatchBack (main.py)."""
+import asyncio
 import pytest
 from unittest.mock import patch
 
@@ -738,10 +739,14 @@ class TestWebhook:
 
 class TestRestart:
     def test_returns_restarting(self, client):
-        def _sink_coroutine(coro):
-            """Accept and close the coroutine so it doesn't leak."""
-            coro.close()
-        with patch("main.asyncio.create_task", side_effect=_sink_coroutine):
+        _real_create_task = asyncio.create_task
+        def _intercept(coro, **kw):
+            """Sink the _do_exit coroutine but let other create_task calls through."""
+            if hasattr(coro, '__qualname__') and '_do_exit' in coro.__qualname__:
+                coro.close()
+                return _real_create_task(asyncio.sleep(0))  # return a real Task
+            return _real_create_task(coro, **kw)
+        with patch("main.asyncio.create_task", side_effect=_intercept):
             r = client.post("/api/restart", json={"confirm": True})
         assert r.json()["status"] == "restarting"
 

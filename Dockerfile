@@ -57,11 +57,14 @@ COPY --from=builder /data/static/tailwind.css /data/static/tailwind.css
 COPY static/ /data/static/
 RUN chmod +x /app/entrypoint.sh
 
+# CLI entrypoint for password reset: docker exec watchback watchback reset-password <user>
+RUN echo '#!/bin/sh\nexec python /app/cli.py "$@"' > /usr/local/bin/watchback && chmod +x /usr/local/bin/watchback
+
 EXPOSE 8000
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/status')" || exit 1
+  CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

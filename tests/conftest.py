@@ -34,6 +34,7 @@ from diskcache import Cache
 from fastapi.testclient import TestClient
 
 import main
+import auth as auth_module
 from main import app, ENV_MAP
 
 
@@ -62,6 +63,34 @@ def fresh_cache(tmp_path, monkeypatch):
     c.close()
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _auth_user():
+    """Create a test user in the auth database for authenticated requests."""
+    import asyncio
+    from sqlalchemy import select
+    from fastapi_users.password import PasswordHelper
+
+    async def _setup():
+        await auth_module.init_db()
+        ph = PasswordHelper()
+        async with auth_module.async_session_maker() as session:
+            result = await session.execute(select(auth_module.User))
+            user = result.scalar_one_or_none()
+            if user:
+                user.hashed_password = ph.hash("testpass")
+                user.must_change_password = False
+                await session.commit()
+
+    asyncio.run(_setup())
+
+
 @pytest.fixture
 def client(fresh_cache):
-    return TestClient(app)
+    with TestClient(app) as c:
+        # Login to get session cookie
+        c.post(
+            "/api/auth/login",
+            data={"username": "admin", "password": "testpass"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        yield c

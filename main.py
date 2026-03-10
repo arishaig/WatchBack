@@ -15,10 +15,12 @@ from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 from typing import TypedDict
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Depends, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from diskcache import Cache
+
+from auth import auth_router, admin_router, init_db, require_auth, require_admin, User
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -88,6 +90,7 @@ def get_config() -> dict:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle application startup and shutdown tasks (background workers/cache)."""
+    await init_db()
     cfg = get_config()
     has_trakt_watch = bool(cfg["trakt_username"] or cfg["trakt_access_token"])
     has_jellyfin = bool(cfg["jf_api_key"])
@@ -100,6 +103,17 @@ async def lifespan(app: FastAPI):
     cache.close()
 
 app = FastAPI(title="WatchBack API", lifespan=lifespan)
+
+# --- Auth Routers ---
+app.include_router(auth_router)
+app.include_router(admin_router)
+
+
+@app.get("/api/health")
+def health_check():
+    """Unauthenticated health endpoint for Docker healthcheck."""
+    return {"status": "ok"}
+
 
 # --- Helpers ---
 
@@ -649,7 +663,7 @@ def _fetch_bluesky_data(session_data: dict) -> list[dict]:
 
 
 @app.get("/api/sync")
-def sync_data():
+def sync_data(_user: User = Depends(require_auth)):
     """Orchestrate session detection, comment aggregation, and time-machine filtering."""
     logger.debug("Sync request received")
     cfg = get_config()
@@ -719,7 +733,7 @@ def sync_data():
     }
 
 @app.get("/api/status")
-def get_status():
+def get_status(_user: User = Depends(require_auth)):
     """Return current configuration status and data source indicators."""
     cfg = get_config()
     stored = cache.get("ui_config") or {}
@@ -743,7 +757,7 @@ def _mask(val: str, key: str) -> str:
     return f"{val[:4]}****{val[-4:]}"
 
 @app.get("/api/test/{service}")
-def test_service(service: str):
+def test_service(service: str, _user: User = Depends(require_auth)):
     """Test connectivity to an integration. Returns {ok, message}."""
     cfg = get_config()
 
@@ -818,7 +832,7 @@ def test_service(service: str):
     return {"ok": False, "message": f"Unknown service: {service}"}
 
 @app.get("/api/config")
-def get_config_endpoint():
+def get_config_endpoint(_user: User = Depends(require_auth)):
     """Return all config keys with masked values, sources, and metadata."""
     cfg = get_config()
     stored = cache.get("ui_config") or {}
@@ -845,8 +859,8 @@ def get_config_endpoint():
     return result
 
 @app.put("/api/config")
-async def save_config(request: Request):
-    """Save UI configuration overrides."""
+async def save_config(request: Request, _user: User = Depends(require_admin)):
+    """Save UI configuration overrides (admin only)."""
     body = await request.json()
     logger.debug(f"Config update request received with {len(body)} fields")
     stored = cache.get("ui_config")
@@ -872,12 +886,12 @@ async def save_config(request: Request):
     return {"status": "ok"}
 
 @app.get("/api/subreddit-overrides")
-def get_subreddit_overrides():
+def get_subreddit_overrides(_user: User = Depends(require_auth)):
     """Return all series-to-subreddit overrides."""
     return cache.get("subreddit_overrides") or {}
 
 @app.put("/api/subreddit-overrides")
-async def set_subreddit_override(request: Request):
+async def set_subreddit_override(request: Request, _user: User = Depends(require_auth)):
     """Set a subreddit override for a series. Body: {"series": "...", "subreddit": "..."}"""
     body = await request.json()
     series = str(body.get("series", "")).strip()
@@ -895,8 +909,8 @@ async def set_subreddit_override(request: Request):
     return {"status": "ok"}
 
 @app.post("/api/cache/clear")
-def clear_cache():
-    """Clear all cached data while preserving UI configuration and subreddit overrides."""
+def clear_cache(_user: User = Depends(require_admin)):
+    """Clear all cached data while preserving UI configuration and subreddit overrides (admin only)."""
     try:
         logger.info("Cache clear requested")
         # Capture persistent settings so we don't lose them
@@ -919,7 +933,7 @@ def clear_cache():
         return {"status": "error", "message": str(e)}
 
 @app.post("/api/restart")
-async def restart_server(request: Request):
+async def restart_server(request: Request, _user: User = Depends(require_admin)):
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     if not body.get("confirm"):
         logger.warning("Restart requested without confirmation")
@@ -957,7 +971,7 @@ async def jellyfin_webhook(request: Request):
         return {"status": "error"}
 
 @app.get("/api/stream")
-async def sse_stream():
+async def sse_stream(_user: User = Depends(require_auth)):
     """Server-Sent Events endpoint for real-time UI refresh."""
     async def event_generator():
         last_time = cache.get("last_webhook_time", 0)
