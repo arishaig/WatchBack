@@ -5,16 +5,31 @@ Provides user auth, session management, and admin functionality
 using fastapi-users with SQLAlchemy + SQLite backend.
 """
 
+import logging
 import os
+import secrets
 import time as _time
 import uuid
-import secrets
-import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
+from fastapi_users.authentication import AuthenticationBackend, CookieTransport
+from fastapi_users.authentication.strategy.db import (
+    AccessTokenDatabase,
+    DatabaseStrategy,
+)
+from fastapi_users.password import PasswordHelper
+from fastapi_users_db_sqlalchemy import (
+    SQLAlchemyBaseUserTableUUID,
+    SQLAlchemyUserDatabase,
+)
+from fastapi_users_db_sqlalchemy.access_token import (
+    SQLAlchemyAccessTokenDatabase,
+    SQLAlchemyBaseAccessTokenTableUUID,
+)
 from pydantic import BaseModel
-from sqlalchemy import Boolean, DateTime, String, select, func
+from sqlalchemy import Boolean, DateTime, String, func, select
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -22,16 +37,6 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from starlette.middleware.base import BaseHTTPMiddleware
-
-from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
-from fastapi_users.authentication import AuthenticationBackend, CookieTransport
-from fastapi_users.authentication.strategy.db import AccessTokenDatabase, DatabaseStrategy
-from fastapi_users.password import PasswordHelper
-from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase
-from fastapi_users_db_sqlalchemy.access_token import (
-    SQLAlchemyBaseAccessTokenTableUUID,
-    SQLAlchemyAccessTokenDatabase,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -65,13 +70,18 @@ DATABASE_URL = f"sqlite+aiosqlite:///{os.path.join(CONFIG_DIR, 'watchback.db')}"
 
 # ─── Forward Auth Configuration ───────────────────────────────────────────────
 
-FORWARD_AUTH_ENABLED = os.environ.get("FORWARD_AUTH_ENABLED", "").lower() in ("1", "true")
+FORWARD_AUTH_ENABLED = os.environ.get("FORWARD_AUTH_ENABLED", "").lower() in (
+    "1",
+    "true",
+)
 _FWD_USER_HEADER = os.environ.get("FORWARD_AUTH_USER_HEADER", "Remote-User")
 _FWD_EMAIL_HEADER = os.environ.get("FORWARD_AUTH_EMAIL_HEADER", "Remote-Email")
 _FWD_GROUPS_HEADER = os.environ.get("FORWARD_AUTH_GROUPS_HEADER", "Remote-Groups")
 _FWD_ADMIN_GROUPS = {
     g.strip().lower()
-    for g in os.environ.get("FORWARD_AUTH_ADMIN_GROUPS", "admins,admin,watchback-admin").split(",")
+    for g in os.environ.get(
+        "FORWARD_AUTH_ADMIN_GROUPS", "admins,admin,watchback-admin"
+    ).split(",")
     if g.strip()
 }
 _FWD_ADMIN_USERS = {
@@ -97,6 +107,7 @@ def set_forward_auth_active(value: bool) -> None:
     """Called by main.py to sync the runtime forward-auth state from config."""
     global _fwd_auth_active
     _fwd_auth_active = bool(value)
+
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
@@ -183,9 +194,7 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         return user
 
     async def on_after_login(self, user: User, request=None, response=None):
-        await self.user_db.update(
-            user, {"last_login_at": datetime.now(timezone.utc)}
-        )
+        await self.user_db.update(user, {"last_login_at": datetime.now(timezone.utc)})
         logger.info("User logged in: %s", user.username)
 
 
@@ -461,18 +470,14 @@ async def update_user(
         # Prevent demoting the last admin
         if data.is_admin is False and target.is_superuser:
             admin_count = await session.execute(
-                select(func.count())
-                .select_from(User)
-                .where(User.is_superuser == True)  # noqa: E712
+                select(func.count()).select_from(User).where(User.is_superuser == True)  # noqa: E712
             )
             if admin_count.scalar() <= 1:
                 raise HTTPException(400, "Cannot demote the last admin")
 
         if data.username is not None:
             existing = await session.execute(
-                select(User).where(
-                    User.username == data.username, User.id != target_id
-                )
+                select(User).where(User.username == data.username, User.id != target_id)
             )
             if existing.scalar_one_or_none():
                 raise HTTPException(400, "Username already in use")
@@ -516,9 +521,7 @@ async def delete_user(user_id: str, admin: User = Depends(require_admin)):
 
         if target.is_superuser:
             admin_count = await session.execute(
-                select(func.count())
-                .select_from(User)
-                .where(User.is_superuser == True)  # noqa: E712
+                select(func.count()).select_from(User).where(User.is_superuser == True)  # noqa: E712
             )
             if admin_count.scalar() <= 1:
                 raise HTTPException(400, "Cannot delete the last admin")
@@ -575,9 +578,7 @@ async def _find_or_provision_fwd_user(
         # Last-admin protection: never demote the only remaining admin
         if user.is_superuser and not is_admin:
             admin_count = await db.execute(
-                select(func.count())
-                .select_from(User)
-                .where(User.is_superuser == True)  # noqa: E712
+                select(func.count()).select_from(User).where(User.is_superuser == True)  # noqa: E712
             )
             if admin_count.scalar() <= 1:
                 logger.warning(
@@ -600,7 +601,9 @@ async def _find_or_provision_fwd_user(
         if dirty:
             await db.refresh(user)
             logger.info(
-                "ForwardAuth: updated user '%s' (admin=%s)", username, effective_is_admin
+                "ForwardAuth: updated user '%s' (admin=%s)",
+                username,
+                effective_is_admin,
             )
 
     return user
@@ -660,7 +663,10 @@ class ForwardAuthMiddleware(BaseHTTPMiddleware):
 
         # Reject obviously invalid header values before touching the DB
         if len(username) > 150:
-            logger.warning("ForwardAuth: rejected oversized username header (%d chars)", len(username))
+            logger.warning(
+                "ForwardAuth: rejected oversized username header (%d chars)",
+                len(username),
+            )
             return await call_next(request)
 
         email = request.headers.get(_FWD_EMAIL_HEADER, "").strip()
@@ -681,7 +687,9 @@ class ForwardAuthMiddleware(BaseHTTPMiddleware):
             # Full DB provision/sync + token creation
             try:
                 async with async_session_maker() as db:
-                    user = await _find_or_provision_fwd_user(db, username, email, is_admin)
+                    user = await _find_or_provision_fwd_user(
+                        db, username, email, is_admin
+                    )
                     token = await _create_fwd_token(db, user)
             except Exception:
                 logger.exception("ForwardAuth: error provisioning user '%s'", username)

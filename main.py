@@ -1,34 +1,41 @@
+import asyncio
+import hashlib
+import hmac
+import logging
 import os
 import re
 import sys
-import hmac
-import hashlib
-import urllib.parse
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-import asyncio
 import time
-import logging
-from datetime import datetime, timedelta, timezone
-from contextlib import asynccontextmanager
+import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from typing import TypedDict
 
-from fastapi import FastAPI, Depends, Request
+import requests
+from diskcache import Cache
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from diskcache import Cache
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from auth import (
-    auth_router, admin_router, init_db, require_auth, require_admin, User,
-    ForwardAuthMiddleware, set_forward_auth_active,
+    ForwardAuthMiddleware,
+    User,
+    admin_router,
+    auth_router,
+    init_db,
+    require_admin,
+    require_auth,
+    set_forward_auth_active,
 )
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
 
 # --- HTTP Session with Retry ---
 def _build_http_session() -> requests.Session:
@@ -44,6 +51,7 @@ def _build_http_session() -> requests.Session:
     s.mount("http://", HTTPAdapter(max_retries=retry))
     return s
 
+
 http = _build_http_session()
 
 # --- Configuration & Caching Setup ---
@@ -52,32 +60,39 @@ os.makedirs(CONFIG_DIR, exist_ok=True)
 cache = Cache(os.path.join(CONFIG_DIR, "cache"))
 
 ENV_MAP = {
-    "jf_url":                ("JF_URL",              "http://jellyfin:8096"),
-    "jf_api_key":            ("JF_API_KEY",          ""),
-    "trakt_client_id":       ("TRAKT_CLIENT_ID",     ""),
-    "trakt_username":        ("TRAKT_USERNAME",       ""),
-    "trakt_access_token":    ("TRAKT_ACCESS_TOKEN",  ""),
-    "reddit_auto_open":      ("REDDIT_AUTO_OPEN",     ""),
-    "reddit_max_threads":    ("REDDIT_MAX_THREADS",  "3"),
-    "reddit_max_comments":   ("REDDIT_MAX_COMMENTS", "250"),
-    "bsky_identifier":       ("BSKY_IDENTIFIER",     ""),
-    "bsky_app_password":     ("BSKY_APP_PASSWORD",   ""),
-    "webhook_secret":        ("WEBHOOK_SECRET",      ""),
-    "theme_mode":            ("THEME_MODE",          "dark"),
-    "time_machine_days":     ("TIME_MACHINE_DAYS",   "14"),
-    "forward_auth_enabled":  ("FORWARD_AUTH_ENABLED", ""),
+    "jf_url": ("JF_URL", "http://jellyfin:8096"),
+    "jf_api_key": ("JF_API_KEY", ""),
+    "trakt_client_id": ("TRAKT_CLIENT_ID", ""),
+    "trakt_username": ("TRAKT_USERNAME", ""),
+    "trakt_access_token": ("TRAKT_ACCESS_TOKEN", ""),
+    "reddit_auto_open": ("REDDIT_AUTO_OPEN", ""),
+    "reddit_max_threads": ("REDDIT_MAX_THREADS", "3"),
+    "reddit_max_comments": ("REDDIT_MAX_COMMENTS", "250"),
+    "bsky_identifier": ("BSKY_IDENTIFIER", ""),
+    "bsky_app_password": ("BSKY_APP_PASSWORD", ""),
+    "webhook_secret": ("WEBHOOK_SECRET", ""),
+    "theme_mode": ("THEME_MODE", "dark"),
+    "time_machine_days": ("TIME_MACHINE_DAYS", "14"),
+    "forward_auth_enabled": ("FORWARD_AUTH_ENABLED", ""),
 }
 
-SECRET_KEYS = {"jf_api_key", "trakt_access_token", "bsky_app_password", "webhook_secret"}
+SECRET_KEYS = {
+    "jf_api_key",
+    "trakt_access_token",
+    "bsky_app_password",
+    "webhook_secret",
+}
 
 
 class SessionData(TypedDict):
     """Shape of a detected playback session."""
+
     series: str
     name: str
     season: int
     episode: int
     premiere: str | None
+
 
 def get_config() -> dict:
     """Consolidate configuration from UI overrides, environment variables, and defaults."""
@@ -87,9 +102,10 @@ def get_config() -> dict:
         env_val = os.environ.get(env_name, "")
         # Priority: UI Store > Environment > Default
         result[key] = stored.get(key) if stored.get(key) else (env_val or default)
-    
+
     result["jf_url"] = result["jf_url"].rstrip("/")
     return result
+
 
 def _sync_forward_auth_state() -> None:
     """Push the current effective forward_auth_enabled value into auth.py's runtime flag."""
@@ -112,6 +128,7 @@ async def lifespan(app: FastAPI):
         poller_task.cancel()
     cache.close()
 
+
 app = FastAPI(title="WatchBack API", lifespan=lifespan)
 app.add_middleware(ForwardAuthMiddleware)
 
@@ -123,10 +140,14 @@ app.include_router(admin_router)
 @app.get("/api/health")
 def health_check():
     """Unauthenticated health endpoint for Docker healthcheck."""
-    return {"status": "ok", "forward_auth_enabled": bool(get_config()["forward_auth_enabled"])}
+    return {
+        "status": "ok",
+        "forward_auth_enabled": bool(get_config()["forward_auth_enabled"]),
+    }
 
 
 # --- Helpers ---
+
 
 def _get_show_subreddits(series: str) -> list[str]:
     """Return subreddit names to search for a show, combining overrides with heuristic derivation."""
@@ -145,19 +166,30 @@ def _matches_episode(title: str, season: int, episode: int) -> bool:
     """Check if a title string contains a reference to the given season/episode."""
     t = title.upper()
     s, e = season, episode
-    if any(re.search(rf"{c}(?!\d)", t) for c in [f"S{s:02d}E{e:02d}", f"S{s}E{e:02d}", f"S{s:02d}E{e}", f"S{s}E{e}"]):
+    if any(
+        re.search(rf"{c}(?!\d)", t)
+        for c in [f"S{s:02d}E{e:02d}", f"S{s}E{e:02d}", f"S{s:02d}E{e}", f"S{s}E{e}"]
+    ):
         return True
-    if any(re.search(pat, t) for pat in [rf"\b{s}X{e:02d}(?!\d)", rf"\b{s}X{e}(?!\d)", rf"\b{s}\.{e:02d}(?!\d)"]):
+    if any(
+        re.search(pat, t)
+        for pat in [
+            rf"\b{s}X{e:02d}(?!\d)",
+            rf"\b{s}X{e}(?!\d)",
+            rf"\b{s}\.{e:02d}(?!\d)",
+        ]
+    ):
         return True
     if re.search(rf"\bSEASON\s+{s}\b.{{0,30}}\bEPISODE\s+{e}\b", t):
         return True
     return False
 
+
 def _safe_int(value: str | int, default: int) -> int:
     """Parse an integer value, returning default if parsing fails."""
     try:
         return int(value)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return default
 
 
@@ -168,15 +200,25 @@ def trakt_headers(cfg: dict, auth: bool = False) -> dict:
         h["Authorization"] = f"Bearer {cfg['trakt_access_token']}"
     return h
 
-def find_reddit_threads(series: str, season: int, episode: int, n: int = 3) -> list[dict]:
+
+def find_reddit_threads(
+    series: str, season: int, episode: int, n: int = 3
+) -> list[dict]:
     """Search Reddit for episode discussion threads, ranked by subreddit relevance."""
-    query = f'"{ series}" S{season:02d}E{episode:02d} discussion'
+    query = f'"{series}" S{season:02d}E{episode:02d} discussion'
     try:
-        resp = http.get("https://www.reddit.com/search.json", params={"q": query, "sort": "relevance", "limit": 25}, headers={"User-Agent": "WatchBack/1.0"}, timeout=5)
+        resp = http.get(
+            "https://www.reddit.com/search.json",
+            params={"q": query, "sort": "relevance", "limit": 25},
+            headers={"User-Agent": "WatchBack/1.0"},
+            timeout=5,
+        )
         if resp.status_code != 200:
             return []
         posts = [p["data"] for p in resp.json()["data"]["children"]]
-        episode_posts = [p for p in posts if _matches_episode(p.get("title", ""), season, episode)]
+        episode_posts = [
+            p for p in posts if _matches_episode(p.get("title", ""), season, episode)
+        ]
 
         def rank(p):
             sub = re.sub(r"[^a-z0-9]", "", p.get("subreddit", "").lower())
@@ -189,15 +231,18 @@ def find_reddit_threads(series: str, season: int, episode: int, n: int = 3) -> l
             permalink = p.get("permalink", "")
             if not permalink.startswith("/r/"):
                 continue
-            results.append({
-                "url": f"https://www.reddit.com{permalink}",
-                "title": p.get("title", ""),
-                "subreddit": p.get("subreddit", ""),
-                "score": p.get("score", 0),
-            })
+            results.append(
+                {
+                    "url": f"https://www.reddit.com{permalink}",
+                    "title": p.get("title", ""),
+                    "subreddit": p.get("subreddit", ""),
+                    "score": p.get("score", 0),
+                }
+            )
         return results
     except Exception:
         return []
+
 
 def bsky_access_token() -> str | None:
     """Fetch or return cached Bluesky access token using configured credentials."""
@@ -213,8 +258,11 @@ def bsky_access_token() -> str | None:
         logger.debug("Fetching Bluesky access token")
         resp = http.post(
             "https://bsky.social/xrpc/com.atproto.server.createSession",
-            json={"identifier": cfg["bsky_identifier"], "password": cfg["bsky_app_password"]},
-            timeout=5
+            json={
+                "identifier": cfg["bsky_identifier"],
+                "password": cfg["bsky_app_password"],
+            },
+            timeout=5,
         )
         if resp.status_code != 200:
             logger.error(f"Bluesky auth failed: {resp.status_code} {resp.text[:200]}")
@@ -227,6 +275,7 @@ def bsky_access_token() -> str | None:
     except Exception as e:
         logger.error(f"Bluesky auth exception: {e}")
         return None
+
 
 async def trakt_watch_poller():
     """Background task that polls Trakt /watching and clears cache on change."""
@@ -243,8 +292,8 @@ async def trakt_watch_poller():
             resp = await asyncio.to_thread(
                 http.get, url, headers=trakt_headers(cfg, auth=True), timeout=10
             )
-            
-            if resp.status_code == 204: # Nothing playing
+
+            if resp.status_code == 204:  # Nothing playing
                 current_id = None
             elif resp.status_code == 200:
                 data = resp.json()
@@ -266,8 +315,9 @@ async def trakt_watch_poller():
 
         except Exception as e:
             logger.error(f"Trakt poller error: {e}")
-        
+
         await asyncio.sleep(30)
+
 
 def _extract_bsky_images(embed: dict) -> list[dict]:
     """Recursively extract image URLs and alt text from a Bluesky post's embed object."""
@@ -285,14 +335,21 @@ def _extract_bsky_images(embed: dict) -> list[dict]:
         imgs.extend(_extract_bsky_images(embed.get("media", {})))
     return imgs
 
-def _is_low_content_post(norm_text: str, series: str, season: int, episode: int, images: list) -> bool:
+
+def _is_low_content_post(
+    norm_text: str, series: str, season: int, episode: int, images: list
+) -> bool:
     """Return True if a post is likely bot/low-content after stripping show identifiers."""
     s_long, e_long = str(season).zfill(2), str(episode).zfill(2)
     boring_patterns = [
         series.lower(),
-        f"s{s_long}e{e_long}", f"s{season}e{episode}",
-        f"{season}x{e_long}", f"{season}x{episode}",
-        "playing", "watch along", "watching",
+        f"s{s_long}e{e_long}",
+        f"s{season}e{episode}",
+        f"{season}x{e_long}",
+        f"{season}x{episode}",
+        "playing",
+        "watch along",
+        "watching",
     ]
     test = norm_text
     for pat in boring_patterns:
@@ -300,6 +357,7 @@ def _is_low_content_post(norm_text: str, series: str, season: int, episode: int,
     for char in "[]().,-_#":
         test = test.replace(char, "")
     return len(test.strip()) < 5 and len(norm_text) < 120 and not images
+
 
 def _ensure_comment_ids(comments: list[dict]) -> None:
     """Assign stable IDs to any comments/replies missing one, derived from content hash."""
@@ -310,7 +368,14 @@ def _ensure_comment_ids(comments: list[dict]) -> None:
         if isinstance(c.get("replies"), list):
             _ensure_comment_ids(c["replies"])
 
-def find_pullpush_comments(series: str, season: int, episode: int, max_threads: int = 3, max_comments: int = 250) -> list[dict]:
+
+def find_pullpush_comments(
+    series: str,
+    season: int,
+    episode: int,
+    max_threads: int = 3,
+    max_comments: int = 250,
+) -> list[dict]:
     """Fetch Reddit comments via PullPush.io for the given episode, grouped by thread."""
     s_long, e_long = str(season).zfill(2), str(episode).zfill(2)
 
@@ -337,7 +402,9 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
                     timeout=5,
                 )
                 if sub_resp.status_code != 200:
-                    logger.warning(f"PullPush submission search failed: {sub_resp.status_code}")
+                    logger.warning(
+                        f"PullPush submission search failed: {sub_resp.status_code}"
+                    )
                     continue
                 for sub in sub_resp.json().get("data", []):
                     sid = sub.get("id", "")
@@ -380,12 +447,19 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
             try:
                 com_resp = http.get(
                     "https://api.pullpush.io/reddit/search/comment/",
-                    params={"link_id": sub_id, "size": max_comments, "sort_type": "score", "sort": "desc"},
+                    params={
+                        "link_id": sub_id,
+                        "size": max_comments,
+                        "sort_type": "score",
+                        "sort": "desc",
+                    },
                     headers={"User-Agent": "WatchBack/1.0"},
                     timeout=5,
                 )
                 if com_resp.status_code != 200:
-                    logger.warning(f"PullPush comment fetch failed for {sub_id}: {com_resp.status_code}")
+                    logger.warning(
+                        f"PullPush comment fetch failed for {sub_id}: {com_resp.status_code}"
+                    )
                     continue
                 raw_comments = com_resp.json().get("data", [])
             except Exception as e:
@@ -396,7 +470,11 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
                 continue
 
             # Drop deleted/removed comments before building the reply tree
-            raw_comments = [c for c in raw_comments if c.get("body") not in ("[deleted]", "[removed]")]
+            raw_comments = [
+                c
+                for c in raw_comments
+                if c.get("body") not in ("[deleted]", "[removed]")
+            ]
 
             # Keyed by comment ID so replies can be attached to parents in a single pass
             by_id = {}
@@ -406,13 +484,15 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
                 # PullPush returns created_utc as int for recent posts but string for older ones
                 try:
                     created_ts = float(c.get("created_utc", 0))
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     created_ts = 0.0
                 by_id[cid] = {
                     "id": cid,
                     "comment": c.get("body", ""),
                     "user": {"username": c.get("author", "[deleted]")},
-                    "created_at": datetime.fromtimestamp(created_ts, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "created_at": datetime.fromtimestamp(created_ts, tz=timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z"),
                     "score": c.get("score", 0),
                     "url": f"https://www.reddit.com/r/{safe_sub}/comments/{safe_sub_id}/_/{safe_cid}/",
                     "source": "reddit",
@@ -447,20 +527,32 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
         logger.error(f"PullPush search exception: {e}")
         return []
 
-def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> list[dict]:
+
+def find_bluesky_posts(
+    series: str, season: int, episode: int, n: int = 10
+) -> list[dict]:
     """Search Bluesky for posts about the given episode, with dedup and bot filtering."""
     s_long = str(season).zfill(2)
     e_long = str(episode).zfill(2)
     query = f"{series} S{s_long}E{e_long}"
     token = bsky_access_token()
     headers = {"User-Agent": "WatchBack/1.0"}
-    url = "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts" if token else "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts"
+    url = (
+        "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts"
+        if token
+        else "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts"
+    )
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
     try:
         logger.debug(f"Searching Bluesky: {query}")
-        resp = http.get(url, params={"q": query, "sort": "latest", "limit": n}, headers=headers, timeout=5)
+        resp = http.get(
+            url,
+            params={"q": query, "sort": "latest", "limit": n},
+            headers=headers,
+            timeout=5,
+        )
         if resp.status_code == 403:
             logger.error("Bluesky API: 403 Forbidden")
             return []
@@ -490,25 +582,29 @@ def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> l
             if _is_low_content_post(norm_text, series, season, episode, images):
                 continue
 
-            results.append({
-                "id": p["cid"],
-                "comment": text,
-                "user": {"username": p["author"]["handle"]},
-                "created_at": p.get("record", {}).get("createdAt"),
-                "url": "https://bsky.app/profile/{}/post/{}".format(
-                    urllib.parse.quote(p["author"]["handle"], safe=""),
-                    urllib.parse.quote(p["uri"].split("/")[-1], safe=""),
-                ),
-                "score": p.get("likeCount", 0),
-                "images": images,
-                "source": "bluesky",
-            })
+            results.append(
+                {
+                    "id": p["cid"],
+                    "comment": text,
+                    "user": {"username": p["author"]["handle"]},
+                    "created_at": p.get("record", {}).get("createdAt"),
+                    "url": "https://bsky.app/profile/{}/post/{}".format(
+                        urllib.parse.quote(p["author"]["handle"], safe=""),
+                        urllib.parse.quote(p["uri"].split("/")[-1], safe=""),
+                    ),
+                    "score": p.get("likeCount", 0),
+                    "images": images,
+                    "source": "bluesky",
+                }
+            )
         return results
     except Exception as e:
         logger.error(f"Bluesky search exception: {e}")
         return []
 
+
 # --- Endpoints ---
+
 
 def _fetch_session(cfg: dict) -> tuple[SessionData | None, str | None]:
     """Try Jellyfin first, then Trakt /watching. Returns (session, error)."""
@@ -534,11 +630,15 @@ def _fetch_session(cfg: dict) -> tuple[SessionData | None, str | None]:
             if active:
                 item = active["NowPlayingItem"]
                 session_data = {
-                    "series": item.get("SeriesName"), "name": item.get("Name"),
-                    "season": item.get("ParentIndexNumber"), "episode": item.get("IndexNumber"),
+                    "series": item.get("SeriesName"),
+                    "name": item.get("Name"),
+                    "season": item.get("ParentIndexNumber"),
+                    "episode": item.get("IndexNumber"),
                     "premiere": item.get("PremiereDate"),
                 }
-                logger.info(f"Session fetched from Jellyfin: {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}")
+                logger.info(
+                    f"Session fetched from Jellyfin: {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}"
+                )
                 cache.set("jf_session", session_data, expire=10)
         except Exception as e:
             error_msg = f"Failed to reach Jellyfin: {str(e)}"
@@ -553,17 +653,25 @@ def _fetch_session(cfg: dict) -> tuple[SessionData | None, str | None]:
         try:
             logger.debug("Querying Trakt /watching")
             username = cfg["trakt_username"] or "me"
-            res = http.get(f"https://api.trakt.tv/users/{username}/watching", headers=trakt_headers(cfg, auth=True), timeout=5)
+            res = http.get(
+                f"https://api.trakt.tv/users/{username}/watching",
+                headers=trakt_headers(cfg, auth=True),
+                timeout=5,
+            )
             if res.status_code == 200:
                 data = res.json()
                 if data.get("type") == "episode":
                     ep, show = data["episode"], data["show"]
                     session_data = {
-                        "series": show["title"], "name": ep["title"],
-                        "season": ep["season"], "episode": ep["number"],
+                        "series": show["title"],
+                        "name": ep["title"],
+                        "season": ep["season"],
+                        "episode": ep["number"],
                         "premiere": ep.get("first_aired"),
                     }
-                    logger.info(f"Session fetched from Trakt: {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}")
+                    logger.info(
+                        f"Session fetched from Trakt: {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}"
+                    )
                     cache.set("trakt_session", session_data, expire=30)
             elif res.status_code == 204:
                 logger.debug("Trakt /watching: 204 No Content")
@@ -571,6 +679,7 @@ def _fetch_session(cfg: dict) -> tuple[SessionData | None, str | None]:
             logger.warning(f"Failed to query Trakt: {str(e)}")
 
     return session_data, None
+
 
 def _fetch_reddit_data(session_data: dict, cfg: dict) -> tuple[list, str]:
     """Fetch Reddit threads and build the reddit_url. Returns (threads, url)."""
@@ -585,13 +694,21 @@ def _fetch_reddit_data(session_data: dict, cfg: dict) -> tuple[list, str]:
         logger.debug(f"Reddit hit cache: {len(cached_r)} threads")
         threads = cached_r
     else:
-        logger.info(f"Searching Reddit for {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}")
-        threads = find_reddit_threads(session_data["series"], session_data["season"], session_data["episode"], n=_safe_int(cfg["reddit_max_threads"], 3))
+        logger.info(
+            f"Searching Reddit for {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}"
+        )
+        threads = find_reddit_threads(
+            session_data["series"],
+            session_data["season"],
+            session_data["episode"],
+            n=_safe_int(cfg["reddit_max_threads"], 3),
+        )
         logger.info(f"Reddit search returned {len(threads)} thread(s)")
         cache.set(r_cache_key, threads, expire=86400)
 
     url = threads[0]["url"] if threads else google_url
     return threads, url
+
 
 def _fetch_trakt_comments(session_data: dict, cfg: dict) -> list[dict]:
     """Fetch and cache Trakt comments for the current episode."""
@@ -607,14 +724,21 @@ def _fetch_trakt_comments(session_data: dict, cfg: dict) -> list[dict]:
             return [c for c in cached_t if isinstance(c, dict)]
 
         logger.debug(f"Searching Trakt for {session_data['series']}")
-        search_res = http.get("https://api.trakt.tv/search/show", params={"query": session_data["series"]}, headers=trakt_headers(cfg), timeout=5)
+        search_res = http.get(
+            "https://api.trakt.tv/search/show",
+            params={"query": session_data["series"]},
+            headers=trakt_headers(cfg),
+            timeout=5,
+        )
         if search_res.status_code == 401:
             logger.error("Trakt API: 401 Unauthorized - check Client ID")
             return [{"_error": "Trakt error: 401 Unauthorized"}]
 
         search_json = search_res.json()
         if not search_json:
-            logger.warning(f"Trakt search returned no results for {session_data['series']}")
+            logger.warning(
+                f"Trakt search returned no results for {session_data['series']}"
+            )
             return []
 
         slug = urllib.parse.quote(search_json[0]["show"]["ids"]["slug"], safe="")
@@ -639,6 +763,7 @@ def _fetch_trakt_comments(session_data: dict, cfg: dict) -> list[dict]:
         logger.error(f"Trakt comments fetch failed: {str(e)}")
         return []
 
+
 def _fetch_pullpush_data(session_data: dict, cfg: dict) -> list[dict]:
     """Fetch and cache PullPush Reddit comments for the current episode."""
     pp_cache_key = f"pullpush_{session_data['series']}_s{session_data['season']}e{session_data['episode']}"
@@ -647,7 +772,9 @@ def _fetch_pullpush_data(session_data: dict, cfg: dict) -> list[dict]:
         logger.debug(f"PullPush: cache hit ({len(cached_pp)} comments)")
         return cached_pp
     pp_results = find_pullpush_comments(
-        session_data["series"], session_data["season"], session_data["episode"],
+        session_data["series"],
+        session_data["season"],
+        session_data["episode"],
         max_threads=_safe_int(cfg["reddit_max_threads"], 3),
         max_comments=_safe_int(cfg["reddit_max_comments"], 250),
     )
@@ -655,14 +782,18 @@ def _fetch_pullpush_data(session_data: dict, cfg: dict) -> list[dict]:
         cache.set(pp_cache_key, pp_results, expire=86400)
     return pp_results
 
+
 def _fetch_bluesky_data(session_data: dict) -> list[dict]:
     """Fetch Bluesky posts for the current episode."""
     bsky_results = find_bluesky_posts(
-        session_data["series"], session_data["season"], session_data["episode"],
+        session_data["series"],
+        session_data["season"],
+        session_data["episode"],
     )
     if isinstance(bsky_results, list):
         return [p for p in bsky_results if isinstance(p, dict)]
     return []
+
 
 @app.get("/api/sync")
 def sync_data(_user: User = Depends(require_auth)):
@@ -684,7 +815,9 @@ def sync_data(_user: User = Depends(require_auth)):
         logger.warning("No active session found")
         return {"status": "idle"}
 
-    logger.info(f"Session found: {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}")
+    logger.info(
+        f"Session found: {session_data['series']} S{session_data['season']:02d}E{session_data['episode']:02d}"
+    )
 
     # Fetch all data sources in parallel since they're independent
     with ThreadPoolExecutor(max_workers=4) as executor:
@@ -698,14 +831,20 @@ def sync_data(_user: User = Depends(require_auth)):
         bsky_results = bsky_future.result()
         trakt_comments = trakt_future.result()
 
-    if trakt_comments and isinstance(trakt_comments[0], dict) and "_error" in trakt_comments[0]:
+    if (
+        trakt_comments
+        and isinstance(trakt_comments[0], dict)
+        and "_error" in trakt_comments[0]
+    ):
         return {"status": "error", "message": trakt_comments[0]["_error"]}
 
     all_comments = pp_results + bsky_results + trakt_comments
     _ensure_comment_ids(all_comments)
 
     all_comments.sort(
-        key=lambda x: x.get("created_at") if (isinstance(x, dict) and x.get("created_at")) else "",
+        key=lambda x: (
+            x.get("created_at") if (isinstance(x, dict) and x.get("created_at")) else ""
+        ),
         reverse=True,
     )
 
@@ -713,14 +852,22 @@ def sync_data(_user: User = Depends(require_auth)):
     time_machine = []
     if session_data.get("premiere"):
         try:
-            p_date = datetime.fromisoformat(session_data["premiere"].replace("Z", "+00:00"))
+            p_date = datetime.fromisoformat(
+                session_data["premiere"].replace("Z", "+00:00")
+            )
             time_machine = [
-                c for c in all_comments
-                if isinstance(c, dict) and c.get("created_at") and
-                p_date <= datetime.fromisoformat(c["created_at"].replace("Z", "+00:00")) <= p_date + timedelta(days=tm_days)
+                c
+                for c in all_comments
+                if isinstance(c, dict)
+                and c.get("created_at")
+                and p_date
+                <= datetime.fromisoformat(c["created_at"].replace("Z", "+00:00"))
+                <= p_date + timedelta(days=tm_days)
             ]
         except Exception as e:
-            logger.warning(f"Time-machine filter failed (premiere={session_data.get('premiere')!r}): {e}")
+            logger.warning(
+                f"Time-machine filter failed (premiere={session_data.get('premiere')!r}): {e}"
+            )
 
     return {
         "status": "success",
@@ -734,22 +881,32 @@ def sync_data(_user: User = Depends(require_auth)):
         "reddit_threads": reddit_threads,
     }
 
+
 @app.get("/api/status")
 def get_status(_user: User = Depends(require_auth)):
     """Return current configuration status and data source indicators."""
     cfg = get_config()
     stored = cache.get("ui_config") or {}
+
     def source(key):
-        return "env" if os.environ.get(ENV_MAP[key][0]) else ("stored" if stored.get(key) else "none")
+        return (
+            "env"
+            if os.environ.get(ENV_MAP[key][0])
+            else ("stored" if stored.get(key) else "none")
+        )
+
     return {
         "jellyfin_configured": bool(cfg["jf_api_key"]),
         "trakt_configured": bool(cfg["trakt_client_id"]),
-        "trakt_watch_configured": bool(cfg["trakt_username"] or cfg["trakt_access_token"]),
+        "trakt_watch_configured": bool(
+            cfg["trakt_username"] or cfg["trakt_access_token"]
+        ),
         "jf_url": cfg["jf_url"],
         "reddit_auto_open": bool(cfg["reddit_auto_open"]),
         "sources": {k: source(k) for k in ENV_MAP},
         "forward_auth_enabled": bool(get_config()["forward_auth_enabled"]),
     }
+
 
 def _mask(val: str, key: str) -> str:
     """Mask sensitive configuration values (secrets) for UI display."""
@@ -758,6 +915,7 @@ def _mask(val: str, key: str) -> str:
     if len(val) <= 8:
         return "****"
     return f"{val[:4]}****{val[-4:]}"
+
 
 @app.get("/api/test/{service}")
 def test_service(service: str, _user: User = Depends(require_auth)):
@@ -769,10 +927,15 @@ def test_service(service: str, _user: User = Depends(require_auth)):
             return {"ok": False, "message": "No API key configured"}
         try:
             headers = {"Authorization": f"MediaBrowser Token={cfg['jf_api_key']}"}
-            res = http.get(f"{cfg['jf_url']}/System/Info/Public", headers=headers, timeout=5)
+            res = http.get(
+                f"{cfg['jf_url']}/System/Info/Public", headers=headers, timeout=5
+            )
             if res.status_code == 200:
                 info = res.json()
-                return {"ok": True, "message": f"Connected to {info.get('ServerName', 'Jellyfin')} v{info.get('Version', '?')}"}
+                return {
+                    "ok": True,
+                    "message": f"Connected to {info.get('ServerName', 'Jellyfin')} v{info.get('Version', '?')}",
+                }
             return {"ok": False, "message": f"HTTP {res.status_code}"}
         except Exception as e:
             return {"ok": False, "message": str(e)}
@@ -781,7 +944,11 @@ def test_service(service: str, _user: User = Depends(require_auth)):
         if not cfg["trakt_client_id"]:
             return {"ok": False, "message": "No Client ID configured"}
         try:
-            res = http.get("https://api.trakt.tv/shows/trending?limit=1", headers=trakt_headers(cfg), timeout=5)
+            res = http.get(
+                "https://api.trakt.tv/shows/trending?limit=1",
+                headers=trakt_headers(cfg),
+                timeout=5,
+            )
             if res.status_code == 200:
                 return {"ok": True, "message": "API key valid"}
             return {"ok": False, "message": f"HTTP {res.status_code}"}
@@ -793,7 +960,11 @@ def test_service(service: str, _user: User = Depends(require_auth)):
             return {"ok": False, "message": "No username or access token configured"}
         try:
             username = cfg["trakt_username"] or "me"
-            res = http.get(f"https://api.trakt.tv/users/{username}/watching", headers=trakt_headers(cfg, auth=True), timeout=5)
+            res = http.get(
+                f"https://api.trakt.tv/users/{username}/watching",
+                headers=trakt_headers(cfg, auth=True),
+                timeout=5,
+            )
             if res.status_code in (200, 204):
                 watching = "currently watching" if res.status_code == 200 else "idle"
                 return {"ok": True, "message": f"Profile reachable ({watching})"}
@@ -809,7 +980,10 @@ def test_service(service: str, _user: User = Depends(require_auth)):
         try:
             res = http.post(
                 "https://bsky.social/xrpc/com.atproto.server.createSession",
-                json={"identifier": cfg["bsky_identifier"], "password": cfg["bsky_app_password"]},
+                json={
+                    "identifier": cfg["bsky_identifier"],
+                    "password": cfg["bsky_app_password"],
+                },
                 timeout=5,
             )
             if res.status_code == 200:
@@ -834,6 +1008,7 @@ def test_service(service: str, _user: User = Depends(require_auth)):
 
     return {"ok": False, "message": f"Unknown service: {service}"}
 
+
 @app.get("/api/config")
 def get_config_endpoint(_user: User = Depends(require_auth)):
     """Return all config keys with masked values, sources, and metadata."""
@@ -843,13 +1018,13 @@ def get_config_endpoint(_user: User = Depends(require_auth)):
     for key, (env_name, default) in ENV_MAP.items():
         env_val = os.environ.get(env_name, "")
         stored_val = stored.get(key, "")
-        
+
         source = "default"
         if stored_val:
             source = "stored"
         elif env_val:
             source = "env"
-            
+
         result[key] = {
             "effective_value": _mask(cfg[key], key),
             "env_value": _mask(env_val, key),
@@ -857,9 +1032,10 @@ def get_config_endpoint(_user: User = Depends(require_auth)):
             "is_env_set": bool(env_val),
             "is_stored_set": bool(stored_val),
             "source": source,
-            "is_secret": key in SECRET_KEYS
+            "is_secret": key in SECRET_KEYS,
         }
     return result
+
 
 @app.put("/api/config")
 async def save_config(request: Request, _user: User = Depends(require_admin)):
@@ -889,10 +1065,12 @@ async def save_config(request: Request, _user: User = Depends(require_admin)):
     logger.info("Configuration saved successfully")
     return {"status": "ok"}
 
+
 @app.get("/api/subreddit-overrides")
 def get_subreddit_overrides(_user: User = Depends(require_auth)):
     """Return all series-to-subreddit overrides."""
     return cache.get("subreddit_overrides") or {}
+
 
 @app.put("/api/subreddit-overrides")
 async def set_subreddit_override(request: Request, _user: User = Depends(require_auth)):
@@ -911,6 +1089,7 @@ async def set_subreddit_override(request: Request, _user: User = Depends(require
         logger.info(f"Subreddit override removed: {series!r}")
     cache.set("subreddit_overrides", overrides)
     return {"status": "ok"}
+
 
 @app.post("/api/cache/clear")
 def clear_cache(_user: User = Depends(require_admin)):
@@ -936,12 +1115,17 @@ def clear_cache(_user: User = Depends(require_admin)):
         logger.error(f"Cache clear failed: {str(e)}")
         return {"status": "error", "message": str(e)}
 
+
 @app.post("/api/restart")
 async def restart_server(request: Request, _user: User = Depends(require_admin)):
-    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    body = (
+        await request.json()
+        if request.headers.get("content-type") == "application/json"
+        else {}
+    )
     if not body.get("confirm"):
         logger.warning("Restart requested without confirmation")
-        return {"status": "error", "message": "Send {\"confirm\": true} to restart."}
+        return {"status": "error", "message": 'Send {"confirm": true} to restart.'}
 
     logger.warning("Server restart initiated by user")
 
@@ -952,13 +1136,16 @@ async def restart_server(request: Request, _user: User = Depends(require_admin))
     asyncio.create_task(_do_exit())
     return {"status": "restarting"}
 
+
 @app.post("/api/webhook")
 async def jellyfin_webhook(request: Request):
     """Receive Jellyfin webhook events. Optionally secured via WEBHOOK_SECRET."""
     try:
         cfg = get_config()
         secret = cfg.get("webhook_secret", "")
-        if secret and not hmac.compare_digest(request.headers.get("X-Webhook-Secret", ""), secret):
+        if secret and not hmac.compare_digest(
+            request.headers.get("X-Webhook-Secret", ""), secret
+        ):
             logger.warning("Webhook rejected: invalid secret")
             return {"status": "unauthorized"}
         payload = await request.json()
@@ -974,9 +1161,11 @@ async def jellyfin_webhook(request: Request):
         logger.error(f"Webhook processing failed: {str(e)}")
         return {"status": "error"}
 
+
 @app.get("/api/stream")
 async def sse_stream(_user: User = Depends(require_auth)):
     """Server-Sent Events endpoint for real-time UI refresh."""
+
     async def event_generator():
         last_time = cache.get("last_webhook_time", 0)
         try:
@@ -990,7 +1179,9 @@ async def sse_stream(_user: User = Depends(require_auth)):
             pass
         except Exception:
             pass
+
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 
 DATA_DIR = os.environ.get("DATA_DIR", "./data")
 STATIC_DIR = os.environ.get("STATIC_DIR", os.path.join(DATA_DIR, "static"))

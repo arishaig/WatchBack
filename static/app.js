@@ -7,7 +7,7 @@
 function renderMarkdown(src) {
     if (!src) return '';
     // Escape HTML entities first (sanitise)
-    // Was displaying escaped strings instead of characters
+    // Was displaying escaped strings instead of
     // let t = src.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Fenced code blocks (```...```)
@@ -484,7 +484,7 @@ document.addEventListener('alpine:init', () => {
                         await this.sync();
                         return;
                     }
-                } catch {}
+                } catch { }
             }
             console.warn("[WatchBack] Server did not recover within timeout");
         },

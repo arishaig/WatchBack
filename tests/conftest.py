@@ -17,36 +17,41 @@ os.environ.setdefault(
 
 _original_unraisablehook = sys.unraisablehook
 
+
 def _quiet_unraisablehook(args):
     if isinstance(args.exc_value, (ResourceWarning, RuntimeWarning)):
         return
     _original_unraisablehook(args)
+
 
 sys.unraisablehook = _quiet_unraisablehook
 
 # Must be set before main.py is imported -- it reads these at module level.
 _tmp = tempfile.mkdtemp(prefix="watchback_test_")
 os.environ.setdefault("CONFIG_DIR", _tmp)
-os.environ.setdefault("STATIC_DIR", os.path.join(os.path.dirname(__file__), "..", "static"))
+os.environ.setdefault(
+    "STATIC_DIR", os.path.join(os.path.dirname(__file__), "..", "static")
+)
 
 import pytest
 from diskcache import Cache
 from fastapi.testclient import TestClient
 
-import main
 import auth as auth_module
-from main import app, ENV_MAP
-
+import main
+from main import ENV_MAP, app
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True, scope="session")
 def _close_module_cache():
     """Close the module-level diskcache after all tests to avoid leaked SQLite connections."""
     yield
     main.cache.close()
+
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
@@ -67,8 +72,9 @@ def fresh_cache(tmp_path, monkeypatch):
 def _auth_user():
     """Create a test user in the auth database for authenticated requests."""
     import asyncio
-    from sqlalchemy import select
+
     from fastapi_users.password import PasswordHelper
+    from sqlalchemy import select
 
     async def _setup():
         await auth_module.init_db()

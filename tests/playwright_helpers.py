@@ -3,6 +3,7 @@
 Import from this module in any Playwright-based test to get consistent mock
 responses without duplicating boilerplate.
 """
+
 import json
 import re
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # Theme discovery
 # ---------------------------------------------------------------------------
+
 
 def get_available_themes() -> list[str]:
     """Return the list of theme values defined in the UI theme dropdown.
@@ -21,14 +23,13 @@ def get_available_themes() -> list[str]:
     html_path = Path(__file__).parent.parent / "static" / "index.html"
     content = html_path.read_text()
     # Grab everything between the theme <select> and its closing tag
-    block_match = re.search(
-        r'aria-label="Theme".*?</select>', content, re.DOTALL
-    )
+    block_match = re.search(r'aria-label="Theme".*?</select>', content, re.DOTALL)
     if block_match:
         themes = re.findall(r'<option\s+value="([^"]+)"', block_match.group())
         if themes:
             return themes
     return ["dark", "light"]  # fallback if HTML structure changes
+
 
 # ---------------------------------------------------------------------------
 # Lorem ipsum at three lengths
@@ -54,6 +55,7 @@ LOREM_LONG = (
 # ---------------------------------------------------------------------------
 # Comment / post factories
 # ---------------------------------------------------------------------------
+
 
 def trakt_comment(
     id: int,
@@ -149,7 +151,8 @@ def make_sync_success(
         "time_machine": time_machine if time_machine is not None else comments[:2],
         "time_machine_days": 14,
         "reddit_url": (
-            threads[0]["url"] if threads
+            threads[0]["url"]
+            if threads
             else "https://www.google.com/search?q=test+show+s01e01+reddit"
         ),
         "reddit_thread_found": bool(threads),
@@ -163,11 +166,26 @@ def make_sync_success(
 
 # All keys from ENV_MAP (must stay in sync with main.py)
 _CONFIG_KEYS = [
-    "jf_url", "jf_api_key", "trakt_client_id", "trakt_username", "trakt_access_token",
-    "reddit_auto_open", "reddit_max_threads", "reddit_max_comments", "bsky_identifier", "bsky_app_password",
-    "webhook_secret", "theme_mode", "time_machine_days",
+    "jf_url",
+    "jf_api_key",
+    "trakt_client_id",
+    "trakt_username",
+    "trakt_access_token",
+    "reddit_auto_open",
+    "reddit_max_threads",
+    "reddit_max_comments",
+    "bsky_identifier",
+    "bsky_app_password",
+    "webhook_secret",
+    "theme_mode",
+    "time_machine_days",
 ]
-_SECRET_KEYS = {"jf_api_key", "trakt_access_token", "bsky_app_password", "webhook_secret"}
+_SECRET_KEYS = {
+    "jf_api_key",
+    "trakt_access_token",
+    "bsky_app_password",
+    "webhook_secret",
+}
 _DEFAULTS = {
     "jf_url": "http://jellyfin:8096",
     "reddit_max_threads": "3",
@@ -195,10 +213,10 @@ CONFIG_EMPTY: dict = {k: _cfg_entry("", k) for k in _CONFIG_KEYS}
 
 CONFIG_FILLED: dict = {
     **CONFIG_EMPTY,
-    "jf_url":           _cfg_entry("http://192.168.1.100:8096", "jf_url"),
-    "jf_api_key":       _cfg_entry("abc123key", "jf_api_key"),
-    "trakt_client_id":  _cfg_entry("traktclientid123", "trakt_client_id"),
-    "trakt_username":   _cfg_entry("myuser", "trakt_username"),
+    "jf_url": _cfg_entry("http://192.168.1.100:8096", "jf_url"),
+    "jf_api_key": _cfg_entry("abc123key", "jf_api_key"),
+    "trakt_client_id": _cfg_entry("traktclientid123", "trakt_client_id"),
+    "trakt_username": _cfg_entry("myuser", "trakt_username"),
     "reddit_auto_open": _cfg_entry("1", "reddit_auto_open"),
 }
 
@@ -225,6 +243,7 @@ STATUS_FULL: dict = {
 # Theme helpers
 # ---------------------------------------------------------------------------
 
+
 def apply_theme(page, theme: str) -> None:
     """Directly set the page theme by writing the data-theme attribute.
 
@@ -238,6 +257,7 @@ def apply_theme(page, theme: str) -> None:
 # ---------------------------------------------------------------------------
 # Route injection
 # ---------------------------------------------------------------------------
+
 
 def _fulfill_json(route, body: Any) -> None:
     route.fulfill(status=200, content_type="application/json", body=json.dumps(body))

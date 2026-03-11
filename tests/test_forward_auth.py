@@ -9,7 +9,9 @@ DB-side assertions run async SQLAlchemy queries via _run(), which always
 executes in a fresh thread to avoid conflicts with the running event loop
 left behind by Playwright accessibility tests.
 """
+
 import asyncio
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
@@ -17,7 +19,6 @@ from starlette.requests import Request
 
 import auth as auth_module
 from main import app
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -60,6 +61,7 @@ def _run(coro):
     in the main thread.
     """
     import concurrent.futures
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(asyncio.run, coro).result()
 
@@ -230,7 +232,10 @@ class TestAdminRole:
     def test_watchback_admin_group_grants_superuser(self, fwd_client):
         res = fwd_client.get(
             "/api/auth/me",
-            headers={"Remote-User": "fwd_wbadmin", "Remote-Groups": "watchback-admin,viewers"},
+            headers={
+                "Remote-User": "fwd_wbadmin",
+                "Remote-Groups": "watchback-admin,viewers",
+            },
         )
         assert res.json()["is_admin"] is True
 
@@ -243,7 +248,9 @@ class TestAdminRole:
 
     def test_admin_users_list_grants_superuser(self, fwd_client, monkeypatch):
         monkeypatch.setattr(auth_module, "_FWD_ADMIN_USERS", {"fwd_specialadmin"})
-        res = fwd_client.get("/api/auth/me", headers={"Remote-User": "fwd_specialadmin"})
+        res = fwd_client.get(
+            "/api/auth/me", headers={"Remote-User": "fwd_specialadmin"}
+        )
         assert res.json()["is_admin"] is True
 
     def test_admin_status_synced_when_group_added(self, fwd_client, monkeypatch):
@@ -405,9 +412,7 @@ class TestCustomHeaders:
     def test_default_header_unused_with_custom_config(self, fwd_client, monkeypatch):
         """When a custom header name is set, the default Remote-User is ignored."""
         monkeypatch.setattr(auth_module, "_FWD_USER_HEADER", "X-Forwarded-User")
-        res = fwd_client.get(
-            "/api/auth/me", headers={"Remote-User": "shouldbeignored"}
-        )
+        res = fwd_client.get("/api/auth/me", headers={"Remote-User": "shouldbeignored"})
         assert res.status_code == 401
 
     def test_custom_groups_header_name(self, fwd_client, monkeypatch):
@@ -483,7 +488,9 @@ class TestErrorHandling:
             raise RuntimeError("simulated failure")
 
         monkeypatch.setattr(auth_module, "_find_or_provision_fwd_user", _boom)
-        res = fwd_client.get("/api/health", headers={"Remote-User": "fwd_errhealthuser"})
+        res = fwd_client.get(
+            "/api/health", headers={"Remote-User": "fwd_errhealthuser"}
+        )
         # /api/health is unauthenticated — it should still succeed
         assert res.status_code == 200
 
@@ -530,10 +537,12 @@ class TestInjectRequestCookie:
         assert "watchback_session=new" in cookie_str
 
     def test_other_headers_preserved(self):
-        req = _make_request([
-            (b"content-type", b"application/json"),
-            (b"cookie", b"watchback_session=old"),
-        ])
+        req = _make_request(
+            [
+                (b"content-type", b"application/json"),
+                (b"cookie", b"watchback_session=old"),
+            ]
+        )
         auth_module._inject_request_cookie(req, "watchback_session", "new")
         header_keys = [k for k, _ in req.scope["headers"]]
         assert b"content-type" in header_keys

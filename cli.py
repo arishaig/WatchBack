@@ -13,8 +13,9 @@ DATABASE_URL = f"sqlite+aiosqlite:///{os.path.join(CONFIG_DIR, 'watchback.db')}"
 
 
 async def reset_password(username: str):
-    from auth import User, Base  # noqa: F811
     from fastapi_users.password import PasswordHelper
+
+    from auth import Base, User  # noqa: F811
 
     engine = create_async_engine(DATABASE_URL)
 
@@ -24,9 +25,7 @@ async def reset_password(username: str):
 
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
     async with session_maker() as session:
-        result = await session.execute(
-            select(User).where(User.username == username)
-        )
+        result = await session.execute(select(User).where(User.username == username))
         user = result.scalar_one_or_none()
         if not user:
             print(f"Error: User '{username}' not found.", file=sys.stderr)

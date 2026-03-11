@@ -1,16 +1,20 @@
 """Comprehensive tests for WatchBack (main.py)."""
+
 import asyncio
-import pytest
 from unittest.mock import patch
 
 from main import (
-    _matches_episode, get_config, ENV_MAP, _safe_int,
-    _extract_bsky_images, _is_low_content_post,
-    find_bluesky_posts, find_pullpush_comments,
-    SessionData, trakt_headers,
+    ENV_MAP,
+    _extract_bsky_images,
+    _is_low_content_post,
+    _matches_episode,
+    _safe_int,
+    find_bluesky_posts,
+    find_pullpush_comments,
+    get_config,
+    trakt_headers,
 )
 from tests.helpers import mock_response
-
 
 # Shared fixture data
 JF_SESSION_ITEM = {
@@ -27,34 +31,49 @@ TRAKT_SEARCH = [{"show": {"ids": {"slug": "test-show"}}}]
 
 TRAKT_COMMENTS = [
     # Within 14 days of premiere
-    {"id": 1, "comment": "Great!", "created_at": "2014-06-03T00:00:00Z",
-     "user": {"username": "alice"}},
+    {
+        "id": 1,
+        "comment": "Great!",
+        "created_at": "2014-06-03T00:00:00Z",
+        "user": {"username": "alice"},
+    },
     # Years later — outside time-machine window
-    {"id": 2, "comment": "Rewatch!", "created_at": "2022-01-01T00:00:00Z",
-     "user": {"username": "bob"}},
+    {
+        "id": 2,
+        "comment": "Rewatch!",
+        "created_at": "2022-01-01T00:00:00Z",
+        "user": {"username": "bob"},
+    },
 ]
 
 REDDIT_POSTS = {
-    "data": {"children": [
-        {"data": {
-            "title": "S01E01 Discussion Thread",
-            "permalink": "/r/testshow/comments/abc/s01e01_discussion/",
-            "subreddit": "testshow",
-            "score": 250,
-        }},
-        {"data": {
-            "title": "S01E01 Rewatch",
-            "permalink": "/r/television/comments/def/rewatch/",
-            "subreddit": "television",
-            "score": 80,
-        }},
-    ]}
+    "data": {
+        "children": [
+            {
+                "data": {
+                    "title": "S01E01 Discussion Thread",
+                    "permalink": "/r/testshow/comments/abc/s01e01_discussion/",
+                    "subreddit": "testshow",
+                    "score": 250,
+                }
+            },
+            {
+                "data": {
+                    "title": "S01E01 Rewatch",
+                    "permalink": "/r/television/comments/def/rewatch/",
+                    "subreddit": "television",
+                    "score": 80,
+                }
+            },
+        ]
+    }
 }
 
 
 # ---------------------------------------------------------------------------
 # get_config()
 # ---------------------------------------------------------------------------
+
 
 class TestGetConfig:
     def test_defaults_when_nothing_set(self, fresh_cache):
@@ -85,11 +104,14 @@ class TestGetConfig:
         assert get_config()["jf_url"] == "http://192.168.1.1:8096"
 
     def test_multiple_stored_values(self, fresh_cache):
-        fresh_cache.set("ui_config", {
-            "jf_api_key": "k",
-            "trakt_client_id": "t",
-            "trakt_username": "u",
-        })
+        fresh_cache.set(
+            "ui_config",
+            {
+                "jf_api_key": "k",
+                "trakt_client_id": "t",
+                "trakt_username": "u",
+            },
+        )
         cfg = get_config()
         assert cfg["jf_api_key"] == "k"
         assert cfg["trakt_client_id"] == "t"
@@ -99,6 +121,7 @@ class TestGetConfig:
 # ---------------------------------------------------------------------------
 # GET /api/status
 # ---------------------------------------------------------------------------
+
 
 class TestApiStatus:
     def test_fully_unconfigured(self, client):
@@ -151,23 +174,32 @@ class TestApiStatus:
 # GET /api/config
 # ---------------------------------------------------------------------------
 
+
 class TestApiConfigGet:
     def test_all_keys_present(self, client):
         data = client.get("/api/config").json()
         for key in ENV_MAP:
             assert key in data
             assert set(data[key].keys()) == {
-                "effective_value", "env_value", "stored_value", 
-                "is_env_set", "is_stored_set", "source", "is_secret"
+                "effective_value",
+                "env_value",
+                "stored_value",
+                "is_env_set",
+                "is_stored_set",
+                "source",
+                "is_secret",
             }
 
     def test_secrets_value_always_empty(self, fresh_cache, client):
-        fresh_cache.set("ui_config", {
-            "jf_api_key": "s1", "trakt_client_id": "s2", "trakt_access_token": "s3"
-        })
+        fresh_cache.set(
+            "ui_config",
+            {"jf_api_key": "s1", "trakt_client_id": "s2", "trakt_access_token": "s3"},
+        )
         data = client.get("/api/config").json()
         assert data["jf_api_key"]["effective_value"] == "****"
-        assert data["trakt_client_id"]["effective_value"] == "s2"  # Client ID is public, not secret
+        assert (
+            data["trakt_client_id"]["effective_value"] == "s2"
+        )  # Client ID is public, not secret
         assert data["trakt_access_token"]["effective_value"] == "****"
 
     def test_secrets_is_set_true(self, fresh_cache, client):
@@ -176,7 +208,10 @@ class TestApiConfigGet:
 
     def test_non_secret_value_exposed(self, fresh_cache, client):
         fresh_cache.set("ui_config", {"trakt_username": "myuser"})
-        assert client.get("/api/config").json()["trakt_username"]["effective_value"] == "myuser"
+        assert (
+            client.get("/api/config").json()["trakt_username"]["effective_value"]
+            == "myuser"
+        )
 
     def test_source_env(self, monkeypatch, client):
         monkeypatch.setenv("TRAKT_CLIENT_ID", "env-id")
@@ -189,22 +224,34 @@ class TestApiConfigGet:
         assert client.get("/api/config").json()["trakt_username"]["source"] == "stored"
 
     def test_source_default(self, client):
-        assert client.get("/api/config").json()["trakt_client_id"]["source"] == "default"
+        assert (
+            client.get("/api/config").json()["trakt_client_id"]["source"] == "default"
+        )
 
     def test_default_jf_url_visible(self, client):
-        assert client.get("/api/config").json()["jf_url"]["effective_value"] == "http://jellyfin:8096"
+        assert (
+            client.get("/api/config").json()["jf_url"]["effective_value"]
+            == "http://jellyfin:8096"
+        )
 
     def test_default_max_threads(self, client):
-        assert client.get("/api/config").json()["reddit_max_threads"]["effective_value"] == "3"
+        assert (
+            client.get("/api/config").json()["reddit_max_threads"]["effective_value"]
+            == "3"
+        )
 
 
 # ---------------------------------------------------------------------------
 # PUT /api/config
 # ---------------------------------------------------------------------------
 
+
 class TestApiConfigPut:
     def test_saves_values(self, fresh_cache, client):
-        client.put("/api/config", json={"jf_url": "http://10.0.0.1:8096", "trakt_username": "user"})
+        client.put(
+            "/api/config",
+            json={"jf_url": "http://10.0.0.1:8096", "trakt_username": "user"},
+        )
         stored = fresh_cache.get("ui_config")
         assert stored["jf_url"] == "http://10.0.0.1:8096"
         assert stored["trakt_username"] == "user"
@@ -237,6 +284,7 @@ class TestApiConfigPut:
 # POST /api/cache/clear
 # ---------------------------------------------------------------------------
 
+
 class TestCacheClear:
     def test_clears_session_cache(self, fresh_cache, client):
         fresh_cache.set("jf_session", {"series": "Show"})
@@ -263,7 +311,9 @@ class TestCacheClear:
         fresh_cache.set("subreddit_overrides", {"severance": "SeveranceAppleTVPlus"})
         fresh_cache.set("jf_session", {"series": "Show"})
         client.post("/api/cache/clear")
-        assert fresh_cache.get("subreddit_overrides") == {"severance": "SeveranceAppleTVPlus"}
+        assert fresh_cache.get("subreddit_overrides") == {
+            "severance": "SeveranceAppleTVPlus"
+        }
 
     def test_returns_ok(self, client):
         assert client.post("/api/cache/clear").json() == {"status": "ok"}
@@ -273,23 +323,35 @@ class TestCacheClear:
 # Subreddit overrides
 # ---------------------------------------------------------------------------
 
+
 class TestSubredditOverrides:
     def test_get_empty(self, client):
         assert client.get("/api/subreddit-overrides").json() == {}
 
     def test_set_and_get(self, fresh_cache, client):
-        client.put("/api/subreddit-overrides", json={"series": "Severance", "subreddit": "SeveranceAppleTVPlus"})
+        client.put(
+            "/api/subreddit-overrides",
+            json={"series": "Severance", "subreddit": "SeveranceAppleTVPlus"},
+        )
         data = client.get("/api/subreddit-overrides").json()
         assert data["severance"] == "SeveranceAppleTVPlus"
 
     def test_case_insensitive_key(self, fresh_cache, client):
-        client.put("/api/subreddit-overrides", json={"series": "The Bear", "subreddit": "TheBear"})
+        client.put(
+            "/api/subreddit-overrides",
+            json={"series": "The Bear", "subreddit": "TheBear"},
+        )
         data = client.get("/api/subreddit-overrides").json()
         assert "the bear" in data
 
     def test_remove_override(self, fresh_cache, client):
-        client.put("/api/subreddit-overrides", json={"series": "Severance", "subreddit": "SeveranceAppleTVPlus"})
-        client.put("/api/subreddit-overrides", json={"series": "Severance", "subreddit": ""})
+        client.put(
+            "/api/subreddit-overrides",
+            json={"series": "Severance", "subreddit": "SeveranceAppleTVPlus"},
+        )
+        client.put(
+            "/api/subreddit-overrides", json={"series": "Severance", "subreddit": ""}
+        )
         assert client.get("/api/subreddit-overrides").json() == {}
 
     def test_missing_series_returns_error(self, client):
@@ -298,6 +360,7 @@ class TestSubredditOverrides:
 
     def test_override_used_in_search(self, fresh_cache):
         from main import _get_show_subreddits
+
         fresh_cache.set("subreddit_overrides", {"severance": "SeveranceAppleTVPlus"})
         subs = _get_show_subreddits("Severance")
         assert subs[0] == "severanceappletvplus"
@@ -307,6 +370,7 @@ class TestSubredditOverrides:
 # ---------------------------------------------------------------------------
 # _matches_episode()
 # ---------------------------------------------------------------------------
+
 
 class TestMatchesEpisode:
     # --- Should match ---
@@ -351,7 +415,9 @@ class TestMatchesEpisode:
         assert _matches_episode("Season 1, Episode 10 rewatch", 1, 10)
 
     def test_season_episode_prose_with_title(self):
-        assert _matches_episode("Season 1 Episode 10 '1984' re-watch discussion (series finale)", 1, 10)
+        assert _matches_episode(
+            "Season 1 Episode 10 '1984' re-watch discussion (series finale)", 1, 10
+        )
 
     def test_season_episode_prose_lowercase(self):
         assert _matches_episode("season 1 episode 10 thoughts", 1, 10)
@@ -395,6 +461,7 @@ class TestMatchesEpisode:
 # ---------------------------------------------------------------------------
 # GET /api/sync
 # ---------------------------------------------------------------------------
+
 
 class TestApiSync:
     def test_setup_required_when_unconfigured(self, client):
@@ -607,12 +674,16 @@ class TestApiSync:
 # Sync endpoint integration -- PullPush caching
 # ---------------------------------------------------------------------------
 
+
 class TestSyncPullpushCaching:
     """Verify that /api/sync caches and retrieves PullPush results correctly."""
 
     SESSION = {
-        "series": "The Bear", "name": "Pop",
-        "season": 2, "episode": 5, "premiere": "2023-08-01T00:00:00Z",
+        "series": "The Bear",
+        "name": "Pop",
+        "season": 2,
+        "episode": 5,
+        "premiere": "2023-08-01T00:00:00Z",
     }
 
     def test_pullpush_results_cached(self, fresh_cache, monkeypatch):
@@ -621,17 +692,25 @@ class TestSyncPullpushCaching:
         fresh_cache.set("jf_session", self.SESSION, expire=60)
 
         pp_comment = {
-            "id": "c1", "comment": "Great episode", "source": "reddit",
-            "user": {"username": "user1"}, "created_at": "2023-08-02T00:00:00Z",
-            "score": 10, "url": "https://reddit.com/r/TheBear/comments/abc123/_/c1/",
-            "thread_title": "Discussion", "thread_url": "https://reddit.com/r/TheBear/comments/abc123/",
+            "id": "c1",
+            "comment": "Great episode",
+            "source": "reddit",
+            "user": {"username": "user1"},
+            "created_at": "2023-08-02T00:00:00Z",
+            "score": 10,
+            "url": "https://reddit.com/r/TheBear/comments/abc123/_/c1/",
+            "thread_title": "Discussion",
+            "thread_url": "https://reddit.com/r/TheBear/comments/abc123/",
             "replies": [],
         }
 
-        with patch("main.find_pullpush_comments", return_value=[pp_comment]) as mock_pp, \
-             patch("main.find_bluesky_posts", return_value=[]), \
-             patch("main.find_reddit_threads", return_value=[]):
+        with (
+            patch("main.find_pullpush_comments", return_value=[pp_comment]) as mock_pp,
+            patch("main.find_bluesky_posts", return_value=[]),
+            patch("main.find_reddit_threads", return_value=[]),
+        ):
             from main import sync_data
+
             result = sync_data()
             assert mock_pp.call_count == 1
 
@@ -640,7 +719,9 @@ class TestSyncPullpushCaching:
             assert mock_pp.call_count == 1  # Not called again
 
         assert result["status"] == "success"
-        reddit_comments = [c for c in result["all_comments"] if c.get("source") == "reddit"]
+        reddit_comments = [
+            c for c in result["all_comments"] if c.get("source") == "reddit"
+        ]
         assert len(reddit_comments) == 1
 
     def test_pullpush_failure_doesnt_break_sync(self, fresh_cache, monkeypatch):
@@ -649,15 +730,22 @@ class TestSyncPullpushCaching:
         fresh_cache.set("jf_session", self.SESSION, expire=60)
 
         bsky_comment = {
-            "id": "b1", "comment": "Bluesky post", "source": "bluesky",
-            "user": {"username": "user.bsky.social"}, "created_at": "2023-08-02T00:00:00Z",
-            "url": "https://bsky.app/profile/user.bsky.social/post/b1", "images": [],
+            "id": "b1",
+            "comment": "Bluesky post",
+            "source": "bluesky",
+            "user": {"username": "user.bsky.social"},
+            "created_at": "2023-08-02T00:00:00Z",
+            "url": "https://bsky.app/profile/user.bsky.social/post/b1",
+            "images": [],
         }
 
-        with patch("main.find_pullpush_comments", return_value=[]), \
-             patch("main.find_bluesky_posts", return_value=[bsky_comment]), \
-             patch("main.find_reddit_threads", return_value=[]):
+        with (
+            patch("main.find_pullpush_comments", return_value=[]),
+            patch("main.find_bluesky_posts", return_value=[bsky_comment]),
+            patch("main.find_reddit_threads", return_value=[]),
+        ):
             from main import sync_data
+
             result = sync_data()
 
         assert result["status"] == "success"
@@ -669,10 +757,13 @@ class TestSyncPullpushCaching:
         monkeypatch.setenv("JF_API_KEY", "test")
         fresh_cache.set("jf_session", self.SESSION, expire=60)
 
-        with patch("main.find_pullpush_comments", return_value=[]), \
-             patch("main.find_bluesky_posts", return_value=[]), \
-             patch("main.find_reddit_threads", return_value=[]):
+        with (
+            patch("main.find_pullpush_comments", return_value=[]),
+            patch("main.find_bluesky_posts", return_value=[]),
+            patch("main.find_reddit_threads", return_value=[]),
+        ):
             from main import sync_data
+
             result = sync_data()
 
         assert result["status"] == "success"
@@ -683,6 +774,7 @@ class TestSyncPullpushCaching:
 # ---------------------------------------------------------------------------
 # POST /api/webhook
 # ---------------------------------------------------------------------------
+
 
 class TestWebhook:
     def test_playback_start_clears_session(self, fresh_cache, client):
@@ -718,14 +810,20 @@ class TestWebhook:
 
     def test_rejects_bad_secret(self, fresh_cache, client):
         fresh_cache.set("ui_config", {"webhook_secret": "s3cret"})
-        r = client.post("/api/webhook", json={"NotificationType": "PlaybackStart"},
-                        headers={"X-Webhook-Secret": "wrong"})
+        r = client.post(
+            "/api/webhook",
+            json={"NotificationType": "PlaybackStart"},
+            headers={"X-Webhook-Secret": "wrong"},
+        )
         assert r.json()["status"] == "unauthorized"
 
     def test_accepts_correct_secret(self, fresh_cache, client):
         fresh_cache.set("ui_config", {"webhook_secret": "s3cret"})
-        r = client.post("/api/webhook", json={"NotificationType": "PlaybackStart"},
-                        headers={"X-Webhook-Secret": "s3cret"})
+        r = client.post(
+            "/api/webhook",
+            json={"NotificationType": "PlaybackStart"},
+            headers={"X-Webhook-Secret": "s3cret"},
+        )
         assert r.json()["status"] == "received"
 
     def test_no_secret_configured_accepts_all(self, client):
@@ -737,15 +835,18 @@ class TestWebhook:
 # POST /api/restart
 # ---------------------------------------------------------------------------
 
+
 class TestRestart:
     def test_returns_restarting(self, client):
         _real_create_task = asyncio.create_task
+
         def _intercept(coro, **kw):
             """Sink the _do_exit coroutine but let other create_task calls through."""
-            if hasattr(coro, '__qualname__') and '_do_exit' in coro.__qualname__:
+            if hasattr(coro, "__qualname__") and "_do_exit" in coro.__qualname__:
                 coro.close()
                 return _real_create_task(asyncio.sleep(0))  # return a real Task
             return _real_create_task(coro, **kw)
+
         with patch("main.asyncio.create_task", side_effect=_intercept):
             r = client.post("/api/restart", json={"confirm": True})
         assert r.json()["status"] == "restarting"
@@ -758,6 +859,7 @@ class TestRestart:
 # ---------------------------------------------------------------------------
 # _safe_int()
 # ---------------------------------------------------------------------------
+
 
 class TestSafeInt:
     def test_valid_string(self):
@@ -779,6 +881,7 @@ class TestSafeInt:
 # ---------------------------------------------------------------------------
 # trakt_headers()
 # ---------------------------------------------------------------------------
+
 
 class TestTraktHeaders:
     def test_basic_headers(self):
@@ -802,6 +905,7 @@ class TestTraktHeaders:
 # ---------------------------------------------------------------------------
 # _extract_bsky_images()
 # ---------------------------------------------------------------------------
+
 
 class TestExtractBskyImages:
     def test_images_view(self):
@@ -831,7 +935,9 @@ class TestExtractBskyImages:
             "$type": "app.bsky.embed.recordWithMedia#view",
             "media": {
                 "$type": "app.bsky.embed.images#view",
-                "images": [{"thumb": "https://cdn.bsky.app/nested.jpg", "alt": "nested"}],
+                "images": [
+                    {"thumb": "https://cdn.bsky.app/nested.jpg", "alt": "nested"}
+                ],
             },
         }
         imgs = _extract_bsky_images(embed)
@@ -852,6 +958,7 @@ class TestExtractBskyImages:
 # ---------------------------------------------------------------------------
 # _is_low_content_post()
 # ---------------------------------------------------------------------------
+
 
 class TestIsLowContentPost:
     def test_bot_like_post(self):
@@ -879,6 +986,7 @@ class TestIsLowContentPost:
 # ---------------------------------------------------------------------------
 # find_bluesky_posts()
 # ---------------------------------------------------------------------------
+
 
 class TestFindBlueskyPosts:
     SAMPLE_BSKY_RESPONSE = {
@@ -998,6 +1106,7 @@ class TestFindBlueskyPosts:
 # ---------------------------------------------------------------------------
 # find_pullpush_comments()
 # ---------------------------------------------------------------------------
+
 
 class TestFindPullpushComments:
     SUBMISSION_RESPONSE = {

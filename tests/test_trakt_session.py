@@ -1,7 +1,7 @@
 """Tests for Trakt session fallthrough and background poller."""
+
 import asyncio
 import threading
-import pytest
 from unittest.mock import MagicMock, patch
 
 from main import trakt_watch_poller
@@ -9,16 +9,25 @@ from main import trakt_watch_poller
 
 def test_sync_data_trakt_fallthrough(fresh_cache, client):
     """Jellyfin unconfigured or idle, Trakt configured and watching → session detected."""
-    fresh_cache.set("ui_config", {
-        "trakt_username": "testuser",
-        "trakt_client_id": "testclient",
-    })
+    fresh_cache.set(
+        "ui_config",
+        {
+            "trakt_username": "testuser",
+            "trakt_client_id": "testclient",
+        },
+    )
 
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "type": "episode",
-        "episode": {"title": "Test Episode", "season": 1, "number": 5, "ids": {"trakt": 123}, "first_aired": "2023-01-01T00:00:00Z"},
+        "episode": {
+            "title": "Test Episode",
+            "season": 1,
+            "number": 5,
+            "ids": {"trakt": 123},
+            "first_aired": "2023-01-01T00:00:00Z",
+        },
         "show": {"title": "Test Show"},
     }
 

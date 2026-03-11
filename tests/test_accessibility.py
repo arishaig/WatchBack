@@ -6,6 +6,7 @@ Requires Playwright browsers to be installed:
 Tests are skipped automatically if playwright is not installed.
 Every test runs twice — once in dark mode, once in light mode.
 """
+
 import socket
 import threading
 import time
@@ -19,11 +20,11 @@ from axe_playwright_python.sync_playwright import Axe
 
 from main import app
 from tests.playwright_helpers import (
+    CONFIG_EMPTY,
+    CONFIG_FILLED,
     LOREM_LONG,
     LOREM_MEDIUM,
     LOREM_SHORT,
-    CONFIG_EMPTY,
-    CONFIG_FILLED,
     STATUS_FULL,
     STATUS_UNCONFIGURED,
     SYNC_IDLE,
@@ -137,16 +138,24 @@ class TestAccessibility:
     def test_setup_required(self, page, live_server_url, theme):
         """No configuration: setup-required screen."""
         load_page(
-            page, live_server_url, theme,
-            sync=SYNC_SETUP_REQUIRED, status=STATUS_UNCONFIGURED, config=CONFIG_EMPTY,
+            page,
+            live_server_url,
+            theme,
+            sync=SYNC_SETUP_REQUIRED,
+            status=STATUS_UNCONFIGURED,
+            config=CONFIG_EMPTY,
         )
         assert_no_violations(page)
 
     def test_idle(self, page, live_server_url, theme):
         """Configured but nothing currently playing."""
         load_page(
-            page, live_server_url, theme,
-            sync=SYNC_IDLE, status=STATUS_FULL, config=CONFIG_FILLED,
+            page,
+            live_server_url,
+            theme,
+            sync=SYNC_IDLE,
+            status=STATUS_FULL,
+            config=CONFIG_FILLED,
         )
         assert_no_violations(page)
 
@@ -158,8 +167,12 @@ class TestAccessibility:
             trakt_comment(3, LOREM_LONG, "carol"),
         ]
         load_page(
-            page, live_server_url, theme,
-            sync=make_sync_success(comments), status=STATUS_FULL, config=CONFIG_FILLED,
+            page,
+            live_server_url,
+            theme,
+            sync=make_sync_success(comments),
+            status=STATUS_FULL,
+            config=CONFIG_FILLED,
         )
         assert_no_violations(page)
 
@@ -180,17 +193,31 @@ class TestAccessibility:
             },
         ]
         comments = [
-            reddit_comment("r1", LOREM_MEDIUM, "user1", score=99, replies=[
-                reddit_comment("r1_1", LOREM_SHORT, "user2", replies=[
-                    reddit_comment("r1_1_1", LOREM_SHORT, "user3"),
-                ]),
-            ]),
+            reddit_comment(
+                "r1",
+                LOREM_MEDIUM,
+                "user1",
+                score=99,
+                replies=[
+                    reddit_comment(
+                        "r1_1",
+                        LOREM_SHORT,
+                        "user2",
+                        replies=[
+                            reddit_comment("r1_1_1", LOREM_SHORT, "user3"),
+                        ],
+                    ),
+                ],
+            ),
             reddit_comment("r2", LOREM_LONG, "user4", score=7),
         ]
         load_page(
-            page, live_server_url, theme,
+            page,
+            live_server_url,
+            theme,
             sync=make_sync_success(comments, reddit_threads=threads),
-            status=STATUS_FULL, config=CONFIG_FILLED,
+            status=STATUS_FULL,
+            config=CONFIG_FILLED,
         )
         assert_no_violations(page)
 
@@ -203,8 +230,12 @@ class TestAccessibility:
             bluesky_post("b3", LOREM_LONG, "carol.bsky.social", images=[img, img]),
         ]
         load_page(
-            page, live_server_url, theme,
-            sync=make_sync_success(comments), status=STATUS_FULL, config=CONFIG_FILLED,
+            page,
+            live_server_url,
+            theme,
+            sync=make_sync_success(comments),
+            status=STATUS_FULL,
+            config=CONFIG_FILLED,
         )
         assert_no_violations(page)
 
@@ -221,26 +252,39 @@ class TestAccessibility:
         ]
         comments = [
             trakt_comment(1, LOREM_SHORT, "trakt_alice"),
-            reddit_comment("r1", LOREM_MEDIUM, "reddit_bob", score=58, replies=[
-                reddit_comment("r1_1", LOREM_SHORT, "reddit_carol"),
-            ]),
+            reddit_comment(
+                "r1",
+                LOREM_MEDIUM,
+                "reddit_bob",
+                score=58,
+                replies=[
+                    reddit_comment("r1_1", LOREM_SHORT, "reddit_carol"),
+                ],
+            ),
             bluesky_post("b1", LOREM_SHORT, "bsky.user.social", images=[img]),
             trakt_comment(2, LOREM_LONG, "trakt_dave"),
             reddit_comment("r2", LOREM_SHORT, "reddit_eve", score=12),
             bluesky_post("b2", LOREM_MEDIUM, "another.bsky.social"),
         ]
         load_page(
-            page, live_server_url, theme,
+            page,
+            live_server_url,
+            theme,
             sync=make_sync_success(comments, reddit_threads=threads),
-            status=STATUS_FULL, config=CONFIG_FILLED,
+            status=STATUS_FULL,
+            config=CONFIG_FILLED,
         )
         assert_no_violations(page)
 
     def test_config_modal_empty(self, page, live_server_url, theme):
         """Configuration panel open with no values filled in."""
         load_page(
-            page, live_server_url, theme,
-            sync=SYNC_SETUP_REQUIRED, status=STATUS_UNCONFIGURED, config=CONFIG_EMPTY,
+            page,
+            live_server_url,
+            theme,
+            sync=SYNC_SETUP_REQUIRED,
+            status=STATUS_UNCONFIGURED,
+            config=CONFIG_EMPTY,
         )
         open_config_modal(page)
         assert_no_violations(page)
@@ -248,8 +292,12 @@ class TestAccessibility:
     def test_config_modal_filled(self, page, live_server_url, theme):
         """Configuration panel open with all key fields populated."""
         load_page(
-            page, live_server_url, theme,
-            sync=SYNC_IDLE, status=STATUS_FULL, config=CONFIG_FILLED,
+            page,
+            live_server_url,
+            theme,
+            sync=SYNC_IDLE,
+            status=STATUS_FULL,
+            config=CONFIG_FILLED,
         )
         open_config_modal(page)
         assert_no_violations(page)

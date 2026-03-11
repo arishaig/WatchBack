@@ -1,4 +1,5 @@
 """Shared test helpers."""
+
 from unittest.mock import MagicMock
 
 
