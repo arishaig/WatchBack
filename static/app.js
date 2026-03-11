@@ -7,10 +7,11 @@
 function renderMarkdown(src) {
     if (!src) return '';
     // Escape HTML entities first (sanitise)
-    let t = src.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Was displaying escaped strings instead of characters
+    // let t = src.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Fenced code blocks (```...```)
-    t = t.replace(/```([\s\S]*?)```/g, (_, code) =>
+    let t = t.replace(/```([\s\S]*?)```/g, (_, code) =>
         '<pre class="wb-md-codeblock">' + code.trim() + '</pre>');
 
     // Process line-based features (blockquotes, headings, lists)
