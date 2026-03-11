@@ -285,7 +285,6 @@ def _extract_bsky_images(embed: dict) -> list[dict]:
         imgs.extend(_extract_bsky_images(embed.get("media", {})))
     return imgs
 
-
 def _is_low_content_post(norm_text: str, series: str, season: int, episode: int, images: list) -> bool:
     """Return True if a post is likely bot/low-content after stripping show identifiers."""
     s_long, e_long = str(season).zfill(2), str(episode).zfill(2)
@@ -302,7 +301,6 @@ def _is_low_content_post(norm_text: str, series: str, season: int, episode: int,
         test = test.replace(char, "")
     return len(test.strip()) < 5 and len(norm_text) < 120 and not images
 
-
 def _ensure_comment_ids(comments: list[dict]) -> None:
     """Assign stable IDs to any comments/replies missing one, derived from content hash."""
     for c in comments:
@@ -311,7 +309,6 @@ def _ensure_comment_ids(comments: list[dict]) -> None:
             c["id"] = f"wb_{hashlib.sha256(key.encode()).hexdigest()[:12]}"
         if isinstance(c.get("replies"), list):
             _ensure_comment_ids(c["replies"])
-
 
 def find_pullpush_comments(series: str, season: int, episode: int, max_threads: int = 3, max_comments: int = 250) -> list[dict]:
     """Fetch Reddit comments via PullPush.io for the given episode, grouped by thread."""
@@ -450,7 +447,6 @@ def find_pullpush_comments(series: str, season: int, episode: int, max_threads: 
         logger.error(f"PullPush search exception: {e}")
         return []
 
-
 def find_bluesky_posts(series: str, season: int, episode: int, n: int = 10) -> list[dict]:
     """Search Bluesky for posts about the given episode, with dedup and bot filtering."""
     s_long = str(season).zfill(2)
@@ -576,7 +572,6 @@ def _fetch_session(cfg: dict) -> tuple[SessionData | None, str | None]:
 
     return session_data, None
 
-
 def _fetch_reddit_data(session_data: dict, cfg: dict) -> tuple[list, str]:
     """Fetch Reddit threads and build the reddit_url. Returns (threads, url)."""
     google_url = f"https://www.google.com/search?q={urllib.parse.quote(session_data['series'] + ' S' + str(session_data['season']).zfill(2) + 'E' + str(session_data['episode']).zfill(2) + ' reddit')}"
@@ -597,7 +592,6 @@ def _fetch_reddit_data(session_data: dict, cfg: dict) -> tuple[list, str]:
 
     url = threads[0]["url"] if threads else google_url
     return threads, url
-
 
 def _fetch_trakt_comments(session_data: dict, cfg: dict) -> list[dict]:
     """Fetch and cache Trakt comments for the current episode."""
@@ -645,7 +639,6 @@ def _fetch_trakt_comments(session_data: dict, cfg: dict) -> list[dict]:
         logger.error(f"Trakt comments fetch failed: {str(e)}")
         return []
 
-
 def _fetch_pullpush_data(session_data: dict, cfg: dict) -> list[dict]:
     """Fetch and cache PullPush Reddit comments for the current episode."""
     pp_cache_key = f"pullpush_{session_data['series']}_s{session_data['season']}e{session_data['episode']}"
@@ -662,7 +655,6 @@ def _fetch_pullpush_data(session_data: dict, cfg: dict) -> list[dict]:
         cache.set(pp_cache_key, pp_results, expire=86400)
     return pp_results
 
-
 def _fetch_bluesky_data(session_data: dict) -> list[dict]:
     """Fetch Bluesky posts for the current episode."""
     bsky_results = find_bluesky_posts(
@@ -671,7 +663,6 @@ def _fetch_bluesky_data(session_data: dict) -> list[dict]:
     if isinstance(bsky_results, list):
         return [p for p in bsky_results if isinstance(p, dict)]
     return []
-
 
 @app.get("/api/sync")
 def sync_data(_user: User = Depends(require_auth)):
