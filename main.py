@@ -1184,6 +1184,6 @@ async def sse_stream(_user: User = Depends(require_auth)):
 
 
 DATA_DIR = os.environ.get("DATA_DIR", "./data")
-STATIC_DIR = os.environ.get("STATIC_DIR", os.path.join(DATA_DIR, "static"))
+STATIC_DIR = os.environ.get("STATIC_DIR", "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

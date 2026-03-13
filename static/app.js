@@ -11,7 +11,7 @@ function renderMarkdown(src) {
     // let t = src.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Fenced code blocks (```...```)
-    let t = t.replace(/```([\s\S]*?)```/g, (_, code) =>
+    let t = src.replace(/```([\s\S]*?)```/g, (_, code) =>
         '<pre class="wb-md-codeblock">' + code.trim() + '</pre>');
 
     // Process line-based features (blockquotes, headings, lists)

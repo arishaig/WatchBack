@@ -23,10 +23,10 @@ RUN set -e; \
     chmod +x /tmp/tailwindcss && \
     printf '@import "tailwindcss";\n@source "./static/index.html";\n' > /app/tw.css && \
     echo "Compiling tailwindcss..." && \
-    /tmp/tailwindcss -i /app/tw.css -o /data/static/tailwind.css --minify || (echo "Tailwind compilation failed" && exit 1) && \
-    test -f /data/static/tailwind.css || (echo "tailwind.css not created" && exit 1) && \
+    /tmp/tailwindcss -i /app/tw.css -o /app/static/tailwind.css --minify || (echo "Tailwind compilation failed" && exit 1) && \
+    test -f /app/static/tailwind.css || (echo "tailwind.css not created" && exit 1) && \
     rm /tmp/tailwindcss /app/tw.css && \
-    ls -lh /data/static/
+    ls -lh /app/static/
 
 # Stage 2: Runtime
 FROM python:3.14-slim-bookworm
@@ -45,7 +45,9 @@ ENV PUID=1000 \
 RUN groupadd -g 1000 abc && \
     useradd -u 1000 -g abc -m abc && \
     mkdir -p /config && \
-    chown abc:abc /config
+    mkdir -p /data && \
+    chown abc:abc /config && \
+    chown abc:abc /data
 
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
@@ -53,8 +55,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy app code and entrypoint
 COPY . .
-COPY --from=builder /data/static/tailwind.css /data/static/tailwind.css
-COPY static/ /data/static/
+COPY --from=builder /app/static/tailwind.css /app/static/tailwind.css
+RUN chown -R abc:abc /app
 RUN chmod +x /app/entrypoint.sh
 
 # CLI entrypoint for password reset: docker exec watchback watchback reset-password <user>

@@ -10,16 +10,57 @@ body {
 }
 
 /* Themed utility classes — surface & text */
-.wb-surface     { background-color: var(--wb-surface); }
-.wb-surface-alt { background-color: var(--wb-surface-alt); }
-.wb-border      { border-color: var(--wb-border); }
+.wb-surface {
+    background-color: var(--wb-surface);
+}
 
-.wb-text           { color: var(--wb-text); }
-.wb-text-secondary { color: var(--wb-text-secondary); }
-.wb-text-muted     { color: var(--wb-text-muted); }
-.wb-text-faint     { color: var(--wb-text-faint); }
-.wb-accent-text    { color: var(--wb-accent-text); }
-.wb-on-accent      { color: var(--wb-on-accent); }
+.wb-surface-alt {
+    background-color: var(--wb-surface-alt);
+}
+
+.wb-border {
+    border-color: var(--wb-border);
+}
+
+.wb-text {
+    color: var(--wb-text);
+}
+
+.wb-text-secondary {
+    color: var(--wb-text-secondary);
+}
+
+.wb-text-muted {
+    color: var(--wb-text-muted);
+}
+
+.wb-text-faint {
+    color: var(--wb-text-faint);
+}
+
+.wb-accent-text {
+    color: var(--wb-accent-text);
+}
+
+.wb-on-accent {
+    color: var(--wb-on-accent);
+}
+
+@media (width <=440px) {
+    .hide-on-mobile {
+        display: none;
+    }
+
+    .show-on-mobile {
+        display: flex;
+    }
+}
+
+@media (width > 440px) {
+    .show-on-mobile {
+        display: none;
+    }
+}
 
 /* Logo */
 img.wb-logo {

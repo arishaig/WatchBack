@@ -31,7 +31,7 @@
         <div class="w-full max-w-xs">
             <div class="text-center mb-8">
                 <img src="/watchback.png" alt="WatchBack" class="w-16 h-16 mx-auto mb-3 object-contain wb-logo">
-                <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
+                <h1 class="text-2xl font-bold wb-accent-text hide-on-mobile">WatchBack</h1>
             </div>
 
             <!-- Forward auth: session unavailable -->
@@ -127,7 +127,7 @@
         <header class="flex justify-between items-center mb-6 mt-2">
             <div class="flex items-center gap-3">
                 <img src="/watchback.png" alt="WatchBack Logo" class="w-10 h-10 object-contain wb-logo">
-                <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
+                <h1 class="text-2xl font-bold wb-accent-text hide-on-mobile">WatchBack</h1>
             </div>
             <div class="flex gap-2">
                 <button @click="logout()"
@@ -222,7 +222,8 @@
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
                             <button @click="testService('jellyfin')"
-                                :disabled="testResults.jellyfin?.status === 'testing' || (!configDraft.jf_api_key && !configData?.jf_api_key?.effective_value)" aria-live="polite"
+                                :disabled="testResults.jellyfin?.status === 'testing' || (!configDraft.jf_api_key && !configData?.jf_api_key?.effective_value)"
+                                aria-live="polite"
                                 class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                 :class="testResults.jellyfin?.status === 'ok' ? 'test-ok' : testResults.jellyfin?.status === 'error' ? 'test-error' : ''"
                                 x-text="testResults.jellyfin?.status === 'testing' ? 'Testing\u2026' : testResults.jellyfin?.message || 'Test Connection'"></button>
@@ -267,12 +268,14 @@
                             </div>
                             <div class="flex gap-2">
                                 <button @click="testService('trakt')"
-                                    :disabled="testResults.trakt?.status === 'testing' || (!configDraft.trakt_client_id && !configData?.trakt_client_id?.effective_value)" aria-live="polite"
+                                    :disabled="testResults.trakt?.status === 'testing' || (!configDraft.trakt_client_id && !configData?.trakt_client_id?.effective_value)"
+                                    aria-live="polite"
                                     class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                     :class="testResults.trakt?.status === 'ok' ? 'test-ok' : testResults.trakt?.status === 'error' ? 'test-error' : ''"
                                     x-text="testResults.trakt?.status === 'testing' ? 'Testing\u2026' : testResults.trakt?.message || 'Test API'"></button>
                                 <button @click="testService('trakt-watch')"
-                                    :disabled="testResults['trakt-watch']?.status === 'testing' || (!configDraft.trakt_username && !configDraft.trakt_access_token && !configData?.trakt_username?.effective_value && !configData?.trakt_access_token?.effective_value)" aria-live="polite"
+                                    :disabled="testResults['trakt-watch']?.status === 'testing' || (!configDraft.trakt_username && !configDraft.trakt_access_token && !configData?.trakt_username?.effective_value && !configData?.trakt_access_token?.effective_value)"
+                                    aria-live="polite"
                                     class="flex-1 py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                     :class="testResults['trakt-watch']?.status === 'ok' ? 'test-ok' : testResults['trakt-watch']?.status === 'error' ? 'test-error' : ''"
                                     x-text="testResults['trakt-watch']?.status === 'testing' ? 'Testing\u2026' : testResults['trakt-watch']?.message || 'Test Profile'"></button>
@@ -306,7 +309,8 @@
                                     class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                             </div>
                             <button @click="testService('bluesky')"
-                                :disabled="testResults.bluesky?.status === 'testing' || ((!configDraft.bsky_identifier && !configData?.bsky_identifier?.effective_value) || (!configDraft.bsky_app_password && !configData?.bsky_app_password?.effective_value))" aria-live="polite"
+                                :disabled="testResults.bluesky?.status === 'testing' || ((!configDraft.bsky_identifier && !configData?.bsky_identifier?.effective_value) || (!configDraft.bsky_app_password && !configData?.bsky_app_password?.effective_value))"
+                                aria-live="polite"
                                 class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
                                 :class="testResults.bluesky?.status === 'ok' ? 'test-ok' : testResults.bluesky?.status === 'error' ? 'test-error' : ''"
                                 x-text="testResults.bluesky?.status === 'testing' ? 'Testing\u2026' : testResults.bluesky?.message || 'Test Connection'"></button>
@@ -400,9 +404,12 @@
                         class="px-3 py-2 rounded-lg text-sm font-medium cursor-pointer disabled:opacity-50 wb-btn flex items-center gap-1.5"
                         :class="restartSuccess ? 'test-ok' : ''"
                         :style="restartSuccess ? '' : 'background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);'">
-                        <span x-show="restartSuccess"><ion-icon name="checkmark-sharp" aria-hidden="true"></ion-icon> Restarted</span>
-                        <span x-show="isRestarting && !restartSuccess"><ion-icon name="sync-sharp" aria-hidden="true"></ion-icon> Restarting&hellip;</span>
-                        <span x-show="!isRestarting && !restartSuccess"><ion-icon name="sync-sharp" aria-hidden="true"></ion-icon> Restart</span>
+                        <span x-show="restartSuccess"><ion-icon name="checkmark-sharp" aria-hidden="true"></ion-icon>
+                            Restarted</span>
+                        <span x-show="isRestarting && !restartSuccess"><ion-icon name="sync-sharp"
+                                aria-hidden="true"></ion-icon> Restarting&hellip;</span>
+                        <span x-show="!isRestarting && !restartSuccess"><ion-icon name="sync-sharp"
+                                aria-hidden="true"></ion-icon> Restart</span>
                     </button>
                     <button @click="saveConfig()"
                         class="ml-auto wb-on-accent px-4 py-2 rounded-lg text-sm font-medium cursor-pointer wb-btn wb-border border"
@@ -476,14 +483,13 @@
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-xs font-medium wb-text-secondary">Forward Auth</p>
-                            <p class="text-[10px] wb-text-faint mt-0.5">Trust proxy headers from Authelia / Authentik</p>
+                            <p class="text-[10px] wb-text-faint mt-0.5">Trust proxy headers from Authelia / Authentik
+                            </p>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox"
-                                :checked="configData?.forward_auth_enabled?.effective_value === '1'"
+                            <input type="checkbox" :checked="configData?.forward_auth_enabled?.effective_value === '1'"
                                 @change="toggleForwardAuth($event.target.checked)"
-                                aria-label="Enable forward authentication"
-                                class="sr-only peer">
+                                aria-label="Enable forward authentication" class="sr-only peer">
                             <div class="w-9 h-5 rounded-full peer wb-surface-alt wb-border border
                                 peer-checked:after:translate-x-full after:content-[''] after:absolute
                                 after:top-0.5 after:left-0.5 after:rounded-full after:h-4 after:w-4
@@ -562,14 +568,15 @@
                                     <div class="text-[10px] wb-text-faint truncate" x-text="u.email"></div>
                                 </div>
                                 <div class="flex gap-1 shrink-0" x-show="u.id !== authUser?.id">
-                                    <button x-show="u.auth_source !== 'forward_auth'"
-                                        @click="resetUserPassword(u)"
+                                    <button x-show="u.auth_source !== 'forward_auth'" @click="resetUserPassword(u)"
                                         class="px-2 py-1 rounded text-[10px] wb-surface wb-border border wb-text-muted cursor-pointer wb-btn"
-                                        title="Reset password"><ion-icon name="key-sharp" aria-hidden="true"></ion-icon></button>
+                                        title="Reset password"><ion-icon name="key-sharp"
+                                            aria-hidden="true"></ion-icon></button>
                                     <button @click="deleteUser(u)"
                                         class="px-2 py-1 rounded text-[10px] cursor-pointer wb-btn"
                                         style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
-                                        title="Delete user"><ion-icon name="close-sharp" aria-hidden="true"></ion-icon></button>
+                                        title="Delete user"><ion-icon name="close-sharp"
+                                            aria-hidden="true"></ion-icon></button>
                                 </div>
                                 <span x-show="u.id === authUser?.id" class="text-[10px] wb-text-faint italic">you</span>
                             </div>
@@ -592,16 +599,22 @@
                     <button x-show="showTimeMachine" @click="mode = 'time'"
                         :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
                         :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
-                        class="flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">Time Machine
+                        class="flex flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
+                        <span class="flex hide-on-mobile">Time Machine</span>
+                        <ion-icon class="show-on-mobile" name="hourglass-sharp"></ion-icon>
                         <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
                     </button>
                     <button @click="mode = 'all'" :class="mode === 'all' ? 'wb-on-accent shadow' : 'wb-text-muted'"
                         :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
-                        class="flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">All Comments
+                        class="flex flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
+                        <span class="flex hide-on-mobile">Comments</span>
+                        <ion-icon class="show-on-mobile" name="chatbubbles-sharp"></ion-icon>
                         <span x-text="'(' + allCommentsCount + ')'" class="text-xs font-normal"></span>
                     </button>
                     <a :href="data?.reddit_url" target="_blank" rel="noopener noreferrer"
-                        class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn flex items-center justify-center gap-1.5"><ion-icon name="logo-reddit" aria-hidden="true"></ion-icon> Reddit <ion-icon name="search-sharp" aria-hidden="true"></ion-icon></a>
+                        class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn flex items-center justify-center gap-1.5"><ion-icon
+                            name="logo-reddit" aria-hidden="true"></ion-icon> Reddit <ion-icon name="search-sharp"
+                            aria-hidden="true"></ion-icon></a>
                 </div>
 
                 <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card"
@@ -653,11 +666,20 @@
                                                 <a x-show="comment.source === 'bluesky'" :href="comment.url"
                                                     target="_blank" rel="noopener noreferrer"
                                                     class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                                    title="View original post"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 320" class="inline-block w-[1em] h-[1em] align-[-0.1em]" aria-hidden="true" fill="currentColor"><path d="M180 142c-16.3-34.8-60.2-99.7-101.5-127.8C50.8-9.5 23.8.4 12.5 7.2-6.8 18.5 5.4 56.7 22 74c22 23 45.8 32.8 79.3 33.5-31.4 5.8-62.1 22.7-79.8 41.7C6.2 166.6 0 177.5 0 188.6c0 28 39.5 58.1 72.5 48.1C133 218 163.5 159.5 180 130c16.5 29.5 47 88 107.5 106.7 33 10 72.5-20.1 72.5-48.1 0-11.1-6.2-22-21.5-39.4-17.7-19-48.4-35.9-79.8-41.7 33.5-.7 57.3-10.5 79.3-33.5 16.6-17.3 28.8-55.5 9.5-66.8C336.2.4 309.2-9.5 281.5 14.2 240.2 42.3 196.3 107.2 180 142z"/></svg> BlueSky <ion-icon name="open-sharp" aria-hidden="true"></ion-icon></a>
+                                                    title="View original post"><svg xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 360 320"
+                                                        class="inline-block w-[1em] h-[1em] align-[-0.1em]"
+                                                        aria-hidden="true" fill="currentColor">
+                                                        <path
+                                                            d="M180 142c-16.3-34.8-60.2-99.7-101.5-127.8C50.8-9.5 23.8.4 12.5 7.2-6.8 18.5 5.4 56.7 22 74c22 23 45.8 32.8 79.3 33.5-31.4 5.8-62.1 22.7-79.8 41.7C6.2 166.6 0 177.5 0 188.6c0 28 39.5 58.1 72.5 48.1C133 218 163.5 159.5 180 130c16.5 29.5 47 88 107.5 106.7 33 10 72.5-20.1 72.5-48.1 0-11.1-6.2-22-21.5-39.4-17.7-19-48.4-35.9-79.8-41.7 33.5-.7 57.3-10.5 79.3-33.5 16.6-17.3 28.8-55.5 9.5-66.8C336.2.4 309.2-9.5 281.5 14.2 240.2 42.3 196.3 107.2 180 142z" />
+                                                    </svg> BlueSky <ion-icon name="open-sharp"
+                                                        aria-hidden="true"></ion-icon></a>
                                                 <a x-show="comment.source === 'reddit'" :href="comment.url"
                                                     target="_blank" rel="noopener noreferrer"
                                                     class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                                    title="View on Reddit"><ion-icon name="logo-reddit" aria-hidden="true"></ion-icon> Reddit <ion-icon name="open-sharp" aria-hidden="true"></ion-icon></a>
+                                                    title="View on Reddit"><ion-icon name="logo-reddit"
+                                                        aria-hidden="true"></ion-icon> Reddit <ion-icon
+                                                        name="open-sharp" aria-hidden="true"></ion-icon></a>
                                                 <span x-show="comment.source === 'trakt' || !comment.source"
                                                     class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
                                             </div>
@@ -799,14 +821,11 @@
     <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
 
     <!-- Forward auth security warning modal -->
-    <div x-show="fwdAuthWarning" x-cloak
-        class="fixed inset-0 z-50 flex items-center justify-center"
-        style="background: rgba(0,0,0,0.6);"
-        @keydown.escape.window="cancelEnableForwardAuth()">
-        <div class="wb-surface wb-border rounded-xl p-6 border max-w-sm mx-4 space-y-4"
-            role="dialog" aria-modal="true" aria-labelledby="fwd-auth-modal-title">
-            <h3 id="fwd-auth-modal-title" class="text-sm font-semibold"
-                style="color: var(--wb-error-text);">
+    <div x-show="fwdAuthWarning" x-cloak class="fixed inset-0 z-50 flex items-center justify-center"
+        style="background: rgba(0,0,0,0.6);" @keydown.escape.window="cancelEnableForwardAuth()">
+        <div class="wb-surface wb-border rounded-xl p-6 border max-w-sm mx-4 space-y-4" role="dialog" aria-modal="true"
+            aria-labelledby="fwd-auth-modal-title">
+            <h3 id="fwd-auth-modal-title" class="text-sm font-semibold" style="color: var(--wb-error-text);">
                 &#9888; Security Notice
             </h3>
             <p class="text-xs wb-text-secondary leading-relaxed">
@@ -818,9 +837,8 @@
             <p class="text-[11px] wb-text-faint leading-relaxed">
                 Ensure your firewall or Docker network blocks direct access to this
                 container before enabling. See the
-                <a href="https://www.authelia.com/integration/proxies/introduction/"
-                    target="_blank" rel="noopener noreferrer"
-                    class="wb-accent-text underline">Authelia integration docs</a>
+                <a href="https://www.authelia.com/integration/proxies/introduction/" target="_blank"
+                    rel="noopener noreferrer" class="wb-accent-text underline">Authelia integration docs</a>
                 for the recommended network topology.
             </p>
             <div class="flex gap-2 pt-1">
