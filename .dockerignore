@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# IDE
+.vscode/
+.vs/
+.rider/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test artifacts
+coverage/
+*.trx
+
+# Node modules (if frontend exists)
+node_modules/
+
+# Documentation
+*.md
+!README.md
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Database files (don't include in image)
+*.db
+*.sqlite
+
+# Temporary files
+.tmp/
+temp/

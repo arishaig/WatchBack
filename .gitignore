@@ -1,0 +1,54 @@
+# Build artifacts
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.dylib
+*.so
+
+# IDE
+.vscode/
+.vs/
+.rider/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test artifacts
+coverage/
+*.trx
+TestResults/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files (local config, not committed)
+.env
+.env.local
+.env.*.local
+
+# Node modules (if frontend exists)
+node_modules/
+
+# Temporary files
+.tmp/
+temp/
+
+# Package lock files (if using npm)
+package-lock.json
+yarn.lock
+
+# Build output
+dist/
+publish/
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Visual Studio Code
+.vscode-ctags
