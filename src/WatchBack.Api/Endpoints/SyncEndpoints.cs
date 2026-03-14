@@ -97,7 +97,9 @@ public static class SyncEndpoints
             Score: thought.Score,
             CreatedAt: thought.CreatedAt.DateTime,
             Source: thought.Source,
-            Replies: thought.Replies.Select(MapThought).ToList());
+            Replies: thought.Replies.Select(MapThought).ToList(),
+            PostTitle: thought.PostTitle,
+            PostUrl: thought.PostUrl);
     }
 
     private static SourceResultResponse MapSourceResult(Core.Models.ThoughtResult result)

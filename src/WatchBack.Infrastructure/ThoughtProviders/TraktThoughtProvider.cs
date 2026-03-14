@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
@@ -19,16 +20,20 @@ public class TraktThoughtProvider : IThoughtProvider
     private readonly IMemoryCache _cache;
     private readonly IReplyTreeBuilder _treeBuilder;
 
+    private readonly ILogger<TraktThoughtProvider> _logger;
+
     public TraktThoughtProvider(
         HttpClient httpClient,
         IOptionsSnapshot<TraktOptions> options,
         IMemoryCache cache,
-        IReplyTreeBuilder treeBuilder)
+        IReplyTreeBuilder treeBuilder,
+        ILogger<TraktThoughtProvider> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
         _cache = cache;
         _treeBuilder = treeBuilder;
+        _logger = logger;
     }
 
     public DataProviderMetadata Metadata =>
@@ -64,6 +69,8 @@ public class TraktThoughtProvider : IThoughtProvider
             var searchResponse = await _httpClient.SendAsync(searchRequest, ct);
             if (!searchResponse.IsSuccessStatusCode)
             {
+                _logger.LogWarning("Trakt search failed: HTTP {Status} for '{Title}'",
+                    (int)searchResponse.StatusCode, mediaContext.Title);
                 return new ThoughtResult(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
             }
 
@@ -73,15 +80,19 @@ public class TraktThoughtProvider : IThoughtProvider
                 TraktThoughtJsonContext.Default.TraktShowSearchItemDtoArray);
 
             var show = searchResults?.FirstOrDefault()?.Show;
-            if (show?.Ids?.Trakt == null)
+            if (show?.Ids?.Slug == null && show?.Ids?.Trakt == null)
             {
+                _logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
                 return new ThoughtResult(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
             }
+            _logger.LogDebug("Trakt: resolved show '{Title}' → slug '{Slug}'", mediaContext.Title, show.Ids?.Slug);
+
+            var showId = Uri.EscapeDataString(show.Ids?.Slug ?? show.Ids!.Trakt!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
             // Get episode-specific comments when possible, fall back to show comments
             string commentsUrl = episode != null
-                ? $"https://api.trakt.tv/shows/{show.Ids.Trakt}/seasons/{episode.SeasonNumber}/episodes/{episode.EpisodeNumber}/comments"
-                : $"https://api.trakt.tv/shows/{show.Ids.Trakt}/comments";
+                ? $"https://api.trakt.tv/shows/{showId}/seasons/{episode.SeasonNumber}/episodes/{episode.EpisodeNumber}/comments/newest"
+                : $"https://api.trakt.tv/shows/{showId}/comments/newest";
 
             var commentsRequest = new HttpRequestMessage(HttpMethod.Get, commentsUrl);
             ConfigureRequestHeaders(commentsRequest);
@@ -89,6 +100,8 @@ public class TraktThoughtProvider : IThoughtProvider
             var commentsResponse = await _httpClient.SendAsync(commentsRequest, ct);
             if (!commentsResponse.IsSuccessStatusCode)
             {
+                _logger.LogWarning("Trakt comments failed: HTTP {Status} for '{Url}'",
+                    (int)commentsResponse.StatusCode, commentsUrl);
                 return new ThoughtResult(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
             }
 
@@ -96,6 +109,7 @@ public class TraktThoughtProvider : IThoughtProvider
             var comments = JsonSerializer.Deserialize<TraktCommentDto[]>(
                 commentsContent,
                 TraktThoughtJsonContext.Default.TraktCommentDtoArray) ?? [];
+            _logger.LogDebug("Trakt: fetched {Count} comment(s) for '{Title}'", comments.Length, mediaContext.Title);
 
             var thoughts = comments
                 .Select(c => new Thought(
@@ -125,8 +139,9 @@ public class TraktThoughtProvider : IThoughtProvider
             _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Trakt thought fetch failed");
             return new ThoughtResult(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
         }
     }
@@ -182,7 +197,8 @@ public class TraktThoughtProvider : IThoughtProvider
 }
 
 internal sealed record TraktShowIdsDto(
-    [property: JsonPropertyName("trakt")] int? Trakt);
+    [property: JsonPropertyName("trakt")] int? Trakt,
+    [property: JsonPropertyName("slug")] string? Slug);
 
 internal sealed record TraktShowDto(
     [property: JsonPropertyName("title")] string? Title,

@@ -29,7 +29,9 @@ public record ThoughtResponse(
     int? Score,
     DateTime CreatedAt,
     string Source,
-    IReadOnlyList<ThoughtResponse> Replies);
+    IReadOnlyList<ThoughtResponse> Replies,
+    string? PostTitle = null,
+    string? PostUrl = null);
 
 public record ThoughtImageResponse(
     string Url,

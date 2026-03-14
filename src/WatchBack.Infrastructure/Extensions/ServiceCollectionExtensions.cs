@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Options;
@@ -11,8 +10,7 @@ namespace WatchBack.Infrastructure.Extensions;
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddWatchBackInfrastructure(
-        this IServiceCollection services,
-        IConfiguration configuration)
+        this IServiceCollection services)
     {
         // Register typed HTTP clients for each provider
         services.AddHttpClient<JellyfinWatchStateProvider>();

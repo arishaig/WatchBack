@@ -5,7 +5,8 @@ public record ThoughtImageResponse(
     string? Alt);
 
 /// <summary>
-/// Represents a Thought. A Thought is any piece of content from an
+/// A response back from a source containing a Thought.
+/// A Thought is any piece of content from an
 /// integrated ThoughtProvider. Examples of possible Thoughts are:
 /// <list type="bullet">
 ///     <item>

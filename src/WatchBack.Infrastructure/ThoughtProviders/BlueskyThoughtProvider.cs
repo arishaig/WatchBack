@@ -112,7 +112,7 @@ public class BlueskyThoughtProvider(
                 Thoughts: treeThoughts,
                 NextPageToken: null);
 
-            cache.Set(cacheKey, result, TimeSpan.FromSeconds(3600)); // 1 hour cache
+            cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
         catch

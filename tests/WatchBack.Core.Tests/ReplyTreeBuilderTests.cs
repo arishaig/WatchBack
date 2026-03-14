@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Xunit;
-using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Services;
 
@@ -8,7 +7,7 @@ namespace WatchBack.Core.Tests;
 
 public class ReplyTreeBuilderTests
 {
-    private readonly IReplyTreeBuilder _builder = new ReplyTreeBuilder();
+    private readonly ReplyTreeBuilder _builder = new();
 
     private static Thought CreateThought(
         string id,

@@ -10,7 +10,7 @@ using WatchBack.Infrastructure.WatchState;
 namespace WatchBack.Infrastructure.Tests;
 
 
-public class TraktWatchStateProviderTests
+public class TraktWatchStateProviderTests : IDisposable
 {
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
     private readonly TraktOptions _options;
@@ -25,6 +25,8 @@ public class TraktWatchStateProviderTests
             CacheTtlSeconds = 30
         };
     }
+
+    public void Dispose() => _cache.Dispose();
 
     [Fact]
     public async Task GetCurrentMediaContextAsync_WithNoActivePlayback_ReturnsNull()

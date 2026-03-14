@@ -67,7 +67,7 @@ builder.Services
     .BindConfiguration("WatchBack");
 
 // Add infrastructure providers
-builder.Services.AddWatchBackInfrastructure(builder.Configuration);
+builder.Services.AddWatchBackInfrastructure();
 
 // Add core services
 builder.Services.AddScoped<ISyncService, SyncService>();
@@ -103,8 +103,6 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<WatchBackDbContext>();
     await dbContext.Database.MigrateAsync();
 }
-
-app.UseHttpsRedirection();
 
 // Enable Swagger/OpenAPI
 app.UseSwagger();

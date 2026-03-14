@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Xunit;
-using NSubstitute;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using System.Net;
@@ -11,11 +10,9 @@ using WatchBack.Infrastructure.WatchState;
 namespace WatchBack.Infrastructure.Tests;
 
 
-public class JellyfinWatchStateProviderTests
+public class JellyfinWatchStateProviderTests : IDisposable
 {
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
-    private readonly HttpClient _httpClient;
-    private readonly JellyfinWatchStateProvider _provider;
     private readonly JellyfinOptions _options;
 
     public JellyfinWatchStateProviderTests()
@@ -26,11 +23,9 @@ public class JellyfinWatchStateProviderTests
             ApiKey = "test-api-key",
             CacheTtlSeconds = 10
         };
-
-        var handler = Substitute.ForPartsOf<HttpMessageHandler>();
-        _httpClient = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
-        _provider = new JellyfinWatchStateProvider(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache);
     }
+
+    public void Dispose() => _cache.Dispose();
 
     [Fact]
     public async Task GetCurrentMediaContextAsync_WithNoActiveSessions_ReturnsNull()
@@ -62,7 +57,7 @@ public class JellyfinWatchStateProviderTests
                     "NowPlayingItem": {
                         "Name": "Breaking Bad",
                         "SeriesName": "Breaking Bad",
-                        "Season": 3,
+                        "ParentIndexNumber": 3,
                         "IndexNumber": 7,
                         "PremiereDate": "2010-03-28T00:00:00Z"
                     }
@@ -219,9 +214,10 @@ public class JellyfinWatchStateProviderTests
     }
 }
 
-internal class MockHttpMessageHandler : HttpMessageHandler
+internal sealed class MockHttpMessageHandler : HttpMessageHandler
 {
-    private readonly Func<HttpResponseMessage> _responseFactory;
+    private readonly Func<HttpResponseMessage>? _responseFactory;
+    private readonly Func<HttpRequestMessage, HttpResponseMessage>? _requestFactory;
     private readonly HttpResponseMessage? _fixedResponse;
 
     public MockHttpMessageHandler(HttpResponseMessage fixedResponse)
@@ -234,11 +230,16 @@ internal class MockHttpMessageHandler : HttpMessageHandler
         _responseFactory = responseFactory;
     }
 
+    public MockHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> requestFactory)
+    {
+        _requestFactory = requestFactory;
+    }
+
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        var response = _fixedResponse ?? _responseFactory();
+        var response = _fixedResponse ?? _requestFactory?.Invoke(request) ?? _responseFactory!();
         return Task.FromResult(response);
     }
 }

@@ -125,7 +125,6 @@ document.addEventListener('alpine:init', () => {
                         // Only accept real sync responses (must have a status field)
                         if (!data?.status) return;
                         console.debug("[WatchBack] SSE update:", data);
-                        if (data.status === 'Watching') this._annotateThoughts(data);
                         this.data = data;
                     } catch (err) {
                         console.debug("[WatchBack] SSE parse:", err);
@@ -182,12 +181,15 @@ document.addEventListener('alpine:init', () => {
         get activeThoughts() {
             if (!this.data) return [];
             const list = this.mode === 'time' ? (this.data.timeMachineThoughts || []) : (this.data.allThoughts || []);
-            if (this.sourceFilter.size === 0) return list;
-            return list.filter(c => this.sourceFilter.has(c.source));
+            // Only show root-level thoughts as top-level cards; replies render nested inside their parent
+            const ids = new Set(list.map(t => t.id));
+            const roots = list.filter(t => !t.parentId || !ids.has(t.parentId));
+            if (this.sourceFilter.size === 0) return roots;
+            return roots.filter(c => this.sourceFilter.has(c.source));
         },
 
         get hasThreadGroups() {
-            return this.activeThoughts.some(c => c._threadTitle);
+            return this.activeThoughts.some(c => c.postTitle);
         },
 
         get timeMachineCount() {
@@ -234,9 +236,9 @@ document.addEventListener('alpine:init', () => {
             const groups = [];
             const map = new Map();
             for (const c of thoughts) {
-                const key = c._threadTitle || '';
+                const key = c.postTitle || '';
                 if (!map.has(key)) {
-                    const g = { title: c._threadTitle || null, url: c._threadUrl || null, thoughts: [] };
+                    const g = { title: c.postTitle || null, url: c.postUrl || null, thoughts: [] };
                     map.set(key, g);
                     groups.push(g);
                 }
@@ -261,8 +263,6 @@ document.addEventListener('alpine:init', () => {
 
                 if (newData?.status === 'Watching') {
                     this.error = null;
-                    // Annotate thoughts with thread info from sourceResults
-                    this._annotateThoughts(newData);
                     console.info(`[WatchBack] Synced: ${newData.title}`, {
                         timeMachine: newData.timeMachineThoughts?.length || 0,
                         allThoughts: newData.allThoughts?.length || 0
@@ -285,32 +285,6 @@ document.addEventListener('alpine:init', () => {
                 this.showError('Connection failed');
             }
             finally { this.isLoading = false; }
-        },
-
-        _annotateThoughts(data) {
-            // Build a map from thought ID → sourceResult info (thread title/url)
-            if (!data.sourceResults) return;
-            const threadMap = new Map();
-            for (const sr of data.sourceResults) {
-                if (sr.thoughts) {
-                    for (const t of sr.thoughts) {
-                        threadMap.set(t.id, { title: sr.postTitle, url: sr.postUrl });
-                    }
-                }
-            }
-            // Annotate allThoughts and timeMachineThoughts
-            const annotate = (list) => {
-                if (!list) return;
-                for (const t of list) {
-                    const info = threadMap.get(t.id);
-                    if (info) {
-                        t._threadTitle = info.title;
-                        t._threadUrl = info.url;
-                    }
-                }
-            };
-            annotate(data.allThoughts);
-            annotate(data.timeMachineThoughts);
         },
 
         _initConfigEdits(configData) {

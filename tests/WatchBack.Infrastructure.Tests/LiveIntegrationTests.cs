@@ -19,14 +19,17 @@ namespace WatchBack.Infrastructure.Tests;
 /// Run with: dotnet test --filter "Category=Integration"
 /// </summary>
 [Trait("Category", "Integration")]
-public class LiveIntegrationTests
+public class LiveIntegrationTests : IDisposable
 {
-    private readonly IMemoryCache _cache = new MemoryCache(new MemoryCacheOptions());
+    private readonly MemoryCache _cache = new(new MemoryCacheOptions());
     private readonly HttpClient _httpClient = new();
 
-    public LiveIntegrationTests()
+    public LiveIntegrationTests() => LoadEnvFile();
+
+    public void Dispose()
     {
-        LoadEnvFile();
+        _cache.Dispose();
+        _httpClient.Dispose();
     }
 
     private static void LoadEnvFile()
@@ -43,7 +46,7 @@ public class LiveIntegrationTests
         {
             foreach (var line in File.ReadAllLines(envPath))
             {
-                if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#"))
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
                     continue;
 
                 var parts = line.Split('=', 2);
@@ -134,7 +137,7 @@ public class LiveIntegrationTests
             EpisodeNumber: 1);
 
         var treeBuilder = new ReplyTreeBuilder();
-        var provider = new TraktThoughtProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache, treeBuilder);
+        var provider = new TraktThoughtProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -167,7 +170,7 @@ public class LiveIntegrationTests
             EpisodeNumber: 1);
 
         var treeBuilder = new ReplyTreeBuilder();
-        var provider = new RedditThoughtProvider(_httpClient, new OptionsSnapshotStub<RedditOptions>(options), _cache, treeBuilder);
+        var provider = new RedditThoughtProvider(_httpClient, new OptionsSnapshotStub<RedditOptions>(options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<WatchBack.Infrastructure.Thoughts.RedditThoughtProvider>.Instance);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -236,7 +239,8 @@ public class LiveIntegrationTests
         };
         var traktWatchProvider = new TraktWatchStateProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache);
         var traktThoughtProvider = new TraktThoughtProvider(
-            _httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache, new ReplyTreeBuilder());
+            _httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache, new ReplyTreeBuilder(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
 
         // Bluesky
         var blueskyOpts = new BlueskyOptions
@@ -250,7 +254,8 @@ public class LiveIntegrationTests
         // Reddit
         var redditOpts = new RedditOptions();
         var redditProvider = new RedditThoughtProvider(
-            _httpClient, new OptionsSnapshotStub<RedditOptions>(redditOpts), _cache, new ReplyTreeBuilder());
+            _httpClient, new OptionsSnapshotStub<RedditOptions>(redditOpts), _cache, new ReplyTreeBuilder(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
 
         // Act - all providers should handle health checks without throwing
         var jellyfinHealth = await jellyfinProvider.GetServiceHealthAsync();

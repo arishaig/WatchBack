@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
@@ -8,15 +9,16 @@ using WatchBack.Core.Options;
 
 namespace WatchBack.Infrastructure.Thoughts;
 
-[JsonSerializable(typeof(RedditSubmissionsListingDto))]
-[JsonSerializable(typeof(RedditCommentsListingDto))]
+[JsonSerializable(typeof(PullPushSubmissionsResponseDto))]
+[JsonSerializable(typeof(PullPushCommentsResponseDto))]
 internal sealed partial class RedditJsonContext : JsonSerializerContext { }
 
 public class RedditThoughtProvider(
     HttpClient httpClient,
     IOptionsSnapshot<RedditOptions> options,
     IMemoryCache cache,
-    IReplyTreeBuilder treeBuilder)
+    IReplyTreeBuilder treeBuilder,
+    ILogger<RedditThoughtProvider> logger)
     : IThoughtProvider
 {
     private readonly RedditOptions _options = options.Value;
@@ -46,23 +48,75 @@ public class RedditThoughtProvider(
                 return cached;
             }
 
-            // Search for submissions
-            var query = $"{mediaContext.Title} S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
-            var submissionsUrl = $"https://api.pushshift.io/reddit/search/submission?title={Uri.EscapeDataString(query)}&size={_options.MaxThreads}";
-            var submissionsResponse = await httpClient.GetAsync(submissionsUrl, ct);
+            // Build multiple search queries mirroring the Python implementation:
+            // 1. Show title + episode code (padded and unpadded)
+            // 2. Episode code only within a guessed subreddit (catches threads with no show name in title)
+            var sLong = episode.SeasonNumber.ToString("D2", System.Globalization.CultureInfo.InvariantCulture);
+            var eLong = episode.EpisodeNumber.ToString("D2", System.Globalization.CultureInfo.InvariantCulture);
+            var sn = episode.SeasonNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var en = episode.EpisodeNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-            if (!submissionsResponse.IsSuccessStatusCode)
+            // Derive subreddit name: strip non-alphanumeric from show title (e.g. "Halt and Catch Fire" → "haltandcatchfire")
+            var derivedSubreddit = System.Text.RegularExpressions.Regex.Replace(
+                mediaContext.Title.ToLowerInvariant(), "[^a-z0-9]", "");
+
+            var searches = new List<(string Title, string? Subreddit)>
             {
-                return new ThoughtResult(Source: "Reddit", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+                ($"{mediaContext.Title} S{sn}E{en}", null),
+                ($"{mediaContext.Title} S{sLong}E{eLong}", null),
+                ($"S{sn}E{en}", derivedSubreddit),
+                ($"S{sLong}E{eLong}", derivedSubreddit),
+            };
+
+            var seenIds = new Dictionary<string, PullPushSubmissionDto>();
+            foreach (var (titleQuery, subreddit) in searches)
+            {
+                var url = $"https://api.pullpush.io/reddit/search/submission/?title={Uri.EscapeDataString(titleQuery)}&size=25&sort_type=score&sort=desc";
+                if (subreddit != null)
+                    url += $"&subreddit={Uri.EscapeDataString(subreddit)}";
+
+                try
+                {
+                    var resp = await httpClient.GetAsync(url, ct);
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        logger.LogWarning("PullPush submission search failed: HTTP {Status} for query '{Query}'",
+                            (int)resp.StatusCode, titleQuery);
+                        continue;
+                    }
+                    var respContent = await resp.Content.ReadAsStringAsync(ct);
+                    var listing = JsonSerializer.Deserialize<PullPushSubmissionsResponseDto>(
+                        respContent, RedditJsonContext.Default.PullPushSubmissionsResponseDto);
+                    foreach (var sub in listing?.Data ?? [])
+                    {
+                        if (sub.Id != null && !seenIds.ContainsKey(sub.Id))
+                            seenIds[sub.Id] = sub;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "PullPush submission search exception for query '{Query}'", titleQuery);
+                }
             }
 
-            var submissionsContent = await submissionsResponse.Content.ReadAsStringAsync(ct);
-            var submissionsList = JsonSerializer.Deserialize<RedditSubmissionsListingDto>(
-                submissionsContent,
-                RedditJsonContext.Default.RedditSubmissionsListingDto);
+            // Log raw results before filtering so we can diagnose misses
+            foreach (var (id, sub) in seenIds)
+            {
+                var passes = MatchesEpisode(sub.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber);
+                logger.LogInformation("PullPush raw: [{Id}] r/{Sub} \"{Title}\" → {Result}",
+                    id, sub.Subreddit, sub.Title, passes ? "KEEP" : "SKIP");
+            }
 
-            var submissions = submissionsList?.Data?.Children ?? [];
-            if (submissions.Length == 0)
+            // Keep only submissions whose title actually references this episode
+            var submissions = seenIds.Values
+                .Where(s => MatchesEpisode(s.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber))
+                .OrderByDescending(s => s.Score ?? 0)
+                .ToList();
+
+            logger.LogInformation("PullPush: found {Count} matching submission(s) for '{Title}' S{Season}E{Episode}",
+                submissions.Count, mediaContext.Title, sLong, eLong);
+
+            if (submissions.Count == 0)
             {
                 return new ThoughtResult(Source: "Reddit", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
             }
@@ -71,58 +125,70 @@ public class RedditThoughtProvider(
             string? postTitle = null;
             string? postUrl = null;
 
-            for (int i = 0; i < submissions.Length && i < _options.MaxThreads; i++)
+            for (int i = 0; i < submissions.Count && i < _options.MaxThreads; i++)
             {
                 var submission = submissions[i];
-                if (submission.Data?.Id == null)
+                if (submission.Id == null)
                     continue;
+
+                var thisPostUrl = submission.Permalink != null
+                    ? $"https://reddit.com{submission.Permalink}"
+                    : $"https://reddit.com/r/{submission.Subreddit}/comments/{submission.Id}/";
+                var thisPostTitle = submission.Title;
 
                 if (postTitle == null)
                 {
-                    postTitle = submission.Data.Title;
-                    postUrl = $"https://reddit.com{submission.Data.Permalink}";
+                    postTitle = thisPostTitle;
+                    postUrl = thisPostUrl;
                 }
 
                 var threadThoughts = new List<Thought>();
 
                 // Prepend the OP selftext as a root thought for self-posts
-                var selftext = submission.Data.Selftext;
-                if (submission.Data.IsSelf &&
+                var selftext = submission.Selftext;
+                if (submission.IsSelf &&
                     !string.IsNullOrWhiteSpace(selftext) &&
                     !selftext.Equals("[deleted]", StringComparison.Ordinal) &&
                     !selftext.Equals("[removed]", StringComparison.Ordinal))
                 {
                     threadThoughts.Add(new Thought(
-                        Id: $"reddit:{submission.Data.Id}",
+                        Id: $"reddit:{submission.Id}",
                         ParentId: null,
-                        Title: submission.Data.Title,
+                        Title: submission.Title,
                         Content: selftext,
-                        Url: $"https://reddit.com{submission.Data.Permalink}",
+                        Url: thisPostUrl,
                         Images: [],
-                        Author: submission.Data.Author ?? "Unknown",
-                        Score: submission.Data.Score,
-                        CreatedAt: submission.Data.CreatedUtc.HasValue
-                            ? DateTimeOffset.FromUnixTimeSeconds(submission.Data.CreatedUtc.Value)
+                        Author: submission.Author ?? "Unknown",
+                        Score: submission.Score,
+                        CreatedAt: submission.CreatedUtc.HasValue
+                            ? DateTimeOffset.FromUnixTimeSeconds(submission.CreatedUtc.Value)
                             : DateTimeOffset.UtcNow,
                         Source: "Reddit",
-                        Replies: []));
+                        Replies: [],
+                        PostTitle: thisPostTitle,
+                        PostUrl: thisPostUrl));
                 }
 
-                // Get comments for this submission
-                var commentsUrl = $"https://api.pushshift.io/reddit/search/comment?link_id={Uri.EscapeDataString(submission.Data.Id)}&size={_options.MaxComments}";
+                // Get comments for this submission via PullPush
+                var commentsUrl = $"https://api.pullpush.io/reddit/search/comment/?link_id={Uri.EscapeDataString(submission.Id)}&size={_options.MaxComments}&sort_type=score&sort=desc";
                 var commentsResponse = await httpClient.GetAsync(commentsUrl, ct);
 
                 if (!commentsResponse.IsSuccessStatusCode)
+                {
+                    logger.LogWarning("PullPush comment fetch failed: HTTP {Status} for thread {ThreadId}",
+                        (int)commentsResponse.StatusCode, submission.Id);
                     continue;
+                }
 
                 var commentsContent = await commentsResponse.Content.ReadAsStringAsync(ct);
-                var commentsList = JsonSerializer.Deserialize<RedditCommentsListingDto>(
+                var commentsList = JsonSerializer.Deserialize<PullPushCommentsResponseDto>(
                     commentsContent,
-                    RedditJsonContext.Default.RedditCommentsListingDto);
+                    RedditJsonContext.Default.PullPushCommentsResponseDto);
 
-                var comments = commentsList?.Data?.Children ?? [];
+                var comments = commentsList?.Data ?? [];
+                logger.LogInformation("PullPush: thread {ThreadId} ({Title}) returned {Count} comment(s)", submission.Id, submission.Title, comments.Length);
                 threadThoughts.AddRange(comments
-                    .Select(c => MapCommentToThought(c.Data))
+                    .Select(c => MapCommentToThought(c, thisPostTitle, thisPostUrl))
                     .Where(t => !IsDeletedOrRemoved(t)));
 
                 allThoughts.AddRange(threadThoughts);
@@ -141,8 +207,9 @@ public class RedditThoughtProvider(
             cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Reddit/PullPush thought fetch failed");
             return new ThoughtResult(Source: "Reddit", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
         }
     }
@@ -151,7 +218,7 @@ public class RedditThoughtProvider(
     {
         try
         {
-            var response = await httpClient.GetAsync("https://api.pushshift.io/reddit/search/comment?size=0", ct);
+            var response = await httpClient.GetAsync("https://api.pullpush.io/reddit/search/comment/?size=0", ct);
 
             return new ServiceHealth(
                 IsHealthy: response.IsSuccessStatusCode,
@@ -167,24 +234,26 @@ public class RedditThoughtProvider(
         }
     }
 
-    private static Thought MapCommentToThought(RedditCommentDataDto? data)
+    private static Thought MapCommentToThought(PullPushCommentDto data, string? postTitle, string? postUrl)
     {
-        var parentId = StripRedditPrefix(data?.ParentId);
+        var parentId = StripRedditPrefix(data.ParentId);
 
         return new Thought(
-            Id: $"reddit:{data?.Id}",
+            Id: $"reddit:{data.Id}",
             ParentId: parentId,
             Title: null,
-            Content: data?.Body ?? "",
+            Content: data.Body ?? "",
             Url: null,
             Images: [],
-            Author: data?.Author ?? "Unknown",
-            Score: data?.Score,
-            CreatedAt: data?.CreatedUtc.HasValue == true
+            Author: data.Author ?? "Unknown",
+            Score: data.Score,
+            CreatedAt: data.CreatedUtc.HasValue
                 ? DateTimeOffset.FromUnixTimeSeconds(data.CreatedUtc.Value)
                 : DateTimeOffset.UtcNow,
             Source: "Reddit",
-            Replies: []);
+            Replies: [],
+            PostTitle: postTitle,
+            PostUrl: postUrl);
     }
 
     private static string? StripRedditPrefix(string? redditId)
@@ -197,10 +266,37 @@ public class RedditThoughtProvider(
         if (redditId.StartsWith("t1_", StringComparison.Ordinal) ||
             redditId.StartsWith("t3_", StringComparison.Ordinal))
         {
-            return "reddit:" + redditId.Substring(3);
+            return string.Concat("reddit:", redditId.AsSpan(3));
         }
 
         return redditId;
+    }
+
+    private static bool MatchesEpisode(string title, int season, int episode)
+    {
+        var t = title.ToUpperInvariant();
+        var s = season.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var sL = season.ToString("D2", System.Globalization.CultureInfo.InvariantCulture);
+        var e = episode.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var eL = episode.ToString("D2", System.Globalization.CultureInfo.InvariantCulture);
+
+        // Match SxxExx patterns (e.g. S4E6, S04E06, S4E06, S04E6)
+        foreach (var code in new[] { $"S{sL}E{eL}", $"S{s}E{eL}", $"S{sL}E{e}", $"S{s}E{e}" })
+        {
+            if (System.Text.RegularExpressions.Regex.IsMatch(t, $"{code}(?!\\d)"))
+                return true;
+        }
+
+        // Match NxNN patterns (e.g. 4x06, 4x6)
+        if (System.Text.RegularExpressions.Regex.IsMatch(t, $@"\b{s}X{eL}(?!\d)") ||
+            System.Text.RegularExpressions.Regex.IsMatch(t, $@"\b{s}X{e}(?!\d)"))
+            return true;
+
+        // Match "Season N ... Episode N"
+        if (System.Text.RegularExpressions.Regex.IsMatch(t, $@"\bSEASON\s+{s}\b.{{0,30}}\bEPISODE\s+{e}\b"))
+            return true;
+
+        return false;
     }
 
     private static bool IsDeletedOrRemoved(Thought thought)
@@ -210,7 +306,9 @@ public class RedditThoughtProvider(
     }
 }
 
-internal sealed record RedditCommentDataDto(
+// PullPush API returns { "data": [...] } — a flat array, not the Reddit native children wrapper.
+
+internal sealed record PullPushCommentDto(
     [property: JsonPropertyName("id")] string? Id,
     [property: JsonPropertyName("body")] string? Body,
     [property: JsonPropertyName("score")] int? Score,
@@ -218,30 +316,19 @@ internal sealed record RedditCommentDataDto(
     [property: JsonPropertyName("created_utc")] long? CreatedUtc,
     [property: JsonPropertyName("parent_id")] string? ParentId);
 
-internal sealed record RedditSubmissionDataDto(
+internal sealed record PullPushSubmissionDto(
     [property: JsonPropertyName("id")] string? Id,
     [property: JsonPropertyName("title")] string? Title,
     [property: JsonPropertyName("permalink")] string? Permalink,
+    [property: JsonPropertyName("subreddit")] string? Subreddit,
     [property: JsonPropertyName("created_utc")] long? CreatedUtc,
     [property: JsonPropertyName("author")] string? Author,
     [property: JsonPropertyName("score")] int? Score,
     [property: JsonPropertyName("is_self")] bool IsSelf,
     [property: JsonPropertyName("selftext")] string? Selftext);
 
-internal sealed record RedditSubmissionChildDto(
-    [property: JsonPropertyName("data")] RedditSubmissionDataDto? Data);
+internal sealed record PullPushSubmissionsResponseDto(
+    [property: JsonPropertyName("data")] PullPushSubmissionDto[]? Data);
 
-internal sealed record RedditSubmissionsListingDataDto(
-    [property: JsonPropertyName("children")] RedditSubmissionChildDto[]? Children);
-
-internal sealed record RedditSubmissionsListingDto(
-    [property: JsonPropertyName("data")] RedditSubmissionsListingDataDto? Data);
-
-internal sealed record RedditCommentChildDto(
-    [property: JsonPropertyName("data")] RedditCommentDataDto? Data);
-
-internal sealed record RedditCommentsListingDataDto(
-    [property: JsonPropertyName("children")] RedditCommentChildDto[]? Children);
-
-internal sealed record RedditCommentsListingDto(
-    [property: JsonPropertyName("data")] RedditCommentsListingDataDto? Data);
+internal sealed record PullPushCommentsResponseDto(
+    [property: JsonPropertyName("data")] PullPushCommentDto[]? Data);

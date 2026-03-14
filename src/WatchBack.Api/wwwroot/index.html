@@ -11,12 +11,12 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="stylesheet" href="/tailwind.css">
-    <script
-        src="https://cdn.jsdelivr.net/npm/reconnecting-eventsource@1.6.2/dist/ReconnectingEventSource.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+    <script src="/js/reconnecting-eventsource.min.js"></script>
+    <script defer src="/js/alpine.min.js"></script>
     <link rel="stylesheet" href="/css/app.css">
 </head>
 
+<!-- suppress HtmlUnknownTag, JSUnresolvedVariable, JSUnresolvedFunction, JSUnusedLocalSymbols, JSIgnoredPromiseFromCall, JSCommaOperator, JSUnreachableCode, SpellCheckingInspection, HtmlFormInputWithoutLabel, RequiredAttributes -->
 <body class="antialiased font-sans p-4" x-data="app()">
 
     <!-- Loading state (full-screen, shown during initial load) -->
@@ -50,7 +50,7 @@
                     class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm leading-none cursor-pointer wb-btn wb-border border flex items-center">
                     <ion-icon name="help-circle-sharp" aria-hidden="true"></ion-icon>
                 </a>
-                <button @click="sync()"
+                <button @click="void sync()"
                     class="wb-on-accent px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer wb-btn wb-border border"
                     style="background-color: var(--wb-accent);" :disabled="isLoading">
                     <span x-show="!isLoading" class="flex items-center gap-2">
@@ -73,7 +73,7 @@
             <button @click="error = null; clearTimeout(errorTimer)"
                 class="ml-3 shrink-0 text-xs font-bold cursor-pointer opacity-70 hover:opacity-100"
                 aria-label="Dismiss">
-                <ion-icon name="close-sharp"></ion-icon>
+                <ion-icon name="close-sharp" aria-hidden="true"></ion-icon>
             </button>
         </div>
 
@@ -86,8 +86,7 @@
                 <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Integrations</h2>
 
                 <div class="space-y-3">
-                    <template x-for="[key, integration] in Object.entries(configData?.integrations || {})"
-                        :key="key">
+                    <template x-for="[key, integration] in Object.entries(configData?.integrations || {})" :key="key">
                         <div class="integration-card rounded-xl p-4 space-y-3"
                             :style="'--card-accent: ' + integration.brandColor">
                             <!-- Card header: logo + service name -->
@@ -102,12 +101,15 @@
                             <template x-for="field in integration.fields" :key="field.key">
                                 <div class="relative">
                                     <div class="flex justify-between mb-1">
-                                        <label class="text-xs font-medium wb-text-muted"
+                                        <label :for="'field-' + field.key"
+                                            class="text-xs font-medium wb-text-muted"
                                             x-text="field.label"></label>
                                         <span x-show="field.type === 'password' && field.hasValue && !configEdits[field.key]"
                                             class="text-xs wb-text-faint">set</span>
                                     </div>
-                                    <input :type="field.type"
+                                    <!--suppress HtmlFormInputWithoutLabel -->
+                                    <input :id="'field-' + field.key"
+                                        :type="field.type"
                                         :placeholder="field.type === 'password' && field.hasValue ? '(unchanged)' : field.placeholder"
                                         x-model="configEdits[field.key]"
                                         autocomplete="off"
@@ -115,7 +117,7 @@
                                 </div>
                             </template>
                             <!-- Test button -->
-                            <button @click="testService(key)"
+                            <button @click="void testService(key)"
                                 :disabled="testResults[key]?.status === 'testing' || !integration.configured"
                                 aria-live="polite"
                                 class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
@@ -128,7 +130,7 @@
 
                 <!-- Save + feature summary -->
                 <div class="wb-border border-t mt-8 pt-5 space-y-3">
-                    <button @click="saveAllConfig()"
+                    <button @click="void saveAllConfig()"
                         :disabled="saveAllStatus === 'saving'"
                         aria-live="polite"
                         class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt cursor-pointer disabled:opacity-50 wb-btn"
@@ -168,7 +170,7 @@
                                 <span>Comments from <strong class="wb-text-secondary">Reddit</strong></span>
                             </li>
                             <li class="pt-1">
-                                <button @click="testAll()"
+                                <button @click="void testAll()"
                                     :disabled="testAllStatus === 'testing'"
                                     aria-live="polite"
                                     class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
@@ -215,16 +217,16 @@
                         </template>
 
                         <div>
-                            <label class="text-xs font-medium wb-text-muted block mb-1">Time Machine Window</label>
+                            <label for="time-machine-days" class="text-xs font-medium wb-text-muted block mb-1">Time Machine Window</label>
                             <div class="flex items-center gap-2">
-                                <input type="number" min="1" max="365"
+                                <input type="number" min="1" max="365" id="time-machine-days"
                                     x-model.number="prefEdits.timeMachineDays"
                                     class="w-24 wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                                 <span class="text-xs wb-text-faint">days</span>
                             </div>
                         </div>
 
-                        <button @click="savePreferences()"
+                        <button @click="void savePreferences()"
                             :disabled="prefSaveStatus === 'saving'"
                             aria-live="polite"
                             class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt cursor-pointer disabled:opacity-50 wb-btn"
@@ -240,16 +242,11 @@
         <template x-if="data?.status === 'Watching'">
             <main>
                 <div class="wb-surface p-4 rounded-xl mb-6 shadow-md wb-border border comment-card">
-                    <h2 class="text-xl font-bold mb-1" x-text="data?.title"></h2>
-                    <template x-if="data?.metadata">
-                        <div class="text-sm wb-text-muted space-y-0.5">
-                            <p x-show="data.metadata.episodeTitle"
-                                x-text="data.metadata.episodeTitle + ' (S' + data.metadata.seasonNumber + 'E' + data.metadata.episodeNumber + ')'">
-                            </p>
-                            <p x-show="data.metadata.releaseDate">Aired: <span
-                                    x-text="formatDate(data.metadata.releaseDate)"></span></p>
-                        </div>
-                    </template>
+                    <h2 class="text-xl font-bold mb-1"
+                        x-text="data?.metadata?.episodeTitle ? data.title + ' - ' + data.metadata.episodeTitle : data?.title"></h2>
+                    <p class="text-sm wb-text-muted">Aired: <span
+                            x-text="formatDate(data?.metadata?.releaseDate)"></span>
+                    </p>
                 </div>
 
                 <!-- Mode toggle & source filters (only when there are thoughts) -->
@@ -259,18 +256,24 @@
                         <button x-show="showTimeMachine" @click="mode = 'time'"
                             :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
                             :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
-                            class="flex flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
+                            class="flex gap-1.5 items-center justify-center flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
                             <span class="flex hide-on-mobile">Time Machine</span>
-                            <ion-icon class="show-on-mobile" name="hourglass-sharp"></ion-icon>
+                            <ion-icon class="show-on-mobile" name="hourglass-sharp" aria-hidden="true"></ion-icon>
                             <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
                         </button>
                         <button @click="mode = 'all'" :class="mode === 'all' ? 'wb-on-accent shadow' : 'wb-text-muted'"
                             :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
-                            class="flex flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
-                            <span class="flex hide-on-mobile">Comments</span>
-                            <ion-icon class="show-on-mobile" name="chatbubbles-sharp"></ion-icon>
+                            class="flex gap-1.5 items-center justify-center flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
+                            <span class="flex hide-on-mobile">All Comments</span>
+                            <ion-icon class="show-on-mobile" name="chatbubbles-sharp" aria-hidden="true"></ion-icon>
                             <span x-text="'(' + allThoughtsCount + ')'" class="text-xs font-normal"></span>
                         </button>
+                        <a x-show="data?.metadata?.seasonNumber != null"
+                            :href="'https://www.google.com/search?q=' + encodeURIComponent(data.title + ' S' + String(data.metadata.seasonNumber).padStart(2,'0') + 'E' + String(data.metadata.episodeNumber).padStart(2,'0') + ' reddit')"
+                            target="_blank" rel="noopener noreferrer"
+                            class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn flex items-center justify-center gap-1.5"><ion-icon
+                                name="logo-reddit" aria-hidden="true"></ion-icon> Reddit <ion-icon name="search-sharp"
+                                aria-hidden="true"></ion-icon></a>
                     </div>
                 </template>
 
@@ -286,7 +289,7 @@
                 <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card"
                     style="animation-delay:0.1s">
                     <template x-for="src in availableSources" :key="src">
-                        <button @click="toggleSource(src)"
+                        <button x-show="sourceCount(src) > 0" @click="toggleSource(src)"
                             :class="sourceActive(src) ? 'filter-' + src.toLowerCase() : 'filter-inactive'"
                             class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer wb-btn">
                             <span x-text="src"></span>
@@ -299,9 +302,9 @@
                 <div x-show="hasThreadGroups" class="flex justify-center mb-4">
                     <button @click="handleThreadToggle()"
                         :class="groupByThread ? 'filter-reddit' : 'filter-inactive'"
-                        class="px-5 py-2 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer flex items-center gap-1.5 wb-btn">
+                        class="px-5 py-1.5 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer flex items-center gap-1.5 wb-btn">
                         <span
-                            x-text="(groupByThread ? 'Grouped by thread' : 'Group by thread') + ' (' + threadCount + ')'"></span>
+                            x-text="(groupByThread ? '📁 Grouped by thread' : '📁 Group by thread') + ' (' + threadCount + ')'"></span>
                     </button>
                 </div>
 
@@ -322,14 +325,14 @@
                                         :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's'">
                                         <div class="flex items-start mb-2 gap-2">
                                             <div class="flex-1 min-w-0"
-                                                x-show="!groupByThread && thought._threadTitle">
-                                                <a :href="thought._threadUrl" target="_blank"
+                                                x-show="!groupByThread && thought.postTitle">
+                                                <a :href="thought.postUrl" target="_blank"
                                                     rel="noopener noreferrer"
                                                     class="text-[11px] thread-title truncate leading-tight block"
-                                                    x-text="thought._threadTitle"></a>
+                                                    x-text="thought.postTitle"></a>
                                             </div>
                                             <div class="flex gap-1"
-                                                :class="groupByThread || !thought._threadTitle ? 'ml-auto' : 'shrink-0'">
+                                                :class="groupByThread || !thought.postTitle ? 'ml-auto' : 'shrink-0'">
                                                 <a x-show="thought.source === 'Bluesky'" :href="thought.url"
                                                     target="_blank" rel="noopener noreferrer"
                                                     class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
@@ -364,7 +367,7 @@
                                                         role="button" aria-label="View full image"
                                                         class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
                                                         style="background-color: var(--wb-bg);">
-                                                        <img :src="img.url" :alt="img.alt || 'Image from post'"
+                                                        <img src="" :src="img.url" alt="" :alt="img.alt || 'Image from post'"
                                                             class="w-full h-auto object-cover hover:scale-110 transition-transform duration-300"
                                                             loading="lazy">
                                                     </div>
@@ -483,7 +486,7 @@
             @keydown.escape.window="lightboxImg = null" role="dialog" aria-label="Image viewer" aria-modal="true"
             class="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer"
             style="background-color: rgba(0,0,0,0.85);" x-cloak>
-            <img :src="lightboxImg" @click.stop alt="Enlarged image"
+            <img src="" :src="lightboxImg" @click.stop alt="Enlarged image"
                 class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl cursor-default">
         </div>
     </div>

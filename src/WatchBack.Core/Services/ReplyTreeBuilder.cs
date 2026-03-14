@@ -37,7 +37,7 @@ public class ReplyTreeBuilder : IReplyTreeBuilder
         return topLevel;
     }
 
-    private Thought BuildTreeForThought(Thought thought, Dictionary<string, Thought> allThoughts)
+    private static Thought BuildTreeForThought(Thought thought, Dictionary<string, Thought> allThoughts)
     {
         var replies = allThoughts.Values
             .Where(t => t.ParentId == thought.Id)

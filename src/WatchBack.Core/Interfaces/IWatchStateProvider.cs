@@ -2,6 +2,13 @@ using WatchBack.Core.Models;
 
 namespace WatchBack.Core.Interfaces;
 
+/// <summary>
+/// Information about a WatchStateProvider
+/// </summary>
+/// <param name="Name">Used for grouping and display text in the UI</param>
+/// <param name="Description">Used for display text in the UI</param>
+/// <param name="BrandData">An object with branding data used in the UI for styling</param>
+/// <param name="OverrideDisplayName">If populated sets DisplayName which is used for display text in the UI</param>
 public record WatchStateDataProviderMetadata(
     string Name,
     string Description,
@@ -9,6 +16,12 @@ public record WatchStateDataProviderMetadata(
     BrandData? BrandData = null
 ) : DataProviderMetadata(Name, Description, OverrideDisplayName, BrandData);
 
+/// <summary>
+/// A WatchStateProvider is any service that provides metadata for a specific
+/// movie or TV show so that WatchBack can look online for Thoughts about
+/// that piece of media. WatchBack can support any number of WatchStateProviders
+/// but only one is active at any given time.
+/// </summary>
 public interface IWatchStateProvider : IDataProvider
 {
     Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default);

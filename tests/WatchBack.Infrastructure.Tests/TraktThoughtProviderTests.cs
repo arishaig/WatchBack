@@ -11,7 +11,7 @@ using WatchBack.Infrastructure.Thoughts;
 
 namespace WatchBack.Infrastructure.Tests;
 
-public class TraktThoughtProviderTests
+public class TraktThoughtProviderTests : IDisposable
 {
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
     private readonly TraktOptions _options;
@@ -27,6 +27,8 @@ public class TraktThoughtProviderTests
         };
     }
 
+    public void Dispose() => _cache.Dispose();
+
     [Fact]
     public async Task GetThoughtsAsync_WithValidShow_ReturnsComments()
     {
@@ -39,16 +41,14 @@ public class TraktThoughtProviderTests
             EpisodeNumber: 1);
 
         var searchResponseJson = """
-            {
-                "shows": [
-                    {
-                        "show": {
-                            "ids": { "trakt": 1 },
-                            "title": "Breaking Bad"
-                        }
+            [
+                {
+                    "show": {
+                        "ids": { "trakt": 1 },
+                        "title": "Breaking Bad"
                     }
-                ]
-            }
+                }
+            ]
             """;
 
         var commentsResponseJson = """
@@ -74,7 +74,7 @@ public class TraktThoughtProviderTests
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder);
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -96,11 +96,7 @@ public class TraktThoughtProviderTests
             SeasonNumber: 1,
             EpisodeNumber: 1);
 
-        var searchResponseJson = """
-            {
-                "shows": []
-            }
-            """;
+        var searchResponseJson = "[]";
 
         var handler = new MockHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
@@ -110,7 +106,7 @@ public class TraktThoughtProviderTests
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder);
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -132,16 +128,14 @@ public class TraktThoughtProviderTests
             EpisodeNumber: 1);
 
         var searchResponseJson = """
-            {
-                "shows": [
-                    {
-                        "show": {
-                            "ids": { "trakt": 1 },
-                            "title": "Breaking Bad"
-                        }
+            [
+                {
+                    "show": {
+                        "ids": { "trakt": 1 },
+                        "title": "Breaking Bad"
                     }
-                ]
-            }
+                }
+            ]
             """;
 
         var commentsResponseJson = """
@@ -168,7 +162,7 @@ public class TraktThoughtProviderTests
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => flatThoughts.AddRange(x)))
             .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder);
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -186,7 +180,7 @@ public class TraktThoughtProviderTests
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder);
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
         var health = await provider.GetServiceHealthAsync();

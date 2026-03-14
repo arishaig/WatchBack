@@ -73,7 +73,7 @@ public class JellyfinWatchStateProvider : IWatchStateProvider
                     ? new DateTimeOffset(item.PremiereDate.Value, TimeSpan.Zero)
                     : null,
                 EpisodeTitle: item.Name ?? "Unknown",
-                SeasonNumber: (short)(item.Season ?? 0),
+                SeasonNumber: (short)(item.ParentIndexNumber ?? 0),
                 EpisodeNumber: (short)(item.IndexNumber ?? 0));
 
             _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
@@ -114,6 +114,6 @@ internal sealed record JellyfinSessionDto(
 internal sealed record JellyfinItemDto(
     [property: JsonPropertyName("Name")] string? Name,
     [property: JsonPropertyName("SeriesName")] string? SeriesName,
-    [property: JsonPropertyName("Season")] int? Season,
+    [property: JsonPropertyName("ParentIndexNumber")] int? ParentIndexNumber,
     [property: JsonPropertyName("IndexNumber")] int? IndexNumber,
     [property: JsonPropertyName("PremiereDate")] DateTime? PremiereDate);

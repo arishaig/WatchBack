@@ -11,7 +11,7 @@ using WatchBack.Infrastructure.Thoughts;
 
 namespace WatchBack.Infrastructure.Tests;
 
-public class BlueskyThoughtProviderTests
+public class BlueskyThoughtProviderTests : IDisposable
 {
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
     private readonly BlueskyOptions _options;
@@ -25,6 +25,8 @@ public class BlueskyThoughtProviderTests
             TokenCacheTtlSeconds = 5400
         };
     }
+
+    public void Dispose() => _cache.Dispose();
 
     [Fact]
     public async Task GetThoughtsAsync_WithValidSearchResults_ReturnsPosts()
