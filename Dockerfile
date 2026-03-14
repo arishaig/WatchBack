@@ -31,8 +31,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl --fail http://localhost:5000/api/sync || exit 1
 
 # Use non-root user
-# aspnet base image has 'app' user at 1000, rename it to watchback
-RUN usermod -l watchback app && usermod -d /home/watchback -m watchback && chown -R watchback:watchback /app
+# aspnet base image has 'app' user at 1000, rename both user and group to watchback
+RUN groupmod -n watchback app && usermod -l watchback app && usermod -d /home/watchback -m watchback && chown -R watchback:watchback /app
 USER watchback
 
 # Set environment for SQLite database location
