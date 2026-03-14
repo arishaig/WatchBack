@@ -5,10 +5,11 @@ namespace WatchBack.Core.Interfaces;
 public record WatchStateDataProviderMetadata(
     string Name,
     string Description,
-    string? OverrideDisplayName = null
+    string? OverrideDisplayName = null,
+    BrandData? BrandData = null
 ) : DataProviderMetadata(Name, Description, OverrideDisplayName);
 
 public interface IWatchStateProvider : IDataProvider
 {
-    Task<MediaContext> GetCurrentMediaContextAsync();
+    Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default);
 }

@@ -1,4 +1,9 @@
-/* Dark theme (default) - from WatchBack Python */
+/*
+ * Dark theme (default)
+ * To add a new theme, copy this file and adjust the values.
+ * Then add the theme name as an option in the Appearance config section.
+ */
+
 :root,
 html[data-theme="dark"] {
     color-scheme: dark;
@@ -54,21 +59,4 @@ html[data-theme="dark"] {
 
     /* Logo filter */
     --wb-logo-filter: brightness(0) invert(1);
-}
-
-[data-theme="light"] {
-    --wb-bg: #f5f5f5;
-    --wb-surface: #ffffff;
-    --wb-surface-alt: #f0f0f0;
-    --wb-border: #d1d1d1;
-    --wb-accent: #0ea5e9;
-    --wb-text: #1a1a1a;
-    --wb-text-secondary: #404040;
-    --wb-text-muted: #808080;
-    --wb-text-faint: #a0a0a0;
-    --wb-success-text: #16a34a;
-    --wb-error-bg: rgba(239, 68, 68, 0.1);
-    --wb-error-text: #dc2626;
-    --wb-error-border: #b91c1c;
-    --wb-on-accent: #ffffff;
 }

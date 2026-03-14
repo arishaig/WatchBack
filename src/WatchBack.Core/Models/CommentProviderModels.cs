@@ -1,8 +1,8 @@
 namespace WatchBack.Core.Models;
 
-public record BrandData(
-    string Color,
-    string LogoSvg);
+public record ThoughtImage(
+    string Url,
+    string? Alt);
 
 public record Thought(
     string Id,
@@ -10,12 +10,15 @@ public record Thought(
     string? Title,
     string Content,
     string? Url,
-    string? ImageUrl,
+    IReadOnlyList<ThoughtImage> Images,
     string Author,
     int? Score,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string Source,
+    IReadOnlyList<Thought> Replies);
 
 public record ThoughtResult(
+    string Source,
     string? PostTitle,
     string? PostUrl,
     string? ImageUrl,

@@ -1,0 +1,67 @@
+/* Solarized Dark theme
+ * Based on Ethan Schoonover's Solarized palette, tuned for WCAG AA.
+ * Pure Solarized uses CIELAB contrast; values here are nudged where
+ * needed to meet WCAG 2.1 (4.5:1 normal text, 3:1 large text/UI).
+ */
+
+html[data-theme="solarized-dark"] {
+    color-scheme: dark;
+
+    --wb-bg: #002b36;
+    --wb-surface: #073642;
+    /* Darkened from #0a4050 so base1 text passes 4.5:1 here */
+    --wb-surface-alt: #083a46;
+    --wb-border: #083a46;
+    --wb-border-light: #586e75;
+
+    /* Brightened from base1 — ~6:1 on surface, clear hierarchy */
+    --wb-text: #a4b3b3;
+    /* base1 — 4.85:1 on surface */
+    --wb-text-secondary: #93a1a1;
+    /* base1 — must match text to pass 4.5:1 on surface */
+    --wb-text-muted: #93a1a1;
+    /* Brightened from base01 — 4.7:1 on surface */
+    --wb-text-faint: #8ea0a0;
+
+    /* Darkened from Solarized blue #268bd2 so white text passes 4.5:1 */
+    --wb-accent: #1f6fad;
+    --wb-accent-hover: #2a80c0;
+    /* Brightened Solarized blue — ~7:1 on base03, visually distinct */
+    --wb-accent-text: #5aade3;
+    --wb-on-accent: #ffffff;
+
+    --wb-switch-bg: #586e75;
+
+    /* Source: Reddit — orange tones */
+    --wb-reddit-bg: #383b37;
+    --wb-reddit-text: #f4a261;
+    --wb-reddit-hover: #69402c;
+    --wb-reddit-muted: #e0934a;
+    --wb-reddit-border: #4c3d33;
+
+    /* Source: Bluesky — blue tones */
+    --wb-bluesky-bg: #0f4b66;
+    --wb-bluesky-text: #85bfe5;
+    --wb-bluesky-hover: #155c83;
+
+    /* Source: Trakt */
+    --wb-trakt-bg: #9e1215;
+    --wb-trakt-text: #cdd8d8;
+
+    /* Filter pills */
+    --wb-filter-inactive-bg: #073642;
+    --wb-filter-inactive-text: #93a1a1;
+
+    /* Reply nesting */
+    --wb-reply-bg: #05333e;
+
+    /* Status — lightened from pure Solarized for WCAG AA on dark surfaces */
+    --wb-success-text: #98ad00;
+    --wb-success-bg: #1a4538;
+    --wb-success-border: #33592b;
+    --wb-error-text: #f28b8b;
+    --wb-error-bg: #1a3d48;
+    --wb-error-border: #424b54;
+
+    --wb-logo-filter: brightness(0) invert(1);
+}

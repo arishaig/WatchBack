@@ -3,4 +3,9 @@
     <AnalysisMode>Recommended</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
+
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
 </Project>

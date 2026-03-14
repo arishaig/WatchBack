@@ -115,6 +115,7 @@ app.UseStaticFiles();
 
 // Map endpoints
 app.MapSyncEndpoints();
+app.MapConfigEndpoints();
 
 // Map fallback to index.html for SPA
 app.MapFallbackToFile("index.html");

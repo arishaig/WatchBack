@@ -1,15 +1,15 @@
-/* Base styles for WatchBack */
-html, body {
+/* Alpine.js cloak — hide elements until Alpine initializes */
+[x-cloak] {
+    display: none !important;
+}
+
+/* Global body styling (themed) */
+body {
     background-color: var(--wb-bg);
     color: var(--wb-text);
-    transition: background-color 0.2s, color 0.2s;
 }
 
-[x-cloak] {
-    display: none;
-}
-
-/* WatchBack custom classes */
+/* Themed utility classes — surface & text */
 .wb-surface {
     background-color: var(--wb-surface);
 }
@@ -20,18 +20,6 @@ html, body {
 
 .wb-border {
     border-color: var(--wb-border);
-}
-
-.wb-accent {
-    color: var(--wb-accent);
-}
-
-.wb-accent-text {
-    color: var(--wb-accent);
-}
-
-.wb-on-accent {
-    color: var(--wb-on-accent);
 }
 
 .wb-text {
@@ -50,56 +38,32 @@ html, body {
     color: var(--wb-text-faint);
 }
 
-.wb-success-text {
-    color: var(--wb-success-text);
+.wb-accent-text {
+    color: var(--wb-accent-text);
 }
 
-.wb-error-text {
-    color: var(--wb-error-text);
+.wb-on-accent {
+    color: var(--wb-on-accent);
 }
 
-/* Buttons */
-.wb-btn {
-    transition: background-color 0.15s, color 0.15s;
+@media (width <=440px) {
+    .hide-on-mobile {
+        display: none;
+    }
+
+    .show-on-mobile {
+        display: flex;
+    }
 }
 
-.wb-btn:hover:not(:disabled) {
-    opacity: 0.85;
+@media (width > 440px) {
+    .show-on-mobile {
+        display: none;
+    }
 }
 
-.wb-btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-}
-
-/* Spinner */
-.wb-spinner {
-    width: 2rem;
-    height: 2rem;
-    border: 3px solid rgba(233, 69, 96, 0.2);
-    border-top-color: var(--wb-accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* Restart check */
-.restart-check {
-    width: 3rem;
-    height: 3rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-    color: var(--wb-success-text);
-}
-
-/* Lightbox */
-.lightbox-img {
-    max-height: 80vh;
-    max-width: 90vw;
-    object-fit: contain;
+/* Logo */
+img.wb-logo {
+    filter: var(--wb-logo-filter);
+    -webkit-filter: var(--wb-logo-filter);
 }

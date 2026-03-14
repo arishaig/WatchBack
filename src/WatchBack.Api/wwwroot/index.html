@@ -11,21 +11,22 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="stylesheet" href="/tailwind.css">
-    <script src="https://cdn.jsdelivr.net/npm/reconnecting-eventsource@1.6.2/dist/ReconnectingEventSource.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/reconnecting-eventsource@1.6.2/dist/ReconnectingEventSource.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="/css/app.css">
 </head>
 
 <body class="antialiased font-sans p-4" x-data="app()">
 
-    <!-- Loading state -->
-    <div x-show="isLoading" class="fixed inset-0 flex items-center justify-center"
+    <!-- Loading state (full-screen, shown during initial load) -->
+    <div x-show="!initialized" class="fixed inset-0 flex items-center justify-center"
         style="background-color: var(--wb-bg, #1a1a2e);">
         <div class="wb-spinner" role="status"></div>
     </div>
 
     <!-- Main app -->
-    <div class="max-w-md mx-auto overflow-x-hidden">
+    <div x-show="initialized" x-cloak class="max-w-md mx-auto overflow-x-hidden">
 
         <header class="flex justify-between items-center mb-6 mt-2">
             <div class="flex items-center gap-3">
@@ -33,13 +34,13 @@
             </div>
             <div class="flex gap-2">
                 <button @click="showConfig = !showConfig"
-                    :class="showConfig ? 'wb-accent-text' : 'wb-text-muted'"
+                    :class="showConfig ? 'wb-surface-alt wb-text' : 'wb-surface-alt wb-text-muted'"
                     class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-border border"
                     title="Configuration">
                     <ion-icon name="settings-sharp" aria-hidden="true"></ion-icon>
                 </button>
                 <a href="/swagger/index.html" target="_blank" title="API Documentation"
-                    class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm leading-none cursor-pointer wb-btn wb-border border">
+                    class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm leading-none cursor-pointer wb-btn wb-border border flex items-center">
                     <ion-icon name="help-circle-sharp" aria-hidden="true"></ion-icon>
                 </a>
                 <button @click="sync()"
@@ -51,53 +52,10 @@
                     <span x-show="isLoading" x-cloak
                         class="inline-block w-5 h-5 border-2 border-transparent border-t-current rounded-full animate-spin"
                         aria-hidden="true"></span>
+                    <span x-show="isLoading" class="sr-only">Syncing</span>
                 </button>
             </div>
         </header>
-
-        <!-- Config panel -->
-        <template x-if="showConfig">
-            <div class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border p-4" role="region" aria-label="Configuration">
-                <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-4">Services</h2>
-                <div class="space-y-3">
-                    <!-- Watch State Provider -->
-                    <div class="border-b pb-3" style="border-color: var(--wb-border);">
-                        <p class="text-xs font-semibold wb-text-muted uppercase mb-2">Watch State</p>
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm wb-text-secondary" x-text="watchStateStatus.name || 'Not configured'"></span>
-                            <span class="text-xs font-medium" :class="watchStateStatus.healthy ? 'wb-success-text' : 'wb-error-text'"
-                                x-text="watchStateStatus.healthy ? '✓ Connected' : '✗ Offline'"></span>
-                        </div>
-                    </div>
-
-                    <!-- Thought Providers -->
-                    <div>
-                        <p class="text-xs font-semibold wb-text-muted uppercase mb-2">Comment Sources</p>
-                        <div class="space-y-2">
-                            <template x-for="provider in thoughtProviders" :key="provider.name">
-                                <div class="flex items-center justify-between p-2 rounded"
-                                    :style="`background: var(--wb-${provider.name.toLowerCase()}-bg, var(--wb-surface-alt))`">
-                                    <span class="text-sm font-medium"
-                                        :style="`color: var(--wb-${provider.name.toLowerCase()}-text, var(--wb-text))`"
-                                        x-text="provider.name"></span>
-                                    <span class="text-xs" :class="provider.healthy ? 'wb-success-text' : 'wb-error-text'"
-                                        x-text="provider.healthy ? '✓' : '✗'"></span>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-
-                    <!-- Time Machine Days -->
-                    <div class="border-t pt-3" style="border-color: var(--wb-border);">
-                        <p class="text-xs font-semibold wb-text-muted uppercase mb-2">Time Machine</p>
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm wb-text-secondary">Window</span>
-                            <span class="text-sm wb-accent-text font-semibold" x-text="timeMachineDays + ' days'"></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </template>
 
         <!-- Error banner -->
         <div x-show="error" x-cloak x-transition:enter="config-enter" x-transition:leave="config-leave"
@@ -112,120 +70,369 @@
             </button>
         </div>
 
-        <!-- Status card -->
-        <template x-if="data">
-            <div class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border p-4">
-                <div class="flex items-center justify-between mb-3">
-                    <h2 class="text-lg font-bold wb-accent-text" x-text="data.title || 'Idle'"></h2>
-                    <span class="text-xs font-semibold uppercase tracking-wide"
-                        :class="data.status === 'Watching' ? 'wb-success-text' : 'wb-text-muted'"
-                        x-text="data.status"></span>
-                </div>
-                <template x-if="data.metadata">
-                    <div class="space-y-1 text-sm wb-text-secondary">
-                        <div x-show="data.metadata.episodeTitle">
-                            <span class="wb-text-muted">Episode:</span>
-                            <span x-text="`${data.metadata.episodeTitle} (S${data.metadata.seasonNumber}E${data.metadata.episodeNumber})`"></span>
+        <!-- Loading overlay -->
+        <div x-show="isLoading" x-cloak x-transition.opacity.duration.200ms
+            class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4"
+            style="background-color: rgba(0,0,0,0.45);" aria-live="polite" aria-label="Loading">
+            <div class="wb-spinner" role="status"></div>
+        </div>
+
+        <!-- Config panel -->
+        <div x-show="showConfig" x-cloak role="region" aria-label="Configuration" @keydown.escape="showConfig = false"
+            x-transition:enter="config-enter" x-transition:leave="config-leave"
+            class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
+            <div class="p-4">
+                <!-- ═══════════════════ Integrations ═══════════════════ -->
+                <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Integrations</h2>
+
+                <div class="space-y-6">
+                    <template x-for="[key, integration] in Object.entries(configData?.integrations || {})"
+                        :key="key">
+                        <div>
+                            <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide"
+                                x-text="integration.name"></p>
+                            <div class="space-y-3">
+                                <template x-for="field in integration.fields" :key="field.key">
+                                    <div class="relative">
+                                        <div class="flex justify-between mb-1">
+                                            <label class="text-xs font-medium wb-text-muted"
+                                                x-text="field.label"></label>
+                                        </div>
+                                        <input :type="field.type" :placeholder="field.placeholder" disabled
+                                            :value="field.hasValue ? '••••••••' : ''"
+                                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border disabled:opacity-60">
+                                    </div>
+                                </template>
+                                <button @click="testService(key)"
+                                    :disabled="testResults[key]?.status === 'testing' || !integration.configured"
+                                    aria-live="polite"
+                                    class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
+                                    :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
+                                    x-text="testResults[key]?.status === 'testing' ? 'Testing\u2026' : testResults[key]?.message || 'Test Connection'">
+                                </button>
+                            </div>
                         </div>
-                        <div x-show="data.metadata.releaseDate">
-                            <span class="wb-text-muted">Aired:</span>
-                            <span x-text="formatDate(data.metadata.releaseDate)"></span>
+                    </template>
+
+                    <!-- Feature summary -->
+                    <template x-if="configData">
+                        <ul class="space-y-1.5 text-sm wb-text-muted" role="list">
+                            <template
+                                x-for="[key, integration] in Object.entries(configData?.integrations || {})"
+                                :key="'feat-' + key">
+                                <li class="flex items-start gap-2">
+                                    <span :class="testIcon(key).cls" class="mt-0.5"
+                                        :aria-label="integration.name + ': ' + testIcon(key).label" role="img"
+                                        x-text="testIcon(key).icon"></span>
+                                    <span>
+                                        <template x-if="integration.configured">
+                                            <span>
+                                                <span x-text="key === 'jellyfin' || key === 'trakt' ? 'Watch data' : 'Posts'"></span>
+                                                from <strong class="wb-text-secondary"
+                                                    x-text="integration.name"></strong>
+                                            </span>
+                                        </template>
+                                        <template x-if="!integration.configured">
+                                            <span class="wb-text-faint">
+                                                <strong x-text="integration.name"></strong> not configured
+                                            </span>
+                                        </template>
+                                    </span>
+                                </li>
+                            </template>
+                            <li class="flex items-start gap-2">
+                                <span :class="testIcon('reddit').cls" class="mt-0.5" role="img"
+                                    x-text="testIcon('reddit').icon"></span>
+                                <span>Comments from <strong class="wb-text-secondary">Reddit</strong></span>
+                            </li>
+                            <li class="pt-1">
+                                <button @click="testAll()"
+                                    :disabled="Object.values(testResults).some(r => r.status === 'testing')"
+                                    aria-live="polite"
+                                    class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
+                                    x-text="Object.values(testResults).some(r => r.status === 'testing') ? 'Testing\u2026' : 'Test All Connections'">
+                                </button>
+                            </li>
+                        </ul>
+                    </template>
+                </div>
+
+                <!-- ═══════════════════ Preferences ═══════════════════ -->
+                <div class="wb-border border-t mt-5 pt-5">
+                    <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Preferences</h2>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-medium wb-text-muted">Theme</label>
+                            <select x-model="theme" @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
+                                aria-label="Theme"
+                                class="wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-sm border cursor-pointer">
+                                <option value="dark">Dark</option>
+                                <option value="light">Light</option>
+                                <option value="solarized-dark">Solarized Dark</option>
+                                <option value="solarized-light">Solarized Light</option>
+                                <option value="monokai">Monokai</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-medium wb-text-muted">Time Machine Window</label>
+                                <div class="flex items-center gap-1">
+                                    <span class="text-xs wb-accent-text font-semibold"
+                                        x-text="(configData?.preferences?.timeMachineDays || 14) + ' days'"></span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </template>
+                </div>
             </div>
-        </template>
+        </div>
 
-        <!-- Thought sources -->
-        <template x-if="data && data.sourceResults && data.sourceResults.length > 0">
-            <div class="space-y-4">
-                <template x-for="source in data.sourceResults" :key="source.source">
-                    <template x-if="source.thoughts && source.thoughts.length > 0">
-                        <div class="wb-surface wb-border rounded-xl overflow-hidden border">
-                            <div class="bg-opacity-50 p-4 border-b"
-                                style="background-color: var(--wb-surface-alt); border-color: var(--wb-border);">
-                                <div class="flex items-center justify-between mb-1">
-                                    <h3 class="font-semibold wb-accent-text" x-text="source.source"></h3>
-                                    <span class="text-xs font-semibold wb-text-muted"
-                                        x-text="`${source.thoughts.length} thought${source.thoughts.length !== 1 ? 's' : ''}`"></span>
-                                </div>
-                                <template x-if="source.postTitle">
-                                    <p class="text-xs wb-text-secondary" x-text="source.postTitle"></p>
-                                </template>
-                            </div>
-                            <div class="p-4 space-y-4">
-                                <template x-for="thought in source.thoughts" :key="thought.id">
-                                    <div class="border-l-2 pl-3" style="border-color: var(--wb-accent);">
-                                        <div class="flex items-start justify-between gap-2 mb-1">
-                                            <span class="text-xs font-medium wb-text-muted"
-                                                x-text="thought.author"></span>
-                                            <span class="text-xs wb-text-faint"
-                                                x-text="formatDate(thought.createdAt)"></span>
+        <!-- Success state: show comments -->
+        <template x-if="data?.status === 'Watching'">
+            <main>
+                <div class="wb-surface p-4 rounded-xl mb-6 shadow-md wb-border border comment-card">
+                    <h2 class="text-xl font-bold mb-1" x-text="data?.title"></h2>
+                    <template x-if="data?.metadata">
+                        <div class="text-sm wb-text-muted space-y-0.5">
+                            <p x-show="data.metadata.episodeTitle"
+                                x-text="data.metadata.episodeTitle + ' (S' + data.metadata.seasonNumber + 'E' + data.metadata.episodeNumber + ')'">
+                            </p>
+                            <p x-show="data.metadata.releaseDate">Aired: <span
+                                    x-text="formatDate(data.metadata.releaseDate)"></span></p>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Mode toggle & source filters -->
+                <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border comment-card"
+                    style="animation-delay:0.05s">
+                    <button x-show="showTimeMachine" @click="mode = 'time'"
+                        :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
+                        :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
+                        class="flex flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
+                        <span class="flex hide-on-mobile">Time Machine</span>
+                        <ion-icon class="show-on-mobile" name="hourglass-sharp"></ion-icon>
+                        <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
+                    </button>
+                    <button @click="mode = 'all'" :class="mode === 'all' ? 'wb-on-accent shadow' : 'wb-text-muted'"
+                        :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
+                        class="flex flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
+                        <span class="flex hide-on-mobile">Thoughts</span>
+                        <ion-icon class="show-on-mobile" name="chatbubbles-sharp"></ion-icon>
+                        <span x-text="'(' + allThoughtsCount + ')'" class="text-xs font-normal"></span>
+                    </button>
+                </div>
+
+                <!-- Source filter pills -->
+                <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card"
+                    style="animation-delay:0.1s">
+                    <template x-for="src in availableSources" :key="src">
+                        <button @click="toggleSource(src)"
+                            :class="sourceActive(src) ? 'filter-' + src.toLowerCase() : 'filter-inactive'"
+                            class="px-3 py-1 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer wb-btn">
+                            <span x-text="src"></span>
+                            <span x-text="'(' + sourceCount(src) + ')'" class="font-normal"></span>
+                        </button>
+                    </template>
+                </div>
+
+                <!-- Thread grouping toggle -->
+                <div x-show="hasThreadGroups" class="flex justify-center mb-4">
+                    <button @click="handleThreadToggle()"
+                        :class="groupByThread ? 'filter-reddit' : 'filter-inactive'"
+                        class="px-5 py-1.5 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer flex items-center gap-1.5 wb-btn">
+                        <span
+                            x-text="(groupByThread ? 'Grouped by thread' : 'Group by thread') + ' (' + threadCount + ')'"></span>
+                    </button>
+                </div>
+
+                <!-- Comments list -->
+                <div class="pb-8" :class="groupByThread ? 'space-y-6' : 'space-y-4'">
+                    <template x-for="(group, gi) in renderGroups" :key="gi">
+                        <div :class="groupByThread && group.title ? 'thread-group' : ''"
+                            :style="groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's' : ''">
+                            <template x-if="groupByThread && group.title">
+                                <a :href="group.url" target="_blank" rel="noopener noreferrer"
+                                    class="block text-xs thread-title mb-2 truncate leading-tight font-semibold"
+                                    x-text="group.title"></a>
+                            </template>
+                            <div
+                                :class="groupByThread && group.title ? 'ml-2 border-l-2 reply-border pl-3 space-y-3' : (groupByThread ? 'space-y-3' : '')">
+                                <template x-for="(thought, ci) in group.thoughts" :key="thought.id">
+                                    <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card"
+                                        :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's'">
+                                        <div class="flex items-start mb-2 gap-2">
+                                            <div class="flex-1 min-w-0"
+                                                x-show="!groupByThread && thought._threadTitle">
+                                                <a :href="thought._threadUrl" target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="text-[11px] thread-title truncate leading-tight block"
+                                                    x-text="thought._threadTitle"></a>
+                                            </div>
+                                            <div class="flex gap-1"
+                                                :class="groupByThread || !thought._threadTitle ? 'ml-auto' : 'shrink-0'">
+                                                <a x-show="thought.source === 'Bluesky'" :href="thought.url"
+                                                    target="_blank" rel="noopener noreferrer"
+                                                    class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
+                                                    title="View original post"><svg xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 360 320"
+                                                        class="inline-block w-[1em] h-[1em] align-[-0.1em]"
+                                                        aria-hidden="true" fill="currentColor">
+                                                        <path
+                                                            d="M180 142c-16.3-34.8-60.2-99.7-101.5-127.8C50.8-9.5 23.8.4 12.5 7.2-6.8 18.5 5.4 56.7 22 74c22 23 45.8 32.8 79.3 33.5-31.4 5.8-62.1 22.7-79.8 41.7C6.2 166.6 0 177.5 0 188.6c0 28 39.5 58.1 72.5 48.1C133 218 163.5 159.5 180 130c16.5 29.5 47 88 107.5 106.7 33 10 72.5-20.1 72.5-48.1 0-11.1-6.2-22-21.5-39.4-17.7-19-48.4-35.9-79.8-41.7 33.5-.7 57.3-10.5 79.3-33.5 16.6-17.3 28.8-55.5 9.5-66.8C336.2.4 309.2-9.5 281.5 14.2 240.2 42.3 196.3 107.2 180 142z" />
+                                                    </svg> BlueSky <ion-icon name="open-sharp"
+                                                        aria-hidden="true"></ion-icon></a>
+                                                <a x-show="thought.source === 'Reddit'" :href="thought.url"
+                                                    target="_blank" rel="noopener noreferrer"
+                                                    class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
+                                                    title="View on Reddit"><ion-icon name="logo-reddit"
+                                                        aria-hidden="true"></ion-icon> Reddit <ion-icon
+                                                        name="open-sharp" aria-hidden="true"></ion-icon></a>
+                                                <span x-show="thought.source === 'Trakt'"
+                                                    class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
+                                            </div>
                                         </div>
+
+                                        <div class="wb-text-secondary text-sm leading-relaxed mb-3 wb-md"
+                                            x-html="renderMarkdown(thought.content)"></div>
+
                                         <template x-if="thought.images && thought.images.length > 0">
-                                            <div class="flex flex-wrap gap-2 mb-2">
+                                            <div class="grid gap-2 mb-3"
+                                                :class="thought.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
                                                 <template x-for="img in thought.images" :key="img.url">
-                                                    <img :src="img.url" :alt="img.alt" class="max-h-32 rounded"
-                                                        @click="lightboxImg = img.url"
-                                                        style="cursor: pointer; object-fit: cover;">
+                                                    <div @click="lightboxImg = img.url"
+                                                        @keydown.enter="lightboxImg = img.url" tabindex="0"
+                                                        role="button" aria-label="View full image"
+                                                        class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
+                                                        style="background-color: var(--wb-bg);">
+                                                        <img :src="img.url" :alt="img.alt || 'Image from post'"
+                                                            class="w-full h-auto object-cover hover:scale-110 transition-transform duration-300"
+                                                            loading="lazy">
+                                                    </div>
                                                 </template>
                                             </div>
                                         </template>
-                                        <div class="text-sm wb-text-secondary mb-2"
-                                            x-html="renderMarkdown(thought.content)"></div>
-                                        <div class="flex items-center gap-3 text-xs wb-text-faint">
-                                            <template x-if="thought.score != null">
-                                                <span x-text="`👍 ${formatScore(thought.score)}`"></span>
-                                            </template>
-                                            <template x-if="thought.replies && thought.replies.length > 0">
-                                                <span x-text="`${thought.replies.length} repl${thought.replies.length !== 1 ? 'ies' : 'y'}`"></span>
-                                            </template>
+
+                                        <div class="flex justify-between items-center text-xs wb-text-faint">
+                                            <span class="font-medium wb-text-muted"
+                                                x-text="'@' + thought.author"></span>
+                                            <div class="flex items-center gap-3">
+                                                <span x-show="thought.score != null && thought.score !== 0"
+                                                    class="wb-text-faint"
+                                                    x-text="'&#9650; ' + formatScore(thought.score)"></span>
+                                                <span x-text="formatDate(thought.createdAt)"></span>
+                                            </div>
                                         </div>
+
+                                        <!-- Level 1 replies -->
+                                        <template x-if="thought.replies && thought.replies.length > 0">
+                                            <div class="mt-3 border-l-2 reply-border pl-3 space-y-3">
+                                                <template x-for="reply in thought.replies" :key="reply.id">
+                                                    <div>
+                                                        <div class="reply-bg p-3 rounded-lg">
+                                                            <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
+                                                                x-html="renderMarkdown(reply.content)"></div>
+                                                            <div
+                                                                class="flex justify-between items-center text-xs wb-text-faint">
+                                                                <span class="font-medium wb-text-muted"
+                                                                    x-text="'@' + reply.author"></span>
+                                                                <div class="flex items-center gap-3">
+                                                                    <span
+                                                                        x-show="reply.score != null && reply.score !== 0"
+                                                                        class="wb-text-faint"
+                                                                        x-text="'&#9650; ' + formatScore(reply.score)"></span>
+                                                                    <span
+                                                                        x-text="formatDate(reply.createdAt)"></span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Level 2 replies -->
+                                                        <template x-if="reply.replies && reply.replies.length > 0">
+                                                            <div
+                                                                class="mt-2 ml-3 border-l-2 reply-border pl-3 space-y-2">
+                                                                <template x-for="subreply in reply.replies"
+                                                                    :key="subreply.id">
+                                                                    <div>
+                                                                        <div class="reply-bg p-3 rounded-lg">
+                                                                            <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
+                                                                                x-html="renderMarkdown(subreply.content)">
+                                                                            </div>
+                                                                            <div
+                                                                                class="flex justify-between items-center text-xs wb-text-faint">
+                                                                                <span class="font-medium wb-text-muted"
+                                                                                    x-text="'@' + subreply.author"></span>
+                                                                                <div class="flex items-center gap-3">
+                                                                                    <span
+                                                                                        x-show="subreply.score != null && subreply.score !== 0"
+                                                                                        class="wb-text-faint"
+                                                                                        x-text="'&#9650; ' + formatScore(subreply.score)"></span>
+                                                                                    <span
+                                                                                        x-text="formatDate(subreply.createdAt)"></span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <template
+                                                                            x-if="subreply.replies && subreply.replies.length > 0">
+                                                                            <a :href="subreply.url" target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                class="block mt-1 ml-3 text-xs wb-text-faint hover:wb-text-muted transition-colors"
+                                                                                x-text="'&#8627; ' + countAllReplies(subreply) + ' more ' + (countAllReplies(subreply) === 1 ? 'reply' : 'replies') + ' in thread'"></a>
+                                                                        </template>
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
                                     </div>
                                 </template>
                             </div>
                         </div>
                     </template>
-                </template>
-            </div>
-        </template>
 
-        <!-- Time machine section -->
-        <template x-if="data && data.timeMachineThoughts && data.timeMachineThoughts.length > 0">
-            <div class="mt-8 pt-6 border-t" style="border-color: var(--wb-border);">
-                <h3 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-4">
-                    Time Machine (Last <span x-text="data.timeMachineDays"></span> Days)
-                </h3>
-                <div class="space-y-3">
-                    <template x-for="thought in data.timeMachineThoughts" :key="thought.id">
-                        <div class="text-sm wb-text-secondary p-3 rounded-lg"
-                            style="background: var(--wb-surface-alt);">
-                            <div class="flex items-center justify-between gap-2 mb-1">
-                                <span class="font-medium" x-text="thought.author"></span>
-                                <span class="text-xs wb-text-faint"
-                                    x-text="formatDate(thought.createdAt)"></span>
-                            </div>
-                            <p x-text="thought.content"></p>
+                    <template x-if="activeThoughts.length === 0">
+                        <div class="py-12 text-center">
+                            <p class="wb-text-faint">No thoughts found for this view.</p>
                         </div>
                     </template>
                 </div>
-            </div>
+            </main>
         </template>
 
+        <!-- Error state -->
+        <template x-if="data?.status === 'Error'">
+            <main class="text-center py-20 px-6">
+                <p class="wb-error-text text-lg mb-2">An error occurred.</p>
+                <p class="text-xs wb-text-faint">Check your configuration and try syncing again.</p>
+            </main>
+        </template>
+
+        <!-- Idle state -->
+        <template x-if="data?.status === 'Idle'">
+            <main class="text-center py-20 px-6">
+                <p class="wb-text-muted text-lg mb-2">Nothing playing.</p>
+                <p class="text-xs wb-text-faint">The dashboard will update automatically when you start playback.</p>
+            </main>
+        </template>
+
+        <!-- Image lightbox overlay -->
+        <div x-show="lightboxImg" x-transition.opacity.duration.200ms @click="lightboxImg = null"
+            @keydown.escape.window="lightboxImg = null" role="dialog" aria-label="Image viewer" aria-modal="true"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer"
+            style="background-color: rgba(0,0,0,0.85);" x-cloak>
+            <img :src="lightboxImg" @click.stop alt="Enlarged image"
+                class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl cursor-default">
+        </div>
     </div>
 
-    <!-- Lightbox -->
-    <template x-if="lightboxImg">
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style="background-color: rgba(0,0,0,0.8);"
-            @click="lightboxImg = null">
-            <img :src="lightboxImg" class="max-h-screen max-w-screen" @click.stop>
-        </div>
-    </template>
-
     <script src="/app.js"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/ionicons@7.2.0/dist/ionicons/ionicons.esm.js"></script>
-    <script nomodule src="https://cdn.jsdelivr.net/npm/ionicons@7.2.0/dist/ionicons/ionicons.js"></script>
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
 </body>
 
 </html>

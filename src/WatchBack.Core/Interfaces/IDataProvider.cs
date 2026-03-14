@@ -14,6 +14,6 @@ public record DataProviderMetadata(
 public interface IDataProvider
 {
     DataProviderMetadata Metadata { get; }
-    
-    Task<ServiceHealth> GetServiceHealthAsync();
+
+    Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default);
 }

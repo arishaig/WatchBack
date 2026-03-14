@@ -73,7 +73,7 @@ namespace WatchBack.Infrastructure.Migrations
                 name: "IX_SyncLogs_Timestamp",
                 table: "SyncLogs",
                 column: "Timestamp",
-                descending: new bool[0]);
+                descending: Array.Empty<bool>());
 
             migrationBuilder.CreateIndex(
                 name: "IX_UserPreferences_Key",

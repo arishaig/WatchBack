@@ -1,5 +1,21 @@
-/* WatchBack app styling */
+/*
+ * WatchBack — main stylesheet entry point.
+ * All CSS is split into logical modules and imported here
+ * so the HTML only needs a single <link> to /css/app.css.
+ */
+
+/* Themes (custom properties) */
 @import "themes/dark.css";
+@import "themes/light.css";
+@import "themes/solarized-dark.css";
+@import "themes/solarized-light.css";
+@import "themes/monokai.css";
+
+/* Base utilities & body */
 @import "base.css";
+
+/* UI components */
 @import "components.css";
+
+/* Animations & transitions */
 @import "animations.css";
