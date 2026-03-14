@@ -66,12 +66,48 @@ document.addEventListener('alpine:init', () => {
         errorTimer: null,
         isLoading: false,
         lightboxImg: null,
+        showConfig: false,
+
+        // Config state
+        watchStateStatus: { name: '', healthy: false },
+        thoughtProviders: [
+            { name: 'Trakt', healthy: false },
+            { name: 'Reddit', healthy: false },
+            { name: 'Bluesky', healthy: false }
+        ],
+        timeMachineDays: 14,
 
         async init() {
             console.log("[WatchBack] Initializing application");
             this.applyTheme();
+            this.loadConfig();
             await this.sync();
             this.setupSSE();
+        },
+
+        loadConfig() {
+            // Derive config from current data
+            if (!this.data) return;
+
+            // Determine watch state provider from data
+            this.watchStateStatus = {
+                name: this.data.status === 'Watching' ? 'Jellyfin/Trakt' : 'Unknown',
+                healthy: this.data.status !== 'Error'
+            };
+
+            // Mark providers as healthy if they have results
+            if (this.data.sourceResults) {
+                const sourceNames = this.data.sourceResults.map(s => s.source);
+                this.thoughtProviders = this.thoughtProviders.map(p => ({
+                    ...p,
+                    healthy: sourceNames.includes(p.name)
+                }));
+            }
+
+            // Set time machine days from data
+            if (this.data.timeMachineDays) {
+                this.timeMachineDays = this.data.timeMachineDays;
+            }
         },
 
         setupSSE() {
@@ -125,6 +161,7 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 this.data = newData;
+                this.loadConfig();
             } catch (e) {
                 console.error("[WatchBack] Sync failed:", e);
                 this.showError('Connection failed');

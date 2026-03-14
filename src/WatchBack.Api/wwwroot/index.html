@@ -32,6 +32,12 @@
                 <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
             </div>
             <div class="flex gap-2">
+                <button @click="showConfig = !showConfig"
+                    :class="showConfig ? 'wb-accent-text' : 'wb-text-muted'"
+                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-border border"
+                    title="Configuration">
+                    <ion-icon name="settings-sharp" aria-hidden="true"></ion-icon>
+                </button>
                 <a href="/swagger/index.html" target="_blank" title="API Documentation"
                     class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm leading-none cursor-pointer wb-btn wb-border border">
                     <ion-icon name="help-circle-sharp" aria-hidden="true"></ion-icon>
@@ -48,6 +54,50 @@
                 </button>
             </div>
         </header>
+
+        <!-- Config panel -->
+        <template x-if="showConfig">
+            <div class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border p-4" role="region" aria-label="Configuration">
+                <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-4">Services</h2>
+                <div class="space-y-3">
+                    <!-- Watch State Provider -->
+                    <div class="border-b pb-3" style="border-color: var(--wb-border);">
+                        <p class="text-xs font-semibold wb-text-muted uppercase mb-2">Watch State</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm wb-text-secondary" x-text="watchStateStatus.name || 'Not configured'"></span>
+                            <span class="text-xs font-medium" :class="watchStateStatus.healthy ? 'wb-success-text' : 'wb-error-text'"
+                                x-text="watchStateStatus.healthy ? '✓ Connected' : '✗ Offline'"></span>
+                        </div>
+                    </div>
+
+                    <!-- Thought Providers -->
+                    <div>
+                        <p class="text-xs font-semibold wb-text-muted uppercase mb-2">Comment Sources</p>
+                        <div class="space-y-2">
+                            <template x-for="provider in thoughtProviders" :key="provider.name">
+                                <div class="flex items-center justify-between p-2 rounded"
+                                    :style="`background: var(--wb-${provider.name.toLowerCase()}-bg, var(--wb-surface-alt))`">
+                                    <span class="text-sm font-medium"
+                                        :style="`color: var(--wb-${provider.name.toLowerCase()}-text, var(--wb-text))`"
+                                        x-text="provider.name"></span>
+                                    <span class="text-xs" :class="provider.healthy ? 'wb-success-text' : 'wb-error-text'"
+                                        x-text="provider.healthy ? '✓' : '✗'"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Time Machine Days -->
+                    <div class="border-t pt-3" style="border-color: var(--wb-border);">
+                        <p class="text-xs font-semibold wb-text-muted uppercase mb-2">Time Machine</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm wb-text-secondary">Window</span>
+                            <span class="text-sm wb-accent-text font-semibold" x-text="timeMachineDays + ' days'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
 
         <!-- Error banner -->
         <div x-show="error" x-cloak x-transition:enter="config-enter" x-transition:leave="config-leave"
