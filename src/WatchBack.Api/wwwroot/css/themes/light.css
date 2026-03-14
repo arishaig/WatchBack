@@ -45,6 +45,9 @@ html[data-theme="light"] {
     --wb-error-text: #c72020;
     --wb-error-bg: #fce9e9;
     --wb-error-border: #f4bebe;
+    --wb-warn-text: #92600a;
+    --wb-warn-bg: #fef9e7;
+    --wb-warn-border: #f5d87e;
 
     --wb-logo-filter: brightness(1);
 }

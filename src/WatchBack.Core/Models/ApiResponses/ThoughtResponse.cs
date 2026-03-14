@@ -20,7 +20,7 @@ public record ThoughtImageResponse(
 /// </list>
 /// </summary>
 /// <param name="Id">A unique, deterministic ID for this response derived from the source content</param>
-/// <param name="ParentId">If populated, this indicates that this Thought is response to another thought (the Parent)</param>
+/// <param name="ParentId">If populated, this indicates that this Thought is a The response to another thought (the Parent)</param>
 /// <param name="Title">Some Thoughts have titles, such as posts on Reddit or the title of a review</param>
 /// <param name="Content">All Thoughts have text content, whether the body of a review or the contents of a Trakt comment</param>
 /// <param name="Url">Some Thoughts have a source URL specific to the Thought, such as the link to a specific Reddit comment</param>

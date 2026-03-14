@@ -74,7 +74,7 @@ public class TraktThoughtProviderTests
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new TraktThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -110,7 +110,7 @@ public class TraktThoughtProviderTests
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
-        var provider = new TraktThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -168,7 +168,7 @@ public class TraktThoughtProviderTests
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => flatThoughts.AddRange(x)))
             .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new TraktThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -186,7 +186,7 @@ public class TraktThoughtProviderTests
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
-        var provider = new TraktThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder);
 
         // Act
         var health = await provider.GetServiceHealthAsync();

@@ -56,6 +56,9 @@ html[data-theme="dark"] {
     --wb-error-text: #f87171;
     --wb-error-bg: #3e2d39;
     --wb-error-border: #5d313b;
+    --wb-warn-text: #fbbf24;
+    --wb-warn-bg: #3a2f1a;
+    --wb-warn-border: #5a441a;
 
     /* Logo filter */
     --wb-logo-filter: brightness(0) invert(1);

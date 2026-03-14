@@ -9,6 +9,7 @@ using WatchBack.Infrastructure.WatchState;
 
 namespace WatchBack.Infrastructure.Tests;
 
+
 public class TraktWatchStateProviderTests
 {
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
@@ -32,7 +33,7 @@ public class TraktWatchStateProviderTests
         var handler = new MockHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.NoContent));
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache);
 
         // Act
         var result = await provider.GetCurrentMediaContextAsync();
@@ -66,7 +67,7 @@ public class TraktWatchStateProviderTests
                 Content = new StringContent(responseJson)
             });
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache);
 
         // Act
         var result = await provider.GetCurrentMediaContextAsync();
@@ -106,7 +107,7 @@ public class TraktWatchStateProviderTests
                 Content = new StringContent(responseJson)
             });
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache);
 
         // Act
         var result = await provider.GetCurrentMediaContextAsync();
@@ -145,7 +146,7 @@ public class TraktWatchStateProviderTests
                 };
             });
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache);
 
         // Act
         var result1 = await provider.GetCurrentMediaContextAsync();
@@ -167,7 +168,7 @@ public class TraktWatchStateProviderTests
                 Content = new StringContent("{}")
             });
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache);
 
         // Act
         var health = await provider.GetServiceHealthAsync();
@@ -183,7 +184,7 @@ public class TraktWatchStateProviderTests
         var handler = new MockHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache);
 
         // Act
         var health = await provider.GetServiceHealthAsync();

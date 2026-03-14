@@ -11,6 +11,7 @@ using WatchBack.Infrastructure.Thoughts;
 
 namespace WatchBack.Infrastructure.Tests;
 
+
 /// <summary>
 /// Live integration tests against real APIs.
 /// These tests are marked with [Trait("Category", "Integration")] and should be run separately.
@@ -54,7 +55,7 @@ public class LiveIntegrationTests
         }
     }
 
-    [Fact(Skip = "Requires real Jellyfin instance - remove Skip to run")]
+    [Fact]
     public async Task JellyfinWatchState_GetCurrentMediaContext_ReturnsDataOrNull()
     {
         // Arrange
@@ -65,7 +66,7 @@ public class LiveIntegrationTests
             CacheTtlSeconds = 10
         };
 
-        var provider = new JellyfinWatchStateProvider(_httpClient, Options.Create(options), _cache);
+        var provider = new JellyfinWatchStateProvider(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(options), _cache);
 
         // Act
         var result = await provider.GetCurrentMediaContextAsync();
@@ -97,7 +98,7 @@ public class LiveIntegrationTests
             throw new InvalidOperationException("TRAKT_CLIENT_ID not set in environment");
         }
 
-        var provider = new TraktWatchStateProvider(_httpClient, Options.Create(options), _cache);
+        var provider = new TraktWatchStateProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache);
 
         // Act
         var health = await provider.GetServiceHealthAsync();
@@ -133,7 +134,7 @@ public class LiveIntegrationTests
             EpisodeNumber: 1);
 
         var treeBuilder = new ReplyTreeBuilder();
-        var provider = new TraktThoughtProvider(_httpClient, Options.Create(options), _cache, treeBuilder);
+        var provider = new TraktThoughtProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache, treeBuilder);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -166,7 +167,7 @@ public class LiveIntegrationTests
             EpisodeNumber: 1);
 
         var treeBuilder = new ReplyTreeBuilder();
-        var provider = new RedditThoughtProvider(_httpClient, Options.Create(options), _cache, treeBuilder);
+        var provider = new RedditThoughtProvider(_httpClient, new OptionsSnapshotStub<RedditOptions>(options), _cache, treeBuilder);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -199,7 +200,7 @@ public class LiveIntegrationTests
             EpisodeNumber: 1);
 
         var treeBuilder = new ReplyTreeBuilder();
-        var provider = new BlueskyThoughtProvider(_httpClient, Options.Create(options), _cache, treeBuilder);
+        var provider = new BlueskyThoughtProvider(_httpClient, new OptionsSnapshotStub<BlueskyOptions>(options), _cache, treeBuilder);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -225,7 +226,7 @@ public class LiveIntegrationTests
             BaseUrl = Environment.GetEnvironmentVariable("JF_URL") ?? "http://192.168.1.158:8096",
             ApiKey = Environment.GetEnvironmentVariable("JF_API_KEY") ?? ""
         };
-        var jellyfinProvider = new JellyfinWatchStateProvider(_httpClient, Options.Create(jellyfinOpts), _cache);
+        var jellyfinProvider = new JellyfinWatchStateProvider(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(jellyfinOpts), _cache);
 
         // Trakt
         var traktOpts = new TraktOptions
@@ -233,9 +234,9 @@ public class LiveIntegrationTests
             ClientId = Environment.GetEnvironmentVariable("TRAKT_CLIENT_ID") ?? "",
             AccessToken = Environment.GetEnvironmentVariable("TRAKT_ACCESS_TOKEN") ?? ""
         };
-        var traktWatchProvider = new TraktWatchStateProvider(_httpClient, Options.Create(traktOpts), _cache);
+        var traktWatchProvider = new TraktWatchStateProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache);
         var traktThoughtProvider = new TraktThoughtProvider(
-            _httpClient, Options.Create(traktOpts), _cache, new ReplyTreeBuilder());
+            _httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache, new ReplyTreeBuilder());
 
         // Bluesky
         var blueskyOpts = new BlueskyOptions
@@ -244,12 +245,12 @@ public class LiveIntegrationTests
             AppPassword = Environment.GetEnvironmentVariable("BSKY_APP_PASSWORD")
         };
         var blueskyProvider = new BlueskyThoughtProvider(
-            _httpClient, Options.Create(blueskyOpts), _cache, new ReplyTreeBuilder());
+            _httpClient, new OptionsSnapshotStub<BlueskyOptions>(blueskyOpts), _cache, new ReplyTreeBuilder());
 
         // Reddit
         var redditOpts = new RedditOptions();
         var redditProvider = new RedditThoughtProvider(
-            _httpClient, Options.Create(redditOpts), _cache, new ReplyTreeBuilder());
+            _httpClient, new OptionsSnapshotStub<RedditOptions>(redditOpts), _cache, new ReplyTreeBuilder());
 
         // Act - all providers should handle health checks without throwing
         var jellyfinHealth = await jellyfinProvider.GetServiceHealthAsync();

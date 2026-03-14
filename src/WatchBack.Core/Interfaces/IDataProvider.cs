@@ -5,7 +5,8 @@ namespace WatchBack.Core.Interfaces;
 public record DataProviderMetadata(
     string Name,
     string Description,
-    string? OverrideDisplayName = null
+    string? OverrideDisplayName = null,
+    BrandData? BrandData = null
 )
 {
     public string DisplayName => OverrideDisplayName ?? Name;

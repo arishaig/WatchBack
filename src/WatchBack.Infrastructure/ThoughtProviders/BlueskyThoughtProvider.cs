@@ -15,7 +15,7 @@ internal sealed partial class BlueskyJsonContext : JsonSerializerContext { }
 
 public class BlueskyThoughtProvider(
     HttpClient httpClient,
-    IOptions<BlueskyOptions> options,
+    IOptionsSnapshot<BlueskyOptions> options,
     IMemoryCache cache,
     IReplyTreeBuilder treeBuilder)
     : IThoughtProvider

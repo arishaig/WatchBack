@@ -19,7 +19,7 @@ public class TraktWatchStateProvider : IWatchStateProvider
 
     public TraktWatchStateProvider(
         HttpClient httpClient,
-        IOptions<TraktOptions> options,
+        IOptionsSnapshot<TraktOptions> options,
         IMemoryCache cache)
     {
         _httpClient = httpClient;
@@ -47,10 +47,13 @@ public class TraktWatchStateProvider : IWatchStateProvider
                 return cached;
             }
 
-            var request = new HttpRequestMessage(HttpMethod.Get, "https://api.trakt.tv/users/me/watching");
+            var username = !string.IsNullOrEmpty(_options.Username) ? _options.Username : "me";
+            var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.trakt.tv/users/{Uri.EscapeDataString(username)}/watching");
+            request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
             request.Headers.Add("trakt-api-version", "2");
             request.Headers.Add("trakt-api-key", _options.ClientId);
-            request.Headers.Add("Authorization", $"Bearer {_options.AccessToken}");
+            if (!string.IsNullOrEmpty(_options.AccessToken))
+                request.Headers.Add("Authorization", $"Bearer {_options.AccessToken}");
 
             var response = await _httpClient.SendAsync(request, ct);
 
@@ -96,16 +99,44 @@ public class TraktWatchStateProvider : IWatchStateProvider
     {
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, "https://api.trakt.tv/users/me/settings");
+            if (string.IsNullOrEmpty(_options.Username) && string.IsNullOrEmpty(_options.AccessToken))
+            {
+                return new ServiceHealth(
+                    IsHealthy: false,
+                    Message: "No username or access token configured",
+                    CheckedAt: DateTimeOffset.UtcNow);
+            }
+
+            var username = !string.IsNullOrEmpty(_options.Username) ? _options.Username : "me";
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+            var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.trakt.tv/users/{Uri.EscapeDataString(username)}/watching");
+            request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
             request.Headers.Add("trakt-api-version", "2");
             request.Headers.Add("trakt-api-key", _options.ClientId);
-            request.Headers.Add("Authorization", $"Bearer {_options.AccessToken}");
+            if (!string.IsNullOrEmpty(_options.AccessToken))
+                request.Headers.Add("Authorization", $"Bearer {_options.AccessToken}");
 
-            var response = await _httpClient.SendAsync(request, ct);
+            var response = await _httpClient.SendAsync(request, cts.Token);
+
+            if (response.StatusCode is System.Net.HttpStatusCode.OK or System.Net.HttpStatusCode.NoContent)
+            {
+                var watching = response.StatusCode == System.Net.HttpStatusCode.OK ? "currently watching" : "idle";
+                return new ServiceHealth(IsHealthy: true, Message: $"Profile reachable ({watching})", CheckedAt: DateTimeOffset.UtcNow);
+            }
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                return new ServiceHealth(
+                    IsHealthy: false,
+                    Message: "Unauthorized — check access token",
+                    CheckedAt: DateTimeOffset.UtcNow);
+            }
 
             return new ServiceHealth(
-                IsHealthy: response.IsSuccessStatusCode,
-                Message: response.IsSuccessStatusCode ? "OK" : response.StatusCode.ToString(),
+                IsHealthy: false,
+                Message: $"HTTP {(int)response.StatusCode}",
                 CheckedAt: DateTimeOffset.UtcNow);
         }
         catch (Exception ex)

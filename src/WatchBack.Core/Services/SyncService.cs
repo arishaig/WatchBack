@@ -7,29 +7,35 @@ namespace WatchBack.Core.Services;
 
 public class SyncService : ISyncService
 {
-    private readonly IWatchStateProvider _watchStateProvider;
+    private readonly IEnumerable<IWatchStateProvider> _watchStateProviders;
     private readonly IEnumerable<IThoughtProvider> _thoughtProviders;
     private readonly ITimeMachineFilter _timeMachineFilter;
-    private readonly WatchBackOptions _options;
+    private readonly IOptionsSnapshot<WatchBackOptions> _options;
 
     public SyncService(
-        IWatchStateProvider watchStateProvider,
+        IEnumerable<IWatchStateProvider> watchStateProviders,
         IEnumerable<IThoughtProvider> thoughtProviders,
         ITimeMachineFilter timeMachineFilter,
-        IOptions<WatchBackOptions> options)
+        IOptionsSnapshot<WatchBackOptions> options)
     {
-        _watchStateProvider = watchStateProvider;
+        _watchStateProviders = watchStateProviders;
         _thoughtProviders = thoughtProviders;
         _timeMachineFilter = timeMachineFilter;
-        _options = options.Value;
+        _options = options;
     }
 
     public async Task<SyncResult> SyncAsync(CancellationToken ct = default)
     {
         try
         {
+            // Select the configured watch state provider, falling back to the first registered
+            var configured = _options.Value.WatchProvider;
+            var watchStateProvider = _watchStateProviders
+                .FirstOrDefault(p => p.Metadata?.Name?.Equals(configured, StringComparison.OrdinalIgnoreCase) == true)
+                ?? _watchStateProviders.First();
+
             // Get current watch state
-            var mediaContext = await _watchStateProvider.GetCurrentMediaContextAsync(ct);
+            var mediaContext = await watchStateProvider.GetCurrentMediaContextAsync(ct);
             
             if (mediaContext == null)
             {
@@ -39,7 +45,7 @@ public class SyncService : ISyncService
                     Metadata: null,
                     AllThoughts: [],
                     TimeMachineThoughts: [],
-                    TimeMachineDays: _options.TimeMachineDays,
+                    TimeMachineDays: _options.Value.TimeMachineDays,
                     SourceResults: []);
             }
 
@@ -55,8 +61,8 @@ public class SyncService : ISyncService
 
             // Collect all thoughts from all providers
             var allThoughts = sourceResults
-                .Where(r => r.Thoughts != null && r.Thoughts.Count > 0)
-                .SelectMany(r => r.Thoughts)
+                .Where(r => r.Thoughts is { Count: > 0 })
+                .SelectMany(r => r.Thoughts!)
                 .OrderByDescending(t => t.CreatedAt)
                 .ToList();
 
@@ -64,7 +70,7 @@ public class SyncService : ISyncService
             var timeMachineThoughts = _timeMachineFilter.Apply(
                 allThoughts,
                 mediaContext.ReleaseDate,
-                _options.TimeMachineDays);
+                _options.Value.TimeMachineDays);
 
             return new SyncResult(
                 Status: SyncStatus.Watching,
@@ -72,7 +78,7 @@ public class SyncService : ISyncService
                 Metadata: mediaContext,
                 AllThoughts: allThoughts,
                 TimeMachineThoughts: timeMachineThoughts.ToList(),
-                TimeMachineDays: _options.TimeMachineDays,
+                TimeMachineDays: _options.Value.TimeMachineDays,
                 SourceResults: sourceResults);
         }
         catch
@@ -83,7 +89,7 @@ public class SyncService : ISyncService
                 Metadata: null,
                 AllThoughts: [],
                 TimeMachineThoughts: [],
-                TimeMachineDays: _options.TimeMachineDays,
+                TimeMachineDays: _options.Value.TimeMachineDays,
                 SourceResults: []);
         }
     }

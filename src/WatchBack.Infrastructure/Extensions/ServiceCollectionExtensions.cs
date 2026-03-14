@@ -14,33 +14,21 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Add HTTP clients for each provider
-        services.AddHttpClient("jellyfin");
-        services.AddHttpClient("trakt")
-            .ConfigureHttpClient(c => c.DefaultRequestHeaders.Add("trakt-api-version", "2"));
-        services.AddHttpClient("bluesky");
-        services.AddHttpClient("pullpush");
+        // Register typed HTTP clients for each provider
+        services.AddHttpClient<JellyfinWatchStateProvider>();
+        services.AddHttpClient<TraktWatchStateProvider>();
+        services.AddHttpClient<TraktThoughtProvider>();
+        services.AddHttpClient<RedditThoughtProvider>();
+        services.AddHttpClient<BlueskyThoughtProvider>();
 
-        // Register watch state providers based on configuration
-        var watchProvider = configuration.GetValue<string>("WatchBack:WatchProvider") ?? "jellyfin";
-
-        if (watchProvider.Equals("jellyfin", StringComparison.OrdinalIgnoreCase))
-        {
-            services.AddScoped<IWatchStateProvider, JellyfinWatchStateProvider>();
-        }
-        else if (watchProvider.Equals("trakt", StringComparison.OrdinalIgnoreCase))
-        {
-            services.AddScoped<IWatchStateProvider, TraktWatchStateProvider>();
-        }
-        else
-        {
-            services.AddScoped<IWatchStateProvider, JellyfinWatchStateProvider>();
-        }
+        // Register all watch state providers — active one is selected at runtime from config
+        services.AddScoped<IWatchStateProvider>(sp => sp.GetRequiredService<JellyfinWatchStateProvider>());
+        services.AddScoped<IWatchStateProvider>(sp => sp.GetRequiredService<TraktWatchStateProvider>());
 
         // Register thought providers
-        services.AddScoped<IThoughtProvider, TraktThoughtProvider>();
-        services.AddScoped<IThoughtProvider, RedditThoughtProvider>();
-        services.AddScoped<IThoughtProvider, BlueskyThoughtProvider>();
+        services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<TraktThoughtProvider>());
+        services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<RedditThoughtProvider>());
+        services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<BlueskyThoughtProvider>());
 
         // Register configuration repository
         services.AddScoped<IConfigurationRepository, ConfigurationRepository>();

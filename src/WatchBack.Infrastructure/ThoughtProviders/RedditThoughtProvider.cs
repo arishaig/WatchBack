@@ -14,7 +14,7 @@ internal sealed partial class RedditJsonContext : JsonSerializerContext { }
 
 public class RedditThoughtProvider(
     HttpClient httpClient,
-    IOptions<RedditOptions> options,
+    IOptionsSnapshot<RedditOptions> options,
     IMemoryCache cache,
     IReplyTreeBuilder treeBuilder)
     : IThoughtProvider
@@ -83,6 +83,31 @@ public class RedditThoughtProvider(
                     postUrl = $"https://reddit.com{submission.Data.Permalink}";
                 }
 
+                var threadThoughts = new List<Thought>();
+
+                // Prepend the OP selftext as a root thought for self-posts
+                var selftext = submission.Data.Selftext;
+                if (submission.Data.IsSelf &&
+                    !string.IsNullOrWhiteSpace(selftext) &&
+                    !selftext.Equals("[deleted]", StringComparison.Ordinal) &&
+                    !selftext.Equals("[removed]", StringComparison.Ordinal))
+                {
+                    threadThoughts.Add(new Thought(
+                        Id: $"reddit:{submission.Data.Id}",
+                        ParentId: null,
+                        Title: submission.Data.Title,
+                        Content: selftext,
+                        Url: $"https://reddit.com{submission.Data.Permalink}",
+                        Images: [],
+                        Author: submission.Data.Author ?? "Unknown",
+                        Score: submission.Data.Score,
+                        CreatedAt: submission.Data.CreatedUtc.HasValue
+                            ? DateTimeOffset.FromUnixTimeSeconds(submission.Data.CreatedUtc.Value)
+                            : DateTimeOffset.UtcNow,
+                        Source: "Reddit",
+                        Replies: []));
+                }
+
                 // Get comments for this submission
                 var commentsUrl = $"https://api.pushshift.io/reddit/search/comment?link_id={Uri.EscapeDataString(submission.Data.Id)}&size={_options.MaxComments}";
                 var commentsResponse = await httpClient.GetAsync(commentsUrl, ct);
@@ -96,12 +121,11 @@ public class RedditThoughtProvider(
                     RedditJsonContext.Default.RedditCommentsListingDto);
 
                 var comments = commentsList?.Data?.Children ?? [];
-                var thoughts = comments
+                threadThoughts.AddRange(comments
                     .Select(c => MapCommentToThought(c.Data))
-                    .Where(t => !IsDeletedOrRemoved(t))
-                    .ToList();
+                    .Where(t => !IsDeletedOrRemoved(t)));
 
-                allThoughts.AddRange(thoughts);
+                allThoughts.AddRange(threadThoughts);
             }
 
             var treeThoughts = treeBuilder.BuildTree(allThoughts);
@@ -168,11 +192,12 @@ public class RedditThoughtProvider(
         if (string.IsNullOrEmpty(redditId))
             return null;
 
-        // Remove prefix (t1_ for comments, t3_ for submissions)
-        if (redditId.StartsWith("t3_", StringComparison.Ordinal) ||
-            redditId.StartsWith("t1_", StringComparison.Ordinal))
+        // Strip type prefix (t1_ = comment, t3_ = submission) and re-add "reddit:"
+        // so parentIds match the "reddit:{id}" format used for thought IDs.
+        if (redditId.StartsWith("t1_", StringComparison.Ordinal) ||
+            redditId.StartsWith("t3_", StringComparison.Ordinal))
         {
-            return redditId.Substring(3);
+            return "reddit:" + redditId.Substring(3);
         }
 
         return redditId;
@@ -197,7 +222,11 @@ internal sealed record RedditSubmissionDataDto(
     [property: JsonPropertyName("id")] string? Id,
     [property: JsonPropertyName("title")] string? Title,
     [property: JsonPropertyName("permalink")] string? Permalink,
-    [property: JsonPropertyName("created_utc")] long? CreatedUtc);
+    [property: JsonPropertyName("created_utc")] long? CreatedUtc,
+    [property: JsonPropertyName("author")] string? Author,
+    [property: JsonPropertyName("score")] int? Score,
+    [property: JsonPropertyName("is_self")] bool IsSelf,
+    [property: JsonPropertyName("selftext")] string? Selftext);
 
 internal sealed record RedditSubmissionChildDto(
     [property: JsonPropertyName("data")] RedditSubmissionDataDto? Data);

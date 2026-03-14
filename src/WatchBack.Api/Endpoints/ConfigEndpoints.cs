@@ -1,11 +1,17 @@
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using WatchBack.Core.Interfaces;
+using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 
 namespace WatchBack.Api.Endpoints;
 
+public record UserConfigFile(string Path);
+
 public static class ConfigEndpoints
 {
+    private static readonly JsonSerializerOptions s_jsonOptions = new() { WriteIndented = true };
+
     public static void MapConfigEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api");
@@ -13,20 +19,40 @@ public static class ConfigEndpoints
         group.MapGet("/config", GetConfig)
             .WithName("GetConfig");
 
+        group.MapPost("/config", SaveConfig)
+            .WithName("SaveConfig");
+
         group.MapGet("/status", GetStatus)
             .WithName("GetStatus");
 
-        group.MapGet("/test/{service}", TestService)
+        group.MapPost("/test/{service}", TestService)
             .WithName("TestService");
     }
 
     private static object GetConfig(
-        IOptions<JellyfinOptions> jellyfin,
-        IOptions<TraktOptions> trakt,
-        IOptions<BlueskyOptions> bluesky,
-        IOptions<RedditOptions> reddit,
-        IOptions<WatchBackOptions> watchback)
+        IOptionsSnapshot<JellyfinOptions> jellyfin,
+        IOptionsSnapshot<TraktOptions> trakt,
+        IOptionsSnapshot<BlueskyOptions> bluesky,
+        IOptionsSnapshot<RedditOptions> reddit,
+        IOptionsSnapshot<WatchBackOptions> watchback,
+        IEnumerable<IWatchStateProvider> watchStateProviders,
+        IEnumerable<IThoughtProvider> thoughtProviders)
     {
+        var j = jellyfin.Value;
+        var t = trakt.Value;
+        var b = bluesky.Value;
+        var r = reddit.Value;
+        var w = watchback.Value;
+
+        // Build brand lookup — thought providers take precedence for shared names (e.g. Trakt uses official red)
+        var brandByName = new Dictionary<string, BrandData>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in watchStateProviders)
+            if (p.Metadata.BrandData != null)
+                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
+        foreach (var p in thoughtProviders)
+            if (p.Metadata.BrandData != null)
+                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
+
         return new
         {
             integrations = new Dictionary<string, object>
@@ -34,105 +60,242 @@ public static class ConfigEndpoints
                 ["jellyfin"] = new
                 {
                     name = "Jellyfin",
+                    logoSvg = brandByName.GetValueOrDefault("Jellyfin")?.LogoSvg ?? "",
+                    brandColor = brandByName.GetValueOrDefault("Jellyfin")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Jellyfin__BaseUrl", label = "Server URL", type = "text", placeholder = "http://jellyfin:8096", hasValue = !string.IsNullOrEmpty(jellyfin.Value.BaseUrl) && jellyfin.Value.BaseUrl != "http://jellyfin:8096" },
-                        new { key = "Jellyfin__ApiKey", label = "API Key", type = "password", placeholder = "Required", hasValue = !string.IsNullOrEmpty(jellyfin.Value.ApiKey) }
+                        new { key = "Jellyfin__BaseUrl", label = "Server URL", type = "text", placeholder = "http://jellyfin:8096", hasValue = !string.IsNullOrEmpty(j.BaseUrl) && j.BaseUrl != "http://jellyfin:8096", value = j.BaseUrl ?? "" },
+                        new { key = "Jellyfin__ApiKey", label = "API Key", type = "password", placeholder = "Required", hasValue = !string.IsNullOrEmpty(j.ApiKey), value = "" }
                     },
-                    configured = !string.IsNullOrEmpty(jellyfin.Value.ApiKey)
+                    configured = !string.IsNullOrEmpty(j.ApiKey)
                 },
                 ["trakt"] = new
                 {
                     name = "Trakt.tv",
+                    logoSvg = brandByName.GetValueOrDefault("Trakt")?.LogoSvg ?? "",
+                    brandColor = brandByName.GetValueOrDefault("Trakt")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Trakt__ClientId", label = "Client ID", type = "text", placeholder = "Optional (for comments)", hasValue = !string.IsNullOrEmpty(trakt.Value.ClientId) },
-                        new { key = "Trakt__AccessToken", label = "Access Token (OAuth)", type = "password", placeholder = "Optional (for private profile)", hasValue = !string.IsNullOrEmpty(trakt.Value.AccessToken) },
-                        new { key = "Trakt__Username", label = "Username", type = "text", placeholder = "Optional (public profile)", hasValue = !string.IsNullOrEmpty(trakt.Value.Username) }
+                        new { key = "Trakt__ClientId", label = "Client ID", type = "text", placeholder = "Optional (for comments)", hasValue = !string.IsNullOrEmpty(t.ClientId), value = t.ClientId ?? "" },
+                        new { key = "Trakt__AccessToken", label = "Access Token (OAuth)", type = "password", placeholder = "Optional (for private profile)", hasValue = !string.IsNullOrEmpty(t.AccessToken), value = "" },
+                        new { key = "Trakt__Username", label = "Username", type = "text", placeholder = "Optional (public profile)", hasValue = !string.IsNullOrEmpty(t.Username), value = t.Username ?? "" }
                     },
-                    configured = !string.IsNullOrEmpty(trakt.Value.ClientId) || !string.IsNullOrEmpty(trakt.Value.Username)
+                    configured = !string.IsNullOrEmpty(t.ClientId) || !string.IsNullOrEmpty(t.Username)
                 },
                 ["bluesky"] = new
                 {
                     name = "Bluesky",
+                    logoSvg = brandByName.GetValueOrDefault("Bluesky")?.LogoSvg ?? "",
+                    brandColor = brandByName.GetValueOrDefault("Bluesky")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Bluesky__Handle", label = "Handle/Email", type = "text", placeholder = "you.bsky.social", hasValue = !string.IsNullOrEmpty(bluesky.Value.Handle) },
-                        new { key = "Bluesky__AppPassword", label = "App Password", type = "password", placeholder = "xxxx-xxxx-xxxx-xxxx", hasValue = !string.IsNullOrEmpty(bluesky.Value.AppPassword) }
+                        new { key = "Bluesky__Handle", label = "Handle/Email", type = "text", placeholder = "you.bsky.social", hasValue = !string.IsNullOrEmpty(b.Handle), value = b.Handle ?? "" },
+                        new { key = "Bluesky__AppPassword", label = "App Password", type = "password", placeholder = "xxxx-xxxx-xxxx-xxxx", hasValue = !string.IsNullOrEmpty(b.AppPassword), value = "" }
                     },
-                    configured = !string.IsNullOrEmpty(bluesky.Value.Handle) && !string.IsNullOrEmpty(bluesky.Value.AppPassword)
+                    configured = !string.IsNullOrEmpty(b.Handle) && !string.IsNullOrEmpty(b.AppPassword)
+                },
+                ["reddit"] = new
+                {
+                    name = "Reddit",
+                    logoSvg = brandByName.GetValueOrDefault("Reddit")?.LogoSvg ?? "",
+                    brandColor = brandByName.GetValueOrDefault("Reddit")?.Color ?? "",
+                    fields = new[]
+                    {
+                        new { key = "Reddit__MaxThreads", label = "Max Threads", type = "number", placeholder = "3", hasValue = true, value = r.MaxThreads.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+                        new { key = "Reddit__MaxComments", label = "Max Comments", type = "number", placeholder = "250", hasValue = true, value = r.MaxComments.ToString(System.Globalization.CultureInfo.InvariantCulture) }
+                    },
+                    configured = true
                 }
             },
             preferences = new
             {
-                timeMachineDays = watchback.Value.TimeMachineDays,
-                watchProvider = watchback.Value.WatchProvider,
-                redditMaxComments = reddit.Value.MaxComments
+                timeMachineDays = w.TimeMachineDays,
+                watchProvider = w.WatchProvider,
+                watchProviders = watchStateProviders
+                    .Select(p => new { value = p.Metadata.Name.ToLowerInvariant(), label = p.Metadata.Name })
+                    .ToArray()
             }
         };
     }
 
-    private static object GetStatus(
-        IOptions<JellyfinOptions> jellyfin,
-        IOptions<TraktOptions> trakt,
-        IOptions<BlueskyOptions> bluesky,
-        IOptions<WatchBackOptions> watchback)
+    private static async Task<IResult> SaveConfig(
+        HttpContext ctx,
+        UserConfigFile configFile,
+        CancellationToken ct)
     {
+        var body = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>(ct);
+        if (body == null)
+            return Results.BadRequest("Invalid request body");
+
+        // Load existing user config
+        var existing = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        if (File.Exists(configFile.Path))
+        {
+            try
+            {
+                var existingJson = await File.ReadAllTextAsync(configFile.Path, ct);
+                var parsed = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(existingJson);
+                if (parsed != null)
+                {
+                    foreach (var (section, values) in parsed)
+                        existing[section] = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
+                }
+            }
+            catch { /* start fresh if file is corrupted */ }
+        }
+
+        // Apply updates (key format: "Section__Key")
+        foreach (var (flatKey, value) in body)
+        {
+            if (string.IsNullOrEmpty(value))
+                continue; // skip empty values — preserve existing
+
+            var sep = flatKey.IndexOf("__", StringComparison.Ordinal);
+            if (sep < 0)
+                continue;
+
+            var section = flatKey[..sep];
+            var key = flatKey[(sep + 2)..];
+
+            if (!existing.ContainsKey(section))
+                existing[section] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            existing[section][key] = value;
+        }
+
+        // Write back atomically
+        var dir = Path.GetDirectoryName(configFile.Path)!;
+        Directory.CreateDirectory(dir);
+        var json = JsonSerializer.Serialize(existing, s_jsonOptions);
+        var tmp = configFile.Path + ".tmp";
+        await File.WriteAllTextAsync(tmp, json, ct);
+        File.Move(tmp, configFile.Path, overwrite: true);
+
+        return Results.Ok();
+    }
+
+    private static object GetStatus(
+        IOptionsSnapshot<WatchBackOptions> watchback,
+        IEnumerable<IWatchStateProvider> watchStateProviders)
+    {
+        var configured = watchback.Value.WatchProvider;
+        var activeProvider = watchStateProviders
+            .FirstOrDefault(p => p.Metadata.Name.Equals(configured, StringComparison.OrdinalIgnoreCase))
+            ?? watchStateProviders.First();
+
         return new
         {
-            jellyfinConfigured = !string.IsNullOrEmpty(jellyfin.Value.ApiKey),
-            traktConfigured = !string.IsNullOrEmpty(trakt.Value.ClientId) || !string.IsNullOrEmpty(trakt.Value.Username),
-            blueskyConfigured = !string.IsNullOrEmpty(bluesky.Value.Handle) && !string.IsNullOrEmpty(bluesky.Value.AppPassword),
-            watchProvider = watchback.Value.WatchProvider
+            watchProvider = activeProvider.Metadata.Name.ToLowerInvariant()
         };
     }
 
     private static async Task<object> TestService(
         string service,
-        IServiceProvider sp,
+        HttpContext ctx,
+        IHttpClientFactory httpClientFactory,
+        IOptionsSnapshot<TraktOptions> traktOpts,
+        IOptionsSnapshot<JellyfinOptions> jellyfinOpts,
+        IOptionsSnapshot<BlueskyOptions> blueskyOpts,
         CancellationToken ct)
     {
+        // Read credentials directly from the request body — bypasses IOptionsSnapshot timing
+        // issues so we test what's in the form right now. Password fields that weren't changed
+        // are sent as "__EXISTING__"; we fall back to the stored option value for those.
+        var body = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>(ct)
+            ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        string Resolve(string key, string? fallback)
+        {
+            var v = body.GetValueOrDefault(key) ?? string.Empty;
+            return v == "__EXISTING__" ? (fallback ?? string.Empty) : v;
+        }
+
         try
         {
-            switch (service.ToLowerInvariant())
+            using var http = httpClientFactory.CreateClient();
+
+            return service.ToLowerInvariant() switch
             {
-                case "jellyfin":
-                {
-                    var provider = sp.GetRequiredService<IWatchStateProvider>();
-                    var health = await provider.GetServiceHealthAsync(ct);
-                    return new { ok = health.IsHealthy, message = health.IsHealthy ? "Connected" : "Connection failed" };
-                }
-                case "trakt":
-                {
-                    var providers = sp.GetServices<IThoughtProvider>();
-                    var trakt = providers.FirstOrDefault(p => p.Metadata.Name == "Trakt");
-                    if (trakt == null) return new { ok = false, message = "Trakt provider not registered" };
-                    var health = await trakt.GetServiceHealthAsync(ct);
-                    return new { ok = health.IsHealthy, message = health.IsHealthy ? "Connected" : "Connection failed" };
-                }
-                case "bluesky":
-                {
-                    var providers = sp.GetServices<IThoughtProvider>();
-                    var bsky = providers.FirstOrDefault(p => p.Metadata.Name == "Bluesky");
-                    if (bsky == null) return new { ok = false, message = "Bluesky provider not registered" };
-                    var health = await bsky.GetServiceHealthAsync(ct);
-                    return new { ok = health.IsHealthy, message = health.IsHealthy ? "Connected" : "Connection failed" };
-                }
-                case "reddit":
-                {
-                    var providers = sp.GetServices<IThoughtProvider>();
-                    var reddit = providers.FirstOrDefault(p => p.Metadata.Name == "Reddit");
-                    if (reddit == null) return new { ok = false, message = "Reddit provider not registered" };
-                    var health = await reddit.GetServiceHealthAsync(ct);
-                    return new { ok = health.IsHealthy, message = health.IsHealthy ? "Connected" : "Connection failed" };
-                }
-                default:
-                    return new { ok = false, message = $"Unknown service: {service}" };
-            }
+                "trakt" => await TestTrakt(http,
+                    Resolve("Trakt__ClientId", traktOpts.Value.ClientId), ct),
+                "jellyfin" => await TestJellyfin(http,
+                    Resolve("Jellyfin__BaseUrl", jellyfinOpts.Value.BaseUrl),
+                    Resolve("Jellyfin__ApiKey", jellyfinOpts.Value.ApiKey), ct),
+                "bluesky" => await TestBluesky(http,
+                    Resolve("Bluesky__Handle", blueskyOpts.Value.Handle),
+                    Resolve("Bluesky__AppPassword", blueskyOpts.Value.AppPassword), ct),
+                "reddit" => (object)new { ok = true, message = "Connected" },
+                _ => new { ok = false, message = $"Unknown service: {service}" }
+            };
         }
         catch (Exception ex)
         {
             return new { ok = false, message = ex.Message };
         }
+    }
+
+    private static async Task<object> TestTrakt(HttpClient http, string clientId, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(clientId))
+            return new { ok = false, message = "No Client ID configured" };
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        var req = new HttpRequestMessage(HttpMethod.Get, "https://api.trakt.tv/shows/trending?limit=1");
+        req.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
+        req.Headers.Add("trakt-api-version", "2");
+        req.Headers.Add("trakt-api-key", clientId);
+        var res = await http.SendAsync(req, cts.Token);
+
+        if (res.StatusCode == System.Net.HttpStatusCode.OK)
+            return new { ok = true, message = "Connected" };
+
+        return new { ok = false, message = $"HTTP {(int)res.StatusCode}" };
+    }
+
+    private static async Task<object> TestJellyfin(HttpClient http, string baseUrl, string apiKey, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(apiKey))
+            return new { ok = false, message = "Server URL and API Key required" };
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        var url = baseUrl.TrimEnd('/') + "/System/Info";
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.Add("X-Emby-Authorization", $"MediaBrowser Token=\"{apiKey}\"");
+        var res = await http.SendAsync(req, cts.Token);
+
+        if (!res.IsSuccessStatusCode)
+            return new { ok = false, message = $"HTTP {(int)res.StatusCode}" };
+
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(cts.Token), cancellationToken: cts.Token);
+            var version = doc.RootElement.TryGetProperty("Version", out var v) ? v.GetString() : null;
+            var message = version != null ? $"Jellyfin {version}" : "Connected";
+            return new { ok = true, message };
+        }
+        catch
+        {
+            return new { ok = true, message = "Connected" };
+        }
+    }
+
+    private static async Task<object> TestBluesky(HttpClient http, string handle, string appPassword, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(handle))
+            return new { ok = false, message = "Handle required" };
+
+        if (string.IsNullOrEmpty(appPassword))
+            return new { ok = true, message = "Handle set (no app password to verify)" };
+
+        var req = new HttpRequestMessage(HttpMethod.Post, "https://bsky.social/xrpc/com.atproto.server.createSession");
+        req.Content = System.Net.Http.Json.JsonContent.Create(new { identifier = handle, password = appPassword });
+        var res = await http.SendAsync(req, ct);
+        return res.IsSuccessStatusCode
+            ? new { ok = true, message = "Connected" }
+            : new { ok = false, message = res.StatusCode == System.Net.HttpStatusCode.Unauthorized ? "Invalid credentials" : $"HTTP {(int)res.StatusCode}" };
     }
 }

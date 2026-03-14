@@ -10,6 +10,7 @@ using WatchBack.Infrastructure.WatchState;
 
 namespace WatchBack.Infrastructure.Tests;
 
+
 public class JellyfinWatchStateProviderTests
 {
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
@@ -28,7 +29,7 @@ public class JellyfinWatchStateProviderTests
 
         var handler = Substitute.ForPartsOf<HttpMessageHandler>();
         _httpClient = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
-        _provider = new JellyfinWatchStateProvider(_httpClient, Options.Create(_options), _cache);
+        _provider = new JellyfinWatchStateProvider(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache);
     }
 
     [Fact]
@@ -41,7 +42,7 @@ public class JellyfinWatchStateProviderTests
                 Content = new StringContent("[]")
             });
         var client = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
-        var provider = new JellyfinWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache);
 
         // Act
         var result = await provider.GetCurrentMediaContextAsync();
@@ -75,7 +76,7 @@ public class JellyfinWatchStateProviderTests
                 Content = new StringContent(sessionJson)
             });
         var client = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
-        var provider = new JellyfinWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache);
 
         // Act
         var result = await provider.GetCurrentMediaContextAsync();
@@ -115,7 +116,7 @@ public class JellyfinWatchStateProviderTests
                 Content = new StringContent(sessionJson)
             });
         var client = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
-        var provider = new JellyfinWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache);
 
         // Act
         var result = await provider.GetCurrentMediaContextAsync();
@@ -132,7 +133,7 @@ public class JellyfinWatchStateProviderTests
         var handler = new MockHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.Unauthorized));
         var client = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
-        var provider = new JellyfinWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache);
 
         // Act
         var result = await provider.GetCurrentMediaContextAsync();
@@ -170,7 +171,7 @@ public class JellyfinWatchStateProviderTests
                 };
             });
         var client = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
-        var provider = new JellyfinWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache);
 
         // Act
         var result1 = await provider.GetCurrentMediaContextAsync();
@@ -192,7 +193,7 @@ public class JellyfinWatchStateProviderTests
                 Content = new StringContent("[]")
             });
         var client = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
-        var provider = new JellyfinWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache);
 
         // Act
         var health = await provider.GetServiceHealthAsync();
@@ -208,7 +209,7 @@ public class JellyfinWatchStateProviderTests
         var handler = new MockHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.InternalServerError));
         var client = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
-        var provider = new JellyfinWatchStateProvider(client, Options.Create(_options), _cache);
+        var provider = new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache);
 
         // Act
         var health = await provider.GetServiceHealthAsync();

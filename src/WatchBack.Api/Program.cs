@@ -31,6 +31,11 @@ var dbDirectory = Path.GetDirectoryName(databasePath);
 if (dbDirectory != null)
     Directory.CreateDirectory(dbDirectory);
 
+// Load user-editable config from the same directory as the database
+var userConfigPath = Path.Combine(dbDirectory ?? ".", "user-settings.json");
+builder.Configuration.AddJsonFile(userConfigPath, optional: true, reloadOnChange: true);
+builder.Services.AddSingleton(new WatchBack.Api.Endpoints.UserConfigFile(userConfigPath));
+
 builder.Services.AddDbContext<WatchBackDbContext>(options =>
     options.UseSqlite($"Data Source={databasePath}"));
 

@@ -7,7 +7,7 @@ public record WatchStateDataProviderMetadata(
     string Description,
     string? OverrideDisplayName = null,
     BrandData? BrandData = null
-) : DataProviderMetadata(Name, Description, OverrideDisplayName);
+) : DataProviderMetadata(Name, Description, OverrideDisplayName, BrandData);
 
 public interface IWatchStateProvider : IDataProvider
 {

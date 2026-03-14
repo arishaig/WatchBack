@@ -74,7 +74,7 @@ public class BlueskyThoughtProviderTests
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new BlueskyThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -142,7 +142,7 @@ public class BlueskyThoughtProviderTests
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => capturedThoughts.AddRange(x)))
             .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new BlueskyThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -182,7 +182,7 @@ public class BlueskyThoughtProviderTests
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new BlueskyThoughtProvider(client, Options.Create(optionsWithoutCreds), _cache, treeBuilder);
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(optionsWithoutCreds), _cache, treeBuilder);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -207,7 +207,7 @@ public class BlueskyThoughtProviderTests
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
-        var provider = new BlueskyThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder);
 
         // Act
         var health = await provider.GetServiceHealthAsync();

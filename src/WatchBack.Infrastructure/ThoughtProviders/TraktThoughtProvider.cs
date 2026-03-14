@@ -8,7 +8,7 @@ using WatchBack.Core.Options;
 
 namespace WatchBack.Infrastructure.Thoughts;
 
-[JsonSerializable(typeof(TraktSearchResultDto))]
+[JsonSerializable(typeof(TraktShowSearchItemDto[]))]
 [JsonSerializable(typeof(TraktCommentDto[]))]
 internal sealed partial class TraktThoughtJsonContext : JsonSerializerContext { }
 
@@ -21,7 +21,7 @@ public class TraktThoughtProvider : IThoughtProvider
 
     public TraktThoughtProvider(
         HttpClient httpClient,
-        IOptions<TraktOptions> options,
+        IOptionsSnapshot<TraktOptions> options,
         IMemoryCache cache,
         IReplyTreeBuilder treeBuilder)
     {
@@ -45,16 +45,20 @@ public class TraktThoughtProvider : IThoughtProvider
     {
         try
         {
-            var cacheKey = $"trakt:thoughts:{mediaContext.Title}";
+            var episode = mediaContext as EpisodeContext;
+            var cacheKey = episode != null
+                ? $"trakt:thoughts:{mediaContext.Title}:s{episode.SeasonNumber}e{episode.EpisodeNumber}"
+                : $"trakt:thoughts:{mediaContext.Title}";
+
             if (_cache.TryGetValue(cacheKey, out ThoughtResult? cached))
             {
                 return cached;
             }
 
-            // Search for the show
+            // Search for the show (Trakt API returns a flat array, not a wrapper object)
             var searchRequest = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"https://api.trakt.tv/search/shows?query={Uri.EscapeDataString(mediaContext.Title)}");
+                $"https://api.trakt.tv/search/show?query={Uri.EscapeDataString(mediaContext.Title)}");
             ConfigureRequestHeaders(searchRequest);
 
             var searchResponse = await _httpClient.SendAsync(searchRequest, ct);
@@ -64,20 +68,22 @@ public class TraktThoughtProvider : IThoughtProvider
             }
 
             var searchContent = await searchResponse.Content.ReadAsStringAsync(ct);
-            var searchResult = JsonSerializer.Deserialize<TraktSearchResultDto>(
+            var searchResults = JsonSerializer.Deserialize<TraktShowSearchItemDto[]>(
                 searchContent,
-                TraktThoughtJsonContext.Default.TraktSearchResultDto);
+                TraktThoughtJsonContext.Default.TraktShowSearchItemDtoArray);
 
-            var show = searchResult?.Shows?.FirstOrDefault()?.Show;
+            var show = searchResults?.FirstOrDefault()?.Show;
             if (show?.Ids?.Trakt == null)
             {
                 return new ThoughtResult(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
             }
 
-            // Get comments
-            var commentsRequest = new HttpRequestMessage(
-                HttpMethod.Get,
-                $"https://api.trakt.tv/shows/{show.Ids.Trakt}/comments");
+            // Get episode-specific comments when possible, fall back to show comments
+            string commentsUrl = episode != null
+                ? $"https://api.trakt.tv/shows/{show.Ids.Trakt}/seasons/{episode.SeasonNumber}/episodes/{episode.EpisodeNumber}/comments"
+                : $"https://api.trakt.tv/shows/{show.Ids.Trakt}/comments";
+
+            var commentsRequest = new HttpRequestMessage(HttpMethod.Get, commentsUrl);
             ConfigureRequestHeaders(commentsRequest);
 
             var commentsResponse = await _httpClient.SendAsync(commentsRequest, ct);
@@ -129,14 +135,31 @@ public class TraktThoughtProvider : IThoughtProvider
     {
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, "https://api.trakt.tv/users/me/settings");
-            ConfigureRequestHeaders(request);
+            if (string.IsNullOrEmpty(_options.ClientId))
+            {
+                return new ServiceHealth(
+                    IsHealthy: false,
+                    Message: "No Client ID configured",
+                    CheckedAt: DateTimeOffset.UtcNow);
+            }
 
-            var response = await _httpClient.SendAsync(request, ct);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+            var request = new HttpRequestMessage(HttpMethod.Get, "https://api.trakt.tv/shows/trending?limit=1");
+            request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
+            request.Headers.Add("trakt-api-version", "2");
+            request.Headers.Add("trakt-api-key", _options.ClientId);
+
+            var response = await _httpClient.SendAsync(request, cts.Token);
+            if (response.StatusCode == System.Net.HttpStatusCode.OK)
+            {
+                return new ServiceHealth(IsHealthy: true, Message: "API key valid", CheckedAt: DateTimeOffset.UtcNow);
+            }
 
             return new ServiceHealth(
-                IsHealthy: response.IsSuccessStatusCode,
-                Message: response.IsSuccessStatusCode ? "OK" : response.StatusCode.ToString(),
+                IsHealthy: false,
+                Message: $"HTTP {(int)response.StatusCode}",
                 CheckedAt: DateTimeOffset.UtcNow);
         }
         catch (Exception ex)
@@ -148,11 +171,13 @@ public class TraktThoughtProvider : IThoughtProvider
         }
     }
 
-    private void ConfigureRequestHeaders(HttpRequestMessage request)
+    private void ConfigureRequestHeaders(HttpRequestMessage request, bool auth = false)
     {
+        request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
         request.Headers.Add("trakt-api-version", "2");
         request.Headers.Add("trakt-api-key", _options.ClientId);
-        request.Headers.Add("Authorization", $"Bearer {_options.AccessToken}");
+        if (auth && !string.IsNullOrEmpty(_options.AccessToken))
+            request.Headers.Add("Authorization", $"Bearer {_options.AccessToken}");
     }
 }
 
@@ -165,9 +190,6 @@ internal sealed record TraktShowDto(
 
 internal sealed record TraktShowSearchItemDto(
     [property: JsonPropertyName("show")] TraktShowDto? Show);
-
-internal sealed record TraktSearchResultDto(
-    [property: JsonPropertyName("shows")] TraktShowSearchItemDto[]? Shows);
 
 internal sealed record TraktUserDto(
     [property: JsonPropertyName("username")] string? Username);

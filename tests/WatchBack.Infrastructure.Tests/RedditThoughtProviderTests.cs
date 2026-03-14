@@ -92,7 +92,7 @@ public class RedditThoughtProviderTests
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new RedditThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new RedditThoughtProvider(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache, treeBuilder);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -177,7 +177,7 @@ public class RedditThoughtProviderTests
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new RedditThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new RedditThoughtProvider(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache, treeBuilder);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -256,7 +256,7 @@ public class RedditThoughtProviderTests
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => capturedThoughts.AddRange(x)))
             .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new RedditThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new RedditThoughtProvider(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache, treeBuilder);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -279,7 +279,7 @@ public class RedditThoughtProviderTests
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.pushshift.io") };
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
-        var provider = new RedditThoughtProvider(client, Options.Create(_options), _cache, treeBuilder);
+        var provider = new RedditThoughtProvider(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache, treeBuilder);
 
         // Act
         var health = await provider.GetServiceHealthAsync();

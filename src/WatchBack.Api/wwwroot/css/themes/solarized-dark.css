@@ -62,6 +62,9 @@ html[data-theme="solarized-dark"] {
     --wb-error-text: #f28b8b;
     --wb-error-bg: #1a3d48;
     --wb-error-border: #424b54;
+    --wb-warn-text: #b58900;
+    --wb-warn-bg: #1a3520;
+    --wb-warn-border: #3a4820;
 
     --wb-logo-filter: brightness(0) invert(1);
 }

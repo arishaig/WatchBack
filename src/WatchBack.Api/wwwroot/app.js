@@ -83,11 +83,17 @@ document.addEventListener('alpine:init', () => {
         sourceFilter: new Set(),
         showConfig: false,
         configData: null,
+        configEdits: {},   // flat dict keyed by field.key ("Section__Key")
+        saveStatus: {},    // per-integration save state (legacy, kept for compat)
+        saveAllStatus: null, // global save state: saving | saved | error | null
+        prefEdits: {},     // preference field edits
+        prefSaveStatus: null,
         lightboxImg: null,
         groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
         theme: localStorage.getItem('wb_theme') || 'dark',
         testResults: {},
         lastTestResults: {},
+        testAllStatus: null,
 
         async init() {
             console.log("[WatchBack] Initializing application");
@@ -96,7 +102,10 @@ document.addEventListener('alpine:init', () => {
             // Load config
             try {
                 const cRes = await fetch('/api/config');
-                if (cRes.ok) this.configData = await cRes.json();
+                if (cRes.ok) {
+                    this.configData = await cRes.json();
+                    this._initConfigEdits(this.configData);
+                }
             } catch (e) {
                 console.warn("[WatchBack] Config load failed:", e);
             }
@@ -113,7 +122,10 @@ document.addEventListener('alpine:init', () => {
                 if (e.data) {
                     try {
                         const data = JSON.parse(e.data.replace(/^data: /, ''));
+                        // Only accept real sync responses (must have a status field)
+                        if (!data?.status) return;
                         console.debug("[WatchBack] SSE update:", data);
+                        if (data.status === 'Watching') this._annotateThoughts(data);
                         this.data = data;
                     } catch (err) {
                         console.debug("[WatchBack] SSE parse:", err);
@@ -301,6 +313,132 @@ document.addEventListener('alpine:init', () => {
             annotate(data.timeMachineThoughts);
         },
 
+        _initConfigEdits(configData) {
+            const edits = {};
+            for (const integration of Object.values(configData?.integrations || {})) {
+                for (const field of integration.fields) {
+                    // Pre-fill text fields with current value; password fields start blank
+                    edits[field.key] = field.type === 'password' ? '' : (field.value ?? '');
+                }
+            }
+            this.configEdits = edits;
+            this.prefEdits = {
+                timeMachineDays: configData?.preferences?.timeMachineDays ?? 14,
+                watchProvider: configData?.preferences?.watchProvider ?? 'jellyfin',
+            };
+        },
+
+        async saveConfig(integrationKey) {
+            const integration = this.configData?.integrations?.[integrationKey];
+            if (!integration) return;
+
+            const payload = {};
+            for (const field of integration.fields) {
+                const val = this.configEdits[field.key];
+                if (field.type === 'password') {
+                    // Only send if user typed something; blank = keep existing
+                    if (val && val.trim() !== '') payload[field.key] = val;
+                } else {
+                    payload[field.key] = val ?? '';
+                }
+            }
+
+            this.saveStatus = { ...this.saveStatus, [integrationKey]: 'saving' };
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (res.ok) {
+                    this.saveStatus = { ...this.saveStatus, [integrationKey]: 'saved' };
+                    // Refresh config to get updated hasValue flags
+                    const cRes = await fetch('/api/config');
+                    if (cRes.ok) {
+                        this.configData = await cRes.json();
+                        // Re-init edits but preserve blank password fields
+                        for (const field of this.configData.integrations[integrationKey]?.fields ?? []) {
+                            if (field.type !== 'password')
+                                this.configEdits[field.key] = field.value ?? '';
+                        }
+                    }
+                } else {
+                    this.saveStatus = { ...this.saveStatus, [integrationKey]: 'error' };
+                }
+            } catch {
+                this.saveStatus = { ...this.saveStatus, [integrationKey]: 'error' };
+            }
+            setTimeout(() => {
+                const { [integrationKey]: _, ...rest } = this.saveStatus;
+                this.saveStatus = rest;
+            }, 3000);
+        },
+
+        async saveAllConfig() {
+            const payload = {};
+            for (const [, integration] of Object.entries(this.configData?.integrations || {})) {
+                for (const field of integration.fields) {
+                    const val = this.configEdits[field.key];
+                    if (field.type === 'password') {
+                        if (val && val.trim() !== '') payload[field.key] = val;
+                    } else {
+                        payload[field.key] = val ?? '';
+                    }
+                }
+            }
+            this.saveAllStatus = 'saving';
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (res.ok) {
+                    this.saveAllStatus = 'saved';
+                    const cRes = await fetch('/api/config');
+                    if (cRes.ok) {
+                        this.configData = await cRes.json();
+                        for (const [, integration] of Object.entries(this.configData.integrations || {})) {
+                            for (const field of integration.fields) {
+                                if (field.type !== 'password')
+                                    this.configEdits[field.key] = field.value ?? '';
+                            }
+                        }
+                    }
+                } else {
+                    this.saveAllStatus = 'error';
+                }
+            } catch {
+                this.saveAllStatus = 'error';
+            }
+            setTimeout(() => { this.saveAllStatus = null; }, 3000);
+        },
+
+        async savePreferences() {
+            const payload = {};
+            if (this.prefEdits.timeMachineDays != null)
+                payload['WatchBack__TimeMachineDays'] = String(this.prefEdits.timeMachineDays);
+            if (this.prefEdits.watchProvider)
+                payload['WatchBack__WatchProvider'] = this.prefEdits.watchProvider;
+
+            this.prefSaveStatus = 'saving';
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                this.prefSaveStatus = res.ok ? 'saved' : 'error';
+                if (res.ok) {
+                    const cRes = await fetch('/api/config');
+                    if (cRes.ok) this.configData = await cRes.json();
+                }
+            } catch {
+                this.prefSaveStatus = 'error';
+            }
+            setTimeout(() => { this.prefSaveStatus = null; }, 3000);
+        },
+
         testIcon(service) {
             const r = this.lastTestResults[service];
             if (!r) {
@@ -314,8 +452,28 @@ document.addEventListener('alpine:init', () => {
 
         async testService(service) {
             this.testResults = { ...this.testResults, [service]: { status: 'testing' } };
+
+            // Build payload from current edits — send credentials directly so the server
+            // tests what's in the form right now, not whatever's in the saved config.
+            const integration = this.configData?.integrations?.[service];
+            const payload = {};
+            for (const field of integration?.fields ?? []) {
+                const val = this.configEdits[field.key];
+                // For password fields, prefer the typed value; fall back to the stored
+                // sentinel so the server knows the field has a value even if unchanged.
+                if (field.type === 'password') {
+                    payload[field.key] = (val && val.trim()) ? val : (field.hasValue ? '__EXISTING__' : '');
+                } else {
+                    payload[field.key] = val ?? '';
+                }
+            }
+
             try {
-                const res = await fetch(`/api/test/${service}`);
+                const res = await fetch(`/api/test/${service}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
                 const data = await res.json();
                 const result = { status: data.ok ? 'ok' : 'error', message: data.message };
                 this.testResults = { ...this.testResults, [service]: result };
@@ -332,8 +490,15 @@ document.addEventListener('alpine:init', () => {
         },
 
         async testAll() {
+            this.testAllStatus = 'testing';
             const services = Object.keys(this.configData?.integrations || {}).concat('reddit');
             await Promise.all(services.map(s => this.testService(s)));
+            const results = services.map(s => this.lastTestResults[s]);
+            const anyResult = results.some(r => r);
+            const allOk = anyResult && results.every(r => r?.status === 'ok');
+            const allFailed = anyResult && results.every(r => r?.status === 'error');
+            this.testAllStatus = allOk ? 'ok' : allFailed ? 'error' : 'warn';
+            setTimeout(() => { this.testAllStatus = null; }, 5000);
         },
 
         formatDate(iso) {

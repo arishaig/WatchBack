@@ -58,6 +58,9 @@ html[data-theme="monokai"] {
     --wb-error-text: #ff92b8;
     --wb-error-bg: #4d443d;
     --wb-error-border: #6e5254;
+    --wb-warn-text: #e6db74;
+    --wb-warn-bg: #4a4530;
+    --wb-warn-border: #6a6030;
 
     --wb-logo-filter: brightness(0) invert(1);
 }

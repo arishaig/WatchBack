@@ -7,7 +7,7 @@ public record ThoughtProviderMetadata(
     string Description,
     BrandData BrandData,
     string? OverrideDisplayName = null
-) : DataProviderMetadata(Name, Description, OverrideDisplayName);
+) : DataProviderMetadata(Name, Description, OverrideDisplayName, BrandData);
 
 /// <summary>
 /// The minimal requirement for a Thought provider.

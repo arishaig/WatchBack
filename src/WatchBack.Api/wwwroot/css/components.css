@@ -72,6 +72,12 @@
 .reply-border { border-color: var(--wb-reddit-border); }
 .reply-bg     { background: var(--wb-reply-bg); }
 
+/* ─── Tailwind utility shims (not in compiled output) ─── */
+.py-2\.5 { padding-block: 0.625rem; }
+.mt-6 { margin-top: 1.5rem; }
+.mt-8 { margin-top: 2rem; }
+.pt-5 { padding-top: 1.25rem; }
+
 /* ─── Skeuomorphic button ─── */
 .wb-btn {
     background-image: linear-gradient(
@@ -157,6 +163,57 @@
     color: var(--wb-error-text);
     background-color: var(--wb-error-bg);
     border-color: var(--wb-error-border);
+}
+
+.test-warn {
+    color: var(--wb-warn-text);
+    background-color: var(--wb-warn-bg);
+    border-color: var(--wb-warn-border);
+}
+
+/* ─── Integration cards ─── */
+.integration-card {
+    border-left: 3px solid var(--card-accent, var(--wb-border-color, #374151));
+    background-color: var(--wb-surface-alt);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.12);
+    padding-left: 1.25rem; /* extra left padding to offset the thick accent border */
+}
+
+.integration-logo {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.integration-logo svg {
+    width: 1.125rem;
+    height: 1.125rem;
+    fill: currentColor;
+}
+
+/* ─── Select wrapper ─── */
+.wb-select-wrap {
+    position: relative;
+}
+
+.wb-select-wrap::after {
+    content: '';
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-right: 1.5px solid var(--wb-text-muted);
+    border-bottom: 1.5px solid var(--wb-text-muted);
+    transform: translateY(-75%) rotate(45deg);
+    pointer-events: none;
+}
+
+.wb-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2.25rem;
+    cursor: pointer;
 }
 
 /* ─── Range slider ─── */

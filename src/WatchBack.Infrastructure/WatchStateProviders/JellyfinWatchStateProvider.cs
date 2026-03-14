@@ -19,7 +19,7 @@ public class JellyfinWatchStateProvider : IWatchStateProvider
 
     public JellyfinWatchStateProvider(
         HttpClient httpClient,
-        IOptions<JellyfinOptions> options,
+        IOptionsSnapshot<JellyfinOptions> options,
         IMemoryCache cache)
     {
         _httpClient = httpClient;

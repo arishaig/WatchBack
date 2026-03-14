@@ -20,13 +20,20 @@
 <body class="antialiased font-sans p-4" x-data="app()">
 
     <!-- Loading state (full-screen, shown during initial load) -->
-    <div x-show="!initialized" class="fixed inset-0 flex items-center justify-center"
-        style="background-color: var(--wb-bg, #1a1a2e);">
+    <div x-show="!initialized" class="wb-overlay"
+        style="background-color:var(--wb-bg,#1a1a2e);z-index:100;">
+        <div class="wb-spinner" role="status"></div>
+    </div>
+
+    <!-- Sync loading overlay -->
+    <div x-show="isLoading" x-cloak x-transition.opacity.duration.200ms class="wb-overlay"
+        style="background-color:rgba(0,0,0,0.45);z-index:50;"
+        aria-live="polite" aria-label="Loading">
         <div class="wb-spinner" role="status"></div>
     </div>
 
     <!-- Main app -->
-    <div x-show="initialized" x-cloak class="max-w-md mx-auto overflow-x-hidden">
+    <div x-show="initialized" x-cloak class="max-w-md mx-auto overflow-x-hidden pb-8">
 
         <header class="flex justify-between items-center mb-6 mt-2">
             <div class="flex items-center gap-3">
@@ -70,13 +77,6 @@
             </button>
         </div>
 
-        <!-- Loading overlay -->
-        <div x-show="isLoading" x-cloak x-transition.opacity.duration.200ms
-            class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4"
-            style="background-color: rgba(0,0,0,0.45);" aria-live="polite" aria-label="Loading">
-            <div class="wb-spinner" role="status"></div>
-        </div>
-
         <!-- Config panel -->
         <div x-show="showConfig" x-cloak role="region" aria-label="Configuration" @keydown.escape="showConfig = false"
             x-transition:enter="config-enter" x-transition:leave="config-leave"
@@ -85,34 +85,56 @@
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
                 <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Integrations</h2>
 
-                <div class="space-y-6">
+                <div class="space-y-3">
                     <template x-for="[key, integration] in Object.entries(configData?.integrations || {})"
                         :key="key">
-                        <div>
-                            <p class="text-xs wb-text-faint mb-2 font-medium uppercase tracking-wide"
-                                x-text="integration.name"></p>
-                            <div class="space-y-3">
-                                <template x-for="field in integration.fields" :key="field.key">
-                                    <div class="relative">
-                                        <div class="flex justify-between mb-1">
-                                            <label class="text-xs font-medium wb-text-muted"
-                                                x-text="field.label"></label>
-                                        </div>
-                                        <input :type="field.type" :placeholder="field.placeholder" disabled
-                                            :value="field.hasValue ? '••••••••' : ''"
-                                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border disabled:opacity-60">
-                                    </div>
-                                </template>
-                                <button @click="testService(key)"
-                                    :disabled="testResults[key]?.status === 'testing' || !integration.configured"
-                                    aria-live="polite"
-                                    class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
-                                    :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
-                                    x-text="testResults[key]?.status === 'testing' ? 'Testing\u2026' : testResults[key]?.message || 'Test Connection'">
-                                </button>
+                        <div class="integration-card rounded-xl p-4 space-y-3"
+                            :style="'--card-accent: ' + integration.brandColor">
+                            <!-- Card header: logo + service name -->
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="integration-logo"
+                                    :style="'color: ' + integration.brandColor"
+                                    x-html="integration.logoSvg"></span>
+                                <span class="text-sm font-semibold wb-text-secondary"
+                                    x-text="integration.name"></span>
                             </div>
+                            <!-- Fields -->
+                            <template x-for="field in integration.fields" :key="field.key">
+                                <div class="relative">
+                                    <div class="flex justify-between mb-1">
+                                        <label class="text-xs font-medium wb-text-muted"
+                                            x-text="field.label"></label>
+                                        <span x-show="field.type === 'password' && field.hasValue && !configEdits[field.key]"
+                                            class="text-xs wb-text-faint">set</span>
+                                    </div>
+                                    <input :type="field.type"
+                                        :placeholder="field.type === 'password' && field.hasValue ? '(unchanged)' : field.placeholder"
+                                        x-model="configEdits[field.key]"
+                                        autocomplete="off"
+                                        class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
+                                </div>
+                            </template>
+                            <!-- Test button -->
+                            <button @click="testService(key)"
+                                :disabled="testResults[key]?.status === 'testing' || !integration.configured"
+                                aria-live="polite"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
+                                :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
+                                x-text="testResults[key]?.status === 'testing' ? 'Testing\u2026' : testResults[key]?.message || 'Test Connection'">
+                            </button>
                         </div>
                     </template>
+                </div>
+
+                <!-- Save + feature summary -->
+                <div class="wb-border border-t mt-8 pt-5 space-y-3">
+                    <button @click="saveAllConfig()"
+                        :disabled="saveAllStatus === 'saving'"
+                        aria-live="polite"
+                        class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt cursor-pointer disabled:opacity-50 wb-btn"
+                        :class="saveAllStatus === 'saved' ? 'test-ok' : saveAllStatus === 'error' ? 'test-error' : 'wb-text-muted'"
+                        x-text="saveAllStatus === 'saving' ? 'Saving\u2026' : saveAllStatus === 'saved' ? 'Saved \u2713' : saveAllStatus === 'error' ? 'Error \u2717' : 'Save'">
+                    </button>
 
                     <!-- Feature summary -->
                     <template x-if="configData">
@@ -147,10 +169,11 @@
                             </li>
                             <li class="pt-1">
                                 <button @click="testAll()"
-                                    :disabled="Object.values(testResults).some(r => r.status === 'testing')"
+                                    :disabled="testAllStatus === 'testing'"
                                     aria-live="polite"
                                     class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
-                                    x-text="Object.values(testResults).some(r => r.status === 'testing') ? 'Testing\u2026' : 'Test All Connections'">
+                                    :class="testAllStatus === 'ok' ? 'test-ok' : testAllStatus === 'error' ? 'test-error' : testAllStatus === 'warn' ? 'test-warn' : ''"
+                                    x-text="testAllStatus === 'testing' ? 'Testing\u2026' : testAllStatus === 'ok' ? 'All Connected \u2713' : testAllStatus === 'error' ? 'All Failed \u2717' : testAllStatus === 'warn' ? 'Some Failed' : 'Test All Connections'">
                                 </button>
                             </li>
                         </ul>
@@ -164,26 +187,50 @@
                     <div class="space-y-4">
                         <div class="flex items-center justify-between">
                             <label class="text-xs font-medium wb-text-muted">Theme</label>
-                            <select x-model="theme" @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
-                                aria-label="Theme"
-                                class="wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-sm border cursor-pointer">
-                                <option value="dark">Dark</option>
-                                <option value="light">Light</option>
-                                <option value="solarized-dark">Solarized Dark</option>
-                                <option value="solarized-light">Solarized Light</option>
-                                <option value="monokai">Monokai</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between items-center mb-1">
-                                <label class="text-xs font-medium wb-text-muted">Time Machine Window</label>
-                                <div class="flex items-center gap-1">
-                                    <span class="text-xs wb-accent-text font-semibold"
-                                        x-text="(configData?.preferences?.timeMachineDays || 14) + ' days'"></span>
-                                </div>
+                            <div class="wb-select-wrap">
+                                <select x-model="theme" @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
+                                    aria-label="Theme"
+                                    class="wb-select wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                    <option value="dark">Dark</option>
+                                    <option value="light">Light</option>
+                                    <option value="solarized-dark">Solarized Dark</option>
+                                    <option value="solarized-light">Solarized Light</option>
+                                    <option value="monokai">Monokai</option>
+                                </select>
                             </div>
                         </div>
+
+                        <template x-if="(configData?.preferences?.watchProviders || []).length > 0">
+                            <div>
+                                <label class="text-xs font-medium wb-text-muted block mb-1">Watch Provider</label>
+                                <div class="wb-select-wrap">
+                                    <select x-model="prefEdits.watchProvider" aria-label="Watch provider"
+                                        class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                        <template x-for="wp in configData.preferences.watchProviders" :key="wp.value">
+                                            <option :value="wp.value" x-text="wp.label"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div>
+                            <label class="text-xs font-medium wb-text-muted block mb-1">Time Machine Window</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" min="1" max="365"
+                                    x-model.number="prefEdits.timeMachineDays"
+                                    class="w-24 wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                <span class="text-xs wb-text-faint">days</span>
+                            </div>
+                        </div>
+
+                        <button @click="savePreferences()"
+                            :disabled="prefSaveStatus === 'saving'"
+                            aria-live="polite"
+                            class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt cursor-pointer disabled:opacity-50 wb-btn"
+                            :class="prefSaveStatus === 'saved' ? 'test-ok' : prefSaveStatus === 'error' ? 'test-error' : 'wb-text-muted'"
+                            x-text="prefSaveStatus === 'saving' ? 'Saving\u2026' : prefSaveStatus === 'saved' ? 'Saved \u2713' : prefSaveStatus === 'error' ? 'Error \u2717' : 'Save Preferences'">
+                        </button>
                     </div>
                 </div>
             </div>
@@ -205,27 +252,37 @@
                     </template>
                 </div>
 
-                <!-- Mode toggle & source filters -->
-                <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border comment-card"
-                    style="animation-delay:0.05s">
-                    <button x-show="showTimeMachine" @click="mode = 'time'"
-                        :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
-                        :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
-                        class="flex flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
-                        <span class="flex hide-on-mobile">Time Machine</span>
-                        <ion-icon class="show-on-mobile" name="hourglass-sharp"></ion-icon>
-                        <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
-                    </button>
-                    <button @click="mode = 'all'" :class="mode === 'all' ? 'wb-on-accent shadow' : 'wb-text-muted'"
-                        :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
-                        class="flex flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
-                        <span class="flex hide-on-mobile">Thoughts</span>
-                        <ion-icon class="show-on-mobile" name="chatbubbles-sharp"></ion-icon>
-                        <span x-text="'(' + allThoughtsCount + ')'" class="text-xs font-normal"></span>
-                    </button>
-                </div>
+                <!-- Mode toggle & source filters (only when there are thoughts) -->
+                <template x-if="(data?.allThoughts || []).length > 0">
+                    <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border comment-card"
+                        style="animation-delay:0.05s">
+                        <button x-show="showTimeMachine" @click="mode = 'time'"
+                            :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
+                            :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
+                            class="flex flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
+                            <span class="flex hide-on-mobile">Time Machine</span>
+                            <ion-icon class="show-on-mobile" name="hourglass-sharp"></ion-icon>
+                            <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
+                        </button>
+                        <button @click="mode = 'all'" :class="mode === 'all' ? 'wb-on-accent shadow' : 'wb-text-muted'"
+                            :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
+                            class="flex flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
+                            <span class="flex hide-on-mobile">Comments</span>
+                            <ion-icon class="show-on-mobile" name="chatbubbles-sharp"></ion-icon>
+                            <span x-text="'(' + allThoughtsCount + ')'" class="text-xs font-normal"></span>
+                        </button>
+                    </div>
+                </template>
 
-                <!-- Source filter pills -->
+                <!-- No discussions found -->
+                <template x-if="(data?.allThoughts || []).length === 0">
+                    <div class="py-16 text-center comment-card" style="animation-delay:0.05s">
+                        <p class="wb-text-muted text-base mb-2">No discussions found.</p>
+                        <p class="text-xs wb-text-faint">Nothing has been posted about this episode yet, or the sources haven't indexed it.</p>
+                    </div>
+                </template>
+
+                <!-- Source filter pills (only when thoughts exist) -->
                 <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card"
                     style="animation-delay:0.1s">
                     <template x-for="src in availableSources" :key="src">
@@ -242,7 +299,7 @@
                 <div x-show="hasThreadGroups" class="flex justify-center mb-4">
                     <button @click="handleThreadToggle()"
                         :class="groupByThread ? 'filter-reddit' : 'filter-inactive'"
-                        class="px-5 py-1.5 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer flex items-center gap-1.5 wb-btn">
+                        class="px-5 py-2 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer flex items-center gap-1.5 wb-btn">
                         <span
                             x-text="(groupByThread ? 'Grouped by thread' : 'Group by thread') + ' (' + threadCount + ')'"></span>
                     </button>
@@ -395,9 +452,10 @@
                         </div>
                     </template>
 
-                    <template x-if="activeThoughts.length === 0">
+                    <!-- Per-filter empty state (thoughts exist but filter hides all) -->
+                    <template x-if="(data?.allThoughts || []).length > 0 && activeThoughts.length === 0">
                         <div class="py-12 text-center">
-                            <p class="wb-text-faint">No thoughts found for this view.</p>
+                            <p class="wb-text-faint">No comments match the current filter.</p>
                         </div>
                     </template>
                 </div>
