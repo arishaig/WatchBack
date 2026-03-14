@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WatchBack</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="/tailwind.css">
+    <script src="https://cdn.jsdelivr.net/npm/reconnecting-eventsource@1.6.2/dist/ReconnectingEventSource.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+
+<body class="antialiased font-sans p-4" x-data="app()">
+
+    <!-- Loading state -->
+    <div x-show="isLoading" class="fixed inset-0 flex items-center justify-center"
+        style="background-color: var(--wb-bg, #1a1a2e);">
+        <div class="wb-spinner" role="status"></div>
+    </div>
+
+    <!-- Main app -->
+    <div class="max-w-md mx-auto overflow-x-hidden">
+
+        <header class="flex justify-between items-center mb-6 mt-2">
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
+            </div>
+            <div class="flex gap-2">
+                <a href="/swagger/index.html" target="_blank" title="API Documentation"
+                    class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm leading-none cursor-pointer wb-btn wb-border border">
+                    <ion-icon name="help-circle-sharp" aria-hidden="true"></ion-icon>
+                </a>
+                <button @click="sync()"
+                    class="wb-on-accent px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer wb-btn wb-border border"
+                    style="background-color: var(--wb-accent);" :disabled="isLoading">
+                    <span x-show="!isLoading" class="flex items-center gap-2">
+                        <ion-icon name="sync-sharp" aria-hidden="true"></ion-icon> Sync
+                    </span>
+                    <span x-show="isLoading" x-cloak
+                        class="inline-block w-5 h-5 border-2 border-transparent border-t-current rounded-full animate-spin"
+                        aria-hidden="true"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Error banner -->
+        <div x-show="error" x-cloak x-transition:enter="config-enter" x-transition:leave="config-leave"
+            class="mb-4 p-3 rounded-lg text-sm flex items-center justify-between"
+            style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
+            role="alert">
+            <span x-text="error"></span>
+            <button @click="error = null; clearTimeout(errorTimer)"
+                class="ml-3 shrink-0 text-xs font-bold cursor-pointer opacity-70 hover:opacity-100"
+                aria-label="Dismiss">
+                <ion-icon name="close-sharp"></ion-icon>
+            </button>
+        </div>
+
+        <!-- Status card -->
+        <template x-if="data">
+            <div class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-bold wb-accent-text" x-text="data.title || 'Idle'"></h2>
+                    <span class="text-xs font-semibold uppercase tracking-wide"
+                        :class="data.status === 'Watching' ? 'wb-success-text' : 'wb-text-muted'"
+                        x-text="data.status"></span>
+                </div>
+                <template x-if="data.metadata">
+                    <div class="space-y-1 text-sm wb-text-secondary">
+                        <div x-show="data.metadata.episodeTitle">
+                            <span class="wb-text-muted">Episode:</span>
+                            <span x-text="`${data.metadata.episodeTitle} (S${data.metadata.seasonNumber}E${data.metadata.episodeNumber})`"></span>
+                        </div>
+                        <div x-show="data.metadata.releaseDate">
+                            <span class="wb-text-muted">Aired:</span>
+                            <span x-text="formatDate(data.metadata.releaseDate)"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Thought sources -->
+        <template x-if="data && data.sourceResults && data.sourceResults.length > 0">
+            <div class="space-y-4">
+                <template x-for="source in data.sourceResults" :key="source.source">
+                    <template x-if="source.thoughts && source.thoughts.length > 0">
+                        <div class="wb-surface wb-border rounded-xl overflow-hidden border">
+                            <div class="bg-opacity-50 p-4 border-b"
+                                style="background-color: var(--wb-surface-alt); border-color: var(--wb-border);">
+                                <div class="flex items-center justify-between mb-1">
+                                    <h3 class="font-semibold wb-accent-text" x-text="source.source"></h3>
+                                    <span class="text-xs font-semibold wb-text-muted"
+                                        x-text="`${source.thoughts.length} thought${source.thoughts.length !== 1 ? 's' : ''}`"></span>
+                                </div>
+                                <template x-if="source.postTitle">
+                                    <p class="text-xs wb-text-secondary" x-text="source.postTitle"></p>
+                                </template>
+                            </div>
+                            <div class="p-4 space-y-4">
+                                <template x-for="thought in source.thoughts" :key="thought.id">
+                                    <div class="border-l-2 pl-3" style="border-color: var(--wb-accent);">
+                                        <div class="flex items-start justify-between gap-2 mb-1">
+                                            <span class="text-xs font-medium wb-text-muted"
+                                                x-text="thought.author"></span>
+                                            <span class="text-xs wb-text-faint"
+                                                x-text="formatDate(thought.createdAt)"></span>
+                                        </div>
+                                        <template x-if="thought.images && thought.images.length > 0">
+                                            <div class="flex flex-wrap gap-2 mb-2">
+                                                <template x-for="img in thought.images" :key="img.url">
+                                                    <img :src="img.url" :alt="img.alt" class="max-h-32 rounded"
+                                                        @click="lightboxImg = img.url"
+                                                        style="cursor: pointer; object-fit: cover;">
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <div class="text-sm wb-text-secondary mb-2"
+                                            x-html="renderMarkdown(thought.content)"></div>
+                                        <div class="flex items-center gap-3 text-xs wb-text-faint">
+                                            <template x-if="thought.score != null">
+                                                <span x-text="`👍 ${formatScore(thought.score)}`"></span>
+                                            </template>
+                                            <template x-if="thought.replies && thought.replies.length > 0">
+                                                <span x-text="`${thought.replies.length} repl${thought.replies.length !== 1 ? 'ies' : 'y'}`"></span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </template>
+            </div>
+        </template>
+
+        <!-- Time machine section -->
+        <template x-if="data && data.timeMachineThoughts && data.timeMachineThoughts.length > 0">
+            <div class="mt-8 pt-6 border-t" style="border-color: var(--wb-border);">
+                <h3 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-4">
+                    Time Machine (Last <span x-text="data.timeMachineDays"></span> Days)
+                </h3>
+                <div class="space-y-3">
+                    <template x-for="thought in data.timeMachineThoughts" :key="thought.id">
+                        <div class="text-sm wb-text-secondary p-3 rounded-lg"
+                            style="background: var(--wb-surface-alt);">
+                            <div class="flex items-center justify-between gap-2 mb-1">
+                                <span class="font-medium" x-text="thought.author"></span>
+                                <span class="text-xs wb-text-faint"
+                                    x-text="formatDate(thought.createdAt)"></span>
+                            </div>
+                            <p x-text="thought.content"></p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+    </div>
+
+    <!-- Lightbox -->
+    <template x-if="lightboxImg">
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style="background-color: rgba(0,0,0,0.8);"
+            @click="lightboxImg = null">
+            <img :src="lightboxImg" class="max-h-screen max-w-screen" @click.stop>
+        </div>
+    </template>
+
+    <script src="/app.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/ionicons@7.2.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://cdn.jsdelivr.net/npm/ionicons@7.2.0/dist/ionicons/ionicons.js"></script>
+</body>
+
+</html>

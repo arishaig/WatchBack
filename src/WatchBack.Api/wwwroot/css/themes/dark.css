@@ -1,0 +1,50 @@
+/* Dark theme (default) */
+:root {
+    --wb-bg: #1a1a2e;
+    --wb-surface: #16213e;
+    --wb-surface-alt: #0f3460;
+    --wb-border: #e94560;
+    --wb-accent: #e94560;
+    --wb-text: #eaeaea;
+    --wb-text-secondary: #b0b0b0;
+    --wb-text-muted: #808080;
+    --wb-text-faint: #606060;
+    --wb-success-text: #4ade80;
+    --wb-error-bg: rgba(239, 68, 68, 0.1);
+    --wb-error-text: #fca5a5;
+    --wb-error-border: #991b1b;
+}
+
+[data-theme="dark"] {
+    --wb-bg: #1a1a2e;
+    --wb-surface: #16213e;
+    --wb-surface-alt: #0f3460;
+    --wb-border: #e94560;
+    --wb-accent: #e94560;
+    --wb-text: #eaeaea;
+    --wb-text-secondary: #b0b0b0;
+    --wb-text-muted: #808080;
+    --wb-text-faint: #606060;
+    --wb-success-text: #4ade80;
+    --wb-error-bg: rgba(239, 68, 68, 0.1);
+    --wb-error-text: #fca5a5;
+    --wb-error-border: #991b1b;
+    --wb-on-accent: #1a1a2e;
+}
+
+[data-theme="light"] {
+    --wb-bg: #f5f5f5;
+    --wb-surface: #ffffff;
+    --wb-surface-alt: #f0f0f0;
+    --wb-border: #d1d1d1;
+    --wb-accent: #0ea5e9;
+    --wb-text: #1a1a1a;
+    --wb-text-secondary: #404040;
+    --wb-text-muted: #808080;
+    --wb-text-faint: #a0a0a0;
+    --wb-success-text: #16a34a;
+    --wb-error-bg: rgba(239, 68, 68, 0.1);
+    --wb-error-text: #dc2626;
+    --wb-error-border: #b91c1c;
+    --wb-on-accent: #ffffff;
+}

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Models;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Options;
 using WatchBack.Core.Services;
@@ -72,6 +73,23 @@ builder.Services.AddSingleton<IReplyTreeBuilder, ReplyTreeBuilder>();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, WatchBackJsonContext.Default));
 
+// Add Swagger/OpenAPI
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "WatchBack API",
+        Version = "v1",
+        Description = "Watch state detection and thought aggregation API",
+        Contact = new OpenApiContact
+        {
+            Name = "WatchBack",
+            Url = new Uri("https://github.com/watchback/watchback-net")
+        }
+    });
+});
+
 var app = builder.Build();
 
 // Initialize database
@@ -83,8 +101,23 @@ using (var scope = app.Services.CreateScope())
 
 app.UseHttpsRedirection();
 
+// Enable Swagger/OpenAPI
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "WatchBack API v1");
+    options.RoutePrefix = "swagger"; // Available at /swagger
+});
+
+// Enable static files (frontend)
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 // Map endpoints
 app.MapSyncEndpoints();
+
+// Map fallback to index.html for SPA
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
