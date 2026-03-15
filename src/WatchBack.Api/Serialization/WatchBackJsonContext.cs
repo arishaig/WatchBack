@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+
 using WatchBack.Api.Models;
 
 namespace WatchBack.Api.Serialization;

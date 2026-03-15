@@ -1,6 +1,7 @@
 using System.Text;
-using WatchBack.Core.Interfaces;
+
 using WatchBack.Api.Models;
+using WatchBack.Core.Interfaces;
 
 namespace WatchBack.Api.Endpoints;
 

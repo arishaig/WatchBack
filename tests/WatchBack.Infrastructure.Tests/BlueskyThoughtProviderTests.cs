@@ -1,13 +1,18 @@
+using System.Net;
+
 using FluentAssertions;
-using Xunit;
-using NSubstitute;
+
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using System.Net;
+
+using NSubstitute;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
-using WatchBack.Infrastructure.Thoughts;
+using WatchBack.Infrastructure.ThoughtProviders;
+
+using Xunit;
 
 namespace WatchBack.Infrastructure.Tests;
 
@@ -26,7 +31,11 @@ public class BlueskyThoughtProviderTests : IDisposable
         };
     }
 
-    public void Dispose() => _cache.Dispose();
+    public void Dispose()
+    {
+        _cache.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     [Fact]
     public async Task GetThoughtsAsync_WithValidSearchResults_ReturnsPosts()
@@ -76,7 +85,7 @@ public class BlueskyThoughtProviderTests : IDisposable
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder);
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -144,7 +153,7 @@ public class BlueskyThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => capturedThoughts.AddRange(x)))
             .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder);
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -184,7 +193,7 @@ public class BlueskyThoughtProviderTests : IDisposable
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(optionsWithoutCreds), _cache, treeBuilder);
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(optionsWithoutCreds), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -209,7 +218,7 @@ public class BlueskyThoughtProviderTests : IDisposable
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
         var treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder);
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Act
         var health = await provider.GetServiceHealthAsync();

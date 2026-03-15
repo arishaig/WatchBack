@@ -1,11 +1,15 @@
+using System.Net;
+
 using FluentAssertions;
-using Xunit;
+
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using System.Net;
+
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
-using WatchBack.Infrastructure.WatchState;
+using WatchBack.Infrastructure.WatchStateProviders;
+
+using Xunit;
 
 namespace WatchBack.Infrastructure.Tests;
 
@@ -26,7 +30,11 @@ public class TraktWatchStateProviderTests : IDisposable
         };
     }
 
-    public void Dispose() => _cache.Dispose();
+    public void Dispose()
+    {
+        _cache.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     [Fact]
     public async Task GetCurrentMediaContextAsync_WithNoActivePlayback_ReturnsNull()

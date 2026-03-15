@@ -1,9 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Options;
 using WatchBack.Infrastructure.Persistence;
-using WatchBack.Infrastructure.WatchState;
-using WatchBack.Infrastructure.Thoughts;
+using WatchBack.Infrastructure.ThoughtProviders;
+using WatchBack.Infrastructure.WatchStateProviders;
 
 namespace WatchBack.Infrastructure.Extensions;
 

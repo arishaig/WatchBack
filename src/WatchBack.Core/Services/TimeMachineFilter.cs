@@ -24,8 +24,9 @@ public class TimeMachineFilter : ITimeMachineFilter
                     return t.CreatedAt.Date == airDate.Value.Date;
                 }
 
-                // For windowDays > 0, include thoughts within the time window
-                return (t.CreatedAt - airDate.Value).TotalDays <= windowDays;
+                // For windowDays > 0, include thoughts within the time window after air date
+                var deltaDays = (t.CreatedAt - airDate.Value).TotalDays;
+                return deltaDays >= 0 && deltaDays <= windowDays;
             })
             .ToList();
     }

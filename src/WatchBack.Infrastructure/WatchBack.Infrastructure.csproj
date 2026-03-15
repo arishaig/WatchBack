@@ -4,7 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <LangVersion>default</LangVersion>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>CA1848;CA1873</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,15 +1,20 @@
+using System.Net;
+using System.Text.Json;
+
 using FluentAssertions;
-using Xunit;
+
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using System.Net;
-using System.Text.Json;
+
 using NSubstitute;
+
+using WatchBack.Api;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
-using WatchBack.Api;
+
+using Xunit;
 
 namespace WatchBack.Api.Tests;
 
@@ -23,7 +28,9 @@ public class SyncIntegrationTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _mockWatchProvider = Substitute.For<IWatchStateProvider>();
+        _mockWatchProvider.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
         _mockThoughtProvider = Substitute.For<IThoughtProvider>();
+        _mockThoughtProvider.Metadata.Returns(new ThoughtProviderMetadata("Test", "Test", new BrandData("", "")));
 
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
@@ -31,8 +38,8 @@ public class SyncIntegrationTests : IAsyncLifetime
                 builder.ConfigureServices(services =>
                 {
                     // Remove the real provider registrations
-                    services.RemoveAll(typeof(IWatchStateProvider));
-                    services.RemoveAll(typeof(IThoughtProvider));
+                    services.RemoveAll<IWatchStateProvider>();
+                    services.RemoveAll<IThoughtProvider>();
 
                     // Register mocks
                     services.AddScoped(_ => _mockWatchProvider);

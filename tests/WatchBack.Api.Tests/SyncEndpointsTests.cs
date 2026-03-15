@@ -1,15 +1,19 @@
-using FluentAssertions;
-using Xunit;
-using Microsoft.AspNetCore.Mvc.Testing;
 using System.Net;
 using System.Net.Http.Json;
+
+using FluentAssertions;
+
+using Microsoft.AspNetCore.Mvc.Testing;
+
+using WatchBack.Api;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
-using WatchBack.Api;
+
+using Xunit;
 
 namespace WatchBack.Api.Tests;
 
-public class SyncEndpointsTests : IAsyncLifetime
+public class SyncEndpointsTests : IAsyncLifetime, IDisposable
 {
     private WebApplicationFactory<Program> _factory = null!;
     private HttpClient _client = null!;
@@ -26,6 +30,13 @@ public class SyncEndpointsTests : IAsyncLifetime
         _client?.Dispose();
         _factory?.Dispose();
         await Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        _client?.Dispose();
+        _factory?.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

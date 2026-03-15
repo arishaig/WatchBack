@@ -1,13 +1,18 @@
+using System.Net;
+
 using FluentAssertions;
-using Xunit;
-using NSubstitute;
+
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using System.Net;
+
+using NSubstitute;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
-using WatchBack.Infrastructure.Thoughts;
+using WatchBack.Infrastructure.ThoughtProviders;
+
+using Xunit;
 
 namespace WatchBack.Infrastructure.Tests;
 
@@ -27,7 +32,11 @@ public class TraktThoughtProviderTests : IDisposable
         };
     }
 
-    public void Dispose() => _cache.Dispose();
+    public void Dispose()
+    {
+        _cache.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     [Fact]
     public async Task GetThoughtsAsync_WithValidShow_ReturnsComments()

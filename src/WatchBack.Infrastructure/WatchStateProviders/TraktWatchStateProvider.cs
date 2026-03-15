@@ -1,12 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 
-namespace WatchBack.Infrastructure.WatchState;
+namespace WatchBack.Infrastructure.WatchStateProviders;
 
 [JsonSerializable(typeof(TraktWatchingDto))]
 internal sealed partial class TraktJsonContext : JsonSerializerContext { }

@@ -1,6 +1,6 @@
-namespace WatchBack.Core.Interfaces;
-
 using WatchBack.Core.Models;
+
+namespace WatchBack.Core.Interfaces;
 
 /// <summary>
 /// Information about a ThoughtProvider

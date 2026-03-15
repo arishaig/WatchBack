@@ -1,12 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 
-namespace WatchBack.Infrastructure.WatchState;
+namespace WatchBack.Infrastructure.WatchStateProviders;
 
 [JsonSerializable(typeof(JellyfinSessionDto[]))]
 internal sealed partial class JellyfinJsonContext : JsonSerializerContext { }
@@ -47,8 +49,9 @@ public class JellyfinWatchStateProvider : IWatchStateProvider
                 return cached;
             }
 
-            var url = $"{_options.BaseUrl}/Sessions?api_key={_options.ApiKey}";
-            var response = await _httpClient.GetAsync(url, ct);
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{_options.BaseUrl}/Sessions");
+            request.Headers.Add("X-Emby-Token", _options.ApiKey);
+            var response = await _httpClient.SendAsync(request, ct);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -89,8 +92,9 @@ public class JellyfinWatchStateProvider : IWatchStateProvider
     {
         try
         {
-            var url = $"{_options.BaseUrl}/Sessions?api_key={_options.ApiKey}";
-            var response = await _httpClient.GetAsync(url, ct);
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{_options.BaseUrl}/Sessions");
+            request.Headers.Add("X-Emby-Token", _options.ApiKey);
+            var response = await _httpClient.SendAsync(request, ct);
 
             return new ServiceHealth(
                 IsHealthy: response.IsSuccessStatusCode,

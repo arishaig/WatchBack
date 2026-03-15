@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+
 using WatchBack.Infrastructure.Persistence.Entities;
 
 namespace WatchBack.Infrastructure.Persistence;

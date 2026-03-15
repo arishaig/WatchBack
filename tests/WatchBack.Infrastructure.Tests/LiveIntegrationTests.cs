@@ -1,13 +1,16 @@
 using FluentAssertions;
-using Xunit;
+
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 using WatchBack.Core.Services;
-using WatchBack.Infrastructure.WatchState;
-using WatchBack.Infrastructure.Thoughts;
+using WatchBack.Infrastructure.ThoughtProviders;
+using WatchBack.Infrastructure.WatchStateProviders;
+
+using Xunit;
 
 namespace WatchBack.Infrastructure.Tests;
 
@@ -30,16 +33,30 @@ public class LiveIntegrationTests : IDisposable
     {
         _cache.Dispose();
         _httpClient.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private static void LoadEnvFile()
     {
-        // Try to find .env in the WatchBack Python project (sibling directory)
-        var envPath = "/home/isaac/Projects/WatchBack/.env";
+        // Try to find .env relative to current directory or solution root
+        var envPath = Path.Combine(Directory.GetCurrentDirectory(), "../../../../.env");
         if (!File.Exists(envPath))
         {
-            // Fallback: look relative to current directory
-            envPath = Path.Combine(Directory.GetCurrentDirectory(), "../../../../.env");
+            // Fallback: look in sibling Python project
+            var dir = Directory.GetCurrentDirectory();
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir, "WatchBack.sln")))
+                {
+                    var sibling = Path.Combine(Path.GetDirectoryName(dir)!, "WatchBack", ".env");
+                    if (File.Exists(sibling))
+                    {
+                        envPath = sibling;
+                        break;
+                    }
+                }
+                dir = Directory.GetParent(dir)?.FullName;
+            }
         }
 
         if (File.Exists(envPath))
@@ -170,7 +187,7 @@ public class LiveIntegrationTests : IDisposable
             EpisodeNumber: 1);
 
         var treeBuilder = new ReplyTreeBuilder();
-        var provider = new RedditThoughtProvider(_httpClient, new OptionsSnapshotStub<RedditOptions>(options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<WatchBack.Infrastructure.Thoughts.RedditThoughtProvider>.Instance);
+        var provider = new RedditThoughtProvider(_httpClient, new OptionsSnapshotStub<RedditOptions>(options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -203,7 +220,7 @@ public class LiveIntegrationTests : IDisposable
             EpisodeNumber: 1);
 
         var treeBuilder = new ReplyTreeBuilder();
-        var provider = new BlueskyThoughtProvider(_httpClient, new OptionsSnapshotStub<BlueskyOptions>(options), _cache, treeBuilder);
+        var provider = new BlueskyThoughtProvider(_httpClient, new OptionsSnapshotStub<BlueskyOptions>(options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Act
         var result = await provider.GetThoughtsAsync(mediaContext);
@@ -249,7 +266,8 @@ public class LiveIntegrationTests : IDisposable
             AppPassword = Environment.GetEnvironmentVariable("BSKY_APP_PASSWORD")
         };
         var blueskyProvider = new BlueskyThoughtProvider(
-            _httpClient, new OptionsSnapshotStub<BlueskyOptions>(blueskyOpts), _cache, new ReplyTreeBuilder());
+            _httpClient, new OptionsSnapshotStub<BlueskyOptions>(blueskyOpts), _cache, new ReplyTreeBuilder(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Reddit
         var redditOpts = new RedditOptions();

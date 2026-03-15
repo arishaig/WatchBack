@@ -1,5 +1,7 @@
 using System.Text.Json;
+
 using Microsoft.Extensions.Options;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
@@ -11,6 +13,11 @@ public record UserConfigFile(string Path);
 public static class ConfigEndpoints
 {
     private static readonly JsonSerializerOptions s_jsonOptions = new() { WriteIndented = true };
+
+    private static readonly HashSet<string> s_allowedConfigSections = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Jellyfin", "Trakt", "Bluesky", "Reddit", "WatchBack"
+    };
 
     public static void MapConfigEndpoints(this WebApplication app)
     {
@@ -157,6 +164,9 @@ public static class ConfigEndpoints
             var section = flatKey[..sep];
             var key = flatKey[(sep + 2)..];
 
+            if (!s_allowedConfigSections.Contains(section))
+                continue; // reject unknown sections
+
             if (!existing.ContainsKey(section))
                 existing[section] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -181,11 +191,11 @@ public static class ConfigEndpoints
         var configured = watchback.Value.WatchProvider;
         var activeProvider = watchStateProviders
             .FirstOrDefault(p => p.Metadata.Name.Equals(configured, StringComparison.OrdinalIgnoreCase))
-            ?? watchStateProviders.First();
+            ?? watchStateProviders.FirstOrDefault();
 
         return new
         {
-            watchProvider = activeProvider.Metadata.Name.ToLowerInvariant()
+            watchProvider = activeProvider?.Metadata.Name.ToLowerInvariant() ?? configured
         };
     }
 

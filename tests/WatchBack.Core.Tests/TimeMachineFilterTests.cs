@@ -1,7 +1,9 @@
 using FluentAssertions;
-using Xunit;
+
 using WatchBack.Core.Models;
 using WatchBack.Core.Services;
+
+using Xunit;
 
 namespace WatchBack.Core.Tests;
 
@@ -91,7 +93,7 @@ public class TimeMachineFilterTests
     }
 
     [Fact]
-    public void Apply_IncludesThoughtsBeforeAirDate()
+    public void Apply_ExcludesThoughtsBeforeAirDate()
     {
         // Arrange
         var airDate = DateTimeOffset.UtcNow;
@@ -106,7 +108,8 @@ public class TimeMachineFilterTests
         var result = _filter.Apply(thoughts, airDate, windowDays: 14);
 
         // Assert
-        result.Should().HaveCount(2);
+        result.Should().HaveCount(1);
+        result[0].Id.Should().Be("2");
     }
 
     [Fact]

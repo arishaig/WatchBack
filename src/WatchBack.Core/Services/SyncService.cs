@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
@@ -11,17 +13,20 @@ public class SyncService : ISyncService
     private readonly IEnumerable<IThoughtProvider> _thoughtProviders;
     private readonly ITimeMachineFilter _timeMachineFilter;
     private readonly IOptionsSnapshot<WatchBackOptions> _options;
+    private readonly ILogger<SyncService> _logger;
 
     public SyncService(
         IEnumerable<IWatchStateProvider> watchStateProviders,
         IEnumerable<IThoughtProvider> thoughtProviders,
         ITimeMachineFilter timeMachineFilter,
-        IOptionsSnapshot<WatchBackOptions> options)
+        IOptionsSnapshot<WatchBackOptions> options,
+        ILogger<SyncService> logger)
     {
         _watchStateProviders = watchStateProviders;
         _thoughtProviders = thoughtProviders;
         _timeMachineFilter = timeMachineFilter;
         _options = options;
+        _logger = logger;
     }
 
     public async Task<SyncResult> SyncAsync(CancellationToken ct = default)
@@ -31,12 +36,25 @@ public class SyncService : ISyncService
             // Select the configured watch state provider, falling back to the first registered
             var configured = _options.Value.WatchProvider;
             var watchStateProvider = _watchStateProviders
-                .FirstOrDefault(p => p.Metadata?.Name?.Equals(configured, StringComparison.OrdinalIgnoreCase) == true)
-                ?? _watchStateProviders.First();
+                .FirstOrDefault(p => p.Metadata.Name.Equals(configured, StringComparison.OrdinalIgnoreCase))
+                ?? _watchStateProviders.FirstOrDefault();
+
+            if (watchStateProvider == null)
+            {
+                _logger.LogError("No watch state providers registered");
+                return new SyncResult(
+                    Status: SyncStatus.Error,
+                    Title: null,
+                    Metadata: null,
+                    AllThoughts: [],
+                    TimeMachineThoughts: [],
+                    TimeMachineDays: _options.Value.TimeMachineDays,
+                    SourceResults: []);
+            }
 
             // Get current watch state
             var mediaContext = await watchStateProvider.GetCurrentMediaContextAsync(ct);
-            
+
             if (mediaContext == null)
             {
                 return new SyncResult(
@@ -81,8 +99,9 @@ public class SyncService : ISyncService
                 TimeMachineDays: _options.Value.TimeMachineDays,
                 SourceResults: sourceResults);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Sync failed");
             return new SyncResult(
                 Status: SyncStatus.Error,
                 Title: null,

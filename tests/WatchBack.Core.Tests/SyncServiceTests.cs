@@ -1,11 +1,15 @@
 using FluentAssertions;
-using Xunit;
+
+using Microsoft.Extensions.Options;
+
 using NSubstitute;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 using WatchBack.Core.Services;
-using Microsoft.Extensions.Options;
+
+using Xunit;
 
 namespace WatchBack.Core.Tests;
 
@@ -18,6 +22,7 @@ public class SyncServiceTests
 
     public SyncServiceTests()
     {
+        _watchStateProvider.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
         _options = new OptionsSnapshotStub<WatchBackOptions>(new WatchBackOptions { TimeMachineDays = 14, WatchProvider = "jellyfin" });
     }
 
@@ -27,7 +32,7 @@ public class SyncServiceTests
         // Arrange
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
         var thoughtProviders = new[] { Substitute.For<IThoughtProvider>() };
-        var service = new SyncService(new[] { _watchStateProvider }, thoughtProviders, _timeMachineFilter, _options);
+        var service = new SyncService(new[] { _watchStateProvider }, thoughtProviders, _timeMachineFilter, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         var result = await service.SyncAsync();
@@ -53,7 +58,7 @@ public class SyncServiceTests
             EpisodeNumber: 1);
 
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
-        
+
         var thoughtProvider = Substitute.For<IThoughtProvider>();
         var thought = new Thought(
             Id: "1",
@@ -67,7 +72,7 @@ public class SyncServiceTests
             CreatedAt: DateTimeOffset.UtcNow,
             Source: "TestSource",
             Replies: []);
-        
+
         var thoughtResult = new ThoughtResult(
             Source: "TestSource",
             PostTitle: "Episode Discussion",
@@ -80,7 +85,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), episode.ReleaseDate, 14).Returns([thought]);
 
         var thoughtProviders = new[] { thoughtProvider };
-        var service = new SyncService(new[] { _watchStateProvider }, thoughtProviders, _timeMachineFilter, _options);
+        var service = new SyncService(new[] { _watchStateProvider }, thoughtProviders, _timeMachineFilter, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         var result = await service.SyncAsync();
@@ -123,7 +128,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
             .Returns([]);
 
-        var service = new SyncService(new[] { _watchStateProvider }, new[] { provider1, provider2, provider3 }, _timeMachineFilter, _options);
+        var service = new SyncService(new[] { _watchStateProvider }, new[] { provider1, provider2, provider3 }, _timeMachineFilter, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         await service.SyncAsync();
@@ -161,7 +166,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), episode.ReleaseDate, 14)
             .Returns(filteredThoughts);
 
-        var service = new SyncService(new[] { _watchStateProvider }, new[] { thoughtProvider }, _timeMachineFilter, _options);
+        var service = new SyncService(new[] { _watchStateProvider }, new[] { thoughtProvider }, _timeMachineFilter, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         var result = await service.SyncAsync();
@@ -199,7 +204,7 @@ public class SyncServiceTests
 
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
 
-        var service = new SyncService(new[] { _watchStateProvider }, new[] { thoughtProvider1, thoughtProvider2 }, _timeMachineFilter, _options);
+        var service = new SyncService(new[] { _watchStateProvider }, new[] { thoughtProvider1, thoughtProvider2 }, _timeMachineFilter, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         var syncResult = await service.SyncAsync();
@@ -208,6 +213,24 @@ public class SyncServiceTests
         syncResult.SourceResults.Should().HaveCount(2);
         syncResult.SourceResults.Should().Contain(r => r.Source == "Reddit");
         syncResult.SourceResults.Should().Contain(r => r.Source == "Trakt");
+    }
+
+    [Fact]
+    public async Task SyncAsync_WithNoProviders_ReturnsErrorStatus()
+    {
+        // Arrange
+        var service = new SyncService(
+            Array.Empty<IWatchStateProvider>(),
+            Array.Empty<IThoughtProvider>(),
+            _timeMachineFilter,
+            _options,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
+
+        // Act
+        var result = await service.SyncAsync();
+
+        // Assert
+        result.Status.Should().Be(SyncStatus.Error);
     }
 
     [Fact]
@@ -238,7 +261,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
             .Returns(thoughts);
 
-        var service = new SyncService(new[] { _watchStateProvider }, new[] { thoughtProvider }, _timeMachineFilter, _options);
+        var service = new SyncService(new[] { _watchStateProvider }, new[] { thoughtProvider }, _timeMachineFilter, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         var result = await service.SyncAsync();

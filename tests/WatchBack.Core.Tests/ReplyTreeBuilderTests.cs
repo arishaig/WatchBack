@@ -1,7 +1,9 @@
 using FluentAssertions;
-using Xunit;
+
 using WatchBack.Core.Models;
 using WatchBack.Core.Services;
+
+using Xunit;
 
 namespace WatchBack.Core.Tests;
 

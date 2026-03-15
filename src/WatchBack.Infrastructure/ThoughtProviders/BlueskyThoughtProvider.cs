@@ -1,13 +1,16 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 
-namespace WatchBack.Infrastructure.Thoughts;
+namespace WatchBack.Infrastructure.ThoughtProviders;
 
 [JsonSerializable(typeof(BlueskyAuthResponseDto))]
 [JsonSerializable(typeof(BlueskySearchResponseDto))]
@@ -17,7 +20,8 @@ public class BlueskyThoughtProvider(
     HttpClient httpClient,
     IOptionsSnapshot<BlueskyOptions> options,
     IMemoryCache cache,
-    IReplyTreeBuilder treeBuilder)
+    IReplyTreeBuilder treeBuilder,
+    ILogger<BlueskyThoughtProvider> logger)
     : IThoughtProvider
 {
     private readonly BlueskyOptions _options = options.Value;
@@ -115,8 +119,9 @@ public class BlueskyThoughtProvider(
             cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Bluesky thought fetch failed");
             return new ThoughtResult(Source: "Bluesky", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
         }
     }

@@ -1,12 +1,17 @@
 using System.Net;
 using System.Net.Sockets;
+
 using Deque.AxeCore.Playwright;
+
 using FluentAssertions;
+
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Playwright;
+
 using Xunit;
+
 using static WatchBack.Api.Tests.Accessibility.PlaywrightHelpers;
 
 namespace WatchBack.Api.Tests.Accessibility;
@@ -17,7 +22,7 @@ namespace WatchBack.Api.Tests.Accessibility;
 /// Every test runs once per theme defined in the UI dropdown.
 /// </summary>
 [Trait("Category", "Accessibility")]
-public class AccessibilityTests : IAsyncLifetime
+public class AccessibilityTests : IAsyncLifetime, IDisposable
 {
     private KestrelWebApplicationFactory _factory = null!;
     private IPlaywright _playwright = null!;
@@ -41,6 +46,12 @@ public class AccessibilityTests : IAsyncLifetime
         await _browser.DisposeAsync();
         _playwright.Dispose();
         _factory.Dispose();
+    }
+
+    public void Dispose()
+    {
+        _factory?.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private static string? FindChromiumExecutable()

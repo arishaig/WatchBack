@@ -1,13 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
+
+using WatchBack.Api.Endpoints;
+using WatchBack.Api.Serialization;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Options;
 using WatchBack.Core.Services;
 using WatchBack.Infrastructure.Extensions;
 using WatchBack.Infrastructure.Persistence;
-using WatchBack.Api.Endpoints;
-using WatchBack.Api.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
