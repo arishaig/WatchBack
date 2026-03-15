@@ -315,6 +315,59 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
             await page.CloseAsync();
         }
     }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task DiagnosticsTabEmpty(string theme)
+    {
+        // No sync history, no log entries — tests the empty-state UI
+        var page = await _browser.NewPageAsync();
+        try
+        {
+            await LoadPage(page, _baseUrl, theme,
+                sync: SyncIdle,
+                config: ConfigFilled);
+            await OpenConfigModal(page);
+            await SwitchToDiagnosticsTab(page);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task DiagnosticsTabWithData(string theme)
+    {
+        // Sync history derived from the same thoughts used in the sync mock,
+        // plus log entries at every severity level to exercise all badge colours.
+        var thoughts = new[]
+        {
+            TraktThought(1, LoremShort, "alice"),
+            RedditThought("r1", LoremMedium, "bob"),
+            BlueskyThought("b1", LoremShort, "carol.bsky.social"),
+        };
+        var sync = MakeSyncSuccess(thoughts);
+
+        var page = await _browser.NewPageAsync();
+        try
+        {
+            await LoadPage(page, _baseUrl, theme,
+                sync: sync,
+                config: ConfigFilled,
+                diagnosticsLogs: MakeDiagnosticsLogs(),
+                diagnosticsStatus: DiagnosticsStatusFromSync(sync));
+            await OpenConfigModal(page);
+            await SwitchToDiagnosticsTab(page);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
 }
 
 /// <summary>

@@ -118,6 +118,13 @@ document.addEventListener('alpine:init', () => {
         forwardAuthHeaderEdit: '',
         forwardAuthSaveStatus: null,
         needsOnboarding: false,
+        configTab: 'settings',
+        logEntries: [],
+        logLevel: 'Information',
+        logSse: null,
+        syncHistory: null,
+        appVersion: null,
+        copyLogsStatus: null,
         themes: [
             { id: 'dark', label: 'Dark' },
             { id: 'light', label: 'Light' },
@@ -129,6 +136,7 @@ document.addEventListener('alpine:init', () => {
         async init() {
             console.log("[WatchBack] Initializing");
             this.applyTheme(this.theme);
+            this.$watch('showConfig', v => { if (!v) this.closeLogStream(); });
             await this.fetchThemes();
             const me = await this.checkAuth();
             if (!me.authenticated) {
@@ -338,6 +346,145 @@ document.addEventListener('alpine:init', () => {
             es.onerror = () => {
                 console.warn("[WatchBack] SSE connection lost");
             };
+        },
+
+        switchConfigTab(tab) {
+            this.configTab = tab;
+            if (tab === 'diagnostics') void this.loadDiagnostics();
+            else this.closeLogStream();
+        },
+
+        async loadDiagnostics() {
+            try {
+                const res = await fetch('/api/diagnostics/logs?limit=200');
+                if (res.ok) {
+                    this.logEntries = await res.json();
+                    this.$nextTick(() => {
+                        const el = document.getElementById('log-container');
+                        if (el) el.scrollTop = el.scrollHeight;
+                    });
+                }
+            } catch {}
+            try {
+                const res = await fetch('/api/diagnostics/status');
+                if (res.ok) {
+                    const data = await res.json();
+                    this.appVersion = data.version ?? null;
+                    this.syncHistory = data.lastSync ?? null;
+                }
+            } catch {}
+            this.openLogStream();
+        },
+
+        openLogStream() {
+            this.closeLogStream();
+            const es = new EventSource('/api/diagnostics/logs/stream');
+            es.onmessage = (e) => {
+                try {
+                    const entry = JSON.parse(e.data);
+                    const el = document.getElementById('log-container');
+                    const nearBottom = !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+                    this.logEntries = [...this.logEntries.slice(-499), entry];
+                    if (nearBottom) {
+                        this.$nextTick(() => {
+                            const el2 = document.getElementById('log-container');
+                            if (el2) el2.scrollTop = el2.scrollHeight;
+                        });
+                    }
+                } catch {}
+            };
+            es.onerror = () => { console.warn("[WatchBack] Log SSE error"); };
+            this.logSse = es;
+        },
+
+        closeLogStream() {
+            if (this.logSse) { this.logSse.close(); this.logSse = null; }
+        },
+
+        async clearLogs() {
+            await fetch('/api/diagnostics/logs', { method: 'DELETE' });
+            this.logEntries = [];
+        },
+
+        async copyLogs() {
+            const entries = this.filteredLogs.slice(-200);
+            const ver = this.appVersion ? ` v${this.appVersion}` : '';
+
+            const meta = [
+                `Version:   ${this.appVersion ?? 'unknown'}`,
+                `Captured:  ${new Date().toUTCString()}`,
+                `Browser:   ${navigator.userAgent}`,
+                `Theme:     ${this.theme}`,
+                `Filter:    ${this.logLevel} (${entries.length} of ${this.logEntries.length} entries)`,
+            ];
+            if (this.syncHistory) {
+                meta.push(`Sync:      ${this.syncHistory.status}${this.syncHistory.title ? ` — ${this.syncHistory.title}` : ''}`);
+                if ((this.syncHistory.sources || []).length > 0) {
+                    const providerSummary = this.syncHistory.sources
+                        .map(s => `${s.source} (${s.thoughtCount})`)
+                        .join(', ');
+                    meta.push(`Providers: ${providerSummary}`);
+                }
+            }
+
+            const header = `=== WatchBack${ver} Diagnostic Log ===`;
+            const separator = '='.repeat(header.length);
+            const logLines = entries.map(e => {
+                const time = this.formatLogTime(e.timestamp);
+                const lvl  = this.logLevelAbbr(e.level).padEnd(3);
+                const cat  = (e.category || '').padEnd(24);
+                const line = `${time} ${lvl} ${cat} ${e.message}`;
+                return e.exceptionText ? `${line}\n              ${e.exceptionText}` : line;
+            });
+
+            const sections = [
+                header,
+                meta.join('\n'),
+                separator,
+                ...(logLines.length > 0 ? logLines : ['(no entries matching filter)']),
+            ];
+            const text = sections.join('\n');
+            try {
+                await navigator.clipboard.writeText(text);
+                this.copyLogsStatus = 'copied';
+            } catch {
+                this.copyLogsStatus = 'error';
+            }
+            setTimeout(() => { this.copyLogsStatus = null; }, 2000);
+        },
+
+        get filteredLogs() {
+            const levels = ['Trace', 'Debug', 'Information', 'Warning', 'Error', 'Critical'];
+            const minIdx = this.logLevel === 'All' ? -1 : levels.indexOf(this.logLevel);
+            if (minIdx < 0) return this.logEntries;
+            return this.logEntries.filter(e => levels.indexOf(e.level) >= minIdx);
+        },
+
+        logLevelClass(level) {
+            return {
+                Trace: 'wb-text-muted', Debug: 'wb-text-muted',
+                Information: 'wb-accent-text', Warning: 'wb-warn-text',
+                Error: 'wb-error-text', Critical: 'wb-error-text',
+            }[level] || 'wb-text-muted';
+        },
+
+        logLevelAbbr(level) {
+            return { Trace: 'TRC', Debug: 'DBG', Information: 'INF', Warning: 'WRN', Error: 'ERR', Critical: 'CRT' }[level]
+                || (level || '').slice(0, 3).toUpperCase();
+        },
+
+        formatLogTime(iso) {
+            try { return new Date(iso).toLocaleTimeString('en-US', { hour12: false }); }
+            catch { return iso; }
+        },
+
+        formatRelativeTime(iso) {
+            if (!iso) return '';
+            const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+            if (secs < 60) return `${secs}s ago`;
+            const mins = Math.floor(secs / 60);
+            if (mins < 60) return `${mins}m ago`;
+            return `${Math.floor(mins / 60)}h ago`;
         },
 
         toggleSection(key) {

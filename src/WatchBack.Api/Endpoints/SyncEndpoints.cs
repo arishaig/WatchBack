@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.Channels;
 
+using WatchBack.Api.Logging;
 using WatchBack.Api.Models;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
@@ -36,6 +37,7 @@ public static class SyncEndpoints
     private static async Task GetSyncStream(
         ISyncService syncService,
         IEnumerable<IThoughtProvider> thoughtProviders,
+        SyncHistoryStore syncHistory,
         HttpContext context,
         CancellationToken ct)
     {
@@ -83,6 +85,13 @@ public static class SyncEndpoints
                 }
 
                 var result = await syncTask;
+
+                // Record sync history for the diagnostics panel
+                var sourceRecords = result.SourceResults
+                    .Select(sr => new ProviderSyncRecord(sr.Source, sr.Thoughts?.Count ?? 0))
+                    .ToList();
+                syncHistory.Record(new SyncSnapshot(DateTimeOffset.UtcNow, result.Status.ToString(), result.Title, sourceRecords));
+
                 var response = MapSyncResult(result);
                 var json = System.Text.Json.JsonSerializer.Serialize(response, Serialization.WatchBackJsonContext.Default.SyncResponse);
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);

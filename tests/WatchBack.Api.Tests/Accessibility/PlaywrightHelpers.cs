@@ -210,6 +210,63 @@ internal static class PlaywrightHelpers
         };
     }
 
+    // -----------------------------------------------------------------------
+    // Diagnostics mock data
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Derives a diagnostics status snapshot from a canned sync response,
+    /// so the source list always matches whatever providers are in the sync mock.
+    /// </summary>
+    public static object DiagnosticsStatusFromSync(Dictionary<string, object?> syncResponse)
+    {
+        var sourceResults = (syncResponse["sourceResults"] as IEnumerable<object>) ?? [];
+        var sources = sourceResults
+            .OfType<Dictionary<string, object?>>()
+            .Select(sr => new
+            {
+                source       = (string?)sr["source"] ?? "",
+                thoughtCount = (sr["thoughts"] as IEnumerable<object>)?.Count() ?? 0,
+            })
+            .ToArray();
+
+        var lastSync = new
+        {
+            timestamp = "2026-03-15T10:20:00Z",
+            status    = (string?)syncResponse["status"] ?? "Idle",
+            title     = (string?)syncResponse["title"],
+            sources,
+        };
+
+        return new { version = "2026.03.15", lastSync };
+    }
+
+    /// <summary>
+    /// Returns log entries covering every severity level so the log viewer
+    /// renders all badge colours. Categories are generic — not tied to any
+    /// specific provider implementation.
+    /// </summary>
+    public static object[] MakeDiagnosticsLogs() =>
+    [
+        MakeLogEntry("Debug",       "BackgroundService", "Sync cycle starting"),
+        MakeLogEntry("Information", "SyncService",       "Sync completed successfully"),
+        MakeLogEntry("Warning",     "HttpHandler",       "Transient error, retrying in 1000 ms."),
+        MakeLogEntry("Error",       "ThoughtProvider",   "Provider fetch failed",
+            "HttpRequestException: Connection refused (127.0.0.1:80)"),
+        MakeLogEntry("Critical",    "SyncService",       "Unhandled exception in sync loop",
+            "InvalidOperationException: Sequence contains no elements"),
+    ];
+
+    private static Dictionary<string, object?> MakeLogEntry(
+        string level, string category, string message, string? exceptionText = null) => new()
+    {
+        ["timestamp"]     = "2026-03-15T10:23:45Z",
+        ["level"]         = level,
+        ["category"]      = category,
+        ["message"]       = message,
+        ["exceptionText"] = exceptionText,
+    };
+
     public static readonly Dictionary<string, object?> ConfigEmpty = new()
     {
         ["integrations"] = new Dictionary<string, object>
@@ -275,7 +332,9 @@ internal static class PlaywrightHelpers
     public static async Task SetupApiRoutes(
         IPage page,
         Dictionary<string, object?>? sync = null,
-        Dictionary<string, object?>? config = null)
+        Dictionary<string, object?>? config = null,
+        object[]? diagnosticsLogs = null,
+        object? diagnosticsStatus = null)
     {
         // Intercept auth check so the app skips the login form and renders content
         await page.RouteAsync("**/api/auth/me", route =>
@@ -320,6 +379,31 @@ internal static class PlaywrightHelpers
                 ContentType = "application/json",
                 Body = """{"watchProvider":"jellyfin"}""",
             }));
+
+        // Diagnostics: log history endpoint
+        var logsJson = JsonSerializer.Serialize(diagnosticsLogs ?? [], s_jsonOptions);
+        await page.RouteAsync("**/api/diagnostics/logs", route =>
+            route.FulfillAsync(new RouteFulfillOptions
+            {
+                Status = 200,
+                ContentType = "application/json",
+                Body = logsJson,
+            }));
+
+        // Diagnostics: status endpoint
+        var statusJson = diagnosticsStatus != null
+            ? JsonSerializer.Serialize(diagnosticsStatus, s_jsonOptions)
+            : "null";
+        await page.RouteAsync("**/api/diagnostics/status", route =>
+            route.FulfillAsync(new RouteFulfillOptions
+            {
+                Status = 200,
+                ContentType = "application/json",
+                Body = statusJson,
+            }));
+
+        // Block diagnostics log SSE (same reason as sync SSE)
+        await page.RouteAsync("**/api/diagnostics/logs/stream", route => route.AbortAsync());
     }
 
     // -----------------------------------------------------------------------
@@ -340,9 +424,12 @@ internal static class PlaywrightHelpers
         string url,
         string theme,
         Dictionary<string, object?>? sync = null,
-        Dictionary<string, object?>? config = null)
+        Dictionary<string, object?>? config = null,
+        object[]? diagnosticsLogs = null,
+        object? diagnosticsStatus = null)
     {
-        await SetupApiRoutes(page, sync: sync, config: config);
+        await SetupApiRoutes(page, sync: sync, config: config,
+            diagnosticsLogs: diagnosticsLogs, diagnosticsStatus: diagnosticsStatus);
         await page.GotoAsync(url);
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15_000 });
         await page.WaitForTimeoutAsync(500); // allow Alpine init
@@ -353,5 +440,14 @@ internal static class PlaywrightHelpers
     {
         await page.ClickAsync("button[title=\"Configuration\"]");
         await page.WaitForTimeoutAsync(300); // allow Alpine x-show transition
+    }
+
+    public static async Task SwitchToDiagnosticsTab(IPage page)
+    {
+        await page.ClickAsync("button:has-text('Diagnostics')");
+        // Wait for the log container to become visible (Alpine lifts display:none on the panel)
+        await page.WaitForSelectorAsync("#log-container",
+            new() { State = WaitForSelectorState.Visible, Timeout = 3_000 });
+        await page.WaitForTimeoutAsync(200); // allow Alpine to render entries
     }
 }

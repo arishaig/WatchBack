@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 
 using WatchBack.Api.Auth;
 using WatchBack.Api.Endpoints;
+using WatchBack.Api.Logging;
 using WatchBack.Api.Serialization;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Options;
@@ -18,6 +20,11 @@ using WatchBack.Infrastructure.Persistence;
 using WatchBack.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// In-memory log buffer — captures recent log entries for the diagnostics panel
+builder.Services.AddSingleton<InMemoryLogBuffer>();
+builder.Services.AddSingleton<SyncHistoryStore>();
+builder.Services.AddSingleton<ILoggerProvider, InMemoryLoggerProvider>();
 
 // Add services
 builder.Services.AddMemoryCache();
@@ -193,6 +200,7 @@ var protectedGroup = app.MapGroup("").RequireAuthorization();
 protectedGroup.MapSyncEndpoints();
 protectedGroup.MapConfigEndpoints();
 protectedGroup.MapSystemEndpoints();
+protectedGroup.MapDiagnosticsEndpoints();
 
 // Map fallback to index.html for SPA
 app.MapFallbackToFile("index.html");

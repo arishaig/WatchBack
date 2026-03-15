@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
+    <Version>2026.03.15</Version>
     <AnalysisMode>Recommended</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>

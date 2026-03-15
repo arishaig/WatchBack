@@ -185,6 +185,30 @@
             x-transition:enter="config-enter" x-transition:leave="config-leave"
             class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
             <div class="p-4">
+                <!-- ─── Tab navigation ─── -->
+                <div class="flex gap-0 mb-5 border-b wb-border">
+                    <button type="button"
+                        @click="configTab = 'settings'; closeLogStream()"
+                        class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                        :class="configTab === 'settings'
+                            ? 'wb-text-secondary border-current' : 'wb-text-faint border-transparent hover:wb-text-muted'"
+                        style="border-color: configTab === 'settings' ? 'var(--wb-accent)' : undefined"
+                        :style="configTab === 'settings' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'">
+                        Settings
+                    </button>
+                    <button type="button"
+                        @click="switchConfigTab('diagnostics')"
+                        class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                        :class="configTab === 'diagnostics'
+                            ? 'wb-text-secondary' : 'wb-text-faint hover:wb-text-muted'"
+                        :style="configTab === 'diagnostics' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'">
+                        Diagnostics
+                    </button>
+                </div>
+
+                <!-- ─── Settings tab ─── -->
+                <div x-show="configTab === 'settings'">
+
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
                 <h2 class="text-sm font-semibold wb-text-secondary mb-3">Integrations</h2>
 
@@ -528,6 +552,102 @@
 
                     </div>
                 </div>
+
+                </div><!-- /settings tab -->
+
+                <!-- ─── Diagnostics tab ─── -->
+                <div x-show="configTab === 'diagnostics'">
+
+                    <!-- Last sync status -->
+                    <div class="mb-5">
+                        <h2 class="text-sm font-semibold wb-text-secondary mb-3">Last Sync</h2>
+                        <template x-if="syncHistory">
+                            <div class="wb-surface rounded-xl p-3 wb-border border space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs wb-text-muted" x-text="formatRelativeTime(syncHistory.timestamp)"></span>
+                                    <!-- Decorative dot (aria-hidden) + accessible status text -->
+                                    <span class="flex items-center gap-1.5 text-xs wb-text-secondary font-medium">
+                                        <span class="inline-block w-1.5 h-1.5 rounded-full shrink-0" aria-hidden="true"
+                                            :style="syncHistory.status === 'Watching' ? 'background:var(--wb-success-text)' : syncHistory.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint)'"></span>
+                                        <span x-text="syncHistory.status"></span>
+                                    </span>
+                                </div>
+                                <p x-show="syncHistory.title" class="text-sm wb-text-secondary font-medium" x-text="syncHistory.title"></p>
+                                <template x-if="(syncHistory.sources || []).length > 0">
+                                    <div class="space-y-1 pt-1">
+                                        <template x-for="src in syncHistory.sources" :key="src.source">
+                                            <div class="flex items-center justify-between text-xs">
+                                                <span class="wb-text-muted" x-text="src.source"></span>
+                                                <span class="wb-text-muted" x-text="src.thoughtCount + ' found'"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                        <template x-if="!syncHistory">
+                            <p class="text-xs wb-text-muted">No sync data yet. Waiting for first sync cycle…</p>
+                        </template>
+                    </div>
+
+                    <!-- App version -->
+                    <p x-show="appVersion" class="text-xs wb-text-muted mb-5">
+                        Version <span x-text="appVersion" class="font-mono"></span>
+                    </p>
+
+                    <!-- Log viewer -->
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h2 class="text-sm font-semibold wb-text-secondary">Application Logs</h2>
+                            <div class="flex items-center gap-3">
+                                <div class="wb-select-wrap">
+                                    <select x-model="logLevel" aria-label="Minimum log level"
+                                        class="wb-select wb-surface-alt wb-border wb-text-secondary rounded-lg px-2 py-1 text-xs border">
+                                        <option value="All">All</option>
+                                        <option value="Debug">Debug+</option>
+                                        <option value="Information">Info+</option>
+                                        <option value="Warning">Warning+</option>
+                                        <option value="Error">Error+</option>
+                                    </select>
+                                </div>
+                                <button type="button" @click="void copyLogs()"
+                                    aria-live="polite"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer wb-btn"
+                                    x-text="copyLogsStatus === 'copied' ? 'Copied \u2713' : copyLogsStatus === 'error' ? 'Error \u2717' : 'Copy'">
+                                </button>
+                                <button type="button" @click="void clearLogs()"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer wb-btn">
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="log-container"
+                            class="wb-surface wb-border border rounded-xl font-mono overflow-y-auto"
+                            style="height:20rem;font-size:11px;line-height:1.5;">
+                            <template x-if="filteredLogs.length === 0">
+                                <p class="p-3 wb-text-muted text-xs">No log entries matching the current filter.</p>
+                            </template>
+                            <template x-for="(entry, i) in filteredLogs" :key="i">
+                                <div class="px-3 py-1 flex gap-2 items-start"
+                                    :class="i < filteredLogs.length - 1 ? 'border-b wb-border' : ''">
+                                    <span class="wb-text-muted shrink-0 tabular-nums" x-text="formatLogTime(entry.timestamp)"></span>
+                                    <span class="shrink-0 font-bold w-8 text-center" :class="logLevelClass(entry.level)"
+                                        x-text="logLevelAbbr(entry.level)"></span>
+                                    <div class="flex-1 min-w-0 break-words">
+                                        <span class="wb-text-muted">[<span x-text="entry.category"></span>]</span>
+                                        <span class="wb-text-secondary" x-text="' ' + entry.message"></span>
+                                        <div x-show="entry.exceptionText"
+                                            class="wb-text-muted mt-0.5 break-words"
+                                            x-text="entry.exceptionText"></div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                </div><!-- /diagnostics tab -->
+
             </div>
         </div>
 

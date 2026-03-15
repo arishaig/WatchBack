@@ -192,6 +192,7 @@ input[type="number"] {
 /* ─── Status indicators (test buttons, feature list) ─── */
 .wb-success-text { color: var(--wb-success-text); }
 .wb-error-text   { color: var(--wb-error-text); }
+.wb-warn-text    { color: var(--wb-warn-text); }
 
 .test-ok {
     color: var(--wb-success-text);
