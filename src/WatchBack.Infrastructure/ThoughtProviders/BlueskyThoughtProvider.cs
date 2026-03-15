@@ -153,7 +153,11 @@ public class BlueskyThoughtProvider(
             return null; // Use public API
         }
 
-        var cacheKey = "bluesky:auth:token";
+        // Key by credential hash so a credential change immediately invalidates the cached token
+        var credentialHash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                Encoding.UTF8.GetBytes($"{_options.Handle}:{_options.AppPassword}")))[..16];
+        var cacheKey = $"bluesky:auth:token:{credentialHash}";
         if (cache.TryGetValue(cacheKey, out string? cachedToken))
         {
             return cachedToken;

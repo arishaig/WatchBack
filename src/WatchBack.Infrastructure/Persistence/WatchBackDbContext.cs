@@ -24,7 +24,7 @@ public class WatchBackDbContext : DbContext
             .HasKey(e => e.Id);
 
         modelBuilder.Entity<ProviderConfigEntity>()
-            .HasIndex(e => e.ProviderName)
+            .HasIndex(e => new { e.ProviderName, e.ConfigKey })
             .IsUnique();
 
         // UserPreference

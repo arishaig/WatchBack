@@ -86,7 +86,7 @@ public class LiveIntegrationTests : IDisposable
             CacheTtlSeconds = 10
         };
 
-        var provider = new JellyfinWatchStateProvider(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(options), _cache);
+        var provider = new JellyfinWatchStateProvider(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(options), _cache, Microsoft.Extensions.Logging.Abstractions.NullLogger<JellyfinWatchStateProvider>.Instance);
 
         // Act
         var result = await provider.GetCurrentMediaContextAsync();
@@ -118,7 +118,7 @@ public class LiveIntegrationTests : IDisposable
             throw new InvalidOperationException("TRAKT_CLIENT_ID not set in environment");
         }
 
-        var provider = new TraktWatchStateProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache);
+        var provider = new TraktWatchStateProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
         var health = await provider.GetServiceHealthAsync();
@@ -246,7 +246,7 @@ public class LiveIntegrationTests : IDisposable
             BaseUrl = Environment.GetEnvironmentVariable("JF_URL") ?? "http://192.168.1.158:8096",
             ApiKey = Environment.GetEnvironmentVariable("JF_API_KEY") ?? ""
         };
-        var jellyfinProvider = new JellyfinWatchStateProvider(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(jellyfinOpts), _cache);
+        var jellyfinProvider = new JellyfinWatchStateProvider(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(jellyfinOpts), _cache, Microsoft.Extensions.Logging.Abstractions.NullLogger<JellyfinWatchStateProvider>.Instance);
 
         // Trakt
         var traktOpts = new TraktOptions
@@ -254,7 +254,7 @@ public class LiveIntegrationTests : IDisposable
             ClientId = Environment.GetEnvironmentVariable("TRAKT_CLIENT_ID") ?? "",
             AccessToken = Environment.GetEnvironmentVariable("TRAKT_ACCESS_TOKEN") ?? ""
         };
-        var traktWatchProvider = new TraktWatchStateProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache);
+        var traktWatchProvider = new TraktWatchStateProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktWatchStateProvider>.Instance);
         var traktThoughtProvider = new TraktThoughtProvider(
             _httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache, new ReplyTreeBuilder(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);

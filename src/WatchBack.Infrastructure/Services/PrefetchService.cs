@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 using WatchBack.Core.Interfaces;
@@ -10,7 +11,8 @@ namespace WatchBack.Infrastructure.Services;
 public class PrefetchService(
     IServiceScopeFactory scopeFactory,
     IMemoryCache cache,
-    ILogger<PrefetchService> logger)
+    ILogger<PrefetchService> logger,
+    IHostApplicationLifetime lifetime)
     : IPrefetchService
 {
     // Sentinel stored in IMemoryCache so the prefetch state survives the request scope.
@@ -33,7 +35,8 @@ public class PrefetchService(
 
         cache.Set(StateKey, new PrefetchState(current, targets), StateTtl);
 
-        _ = Task.Run(async () => await RunPrefetchAsync(targets));
+        var ct = lifetime.ApplicationStopping;
+        _ = Task.Run(async () => await RunPrefetchAsync(targets, ct), ct);
     }
 
     // ── Eviction ─────────────────────────────────────────────────────────────
@@ -84,13 +87,15 @@ public class PrefetchService(
 
     // ── Prefetch ──────────────────────────────────────────────────────────────
 
-    private async Task RunPrefetchAsync(EpisodeContext[] targets)
+    private async Task RunPrefetchAsync(EpisodeContext[] targets, CancellationToken ct = default)
     {
         using var scope = scopeFactory.CreateScope();
         var providers = scope.ServiceProvider.GetServices<IThoughtProvider>().ToList();
 
         foreach (var target in targets)
         {
+            ct.ThrowIfCancellationRequested();
+
             logger.LogInformation(
                 "Prefetch: warming cache for {Title} S{Season}E{Episode} ({Count} provider(s))",
                 target.Title, target.SeasonNumber, target.EpisodeNumber, providers.Count);
@@ -99,7 +104,12 @@ public class PrefetchService(
             {
                 try
                 {
-                    await provider.GetThoughtsAsync(target, CancellationToken.None);
+                    await provider.GetThoughtsAsync(target, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    logger.LogDebug("Prefetch cancelled during shutdown");
+                    return;
                 }
                 catch (Exception ex)
                 {

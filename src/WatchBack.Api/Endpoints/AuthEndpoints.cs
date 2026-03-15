@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
+using WatchBack.Api.Auth;
 using WatchBack.Core.Options;
 
 namespace WatchBack.Api.Endpoints;
@@ -30,7 +31,8 @@ public static class AuthEndpoints
         group.MapPost("/login", Login)
             .WithName("Login")
             .WithSummary("Log in with username and password")
-            .AllowAnonymous();
+            .AllowAnonymous()
+            .RequireRateLimiting("login");
 
         group.MapPost("/logout", (Delegate)Logout)
             .WithName("Logout")
@@ -145,7 +147,6 @@ public static class AuthEndpoints
         HttpContext ctx,
         UserConfigFile configFile,
         IOptionsSnapshot<AuthOptions> authOptions,
-        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
         var newPassword = GeneratePassword();
@@ -157,15 +158,14 @@ public static class AuthEndpoints
 
         await WriteAuthConfig(configFile, currentUsername, newHash, onboardingComplete, ct);
 
-        var logger = loggerFactory.CreateLogger("WatchBack.Auth");
-#pragma warning disable CA1848
-        logger.LogWarning("╔══════════════════════════════════════════════╗");
-        logger.LogWarning("║     WatchBack — Password Reset               ║");
-        logger.LogWarning("║  Username : {Username,-36}║", currentUsername);
-        logger.LogWarning("║  Password : {Password,-36}║", newPassword);
-        logger.LogWarning("║  Use this password to log in.                ║");
-        logger.LogWarning("╚══════════════════════════════════════════════╝");
-#pragma warning restore CA1848
+        // Write directly to stdout — avoids logger pipeline so credentials
+        // don't end up in structured log sinks (Seq, ELK, etc.)
+        Console.WriteLine("╔══════════════════════════════════════════════╗");
+        Console.WriteLine("║     WatchBack — Password Reset               ║");
+        Console.WriteLine($"║  Username : {currentUsername,-36}║");
+        Console.WriteLine($"║  Password : {newPassword,-36}║");
+        Console.WriteLine("║  Use this password to log in.                ║");
+        Console.WriteLine("╚══════════════════════════════════════════════╝");
 
         return Results.Ok(new { ok = true, message = "New password generated. Check server logs." });
     }
@@ -186,6 +186,9 @@ public static class AuthEndpoints
             existing["Auth"]["ForwardAuthHeader"] = body.Header?.Trim() ?? "";
 
             await WriteConfigFile(configFile.Path, existing, ct);
+
+            // Reset pinned proxy IP so the new header takes effect from any source
+            ForwardAuthHandler.ResetTrustedProxy();
         }
         finally
         {
@@ -245,7 +248,11 @@ public static class AuthEndpoints
                 foreach (var (section, values) in parsed)
                     result[section] = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
         }
-        catch { /* start fresh if file is corrupted */ }
+        catch (Exception ex)
+        {
+            // Log but continue — treat as empty config so the app can still start
+            System.Diagnostics.Debug.WriteLine($"Failed to read config file {path}: {ex.Message}");
+        }
 
         return result;
     }
@@ -261,14 +268,42 @@ public static class AuthEndpoints
         File.Move(tmp, path, overwrite: true);
     }
 
-    internal static string GeneratePassword(int length = 16)
+    internal static string GeneratePassword(int length = 24)
     {
-        const string charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        var bytes = RandomNumberGenerator.GetBytes(length);
+        const string upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const string lower = "abcdefghijklmnopqrstuvwxyz";
+        const string digits = "0123456789";
+        const string special = "!@#$%^&*-_+=";
+        const string charset = upper + lower + digits + special;
+
+        // Rejection sampling — avoids modulo bias
+        var maxUsable = (256 / charset.Length) * charset.Length; // largest multiple of charset.Length ≤ 256
+
         var chars = new char[length];
         for (var i = 0; i < length; i++)
-            chars[i] = charset[bytes[i] % charset.Length];
+        {
+            int b;
+            do { b = RandomNumberGenerator.GetBytes(1)[0]; }
+            while (b >= maxUsable);
+            chars[i] = charset[b % charset.Length];
+        }
+
+        // Guarantee at least one of each category
+        Span<int> required = [
+            RandomIndex(upper),
+            RandomIndex(lower),
+            RandomIndex(digits),
+            RandomIndex(special)
+        ];
+        // Place required chars at random distinct positions
+        var positions = Enumerable.Range(0, length).OrderBy(_ => RandomNumberGenerator.GetInt32(length)).Take(4).ToArray();
+        var categories = new[] { upper, lower, digits, special };
+        for (var i = 0; i < 4; i++)
+            chars[positions[i]] = categories[i][required[i]];
+
         return new string(chars);
+
+        static int RandomIndex(string pool) => RandomNumberGenerator.GetInt32(pool.Length);
     }
 
     private sealed record LoginRequest(string Username, string Password);

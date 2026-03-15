@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Interfaces;
@@ -18,15 +19,18 @@ public class JellyfinWatchStateProvider : IWatchStateProvider
     private readonly HttpClient _httpClient;
     private readonly JellyfinOptions _options;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<JellyfinWatchStateProvider> _logger;
 
     public JellyfinWatchStateProvider(
         HttpClient httpClient,
         IOptionsSnapshot<JellyfinOptions> options,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        ILogger<JellyfinWatchStateProvider> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
         _cache = cache;
+        _logger = logger;
     }
 
     public DataProviderMetadata Metadata =>
@@ -82,8 +86,9 @@ public class JellyfinWatchStateProvider : IWatchStateProvider
             _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Jellyfin watch state fetch failed");
             return null;
         }
     }

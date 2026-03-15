@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using WatchBack.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using WatchBack.Infrastructure.Persistence;
 namespace WatchBack.Infrastructure.Migrations
 {
     [DbContext(typeof(WatchBackDbContext))]
-    partial class WatchBackDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260315080956_FixProviderConfigCompositeIndex")]
+    partial class FixProviderConfigCompositeIndex
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.14");

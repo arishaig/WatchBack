@@ -1,4 +1,7 @@
+using System.Threading.RateLimiting;
+
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
@@ -87,6 +90,21 @@ builder.Services.AddSingleton<IPrefetchService, PrefetchService>();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, WatchBackJsonContext.Default));
 
+// Rate limiting — protect login from brute-force
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("login", ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
 // Add authentication / authorization
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -161,6 +179,7 @@ app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 // Map endpoints
 app.MapAuthEndpoints(); // public auth endpoints
@@ -190,15 +209,14 @@ static async Task InitializeAuthAsync(WebApplication webApp)
     if (webApp.Configuration is IConfigurationRoot configRoot)
         configRoot.Reload();
 
-    var logger = webApp.Services.GetRequiredService<ILogger<Program>>();
-#pragma warning disable CA1848
-    logger.LogWarning("╔══════════════════════════════════════════════╗");
-    logger.LogWarning("║     WatchBack — Initial Credentials          ║");
-    logger.LogWarning("║  Username : watchback                        ║");
-    logger.LogWarning("║  Password : {Password,-32}║", password);
-    logger.LogWarning("║  Log in and complete account setup.          ║");
-    logger.LogWarning("╚══════════════════════════════════════════════╝");
-#pragma warning restore CA1848
+    // Write directly to stdout — avoids logger pipeline so credentials
+    // don't end up in structured log sinks (Seq, ELK, etc.)
+    Console.WriteLine("╔══════════════════════════════════════════════╗");
+    Console.WriteLine("║     WatchBack — Initial Credentials          ║");
+    Console.WriteLine("║  Username : watchback                        ║");
+    Console.WriteLine($"║  Password : {password,-32}║");
+    Console.WriteLine("║  Log in and complete account setup.          ║");
+    Console.WriteLine("╚══════════════════════════════════════════════╝");
 }
 
 // Make Program accessible for tests

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Interfaces;
@@ -18,15 +19,18 @@ public class TraktWatchStateProvider : IWatchStateProvider
     private readonly HttpClient _httpClient;
     private readonly TraktOptions _options;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<TraktWatchStateProvider> _logger;
 
     public TraktWatchStateProvider(
         HttpClient httpClient,
         IOptionsSnapshot<TraktOptions> options,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        ILogger<TraktWatchStateProvider> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
         _cache = cache;
+        _logger = logger;
     }
 
     public DataProviderMetadata Metadata =>
@@ -91,8 +95,9 @@ public class TraktWatchStateProvider : IWatchStateProvider
             _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Trakt watch state fetch failed");
             return null;
         }
     }
