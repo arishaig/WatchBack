@@ -64,9 +64,7 @@ public static class AuthEndpoints
             : (string?)null;
         var username = isAuthenticated ? user.Identity?.Name : null;
         var opts = authOptions.Value;
-        var needsOnboarding = isAuthenticated
-            && authMethod != "forwardAuth"
-            && !opts.OnboardingComplete;
+        var needsOnboarding = authMethod != "forwardAuth" && !opts.OnboardingComplete;
 
         return Results.Ok(new
         {
@@ -75,7 +73,6 @@ public static class AuthEndpoints
             needsOnboarding,
             authMethod,
             forwardAuthHeader = opts.ForwardAuthHeader ?? "",
-            onboardingComplete = opts.OnboardingComplete
         });
     }
 

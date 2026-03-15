@@ -40,20 +40,17 @@ RUN mkdir -p /app/data
 # Copy published application from build stage
 COPY --from=build /app/publish .
 
-# Expose port for API
-EXPOSE 5000
+EXPOSE 8484
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl --fail http://localhost:5000/api/sync || exit 1
+    CMD curl --fail http://localhost:8484/health || exit 1
 
 # Use non-root user
 # aspnet base image has 'app' user at 1000, rename both user and group to watchback
 RUN groupmod -n watchback app && usermod -l watchback app && usermod -d /home/watchback -m watchback && chown -R watchback:watchback /app
 USER watchback
 
-# Set environment for SQLite database location
-ENV ASPNETCORE_URLS=http://+:5000
+ENV ASPNETCORE_URLS=http://+:8484
 
 # Run application
 ENTRYPOINT ["dotnet", "WatchBack.Api.dll"]

@@ -27,5 +27,9 @@ public interface IDataProvider
 {
     DataProviderMetadata Metadata { get; }
 
+    /// <summary>
+    /// Checks whether the provider's external service is reachable and
+    /// correctly configured, without fetching any real data.
+    /// </summary>
     Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default);
 }

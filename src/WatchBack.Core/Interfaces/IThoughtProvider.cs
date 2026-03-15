@@ -28,5 +28,12 @@ public interface IThoughtProvider : IDataProvider
     /// </summary>
     int ExpectedWeight { get; }
 
+    /// <summary>
+    /// Fetches Thoughts for the given media context. Providers should report progress
+    /// via <paramref name="progress"/> as work completes so the UI can update the progress bar.
+    /// Returns null if no relevant content was found.
+    /// </summary>
+    /// <param name="mediaContext">The media currently being watched</param>
+    /// <param name="progress">Optional progress sink; implementations should report one or more ticks summing to ExpectedWeight</param>
     Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default);
 }

@@ -6,6 +6,13 @@ public static class SystemEndpoints
 {
     public static void MapSystemEndpoints(this IEndpointRouteBuilder app)
     {
+        // Unauthenticated — used by Docker healthcheck and uptime monitors
+        app.MapGet("/health", () => Results.Ok(new { ok = true }))
+            .WithTags("System")
+            .WithName("Health")
+            .WithSummary("Liveness probe")
+            .AllowAnonymous();
+
         var group = app.MapGroup("/api/system")
             .WithTags("System")
             .RequireAuthorization();

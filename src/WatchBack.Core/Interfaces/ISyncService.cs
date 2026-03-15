@@ -9,5 +9,10 @@ namespace WatchBack.Core.Interfaces;
 /// </summary>
 public interface ISyncService
 {
+    /// <summary>
+    /// Fetches the current watch state and all Thoughts for the currently playing media,
+    /// aggregated across all registered ThoughtProviders.
+    /// </summary>
+    /// <param name="progress">Optional progress sink; each ThoughtProvider will report ticks as it completes work</param>
     Task<SyncResult> SyncAsync(IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default);
 }

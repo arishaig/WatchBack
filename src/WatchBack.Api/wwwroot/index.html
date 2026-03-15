@@ -59,7 +59,7 @@
                         <label for="login-username" class="text-xs font-medium wb-text-muted block mb-1">Username</label>
                         <input id="login-username" type="text" x-model="loginUsername"
                             class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
-                            autocomplete="username" :placeholder="onboardingComplete ? '' : 'watchback'">
+                            autocomplete="username" :placeholder="needsOnboarding ? 'watchback' : ''">
                     </div>
                     <div>
                         <label for="login-password" class="text-xs font-medium wb-text-muted block mb-1">Password</label>
@@ -74,7 +74,7 @@
                         x-text="loginLoading ? 'Signing in\u2026' : 'Sign In'"></button>
                 </div>
             </form>
-            <div x-show="!onboardingComplete" class="mt-6 space-y-4">
+            <div x-show="needsOnboarding" class="mt-6 space-y-4">
                 <!-- Theme picker -->
                 <div>
                     <label class="text-xs font-medium wb-text-faint block mb-1">Theme</label>
@@ -207,8 +207,14 @@
                                         <label :for="'field-' + field.key"
                                             class="text-xs font-medium wb-text-muted"
                                             x-text="field.label"></label>
-                                        <span x-show="field.type === 'password' && field.hasValue && !configEdits[field.key]"
-                                            class="text-xs wb-text-faint">set</span>
+                                        <span class="flex items-center gap-2">
+                                            <span x-show="field.type === 'password' && field.hasValue && !configEdits[field.key]"
+                                                class="text-xs wb-text-faint">set</span>
+                                            <button x-show="field.isOverridden" type="button"
+                                                @click="void resetConfigKeys([field.key])"
+                                                :title="field.envValue ? 'Reset to: ' + field.envValue : 'Clear override'"
+                                                class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
+                                        </span>
                                     </div>
                                     <!--suppress HtmlFormInputWithoutLabel -->
                                     <div class="relative">
@@ -318,7 +324,13 @@
 
                         <template x-if="(configData?.preferences?.watchProviders || []).length > 0">
                             <div>
-                                <label class="text-xs font-medium wb-text-muted block mb-1">Watch Provider</label>
+                                <div class="flex justify-between mb-1">
+                                    <label class="text-xs font-medium wb-text-muted">Watch Provider</label>
+                                    <button x-show="configData?.preferences?.overrides?.['WatchBack__WatchProvider']" type="button"
+                                        @click="void resetConfigKeys(['WatchBack__WatchProvider'])"
+                                        :title="configData?.preferences?.envValues?.['WatchBack__WatchProvider'] ? 'Reset to: ' + configData.preferences.envValues['WatchBack__WatchProvider'] : 'Clear override'"
+                                        class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
+                                </div>
                                 <div class="wb-select-wrap">
                                     <select x-model="prefEdits.watchProvider" aria-label="Watch provider"
                                         class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
@@ -331,10 +343,42 @@
                         </template>
 
                         <div>
-                            <label for="time-machine-days" class="text-xs font-medium wb-text-muted block mb-1">Time Machine Window</label>
+                            <div class="flex justify-between mb-1">
+                                <label for="time-machine-days" class="text-xs font-medium wb-text-muted">Time Machine Window</label>
+                                <button x-show="configData?.preferences?.overrides?.['WatchBack__TimeMachineDays']" type="button"
+                                    @click="void resetConfigKeys(['WatchBack__TimeMachineDays'])"
+                                    :title="configData?.preferences?.envValues?.['WatchBack__TimeMachineDays'] ? 'Reset to: ' + configData.preferences.envValues['WatchBack__TimeMachineDays'] : 'Clear override'"
+                                    class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
+                            </div>
                             <input type="number" min="1" max="365" id="time-machine-days"
                                 x-model.number="prefEdits.timeMachineDays"
                                 class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="text-xs font-medium wb-text-muted">Reddit Search Engine</label>
+                                <button x-show="configData?.preferences?.overrides?.['WatchBack__SearchEngine']" type="button"
+                                    @click="void resetConfigKeys(['WatchBack__SearchEngine', 'WatchBack__CustomSearchUrl'])"
+                                    :title="configData?.preferences?.envValues?.['WatchBack__SearchEngine'] ? 'Reset to: ' + configData.preferences.envValues['WatchBack__SearchEngine'] : 'Clear override'"
+                                    class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
+                            </div>
+                            <div class="wb-select-wrap">
+                                <select x-model="prefEdits.searchEngine" aria-label="Reddit search engine"
+                                    class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                    <option value="google">Google</option>
+                                    <option value="duckduckgo">DuckDuckGo</option>
+                                    <option value="bing">Bing</option>
+                                    <option value="custom">Custom&hellip;</option>
+                                </select>
+                            </div>
+                            <div x-show="prefEdits.searchEngine === 'custom'" class="mt-2">
+                                <input type="url" id="custom-search-url" placeholder="https://example.com/search?q="
+                                    x-model="prefEdits.customSearchUrl"
+                                    class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
+                                    aria-label="Custom search URL prefix">
+                                <p class="text-xs wb-text-faint mt-1">Search terms will be appended to this URL.</p>
+                            </div>
                         </div>
 
                         <button @click="void savePreferences()"
@@ -474,18 +518,21 @@
                             <ion-icon class="show-on-mobile" name="chatbubbles-sharp" aria-hidden="true"></ion-icon>
                             <span x-text="'(' + allThoughtsCount + ')'" class="text-xs font-normal"></span>
                         </button>
-                        <a x-show="data?.metadata?.seasonNumber != null"
-                            :href="'https://www.google.com/search?q=' + encodeURIComponent(data.title + ' S' + String(data.metadata.seasonNumber).padStart(2,'0') + 'E' + String(data.metadata.episodeNumber).padStart(2,'0') + ' reddit')"
-                            target="_blank" rel="noopener noreferrer"
-                            class="flex-1 py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn flex items-center justify-center gap-1.5"><ion-icon
-                                name="logo-reddit" aria-hidden="true"></ion-icon> Reddit <ion-icon name="search-sharp"
-                                aria-hidden="true"></ion-icon></a>
                     </div>
                 </template>
 
+                <!-- Reddit search — always visible when watching an episode -->
+                <div x-show="data?.metadata?.seasonNumber != null" class="mb-4 comment-card" style="animation-delay:0.05s">
+                    <a :href="redditSearchUrl(data.title, data.metadata.seasonNumber, data.metadata.episodeNumber)"
+                        target="_blank" rel="noopener noreferrer"
+                        class="w-full py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn flex items-center justify-center gap-1.5"><ion-icon
+                            name="logo-reddit" aria-hidden="true"></ion-icon> Reddit <ion-icon name="search-sharp"
+                            aria-hidden="true"></ion-icon></a>
+                </div>
+
                 <!-- No discussions found -->
                 <template x-if="(data?.allThoughts || []).length === 0">
-                    <div class="py-16 text-center comment-card" style="animation-delay:0.05s">
+                    <div class="py-16 text-center comment-card" style="animation-delay:0.1s">
                         <p class="wb-text-muted text-base mb-2">No discussions found.</p>
                         <p class="text-xs wb-text-faint">Nothing has been posted about this episode yet, or the sources haven't indexed it.</p>
                     </div>

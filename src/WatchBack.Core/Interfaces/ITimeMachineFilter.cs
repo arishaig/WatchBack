@@ -8,6 +8,14 @@ namespace WatchBack.Core.Interfaces;
 /// </summary>
 public interface ITimeMachineFilter
 {
+    /// <summary>
+    /// Filters the given Thoughts to only those posted within
+    /// <paramref name="windowDays"/> days of the <paramref name="airDate"/>.
+    /// Returns all Thoughts unchanged if airDate is null.
+    /// </summary>
+    /// <param name="thoughts">The full set of Thoughts to filter</param>
+    /// <param name="airDate">The air date of the episode; if null, no filtering is applied</param>
+    /// <param name="windowDays">How many days after the air date to include</param>
     IReadOnlyList<Thought> Apply(
         IEnumerable<Thought> thoughts,
         DateTimeOffset? airDate,

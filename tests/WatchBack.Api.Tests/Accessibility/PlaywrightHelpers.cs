@@ -283,7 +283,7 @@ internal static class PlaywrightHelpers
             {
                 Status = 200,
                 ContentType = "application/json",
-                Body = """{"authenticated":true,"username":"test","needsOnboarding":false,"authMethod":"cookie","forwardAuthHeader":"","onboardingComplete":true}""",
+                Body = """{"authenticated":true,"username":"test","needsOnboarding":false,"authMethod":"cookie","forwardAuthHeader":""}""",
             }));
 
         // Block SSE so networkidle can settle

@@ -1,11 +1,25 @@
 namespace WatchBack.Core.Models;
 
+/// <summary>
+/// Represents the current state of a sync operation
+/// </summary>
 public enum SyncStatus
 {
+    /// <summary>No media is currently being watched</summary>
     Idle,
+    /// <summary>Media is currently being watched and Thoughts have been retrieved</summary>
     Watching,
+    /// <summary>An error occurred during the sync</summary>
     Error
 }
+
+/// <summary>
+/// Emitted by each ThoughtProvider as work completes, so the UI can
+/// display a progress bar while fetching Thoughts.
+/// </summary>
+/// <param name="Weight">The amount of work completed, relative to the provider's ExpectedWeight</param>
+/// <param name="Provider">The name of the provider reporting progress</param>
+public record SyncProgressTick(int Weight, string Provider);
 
 /// <summary>
 /// A consolidated collection of data from various
@@ -19,9 +33,6 @@ public enum SyncStatus
 /// <param name="TimeMachineThoughts">Thoughts filtered to only include those within the Time Machine window</param>
 /// <param name="TimeMachineDays">The number of days Time Machine is configured to filter relative to the air date</param>
 /// <param name="SourceResults">The aggregated results from each ThoughtProvider, including post metadata and Thought collections</param>
-/// <summary>Emitted by each thought provider as work completes, for progress reporting.</summary>
-public record SyncProgressTick(int Weight, string Provider);
-
 public record SyncResult(
     SyncStatus Status,
     string? Title,

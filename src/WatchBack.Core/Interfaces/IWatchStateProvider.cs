@@ -24,5 +24,8 @@ public record WatchStateDataProviderMetadata(
 /// </summary>
 public interface IWatchStateProvider : IDataProvider
 {
+    /// <summary>
+    /// Returns the media currently being watched, or null if nothing is playing.
+    /// </summary>
     Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default);
 }

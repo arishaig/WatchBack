@@ -9,5 +9,10 @@ namespace WatchBack.Core.Interfaces;
 /// </summary>
 public interface IReplyTreeBuilder
 {
+    /// <summary>
+    /// Takes a flat list of Thoughts and returns the top-level Thoughts
+    /// with their Replies fully populated from the same list.
+    /// </summary>
+    /// <param name="flat">A flat collection of Thoughts, potentially including both parents and replies</param>
     IReadOnlyList<Thought> BuildTree(IEnumerable<Thought> flat);
 }

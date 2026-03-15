@@ -93,7 +93,7 @@ document.addEventListener('alpine:init', () => {
         prefSaveStatus: null,
         lightboxImg: null,
         groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
-        theme: localStorage.getItem('wb_theme') || 'dark',
+        theme: localStorage.getItem('wb_theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
         testResults: {},
         lastTestResults: {},
         testAllStatus: null,
@@ -113,7 +113,7 @@ document.addEventListener('alpine:init', () => {
         forwardAuthEnabled: false,
         forwardAuthHeaderEdit: '',
         forwardAuthSaveStatus: null,
-        onboardingComplete: true,
+        needsOnboarding: false,
         themes: [
             { id: 'dark', label: 'Dark' },
             { id: 'light', label: 'Light' },
@@ -157,7 +157,7 @@ document.addEventListener('alpine:init', () => {
             try {
                 const res = await fetch('/api/auth/me');
                 const me = await res.json();
-                this.onboardingComplete = me.onboardingComplete ?? true;
+                this.needsOnboarding = me.needsOnboarding ?? false;
                 if (me.authenticated) {
                     this.forwardAuthEnabled = !!me.forwardAuthHeader;
                     this.forwardAuthHeaderEdit = me.forwardAuthHeader || 'X-Remote-User';
@@ -337,7 +337,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         applyTheme(mode) {
-            const themeMode = mode || 'dark';
+            const themeMode = mode || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
             document.documentElement.setAttribute('data-theme', themeMode);
         },
 
@@ -496,6 +496,8 @@ document.addEventListener('alpine:init', () => {
             this.prefEdits = {
                 timeMachineDays: configData?.preferences?.timeMachineDays ?? 14,
                 watchProvider: configData?.preferences?.watchProvider ?? 'jellyfin',
+                searchEngine: configData?.preferences?.searchEngine ?? 'google',
+                customSearchUrl: configData?.preferences?.customSearchUrl ?? '',
             };
         },
 
@@ -585,12 +587,43 @@ document.addEventListener('alpine:init', () => {
             setTimeout(() => { this.saveAllStatus = null; }, 3000);
         },
 
+        redditSearchUrl(title, season, episode) {
+            const query = encodeURIComponent(
+                title + ' S' + String(season).padStart(2, '0') + 'E' + String(episode).padStart(2, '0') + ' reddit'
+            );
+            const engine = this.prefEdits?.searchEngine ?? this.configData?.preferences?.searchEngine ?? 'google';
+            const custom = this.prefEdits?.customSearchUrl ?? this.configData?.preferences?.customSearchUrl ?? '';
+            const bases = {
+                google: 'https://www.google.com/search?q=',
+                duckduckgo: 'https://duckduckgo.com/?q=',
+                bing: 'https://www.bing.com/search?q=',
+            };
+            const base = engine === 'custom' ? (custom || bases.google) : (bases[engine] ?? bases.google);
+            return base + query;
+        },
+
+        async resetConfigKeys(keys) {
+            await fetch('/api/config', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(keys),
+            });
+            const res = await fetch('/api/config');
+            if (res.ok) {
+                this.configData = await res.json();
+                this._initConfigEdits(this.configData);
+            }
+        },
+
         async savePreferences() {
             const payload = {};
             if (this.prefEdits.timeMachineDays != null)
                 payload['WatchBack__TimeMachineDays'] = String(this.prefEdits.timeMachineDays);
             if (this.prefEdits.watchProvider)
                 payload['WatchBack__WatchProvider'] = this.prefEdits.watchProvider;
+            if (this.prefEdits.searchEngine)
+                payload['WatchBack__SearchEngine'] = this.prefEdits.searchEngine;
+            payload['WatchBack__CustomSearchUrl'] = this.prefEdits.customSearchUrl ?? '';
 
             this.prefSaveStatus = 'saving';
             try {

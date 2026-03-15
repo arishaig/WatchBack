@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Interfaces;
@@ -37,6 +38,13 @@ public static class ConfigEndpoints
             .Accepts<Dictionary<string, string>>("application/json")
             .Produces(StatusCodes.Status200OK);
 
+        group.MapDelete("/config", ResetConfig)
+            .WithName("ResetConfig")
+            .WithSummary("Reset config keys to environment/default values")
+            .WithDescription("Removes the specified keys from user-settings.json so environment variables or compiled defaults take effect again.")
+            .Accepts<string[]>("application/json")
+            .Produces(StatusCodes.Status200OK);
+
         group.MapPost("/config/reveal/{key}", RevealConfigValue)
             .WithName("RevealConfigValue")
             .WithSummary("Reveal a stored secret value")
@@ -65,20 +73,31 @@ public static class ConfigEndpoints
             .AllowAnonymous();
     }
 
-    private static object GetConfig(
+    private static async Task<object> GetConfig(
         IOptionsSnapshot<JellyfinOptions> jellyfin,
         IOptionsSnapshot<TraktOptions> trakt,
         IOptionsSnapshot<BlueskyOptions> bluesky,
         IOptionsSnapshot<RedditOptions> reddit,
         IOptionsSnapshot<WatchBackOptions> watchback,
         IEnumerable<IWatchStateProvider> watchStateProviders,
-        IEnumerable<IThoughtProvider> thoughtProviders)
+        IEnumerable<IThoughtProvider> thoughtProviders,
+        UserConfigFile configFile,
+        CancellationToken ct)
     {
         var j = jellyfin.Value;
         var t = trakt.Value;
         var b = bluesky.Value;
         var r = reddit.Value;
         var w = watchback.Value;
+
+        // Env-only config: baseline values before user-settings.json overrides
+        var envCfg = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+        string EnvVal(string flatKey) => envCfg[flatKey.Replace("__", ":")] ?? "";
+
+        // Read user-settings.json to determine which keys have been overridden via the UI
+        var userSettings = await AuthEndpoints.ReadConfigFile(configFile.Path, ct);
+        bool IsOverriddenInUserSettings(string section, string key) =>
+            userSettings.TryGetValue(section, out var s) && s.ContainsKey(key);
 
         // Build brand lookup — thought providers take precedence for shared names (e.g. Trakt uses official red)
         var brandByName = new Dictionary<string, BrandData>(StringComparer.OrdinalIgnoreCase);
@@ -100,8 +119,8 @@ public static class ConfigEndpoints
                     brandColor = brandByName.GetValueOrDefault("Jellyfin")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Jellyfin__BaseUrl", label = "Server URL", type = "text", placeholder = "http://jellyfin:8096", hasValue = !string.IsNullOrEmpty(j.BaseUrl) && j.BaseUrl != "http://jellyfin:8096", value = j.BaseUrl ?? "" },
-                        new { key = "Jellyfin__ApiKey", label = "API Key", type = "password", placeholder = "Required", hasValue = !string.IsNullOrEmpty(j.ApiKey), value = "" }
+                        new { key = "Jellyfin__BaseUrl", label = "Server URL", type = "text", placeholder = "http://jellyfin:8096", hasValue = !string.IsNullOrEmpty(j.BaseUrl) && j.BaseUrl != "http://jellyfin:8096", value = j.BaseUrl ?? "", envValue = EnvVal("Jellyfin__BaseUrl"), isOverridden = IsOverriddenInUserSettings("Jellyfin", "BaseUrl") },
+                        new { key = "Jellyfin__ApiKey", label = "API Key", type = "password", placeholder = "Required", hasValue = !string.IsNullOrEmpty(j.ApiKey), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Jellyfin", "ApiKey") }
                     },
                     configured = !string.IsNullOrEmpty(j.ApiKey)
                 },
@@ -112,9 +131,9 @@ public static class ConfigEndpoints
                     brandColor = brandByName.GetValueOrDefault("Trakt")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Trakt__ClientId", label = "Client ID", type = "text", placeholder = "Optional (for comments)", hasValue = !string.IsNullOrEmpty(t.ClientId), value = t.ClientId ?? "" },
-                        new { key = "Trakt__AccessToken", label = "Access Token (OAuth)", type = "password", placeholder = "Optional (for private profile)", hasValue = !string.IsNullOrEmpty(t.AccessToken), value = "" },
-                        new { key = "Trakt__Username", label = "Username", type = "text", placeholder = "Optional (public profile)", hasValue = !string.IsNullOrEmpty(t.Username), value = t.Username ?? "" }
+                        new { key = "Trakt__ClientId", label = "Client ID", type = "text", placeholder = "Optional (for comments)", hasValue = !string.IsNullOrEmpty(t.ClientId), value = t.ClientId ?? "", envValue = EnvVal("Trakt__ClientId"), isOverridden = IsOverriddenInUserSettings("Trakt", "ClientId") },
+                        new { key = "Trakt__AccessToken", label = "Access Token (OAuth)", type = "password", placeholder = "Optional (for private profile)", hasValue = !string.IsNullOrEmpty(t.AccessToken), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Trakt", "AccessToken") },
+                        new { key = "Trakt__Username", label = "Username", type = "text", placeholder = "Optional (public profile)", hasValue = !string.IsNullOrEmpty(t.Username), value = t.Username ?? "", envValue = EnvVal("Trakt__Username"), isOverridden = IsOverriddenInUserSettings("Trakt", "Username") }
                     },
                     configured = !string.IsNullOrEmpty(t.ClientId) || !string.IsNullOrEmpty(t.Username)
                 },
@@ -125,8 +144,8 @@ public static class ConfigEndpoints
                     brandColor = brandByName.GetValueOrDefault("Bluesky")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Bluesky__Handle", label = "Handle/Email", type = "text", placeholder = "you.bsky.social", hasValue = !string.IsNullOrEmpty(b.Handle), value = b.Handle ?? "" },
-                        new { key = "Bluesky__AppPassword", label = "App Password", type = "password", placeholder = "xxxx-xxxx-xxxx-xxxx", hasValue = !string.IsNullOrEmpty(b.AppPassword), value = "" }
+                        new { key = "Bluesky__Handle", label = "Handle/Email", type = "text", placeholder = "you.bsky.social", hasValue = !string.IsNullOrEmpty(b.Handle), value = b.Handle ?? "", envValue = EnvVal("Bluesky__Handle"), isOverridden = IsOverriddenInUserSettings("Bluesky", "Handle") },
+                        new { key = "Bluesky__AppPassword", label = "App Password", type = "password", placeholder = "xxxx-xxxx-xxxx-xxxx", hasValue = !string.IsNullOrEmpty(b.AppPassword), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Bluesky", "AppPassword") }
                     },
                     configured = !string.IsNullOrEmpty(b.Handle) && !string.IsNullOrEmpty(b.AppPassword)
                 },
@@ -137,8 +156,8 @@ public static class ConfigEndpoints
                     brandColor = brandByName.GetValueOrDefault("Reddit")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Reddit__MaxThreads", label = "Max Threads", type = "number", placeholder = "3", hasValue = true, value = r.MaxThreads.ToString(System.Globalization.CultureInfo.InvariantCulture) },
-                        new { key = "Reddit__MaxComments", label = "Max Comments", type = "number", placeholder = "250", hasValue = true, value = r.MaxComments.ToString(System.Globalization.CultureInfo.InvariantCulture) }
+                        new { key = "Reddit__MaxThreads", label = "Max Threads", type = "number", placeholder = "3", hasValue = true, value = r.MaxThreads.ToString(System.Globalization.CultureInfo.InvariantCulture), envValue = EnvVal("Reddit__MaxThreads"), isOverridden = IsOverriddenInUserSettings("Reddit", "MaxThreads") },
+                        new { key = "Reddit__MaxComments", label = "Max Comments", type = "number", placeholder = "250", hasValue = true, value = r.MaxComments.ToString(System.Globalization.CultureInfo.InvariantCulture), envValue = EnvVal("Reddit__MaxComments"), isOverridden = IsOverriddenInUserSettings("Reddit", "MaxComments") }
                     },
                     configured = true
                 }
@@ -149,7 +168,23 @@ public static class ConfigEndpoints
                 watchProvider = w.WatchProvider,
                 watchProviders = watchStateProviders
                     .Select(p => new { value = p.Metadata.Name.ToLowerInvariant(), label = p.Metadata.Name })
-                    .ToArray()
+                    .ToArray(),
+                searchEngine = w.SearchEngine,
+                customSearchUrl = w.CustomSearchUrl,
+                envValues = new Dictionary<string, string>
+                {
+                    ["WatchBack__TimeMachineDays"] = EnvVal("WatchBack__TimeMachineDays"),
+                    ["WatchBack__WatchProvider"] = EnvVal("WatchBack__WatchProvider"),
+                    ["WatchBack__SearchEngine"] = EnvVal("WatchBack__SearchEngine"),
+                    ["WatchBack__CustomSearchUrl"] = EnvVal("WatchBack__CustomSearchUrl"),
+                },
+                overrides = new Dictionary<string, bool>
+                {
+                    ["WatchBack__TimeMachineDays"] = IsOverriddenInUserSettings("WatchBack", "TimeMachineDays"),
+                    ["WatchBack__WatchProvider"] = IsOverriddenInUserSettings("WatchBack", "WatchProvider"),
+                    ["WatchBack__SearchEngine"] = IsOverriddenInUserSettings("WatchBack", "SearchEngine"),
+                    ["WatchBack__CustomSearchUrl"] = IsOverriddenInUserSettings("WatchBack", "CustomSearchUrl"),
+                },
             }
         };
     }
@@ -188,6 +223,44 @@ public static class ConfigEndpoints
                     existing[section] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
                 existing[section][key] = value;
+            }
+
+            await AuthEndpoints.WriteConfigFile(configFile.Path, existing, ct);
+        }
+        finally
+        {
+            AuthEndpoints.ConfigFileLock.Release();
+        }
+
+        return Results.Ok();
+    }
+
+    private static async Task<IResult> ResetConfig(
+        HttpContext ctx,
+        UserConfigFile configFile,
+        CancellationToken ct)
+    {
+        var keys = await ctx.Request.ReadFromJsonAsync<string[]>(ct);
+        if (keys == null || keys.Length == 0)
+            return Results.BadRequest("No keys specified");
+
+        await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
+        try
+        {
+            var existing = await AuthEndpoints.ReadConfigFile(configFile.Path, ct);
+
+            foreach (var flatKey in keys)
+            {
+                var sep = flatKey.IndexOf("__", StringComparison.Ordinal);
+                if (sep < 0) continue;
+
+                var section = flatKey[..sep];
+                var key = flatKey[(sep + 2)..];
+
+                if (!s_allowedConfigSections.Contains(section)) continue;
+
+                if (existing.TryGetValue(section, out var sect))
+                    sect.Remove(key);
             }
 
             await AuthEndpoints.WriteConfigFile(configFile.Path, existing, ct);
