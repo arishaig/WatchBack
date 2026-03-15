@@ -94,6 +94,10 @@ document.addEventListener('alpine:init', () => {
         lightboxImg: null,
         groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
         theme: localStorage.getItem('wb_theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
+        collapsedSections: (() => {
+            try { return JSON.parse(localStorage.getItem('wb_collapsed_sections') || '{}'); }
+            catch { return {}; }
+        })(),
         testResults: {},
         lastTestResults: {},
         testAllStatus: null,
@@ -179,9 +183,9 @@ document.addEventListener('alpine:init', () => {
             } catch (e) {
                 console.warn("[WatchBack] Config load failed:", e);
             }
-            await this.sync();
             this.initialized = true;
             this.setupSSE();
+            void this.sync();
         },
 
         async login() {
@@ -334,6 +338,11 @@ document.addEventListener('alpine:init', () => {
             es.onerror = () => {
                 console.warn("[WatchBack] SSE connection lost");
             };
+        },
+
+        toggleSection(key) {
+            this.collapsedSections[key] = !this.collapsedSections[key];
+            localStorage.setItem('wb_collapsed_sections', JSON.stringify(this.collapsedSections));
         },
 
         applyTheme(mode) {
@@ -571,12 +580,9 @@ document.addEventListener('alpine:init', () => {
                     const cRes = await fetch('/api/config');
                     if (cRes.ok) {
                         this.configData = await cRes.json();
-                        for (const [, integration] of Object.entries(this.configData.integrations || {})) {
-                            for (const field of integration.fields) {
-                                if (field.type !== 'password')
-                                    this.configEdits[field.key] = field.value ?? '';
-                            }
-                        }
+                        // Do NOT overwrite configEdits from server response here — the server may
+                        // return stale values before reloadOnChange propagates the file write.
+                        // The values the user typed are already correct and saved.
                     }
                 } else {
                     this.saveAllStatus = 'error';

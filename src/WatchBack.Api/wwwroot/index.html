@@ -190,61 +190,78 @@
 
                 <div class="space-y-3">
                     <template x-for="[key, integration] in Object.entries(configData?.integrations || {})" :key="key">
-                        <div class="integration-card rounded-xl p-4 space-y-3"
+                        <div class="integration-card rounded-xl overflow-hidden"
                             :style="'--card-accent: ' + integration.brandColor">
-                            <!-- Card header: logo + service name -->
-                            <div class="flex items-center gap-2 mb-3">
-                                <span class="integration-logo"
-                                    :style="'color: ' + integration.brandColor"
-                                    x-html="integration.logoSvg"></span>
-                                <span class="text-sm font-semibold wb-text-secondary"
-                                    x-text="integration.name"></span>
-                            </div>
-                            <!-- Fields -->
-                            <template x-for="field in integration.fields" :key="field.key">
-                                <div x-data="{ showSecret: false }">
-                                    <div class="flex justify-between mb-1">
-                                        <label :for="'field-' + field.key"
-                                            class="text-xs font-medium wb-text-muted"
-                                            x-text="field.label"></label>
-                                        <span class="flex items-center gap-2">
-                                            <span x-show="field.type === 'password' && field.hasValue && !configEdits[field.key]"
-                                                class="text-xs wb-text-faint">set</span>
-                                            <button x-show="field.isOverridden" type="button"
-                                                @click="void resetConfigKeys([field.key])"
-                                                :title="field.envValue ? 'Reset to: ' + field.envValue : 'Clear override'"
-                                                class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
-                                        </span>
-                                    </div>
-                                    <!--suppress HtmlFormInputWithoutLabel -->
-                                    <div class="relative">
-                                        <input :id="'field-' + field.key"
-                                            :type="field.type"
-                                            :placeholder="field.type === 'password' && field.hasValue ? '(unchanged)' : field.placeholder"
-                                            x-model="configEdits[field.key]"
-                                            x-ref="inp"
-                                            autocomplete="off"
-                                            :class="field.type === 'password' ? 'pr-9' : ''"
-                                            class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
-                                        <button x-show="field.type === 'password'"
-                                            type="button"
-                                            @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
-                                            :aria-label="showSecret ? 'Hide value' : 'Show value'"
-                                            :aria-pressed="showSecret"
-                                            class="wb-eye-btn">
-                                            <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'" aria-hidden="true"></ion-icon>
-                                        </button>
-                                    </div>
-                                </div>
-                            </template>
-                            <!-- Test button -->
-                            <button @click="void testService(key)"
-                                :disabled="testResults[key]?.status === 'testing' || !integration.configured"
-                                aria-live="polite"
-                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
-                                :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
-                                x-text="testResults[key]?.status === 'testing' ? 'Testing\u2026' : testResults[key]?.message || 'Test Connection'">
+                            <!-- Card header: logo + service name + collapse toggle -->
+                            <button type="button"
+                                @click="toggleSection(key)"
+                                :aria-expanded="!collapsedSections[key]"
+                                class="w-full flex items-center justify-between gap-2 p-4 cursor-pointer text-left"
+                                :class="collapsedSections[key] ? '' : 'pb-3'">
+                                <span class="flex items-center gap-2">
+                                    <span class="integration-logo"
+                                        :style="'color: ' + integration.brandColor"
+                                        x-html="integration.logoSvg"></span>
+                                    <span class="text-sm font-semibold wb-text-secondary"
+                                        x-text="integration.name"></span>
+                                </span>
+                                <ion-icon :name="collapsedSections[key] ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
+                                    class="wb-text-faint shrink-0" aria-hidden="true"></ion-icon>
                             </button>
+                            <!-- Collapsible body: fields + test button -->
+                            <div x-show="!collapsedSections[key]"
+                                x-transition:enter="transition ease-out duration-150"
+                                x-transition:enter-start="opacity-0"
+                                x-transition:enter-end="opacity-100"
+                                x-transition:leave="transition ease-in duration-100"
+                                x-transition:leave-start="opacity-100"
+                                x-transition:leave-end="opacity-0"
+                                class="px-4 pb-4 space-y-3">
+                                <template x-for="field in integration.fields" :key="field.key">
+                                    <div x-data="{ showSecret: false }">
+                                        <div class="flex justify-between mb-1">
+                                            <label :for="'field-' + field.key"
+                                                class="text-xs font-medium wb-text-muted"
+                                                x-text="field.label"></label>
+                                            <span class="flex items-center gap-2">
+                                                <span x-show="field.type === 'password' && field.hasValue && !configEdits[field.key]"
+                                                    class="text-xs wb-text-faint">set</span>
+                                                <button x-show="field.isOverridden" type="button"
+                                                    @click="void resetConfigKeys([field.key])"
+                                                    :title="field.envValue ? 'Reset to: ' + field.envValue : 'Clear override'"
+                                                    class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
+                                            </span>
+                                        </div>
+                                        <!--suppress HtmlFormInputWithoutLabel -->
+                                        <div class="relative">
+                                            <input :id="'field-' + field.key"
+                                                :type="field.type"
+                                                :placeholder="field.type === 'password' && field.hasValue ? '(unchanged)' : field.placeholder"
+                                                x-model="configEdits[field.key]"
+                                                x-ref="inp"
+                                                autocomplete="off"
+                                                :class="field.type === 'password' ? 'pr-9' : ''"
+                                                class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
+                                            <button x-show="field.type === 'password'"
+                                                type="button"
+                                                @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
+                                                :aria-label="showSecret ? 'Hide value' : 'Show value'"
+                                                :aria-pressed="showSecret"
+                                                class="wb-eye-btn">
+                                                <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'" aria-hidden="true"></ion-icon>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                                <!-- Test button -->
+                                <button @click="void testService(key)"
+                                    :disabled="testResults[key]?.status === 'testing' || (!integration.configured && !integration.fields.some(f => configEdits[f.key]))"
+                                    aria-live="polite"
+                                    class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
+                                    :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
+                                    x-text="testResults[key]?.status === 'testing' ? 'Testing\u2026' : testResults[key]?.message || 'Test Connection'">
+                                </button>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -306,9 +323,22 @@
 
                 <!-- ═══════════════════ Preferences ═══════════════════ -->
                 <div class="wb-border border-t mt-5 pt-5">
-                    <h2 class="text-sm font-semibold wb-text-secondary mb-3">Preferences</h2>
+                    <button type="button" @click="toggleSection('preferences')"
+                        :aria-expanded="!collapsedSections.preferences"
+                        class="w-full flex items-center justify-between gap-2 mb-3 cursor-pointer">
+                        <h2 class="text-sm font-semibold wb-text-secondary">Preferences</h2>
+                        <ion-icon :name="collapsedSections.preferences ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
+                            class="wb-text-faint shrink-0" aria-hidden="true"></ion-icon>
+                    </button>
 
-                    <div class="space-y-4">
+                    <div x-show="!collapsedSections.preferences"
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0"
+                        x-transition:enter-end="opacity-100"
+                        x-transition:leave="transition ease-in duration-100"
+                        x-transition:leave-start="opacity-100"
+                        x-transition:leave-end="opacity-0"
+                        class="space-y-4">
                         <div>
                             <label class="text-xs font-medium wb-text-muted block mb-1">Theme</label>
                             <div class="wb-select-wrap">
@@ -393,10 +423,23 @@
 
                 <!-- ═══════════════════ Danger zone ═══════════════════ -->
                 <div class="mt-5 rounded-xl overflow-hidden" style="border:1px solid var(--wb-error-border)">
-                    <div class="px-4 py-2.5" style="background:var(--wb-error-bg);border-bottom:1px solid var(--wb-error-border)">
+                    <button type="button" @click="toggleSection('dangerZone')"
+                        :aria-expanded="!collapsedSections.dangerZone"
+                        class="w-full flex items-center justify-between gap-2 px-4 py-2.5 cursor-pointer"
+                        style="background:var(--wb-error-bg)"
+                        :style="collapsedSections.dangerZone ? '' : 'border-bottom:1px solid var(--wb-error-border)'">
                         <h2 class="text-xs font-semibold" style="color:var(--wb-error-text)">Danger zone</h2>
-                    </div>
-                    <div class="p-3 grid grid-cols-2 gap-3">
+                        <ion-icon :name="collapsedSections.dangerZone ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
+                            style="color:var(--wb-error-text)" class="shrink-0" aria-hidden="true"></ion-icon>
+                    </button>
+                    <div x-show="!collapsedSections.dangerZone"
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0"
+                        x-transition:enter-end="opacity-100"
+                        x-transition:leave="transition ease-in duration-100"
+                        x-transition:leave-start="opacity-100"
+                        x-transition:leave-end="opacity-0"
+                        class="p-3 grid grid-cols-2 gap-3">
 
                         <!-- Reset password card (hidden for forward auth users) -->
                         <template x-if="currentUser?.authMethod !== 'forwardAuth'">
@@ -489,6 +532,7 @@
         </div>
 
         <!-- Success state: show comments -->
+
         <template x-if="data?.status === 'Watching'">
             <main>
                 <div class="wb-surface p-4 rounded-xl mb-6 shadow-md wb-border border comment-card">

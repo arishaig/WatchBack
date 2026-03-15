@@ -37,3 +37,6 @@ services:
       # WatchBack__CustomSearchUrl:          # base URL prefix when SearchEngine=custom
 
     restart: unless-stopped
+
+volumes:
+  watchback-data:

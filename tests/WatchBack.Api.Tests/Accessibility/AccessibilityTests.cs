@@ -324,13 +324,17 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
 internal sealed class KestrelWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly int _port;
+    private TcpListener? _portHolder;
     private IHost? _host;
 
     public KestrelWebApplicationFactory()
     {
-        _port = GetAvailablePort();
-        // Force the host to start by accessing the server
-        _ = Server;
+        // Hold the port open with a TcpListener so nothing else can steal it
+        // during the slow builder.Build() call (which runs DB migrations).
+        _portHolder = new TcpListener(IPAddress.Loopback, 0);
+        _portHolder.Start();
+        _port = ((IPEndPoint)_portHolder.LocalEndpoint).Port;
+        _ = Server; // triggers CreateHost, which releases the holder then starts Kestrel
     }
 
     public string ServerAddress => $"http://127.0.0.1:{_port}";
@@ -349,6 +353,12 @@ internal sealed class KestrelWebApplicationFactory : WebApplicationFactory<Progr
         });
 
         _host = builder.Build();
+
+        // Release the port holder right before Kestrel binds, shrinking the TOCTOU
+        // window from ~1 s (the Build() duration) down to microseconds.
+        _portHolder?.Stop();
+        _portHolder = null;
+
         _host.Start();
 
         return testHost;
@@ -356,18 +366,10 @@ internal sealed class KestrelWebApplicationFactory : WebApplicationFactory<Progr
 
     protected override void Dispose(bool disposing)
     {
+        _portHolder?.Stop();
         _host?.StopAsync().GetAwaiter().GetResult();
         _host?.Dispose();
         base.Dispose(disposing);
-    }
-
-    private static int GetAvailablePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
     }
 
     private static string FindApiProjectRoot()

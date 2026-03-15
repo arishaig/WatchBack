@@ -50,6 +50,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 RUN groupmod -n watchback app && usermod -l watchback app && usermod -d /home/watchback -m watchback && chown -R watchback:watchback /app
 USER watchback
 
+ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://+:8484
 
 # Run application

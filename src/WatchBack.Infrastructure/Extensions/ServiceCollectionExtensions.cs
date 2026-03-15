@@ -16,12 +16,15 @@ public static class ServiceCollectionExtensions
     {
         services.AddTransient<ResilientHttpHandler>();
 
-        // Register typed HTTP clients for each provider — all share the resilience handler
-        services.AddHttpClient<JellyfinWatchStateProvider>().AddHttpMessageHandler<ResilientHttpHandler>();
-        services.AddHttpClient<TraktWatchStateProvider>().AddHttpMessageHandler<ResilientHttpHandler>();
-        services.AddHttpClient<TraktThoughtProvider>().AddHttpMessageHandler<ResilientHttpHandler>();
-        services.AddHttpClient<RedditThoughtProvider>().AddHttpMessageHandler<ResilientHttpHandler>();
-        services.AddHttpClient<BlueskyThoughtProvider>().AddHttpMessageHandler<ResilientHttpHandler>();
+        // Register typed HTTP clients for each provider — all share the resilience handler.
+        // 10-second timeout keeps sync fast when a provider is misconfigured or unreachable.
+        static void ConfigureClient(HttpClient c) => c.Timeout = TimeSpan.FromSeconds(10);
+
+        services.AddHttpClient<JellyfinWatchStateProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<TraktWatchStateProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<TraktThoughtProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<RedditThoughtProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<BlueskyThoughtProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
 
         // Register all watch state providers — active one is selected at runtime from config
         services.AddScoped<IWatchStateProvider>(sp => sp.GetRequiredService<JellyfinWatchStateProvider>());
