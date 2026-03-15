@@ -10,6 +10,9 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="manifest" href="/site.webmanifest">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/tailwind.css">
     <script src="/js/reconnecting-eventsource.min.js"></script>
     <script defer src="/js/alpine.min.js"></script>
@@ -33,7 +36,7 @@
     </div>
 
     <!-- Main app -->
-    <div x-show="initialized" x-cloak class="max-w-md mx-auto overflow-x-hidden pb-8">
+    <div x-show="initialized" x-cloak class="wb-app mx-auto overflow-x-hidden pb-8">
 
         <header class="flex justify-between items-center mb-6 mt-2">
             <div class="flex items-center gap-3">
@@ -83,14 +86,14 @@
             class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
             <div class="p-4">
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
-                <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Integrations</h2>
+                <h2 class="text-sm font-semibold wb-text-secondary mb-3">Integrations</h2>
 
                 <div class="space-y-3">
                     <template x-for="[key, integration] in Object.entries(configData?.integrations || {})" :key="key">
                         <div class="integration-card rounded-xl p-4 space-y-3"
                             :style="'--card-accent: ' + integration.brandColor">
                             <!-- Card header: logo + service name -->
-                            <div class="flex items-center gap-2 mb-1">
+                            <div class="flex items-center gap-2 mb-3">
                                 <span class="integration-logo"
                                     :style="'color: ' + integration.brandColor"
                                     x-html="integration.logoSvg"></span>
@@ -99,7 +102,7 @@
                             </div>
                             <!-- Fields -->
                             <template x-for="field in integration.fields" :key="field.key">
-                                <div class="relative">
+                                <div x-data="{ showSecret: false }">
                                     <div class="flex justify-between mb-1">
                                         <label :for="'field-' + field.key"
                                             class="text-xs font-medium wb-text-muted"
@@ -108,12 +111,24 @@
                                             class="text-xs wb-text-faint">set</span>
                                     </div>
                                     <!--suppress HtmlFormInputWithoutLabel -->
-                                    <input :id="'field-' + field.key"
-                                        :type="field.type"
-                                        :placeholder="field.type === 'password' && field.hasValue ? '(unchanged)' : field.placeholder"
-                                        x-model="configEdits[field.key]"
-                                        autocomplete="off"
-                                        class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
+                                    <div class="relative">
+                                        <input :id="'field-' + field.key"
+                                            :type="field.type"
+                                            :placeholder="field.type === 'password' && field.hasValue ? '(unchanged)' : field.placeholder"
+                                            x-model="configEdits[field.key]"
+                                            x-ref="inp"
+                                            autocomplete="off"
+                                            :class="field.type === 'password' ? 'pr-9' : ''"
+                                            class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
+                                        <button x-show="field.type === 'password'"
+                                            type="button"
+                                            @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
+                                            :aria-label="showSecret ? 'Hide value' : 'Show value'"
+                                            :aria-pressed="showSecret"
+                                            class="wb-eye-btn">
+                                            <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'" aria-hidden="true"></ion-icon>
+                                        </button>
+                                    </div>
                                 </div>
                             </template>
                             <!-- Test button -->
@@ -185,7 +200,7 @@
 
                 <!-- ═══════════════════ Preferences ═══════════════════ -->
                 <div class="wb-border border-t mt-5 pt-5">
-                    <h2 class="text-xs font-semibold wb-text-muted uppercase tracking-wider mb-3">Preferences</h2>
+                    <h2 class="text-sm font-semibold wb-text-secondary mb-3">Preferences</h2>
 
                     <div class="space-y-4">
                         <div class="flex items-center justify-between">

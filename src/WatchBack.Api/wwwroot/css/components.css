@@ -77,9 +77,33 @@
 .mt-6 { margin-top: 1.5rem; }
 .mt-8 { margin-top: 2rem; }
 .pt-5 { padding-top: 1.25rem; }
+.pr-9 { padding-right: 2.25rem; }
+
+/* ─── Password visibility toggle ─── */
+.wb-eye-btn {
+    position: absolute;
+    right: 0.625rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--wb-text-faint);
+    cursor: pointer;
+    line-height: 1;
+    padding: 0.25rem;
+    background: none;
+    border: none;
+    transition: color 0.15s ease;
+}
+
+@media (hover: hover) {
+    .wb-eye-btn:hover { color: var(--wb-text-muted); }
+}
 
 /* ─── Skeuomorphic button ─── */
 .wb-btn {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1;
     background-image: linear-gradient(
         to bottom,
         rgba(255, 255, 255, 0.07) 0%,

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Options;
+using WatchBack.Infrastructure.Http;
 using WatchBack.Infrastructure.Persistence;
 using WatchBack.Infrastructure.ThoughtProviders;
 using WatchBack.Infrastructure.WatchStateProviders;
@@ -13,12 +14,14 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddWatchBackInfrastructure(
         this IServiceCollection services)
     {
-        // Register typed HTTP clients for each provider
-        services.AddHttpClient<JellyfinWatchStateProvider>();
-        services.AddHttpClient<TraktWatchStateProvider>();
-        services.AddHttpClient<TraktThoughtProvider>();
-        services.AddHttpClient<RedditThoughtProvider>();
-        services.AddHttpClient<BlueskyThoughtProvider>();
+        services.AddTransient<ResilientHttpHandler>();
+
+        // Register typed HTTP clients for each provider — all share the resilience handler
+        services.AddHttpClient<JellyfinWatchStateProvider>().AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<TraktWatchStateProvider>().AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<TraktThoughtProvider>().AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<RedditThoughtProvider>().AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<BlueskyThoughtProvider>().AddHttpMessageHandler<ResilientHttpHandler>();
 
         // Register all watch state providers — active one is selected at runtime from config
         services.AddScoped<IWatchStateProvider>(sp => sp.GetRequiredService<JellyfinWatchStateProvider>());

@@ -21,19 +21,41 @@ public static class ConfigEndpoints
 
     public static void MapConfigEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api");
+        var group = app.MapGroup("/api")
+            .WithTags("Configuration");
 
         group.MapGet("/config", GetConfig)
-            .WithName("GetConfig");
+            .WithName("GetConfig")
+            .WithSummary("Get configuration schema and current values")
+            .WithDescription("Returns the configuration schema for all integrations (Jellyfin, Trakt, Bluesky, Reddit) with current values and branding information")
+            .Produces(StatusCodes.Status200OK);
 
         group.MapPost("/config", SaveConfig)
-            .WithName("SaveConfig");
+            .WithName("SaveConfig")
+            .WithSummary("Save configuration")
+            .WithDescription("Persists configuration values to the user settings file. Rejects unknown configuration sections for security. Empty values are skipped.")
+            .Accepts<Dictionary<string, string>>("application/json")
+            .Produces(StatusCodes.Status200OK);
+
+        group.MapGet("/config/reveal/{key}", RevealConfigValue)
+            .WithName("RevealConfigValue")
+            .WithSummary("Reveal a stored secret value")
+            .WithDescription("Returns the plaintext value of a password-type config field. Only whitelisted keys are accessible.")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound);
 
         group.MapGet("/status", GetStatus)
-            .WithName("GetStatus");
+            .WithName("GetStatus")
+            .WithSummary("Get health status of providers")
+            .WithDescription("Returns the health status of the configured watch state provider and display name")
+            .Produces(StatusCodes.Status200OK);
 
         group.MapPost("/test/{service}", TestService)
-            .WithName("TestService");
+            .WithName("TestService")
+            .WithSummary("Test service connection")
+            .WithDescription("Tests the connection to a specified thought provider (reddit, trakt, bluesky) and returns the result")
+            .Accepts<Dictionary<string, string>>("application/json")
+            .Produces(StatusCodes.Status200OK);
     }
 
     private static object GetConfig(
@@ -182,6 +204,25 @@ public static class ConfigEndpoints
         File.Move(tmp, configFile.Path, overwrite: true);
 
         return Results.Ok();
+    }
+
+    private static IResult RevealConfigValue(
+        string key,
+        IOptionsSnapshot<JellyfinOptions> jellyfin,
+        IOptionsSnapshot<TraktOptions> trakt,
+        IOptionsSnapshot<BlueskyOptions> bluesky)
+    {
+        var value = key switch
+        {
+            "Jellyfin__ApiKey"      => jellyfin.Value.ApiKey,
+            "Trakt__AccessToken"    => trakt.Value.AccessToken,
+            "Bluesky__AppPassword"  => bluesky.Value.AppPassword,
+            _                       => null
+        };
+
+        return value is not null
+            ? Results.Ok(new { value })
+            : Results.NotFound();
     }
 
     private static object GetStatus(

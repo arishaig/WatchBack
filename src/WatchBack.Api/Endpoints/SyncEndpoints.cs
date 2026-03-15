@@ -9,13 +9,20 @@ public static class SyncEndpoints
 {
     public static void MapSyncEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api");
+        var group = app.MapGroup("/api")
+            .WithTags("Sync");
 
         group.MapGet("/sync", GetSync)
-            .WithName("GetSync");
+            .WithName("GetSync")
+            .WithSummary("Get current sync status")
+            .WithDescription("Retrieves the current media context, all associated thoughts from providers, and filtered time-machine thoughts")
+            .Produces<SyncResponse>(StatusCodes.Status200OK);
 
         group.MapGet("/sync/stream", GetSyncStream)
-            .WithName("GetSyncStream");
+            .WithName("GetSyncStream")
+            .WithSummary("Stream sync status updates")
+            .WithDescription("Server-sent events stream that polls sync status every 5 seconds and sends updates to the client")
+            .Produces(StatusCodes.Status200OK);
     }
 
     private static async Task<SyncResponse> GetSync(ISyncService syncService, CancellationToken ct)

@@ -58,41 +58,46 @@ public class TraktThoughtProvider : IThoughtProvider
                 : $"trakt:thoughts:{mediaContext.Title}";
 
             if (_cache.TryGetValue(cacheKey, out ThoughtResult? cached))
-            {
                 return cached;
-            }
 
-            // Search for the show (Trakt API returns a flat array, not a wrapper object)
-            var searchRequest = new HttpRequestMessage(
-                HttpMethod.Get,
-                $"https://api.trakt.tv/search/show?query={Uri.EscapeDataString(mediaContext.Title)}");
-            ConfigureRequestHeaders(searchRequest);
-
-            var searchResponse = await _httpClient.SendAsync(searchRequest, ct);
-            if (!searchResponse.IsSuccessStatusCode)
+            // Resolve show slug — cached separately for 24 h since it never changes
+            var slugCacheKey = $"trakt:slug:{mediaContext.Title}";
+            if (!_cache.TryGetValue(slugCacheKey, out string? showId) || showId == null)
             {
-                _logger.LogWarning("Trakt search failed: HTTP {Status} for '{Title}'",
-                    (int)searchResponse.StatusCode, mediaContext.Title);
-                return new ThoughtResult(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+                var searchRequest = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    $"https://api.trakt.tv/search/show?query={Uri.EscapeDataString(mediaContext.Title)}");
+                ConfigureRequestHeaders(searchRequest);
+
+                var searchResponse = await _httpClient.SendAsync(searchRequest, ct);
+                if (!searchResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Trakt search failed: HTTP {Status} for '{Title}'",
+                        (int)searchResponse.StatusCode, mediaContext.Title);
+                    return Empty;
+                }
+
+                var searchContent = await searchResponse.Content.ReadAsStringAsync(ct);
+                var searchResults = JsonSerializer.Deserialize<TraktShowSearchItemDto[]>(
+                    searchContent,
+                    TraktThoughtJsonContext.Default.TraktShowSearchItemDtoArray);
+
+                var show = searchResults?.FirstOrDefault()?.Show;
+                if (show?.Ids?.Slug == null && show?.Ids?.Trakt == null)
+                {
+                    _logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
+                    return Empty;
+                }
+
+                showId = Uri.EscapeDataString(show.Ids?.Slug
+                    ?? show.Ids!.Trakt!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+                _logger.LogDebug("Trakt: resolved '{Title}' → slug '{Slug}'", mediaContext.Title, showId);
+                _cache.Set(slugCacheKey, showId, TimeSpan.FromHours(24));
             }
 
-            var searchContent = await searchResponse.Content.ReadAsStringAsync(ct);
-            var searchResults = JsonSerializer.Deserialize<TraktShowSearchItemDto[]>(
-                searchContent,
-                TraktThoughtJsonContext.Default.TraktShowSearchItemDtoArray);
-
-            var show = searchResults?.FirstOrDefault()?.Show;
-            if (show?.Ids?.Slug == null && show?.Ids?.Trakt == null)
-            {
-                _logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
-                return new ThoughtResult(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
-            }
-            _logger.LogDebug("Trakt: resolved show '{Title}' → slug '{Slug}'", mediaContext.Title, show.Ids?.Slug);
-
-            var showId = Uri.EscapeDataString(show.Ids?.Slug ?? show.Ids!.Trakt!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
-
-            // Get episode-specific comments when possible, fall back to show comments
-            string commentsUrl = episode != null
+            // Fetch comments
+            var commentsUrl = episode != null
                 ? $"https://api.trakt.tv/shows/{showId}/seasons/{episode.SeasonNumber}/episodes/{episode.EpisodeNumber}/comments/newest"
                 : $"https://api.trakt.tv/shows/{showId}/comments/newest";
 
@@ -102,9 +107,9 @@ public class TraktThoughtProvider : IThoughtProvider
             var commentsResponse = await _httpClient.SendAsync(commentsRequest, ct);
             if (!commentsResponse.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Trakt comments failed: HTTP {Status} for '{Url}'",
-                    (int)commentsResponse.StatusCode, commentsUrl);
-                return new ThoughtResult(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+                _logger.LogWarning("Trakt comments failed: HTTP {Status} for '{Title}'",
+                    (int)commentsResponse.StatusCode, mediaContext.Title);
+                return Empty;
             }
 
             var commentsContent = await commentsResponse.Content.ReadAsStringAsync(ct);
@@ -128,14 +133,12 @@ public class TraktThoughtProvider : IThoughtProvider
                     Replies: []))
                 .ToList();
 
-            var treeThoughts = _treeBuilder.BuildTree(thoughts);
-
             var result = new ThoughtResult(
                 Source: "Trakt",
-                PostTitle: show.Title,
+                PostTitle: null,
                 PostUrl: null,
                 ImageUrl: null,
-                Thoughts: treeThoughts,
+                Thoughts: _treeBuilder.BuildTree(thoughts),
                 NextPageToken: null);
 
             _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
@@ -144,9 +147,12 @@ public class TraktThoughtProvider : IThoughtProvider
         catch (Exception ex)
         {
             _logger.LogError(ex, "Trakt thought fetch failed");
-            return new ThoughtResult(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+            return Empty;
         }
     }
+
+    private static readonly ThoughtResult Empty =
+        new(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
 
     public async Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
     {

@@ -9,6 +9,7 @@ using WatchBack.Core.Options;
 using WatchBack.Core.Services;
 using WatchBack.Infrastructure.Extensions;
 using WatchBack.Infrastructure.Persistence;
+using WatchBack.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,6 +75,7 @@ builder.Services.AddWatchBackInfrastructure();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddSingleton<ITimeMachineFilter, TimeMachineFilter>();
 builder.Services.AddSingleton<IReplyTreeBuilder, ReplyTreeBuilder>();
+builder.Services.AddSingleton<IPrefetchService, PrefetchService>();
 
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>

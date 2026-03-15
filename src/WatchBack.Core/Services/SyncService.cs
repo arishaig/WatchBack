@@ -7,48 +7,35 @@ using WatchBack.Core.Options;
 
 namespace WatchBack.Core.Services;
 
-public class SyncService : ISyncService
+public class SyncService(
+    IEnumerable<IWatchStateProvider> watchStateProviders,
+    IEnumerable<IThoughtProvider> thoughtProviders,
+    ITimeMachineFilter timeMachineFilter,
+    IPrefetchService prefetchService,
+    IOptionsSnapshot<WatchBackOptions> options,
+    ILogger<SyncService> logger)
+    : ISyncService
 {
-    private readonly IEnumerable<IWatchStateProvider> _watchStateProviders;
-    private readonly IEnumerable<IThoughtProvider> _thoughtProviders;
-    private readonly ITimeMachineFilter _timeMachineFilter;
-    private readonly IOptionsSnapshot<WatchBackOptions> _options;
-    private readonly ILogger<SyncService> _logger;
-
-    public SyncService(
-        IEnumerable<IWatchStateProvider> watchStateProviders,
-        IEnumerable<IThoughtProvider> thoughtProviders,
-        ITimeMachineFilter timeMachineFilter,
-        IOptionsSnapshot<WatchBackOptions> options,
-        ILogger<SyncService> logger)
-    {
-        _watchStateProviders = watchStateProviders;
-        _thoughtProviders = thoughtProviders;
-        _timeMachineFilter = timeMachineFilter;
-        _options = options;
-        _logger = logger;
-    }
-
     public async Task<SyncResult> SyncAsync(CancellationToken ct = default)
     {
         try
         {
             // Select the configured watch state provider, falling back to the first registered
-            var configured = _options.Value.WatchProvider;
-            var watchStateProvider = _watchStateProviders
+            var configured = options.Value.WatchProvider;
+            var watchStateProvider = watchStateProviders
                 .FirstOrDefault(p => p.Metadata.Name.Equals(configured, StringComparison.OrdinalIgnoreCase))
-                ?? _watchStateProviders.FirstOrDefault();
+                ?? watchStateProviders.FirstOrDefault();
 
             if (watchStateProvider == null)
             {
-                _logger.LogError("No watch state providers registered");
+                logger.LogError("No watch state providers registered");
                 return new SyncResult(
                     Status: SyncStatus.Error,
                     Title: null,
                     Metadata: null,
                     AllThoughts: [],
                     TimeMachineThoughts: [],
-                    TimeMachineDays: _options.Value.TimeMachineDays,
+                    TimeMachineDays: options.Value.TimeMachineDays,
                     SourceResults: []);
             }
 
@@ -63,12 +50,12 @@ public class SyncService : ISyncService
                     Metadata: null,
                     AllThoughts: [],
                     TimeMachineThoughts: [],
-                    TimeMachineDays: _options.Value.TimeMachineDays,
+                    TimeMachineDays: options.Value.TimeMachineDays,
                     SourceResults: []);
             }
 
             // Get thoughts from all providers in parallel
-            var thoughtTasks = _thoughtProviders
+            var thoughtTasks = thoughtProviders
                 .Select(provider => provider.GetThoughtsAsync(mediaContext, ct))
                 .ToList();
 
@@ -85,30 +72,36 @@ public class SyncService : ISyncService
                 .ToList();
 
             // Apply time machine filter
-            var timeMachineThoughts = _timeMachineFilter.Apply(
+            var timeMachineThoughts = timeMachineFilter.Apply(
                 allThoughts,
                 mediaContext.ReleaseDate,
-                _options.Value.TimeMachineDays);
+                options.Value.TimeMachineDays);
 
-            return new SyncResult(
+            var result = new SyncResult(
                 Status: SyncStatus.Watching,
                 Title: mediaContext.Title,
                 Metadata: mediaContext,
                 AllThoughts: allThoughts,
                 TimeMachineThoughts: timeMachineThoughts.ToList(),
-                TimeMachineDays: _options.Value.TimeMachineDays,
+                TimeMachineDays: options.Value.TimeMachineDays,
                 SourceResults: sourceResults);
+
+            // Proactively warm the cache for the next episode(s) in the background.
+            if (mediaContext is EpisodeContext episode)
+                prefetchService.SchedulePrefetch(episode);
+
+            return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Sync failed");
+            logger.LogError(ex, "Sync failed");
             return new SyncResult(
                 Status: SyncStatus.Error,
                 Title: null,
                 Metadata: null,
                 AllThoughts: [],
                 TimeMachineThoughts: [],
-                TimeMachineDays: _options.Value.TimeMachineDays,
+                TimeMachineDays: options.Value.TimeMachineDays,
                 SourceResults: []);
         }
     }
