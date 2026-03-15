@@ -4,7 +4,9 @@ using System.Text.Json;
 
 using FluentAssertions;
 
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -21,6 +23,9 @@ namespace WatchBack.Api.Tests;
 
 public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
 {
+    private const string TestUsername = "testadmin";
+    private const string TestPassword = "TestPass1!@#456";
+
     private WebApplicationFactory<Program> _factory = null!;
     private HttpClient _client = null!;
     private string _tempConfigPath = null!;
@@ -28,6 +33,9 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     public async Task InitializeAsync()
     {
         _tempConfigPath = Path.Combine(Path.GetTempPath(), $"watchback-test-{Guid.NewGuid()}.json");
+
+        var hasher = new PasswordHasher<string>();
+        var hash = hasher.HashPassword("", TestPassword);
 
         var mockWatchProvider = Substitute.For<IWatchStateProvider>();
         mockWatchProvider.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
@@ -38,6 +46,15 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Auth:Username"] = TestUsername,
+                        ["Auth:PasswordHash"] = hash,
+                        ["Auth:OnboardingComplete"] = "true",
+                    });
+                });
                 builder.ConfigureServices(services =>
                 {
                     services.RemoveAll<IWatchStateProvider>();
@@ -52,7 +69,14 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
             });
 
         _client = _factory.CreateClient();
-        await Task.CompletedTask;
+        await LoginAsync();
+    }
+
+    private async Task LoginAsync()
+    {
+        var loginBody = new { username = TestUsername, password = TestPassword };
+        var response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task DisposeAsync()

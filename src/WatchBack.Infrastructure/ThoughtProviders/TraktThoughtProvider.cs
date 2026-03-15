@@ -48,7 +48,9 @@ public class TraktThoughtProvider : IThoughtProvider
                 )
             );
 
-    public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, CancellationToken ct = default)
+    public int ExpectedWeight => 1;
+
+    public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
     {
         try
         {
@@ -148,6 +150,10 @@ public class TraktThoughtProvider : IThoughtProvider
         {
             _logger.LogError(ex, "Trakt thought fetch failed");
             return Empty;
+        }
+        finally
+        {
+            progress?.Report(new SyncProgressTick(1, "Trakt"));
         }
     }
 

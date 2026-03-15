@@ -9,5 +9,5 @@ namespace WatchBack.Core.Interfaces;
 /// </summary>
 public interface ISyncService
 {
-    Task<SyncResult> SyncAsync(CancellationToken ct = default);
+    Task<SyncResult> SyncAsync(IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default);
 }

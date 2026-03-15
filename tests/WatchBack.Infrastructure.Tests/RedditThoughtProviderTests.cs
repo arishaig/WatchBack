@@ -265,4 +265,81 @@ public class RedditThoughtProviderTests : IDisposable
         // Assert
         health.IsHealthy.Should().BeTrue();
     }
+
+    [Fact]
+    public void ExpectedWeight_EqualsSearchesPlusMaxThreadsTimesThree()
+    {
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        var provider = new RedditThoughtProvider(
+            new HttpClient(),
+            new OptionsSnapshotStub<RedditOptions>(_options),
+            _cache, treeBuilder,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
+
+        // Default MaxThreads = 3: (4 searches + 3 comment fetches) * 3 weight each
+        provider.ExpectedWeight.Should().Be((4 + _options.MaxThreads) * 3);
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ReportsWeightThreeTickPerSearch()
+    {
+        // Arrange — 1 matching submission so exactly 4 search ticks + 1 comment tick
+        var mediaContext = new EpisodeContext(
+            Title: "Breaking Bad",
+            ReleaseDate: new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            EpisodeTitle: "Pilot",
+            SeasonNumber: 1,
+            EpisodeNumber: 1);
+
+        var submissionsJson = """
+            {
+                "data": [
+                    {
+                        "id": "sub1",
+                        "title": "Breaking Bad S01E01",
+                        "subreddit": "breakingbad",
+                        "score": 100
+                    }
+                ]
+            }
+            """;
+
+        var commentsJson = """{"data": []}""";
+
+        var handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        var provider = new RedditThoughtProvider(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
+
+        var ticks = new System.Collections.Concurrent.ConcurrentBag<SyncProgressTick>();
+        var progress = new CapturingProgress(ticks);
+
+        // Act
+        await provider.GetThoughtsAsync(mediaContext, progress);
+
+        // Assert — 4 submission searches (weight 3 each) + 1 comment fetch (weight 3) = 5 ticks
+        ticks.Should().HaveCount(5);
+        ticks.Should().OnlyContain(t => t.Weight == 3 && t.Provider == "Reddit");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_NullProgress_DoesNotThrow()
+    {
+        var handler = SubmissionAndCommentHandler("""{"data":[]}""", """{"data":[]}""");
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        var provider = new RedditThoughtProvider(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
+
+        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        var act = async () => await provider.GetThoughtsAsync(mediaContext, null);
+        await act.Should().NotThrowAsync();
+    }
+
+    private sealed class CapturingProgress(System.Collections.Concurrent.ConcurrentBag<SyncProgressTick> bag)
+        : IProgress<SyncProgressTick>
+    {
+        public void Report(SyncProgressTick value) => bag.Add(value);
+    }
 }

@@ -277,6 +277,15 @@ internal static class PlaywrightHelpers
         Dictionary<string, object?>? sync = null,
         Dictionary<string, object?>? config = null)
     {
+        // Intercept auth check so the app skips the login form and renders content
+        await page.RouteAsync("**/api/auth/me", route =>
+            route.FulfillAsync(new RouteFulfillOptions
+            {
+                Status = 200,
+                ContentType = "application/json",
+                Body = """{"authenticated":true,"username":"test","needsOnboarding":false,"authMethod":"cookie","forwardAuthHeader":"","onboardingComplete":true}""",
+            }));
+
         // Block SSE so networkidle can settle
         await page.RouteAsync("**/api/sync/stream", route => route.AbortAsync());
 

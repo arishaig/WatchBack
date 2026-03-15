@@ -36,7 +36,9 @@ public class BlueskyThoughtProvider(
                 )
             );
 
-    public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, CancellationToken ct = default)
+    public int ExpectedWeight => 1;
+
+    public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
     {
         try
         {
@@ -123,6 +125,10 @@ public class BlueskyThoughtProvider(
         {
             logger.LogError(ex, "Bluesky thought fetch failed");
             return new ThoughtResult(Source: "Bluesky", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+        }
+        finally
+        {
+            progress?.Report(new SyncProgressTick(1, "Bluesky"));
         }
     }
 

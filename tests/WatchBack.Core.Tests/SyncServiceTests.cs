@@ -82,7 +82,7 @@ public class SyncServiceTests
             Thoughts: [thought],
             NextPageToken: null);
 
-        thoughtProvider.GetThoughtsAsync(Arg.Is(episode), Arg.Any<CancellationToken>()).Returns(thoughtResult);
+        thoughtProvider.GetThoughtsAsync(Arg.Is(episode), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>()).Returns(thoughtResult);
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), episode.ReleaseDate, 14).Returns([thought]);
 
         var thoughtProviders = new[] { thoughtProvider };
@@ -119,11 +119,11 @@ public class SyncServiceTests
         var provider2 = Substitute.For<IThoughtProvider>();
         var provider3 = Substitute.For<IThoughtProvider>();
 
-        provider1.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>())
+        provider1.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Provider1", null, null, null, [], null));
-        provider2.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>())
+        provider2.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Provider2", null, null, null, [], null));
-        provider3.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>())
+        provider3.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Provider3", null, null, null, [], null));
 
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
@@ -135,9 +135,9 @@ public class SyncServiceTests
         await service.SyncAsync();
 
         // Assert - all providers should be called
-        await provider1.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>());
-        await provider2.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>());
-        await provider3.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>());
+        await provider1.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
+        await provider2.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
+        await provider3.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class SyncServiceTests
         };
 
         var thoughtProvider = Substitute.For<IThoughtProvider>();
-        thoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>())
+        thoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Source", null, null, null, allThoughts, null));
 
         var filteredThoughts = new[] { allThoughts[0] }; // Only first thought after filtering
@@ -200,8 +200,8 @@ public class SyncServiceTests
         var result1 = new ThoughtResult("Reddit", "Episode Discussion", "https://reddit.com/...", null, [], null);
         var result2 = new ThoughtResult("Trakt", "Show Comments", "https://trakt.tv/...", null, [], null);
 
-        thoughtProvider1.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>()).Returns(result1);
-        thoughtProvider2.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>()).Returns(result2);
+        thoughtProvider1.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>()).Returns(result1);
+        thoughtProvider2.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>()).Returns(result2);
 
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
 
@@ -257,7 +257,7 @@ public class SyncServiceTests
         };
 
         var thoughtProvider = Substitute.For<IThoughtProvider>();
-        thoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>())
+        thoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Source", null, null, null, thoughts, null));
 
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
@@ -273,5 +273,31 @@ public class SyncServiceTests
         result.AllThoughts[0].Id.Should().Be("2"); // Most recent
         result.AllThoughts[1].Id.Should().Be("1");
         result.AllThoughts[2].Id.Should().Be("3"); // Oldest
+    }
+
+    [Fact]
+    public async Task SyncAsync_ForwardsProgressToAllProviders()
+    {
+        // Arrange
+        var episode = new EpisodeContext("Test", DateTimeOffset.UtcNow, "Ep", 1, 1);
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+
+        var provider1 = Substitute.For<IThoughtProvider>();
+        var provider2 = Substitute.For<IThoughtProvider>();
+        provider1.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("P1", null, null, null, [], null));
+        provider2.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("P2", null, null, null, [], null));
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
+
+        var capturedProgress = Substitute.For<IProgress<SyncProgressTick>>();
+        var service = new SyncService(new[] { _watchStateProvider }, new[] { provider1, provider2 }, _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
+
+        // Act
+        await service.SyncAsync(capturedProgress);
+
+        // Assert — both providers must receive the same progress instance
+        await provider1.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), capturedProgress, Arg.Any<CancellationToken>());
+        await provider2.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), capturedProgress, Arg.Any<CancellationToken>());
     }
 }

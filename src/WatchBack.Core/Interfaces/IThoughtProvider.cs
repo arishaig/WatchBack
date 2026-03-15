@@ -22,5 +22,11 @@ public record ThoughtProviderMetadata(
 /// </summary>
 public interface IThoughtProvider : IDataProvider
 {
-    Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, CancellationToken ct = default);
+    /// <summary>
+    /// Upper bound on the total tick weight this provider will report via IProgress during a full fetch.
+    /// Used to compute the progress bar denominator before fetching begins.
+    /// </summary>
+    int ExpectedWeight { get; }
+
+    Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default);
 }

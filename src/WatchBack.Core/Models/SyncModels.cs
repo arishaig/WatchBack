@@ -19,6 +19,9 @@ public enum SyncStatus
 /// <param name="TimeMachineThoughts">Thoughts filtered to only include those within the Time Machine window</param>
 /// <param name="TimeMachineDays">The number of days Time Machine is configured to filter relative to the air date</param>
 /// <param name="SourceResults">The aggregated results from each ThoughtProvider, including post metadata and Thought collections</param>
+/// <summary>Emitted by each thought provider as work completes, for progress reporting.</summary>
+public record SyncProgressTick(int Weight, string Provider);
+
 public record SyncResult(
     SyncStatus Status,
     string? Title,

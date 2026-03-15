@@ -16,7 +16,7 @@ public class SyncService(
     ILogger<SyncService> logger)
     : ISyncService
 {
-    public async Task<SyncResult> SyncAsync(CancellationToken ct = default)
+    public async Task<SyncResult> SyncAsync(IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
     {
         try
         {
@@ -56,7 +56,7 @@ public class SyncService(
 
             // Get thoughts from all providers in parallel
             var thoughtTasks = thoughtProviders
-                .Select(provider => provider.GetThoughtsAsync(mediaContext, ct))
+                .Select(provider => provider.GetThoughtsAsync(mediaContext, progress, ct))
                 .ToList();
 
             var sourceResults = (await Task.WhenAll(thoughtTasks))

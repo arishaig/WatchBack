@@ -1,7 +1,9 @@
 using System.Text;
+using System.Threading.Channels;
 
 using WatchBack.Api.Models;
 using WatchBack.Core.Interfaces;
+using WatchBack.Core.Models;
 
 namespace WatchBack.Api.Endpoints;
 
@@ -27,30 +29,65 @@ public static class SyncEndpoints
 
     private static async Task<SyncResponse> GetSync(ISyncService syncService, CancellationToken ct)
     {
-        var result = await syncService.SyncAsync(ct);
+        var result = await syncService.SyncAsync(null, ct);
         return MapSyncResult(result);
     }
 
-    private static async Task GetSyncStream(ISyncService syncService, HttpContext context, CancellationToken ct)
+    private static async Task GetSyncStream(
+        ISyncService syncService,
+        IEnumerable<IThoughtProvider> thoughtProviders,
+        HttpContext context,
+        CancellationToken ct)
     {
         context.Response.ContentType = "text/event-stream";
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
 
-        await context.Response.WriteAsync("data: {\"message\": \"Stream started\"}\n\n", ct);
-        await context.Response.Body.FlushAsync(ct);
+        var totalWeight = thoughtProviders.Sum(p => p.ExpectedWeight);
 
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                var result = await syncService.SyncAsync(ct);
+                // Channel lets providers report ticks from any thread without blocking
+                var channel = Channel.CreateUnbounded<SyncProgressTick>(
+                    new UnboundedChannelOptions { SingleReader = true });
+                var progress = new Progress<SyncProgressTick>(
+                    tick => channel.Writer.TryWrite(tick));
+
+                // Emit 0% so the bar appears immediately
+                await context.Response.WriteAsync(
+                    $"data: {{\"completed\":0,\"total\":{totalWeight}}}\n\n", ct);
+                await context.Response.Body.FlushAsync(ct);
+
+                // Start sync; complete the channel when it finishes so ReadAllAsync terminates
+                var syncTask = syncService.SyncAsync(progress, ct);
+                _ = syncTask.ContinueWith(_ => channel.Writer.Complete(), TaskScheduler.Default);
+
+                // Drain progress ticks and forward them to the SSE stream
+                var completed = 0;
+                await foreach (var tick in channel.Reader.ReadAllAsync(ct))
+                {
+                    completed += tick.Weight;
+                    await context.Response.WriteAsync(
+                        $"data: {{\"completed\":{Math.Min(completed, totalWeight)},\"total\":{totalWeight}}}\n\n", ct);
+                    await context.Response.Body.FlushAsync(ct);
+                }
+
+                // Force 100% in case providers reported fewer ticks than expected (e.g. cache hits)
+                if (completed < totalWeight)
+                {
+                    await context.Response.WriteAsync(
+                        $"data: {{\"completed\":{totalWeight},\"total\":{totalWeight}}}\n\n", ct);
+                    await context.Response.Body.FlushAsync(ct);
+                }
+
+                var result = await syncTask;
                 var response = MapSyncResult(result);
                 var json = System.Text.Json.JsonSerializer.Serialize(response, Serialization.WatchBackJsonContext.Default.SyncResponse);
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
 
-                // Poll interval - 5 seconds
                 await Task.Delay(5000, ct);
             }
             catch (OperationCanceledException)

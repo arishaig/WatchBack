@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -76,6 +77,11 @@ builder.Services
 builder.Services
     .AddOptions<AuthOptions>()
     .BindConfiguration("Auth");
+
+// Persist Data Protection keys so session cookies survive restarts
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dbDirectory ?? "."))
+    .SetApplicationName("WatchBack");
 
 // Add infrastructure providers
 builder.Services.AddWatchBackInfrastructure();
@@ -186,6 +192,7 @@ app.MapAuthEndpoints(); // public auth endpoints
 var protectedGroup = app.MapGroup("").RequireAuthorization();
 protectedGroup.MapSyncEndpoints();
 protectedGroup.MapConfigEndpoints();
+protectedGroup.MapSystemEndpoints();
 
 // Map fallback to index.html for SPA
 app.MapFallbackToFile("index.html");

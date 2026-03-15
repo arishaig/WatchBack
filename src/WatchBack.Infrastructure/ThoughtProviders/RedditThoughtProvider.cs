@@ -36,7 +36,9 @@ public class RedditThoughtProvider(
                 )
             );
 
-    public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, CancellationToken ct = default)
+    public int ExpectedWeight => (4 + _options.MaxThreads) * 3;
+
+    public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
     {
         try
         {
@@ -100,6 +102,10 @@ public class RedditThoughtProvider(
                 {
                     logger.LogWarning(ex, "PullPush submission search exception for query '{Query}'", titleQuery);
                 }
+                finally
+                {
+                    progress?.Report(new SyncProgressTick(3, "Reddit"));
+                }
             }
 
             // Log raw results before filtering so we can diagnose misses
@@ -162,6 +168,7 @@ public class RedditThoughtProvider(
                 // Get comments for this submission via PullPush
                 var commentsUrl = $"https://api.pullpush.io/reddit/search/comment/?link_id={Uri.EscapeDataString(submission.Id)}&size={_options.MaxComments}&sort_type=score&sort=desc";
                 var commentsResponse = await httpClient.GetAsync(commentsUrl, ct);
+                progress?.Report(new SyncProgressTick(3, "Reddit"));
 
                 if (!commentsResponse.IsSuccessStatusCode)
                 {

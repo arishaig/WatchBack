@@ -108,6 +108,8 @@ document.addEventListener('alpine:init', () => {
         setupLoading: false,
         currentUser: null,
         resetPasswordStatus: null,
+        syncProgress: null,
+        clearCacheStatus: null,
         forwardAuthEnabled: false,
         forwardAuthHeaderEdit: '',
         forwardAuthSaveStatus: null,
@@ -274,14 +276,54 @@ document.addEventListener('alpine:init', () => {
             setTimeout(() => { this.forwardAuthSaveStatus = null; }, 3000);
         },
 
+        async clearCache() {
+            this.clearCacheStatus = 'loading';
+            try {
+                const res = await fetch('/api/system/clear-cache', { method: 'POST' });
+                const data = await res.json();
+                this.clearCacheStatus = data.ok ? 'ok' : 'error';
+            } catch {
+                this.clearCacheStatus = 'error';
+            }
+            setTimeout(() => { this.clearCacheStatus = null; }, 3000);
+        },
+
+        async restart() {
+            this.showConfig = false;
+            this.restartStatus = 'loading';
+            try {
+                await fetch('/api/system/restart', { method: 'POST' });
+            } catch {
+                // Network error is expected as the server shuts down — continue polling
+            }
+            // Show the full-screen loading spinner while waiting for the server to come back
+            this.initialized = false;
+            this.authState = 'checking';
+            // Poll /api/auth/me until the server responds, then re-initialize
+            while (true) {
+                await new Promise(r => setTimeout(r, 1000));
+                try {
+                    const res = await fetch('/api/auth/me');
+                    if (res.ok) { await this.init(); return; }
+                } catch {
+                    // still down — keep polling
+                }
+            }
+        },
+
         setupSSE() {
             const es = new ReconnectingEventSource('/api/sync/stream', { max_retry_time: 60000 });
             es.onmessage = (e) => {
                 if (e.data) {
                     try {
                         const data = JSON.parse(e.data.replace(/^data: /, ''));
+                        if (data.completed !== undefined) {
+                            this.syncProgress = { completed: data.completed, total: data.total };
+                            return;
+                        }
                         // Only accept real sync responses (must have a status field)
                         if (!data?.status) return;
+                        this.syncProgress = null;
                         console.debug("[WatchBack] SSE update:", data);
                         this.data = data;
                     } catch (err) {

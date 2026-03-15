@@ -226,4 +226,79 @@ public class BlueskyThoughtProviderTests : IDisposable
         // Assert
         health.IsHealthy.Should().BeTrue();
     }
+
+    [Fact]
+    public void ExpectedWeight_IsOne()
+    {
+        var provider = new BlueskyThoughtProvider(
+            new HttpClient(),
+            new OptionsSnapshotStub<BlueskyOptions>(_options),
+            _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        provider.ExpectedWeight.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ReportsOneTickWithWeightOne()
+    {
+        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+
+        var tokenJson = """{"accessJwt":"test-token"}""";
+        var searchJson = """{"posts":[]}""";
+
+        var responses = new Queue<HttpResponseMessage>(new[]
+        {
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) },
+        });
+
+        var handler = new MockHttpMessageHandler(() => responses.Dequeue());
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        var ticks = new System.Collections.Concurrent.ConcurrentBag<SyncProgressTick>();
+        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
+
+        ticks.Should().ContainSingle(t => t.Weight == 1 && t.Provider == "Bluesky");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ReportsTickEvenOnAuthFailure()
+    {
+        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        var handler = new MockHttpMessageHandler(() =>
+            new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
+
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, Substitute.For<IReplyTreeBuilder>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        var ticks = new System.Collections.Concurrent.ConcurrentBag<SyncProgressTick>();
+        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
+
+        ticks.Should().ContainSingle(t => t.Weight == 1 && t.Provider == "Bluesky");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_NullProgress_DoesNotThrow()
+    {
+        var handler = new MockHttpMessageHandler(() =>
+            new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
+        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, Substitute.For<IReplyTreeBuilder>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        var act = async () => await provider.GetThoughtsAsync(mediaContext, null);
+        await act.Should().NotThrowAsync();
+    }
+
+    private sealed class CapturingProgress(System.Collections.Concurrent.ConcurrentBag<SyncProgressTick> bag)
+        : IProgress<SyncProgressTick>
+    {
+        public void Report(SyncProgressTick value) => bag.Add(value);
+    }
 }

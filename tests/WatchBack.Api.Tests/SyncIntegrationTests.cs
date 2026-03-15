@@ -1,9 +1,12 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 
 using FluentAssertions;
 
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -20,6 +23,9 @@ namespace WatchBack.Api.Tests;
 
 public class SyncIntegrationTests : IAsyncLifetime
 {
+    private const string TestUsername = "testadmin";
+    private const string TestPassword = "TestPass1!@#456";
+
     private WebApplicationFactory<Program> _factory = null!;
     private HttpClient _client = null!;
     private IWatchStateProvider _mockWatchProvider = null!;
@@ -32,9 +38,21 @@ public class SyncIntegrationTests : IAsyncLifetime
         _mockThoughtProvider = Substitute.For<IThoughtProvider>();
         _mockThoughtProvider.Metadata.Returns(new ThoughtProviderMetadata("Test", "Test", new BrandData("", "")));
 
+        var hasher = new PasswordHasher<string>();
+        var hash = hasher.HashPassword("", TestPassword);
+
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Auth:Username"] = TestUsername,
+                        ["Auth:PasswordHash"] = hash,
+                        ["Auth:OnboardingComplete"] = "true",
+                    });
+                });
                 builder.ConfigureServices(services =>
                 {
                     // Remove the real provider registrations
@@ -48,7 +66,14 @@ public class SyncIntegrationTests : IAsyncLifetime
             });
 
         _client = _factory.CreateClient();
-        await Task.CompletedTask;
+        await LoginAsync();
+    }
+
+    private async Task LoginAsync()
+    {
+        var loginBody = new { username = TestUsername, password = TestPassword };
+        var response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task DisposeAsync()
@@ -103,7 +128,7 @@ public class SyncIntegrationTests : IAsyncLifetime
             Source: "TestSource",
             Replies: []);
 
-        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>())
+        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("TestSource", "Episode Discussion", "http://example.com", null, [thought], null));
 
         // Act
@@ -134,7 +159,7 @@ public class SyncIntegrationTests : IAsyncLifetime
 
         // First provider
         var thought1 = new Thought("1", null, null, "Great!", null, [], "User1", 5, DateTimeOffset.UtcNow, "Reddit", []);
-        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>())
+        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Reddit", "Discussion", "http://reddit.com", null, [thought1], null));
 
         // Act
@@ -184,7 +209,7 @@ public class SyncIntegrationTests : IAsyncLifetime
         _mockWatchProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>())
             .Returns(episode);
 
-        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>())
+        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Source", null, null, null, [], null));
 
         // Act
@@ -220,7 +245,7 @@ public class SyncIntegrationTests : IAsyncLifetime
             new Thought("3", null, null, "Middle", null, [], "Author", 0, now.AddHours(-1), "Source", []),
         };
 
-        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<CancellationToken>())
+        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Source", null, null, null, thoughts, null));
 
         // Act

@@ -104,7 +104,7 @@ public class PrefetchService(
             {
                 try
                 {
-                    await provider.GetThoughtsAsync(target, ct);
+                    await provider.GetThoughtsAsync(target, null, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {

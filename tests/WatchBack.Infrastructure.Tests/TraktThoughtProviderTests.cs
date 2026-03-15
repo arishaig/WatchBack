@@ -197,4 +197,81 @@ public class TraktThoughtProviderTests : IDisposable
         // Assert
         health.IsHealthy.Should().BeTrue();
     }
+
+    [Fact]
+    public void ExpectedWeight_IsOne()
+    {
+        var provider = new TraktThoughtProvider(
+            new HttpClient(),
+            new OptionsSnapshotStub<TraktOptions>(_options),
+            _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        provider.ExpectedWeight.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ReportsOneTickWithWeightOne()
+    {
+        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+
+        var searchJson = """[{"show":{"ids":{"trakt":1},"title":"Breaking Bad"}}]""";
+        var commentsJson = """[]""";
+
+        var responses = new Queue<HttpResponseMessage>(new[]
+        {
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) },
+        });
+
+        var handler = new MockHttpMessageHandler(() => responses.Dequeue());
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        var ticks = new System.Collections.Concurrent.ConcurrentBag<SyncProgressTick>();
+        var progress = new CapturingProgress(ticks);
+
+        await provider.GetThoughtsAsync(mediaContext, progress);
+
+        ticks.Should().ContainSingle(t => t.Weight == 1 && t.Provider == "Trakt");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ReportsTickEvenOnError()
+    {
+        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        var handler = new MockHttpMessageHandler(() =>
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, Substitute.For<IReplyTreeBuilder>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        var ticks = new System.Collections.Concurrent.ConcurrentBag<SyncProgressTick>();
+        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
+
+        ticks.Should().ContainSingle(t => t.Weight == 1 && t.Provider == "Trakt");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_NullProgress_DoesNotThrow()
+    {
+        var handler = new MockHttpMessageHandler(() =>
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, Substitute.For<IReplyTreeBuilder>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        var act = async () => await provider.GetThoughtsAsync(mediaContext, null);
+        await act.Should().NotThrowAsync();
+    }
+
+    private sealed class CapturingProgress(System.Collections.Concurrent.ConcurrentBag<SyncProgressTick> bag)
+        : IProgress<SyncProgressTick>
+    {
+        public void Report(SyncProgressTick value) => bag.Add(value);
+    }
 }

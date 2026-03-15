@@ -35,6 +35,15 @@
         <div class="wb-spinner" role="status"></div>
     </div>
 
+    <!-- SSE sync progress bar -->
+    <div x-show="syncProgress && syncProgress.total > 0" x-cloak
+        class="fixed top-0 left-0 right-0 z-[150]" style="height:3px;background:var(--wb-border)"
+        role="progressbar" :aria-valuenow="syncProgress?.completed" :aria-valuemax="syncProgress?.total">
+        <div class="h-full transition-all duration-300 ease-out" style="background:var(--wb-accent)"
+            :style="`width:${syncProgress ? Math.round(syncProgress.completed / syncProgress.total * 100) : 0}%`">
+        </div>
+    </div>
+
     <!-- Login -->
     <div x-show="authState === 'login'" x-cloak
         class="fixed inset-0 z-[200] flex items-center justify-center p-4"
@@ -343,11 +352,11 @@
                     <div class="px-4 py-2.5" style="background:var(--wb-error-bg);border-bottom:1px solid var(--wb-error-border)">
                         <h2 class="text-xs font-semibold" style="color:var(--wb-error-text)">Danger zone</h2>
                     </div>
-                    <div class="p-3 flex gap-3">
+                    <div class="p-3 grid grid-cols-2 gap-3">
 
                         <!-- Reset password card (hidden for forward auth users) -->
                         <template x-if="currentUser?.authMethod !== 'forwardAuth'">
-                            <div class="flex-1 rounded-lg p-3 flex flex-col gap-3 wb-border border">
+                            <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
                                 <div>
                                     <p class="text-xs font-semibold wb-text-secondary">Reset password</p>
                                     <p class="text-xs wb-text-faint mt-1 leading-relaxed">Generate a new random password and print it to the server logs.</p>
@@ -363,14 +372,45 @@
                             </div>
                         </template>
 
+                        <!-- Clear cache card -->
+                        <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
+                            <div>
+                                <p class="text-xs font-semibold wb-text-secondary">Clear cache</p>
+                                <p class="text-xs wb-text-faint mt-1 leading-relaxed">Evict all in-memory thought caches. Useful after changing provider settings.</p>
+                            </div>
+                            <button @click="void clearCache()"
+                                :disabled="clearCacheStatus === 'loading'"
+                                aria-live="polite"
+                                class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50 wb-btn"
+                                style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
+                                :class="clearCacheStatus === 'ok' ? 'test-ok' : clearCacheStatus === 'error' ? 'test-error' : ''"
+                                x-text="clearCacheStatus === 'loading' ? 'Clearing\u2026' : clearCacheStatus === 'ok' ? 'Cleared \u2713' : clearCacheStatus === 'error' ? 'Error \u2717' : 'Clear Cache'">
+                            </button>
+                        </div>
+
+                        <!-- Restart card -->
+                        <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
+                            <div>
+                                <p class="text-xs font-semibold wb-text-secondary">Restart</p>
+                                <p class="text-xs wb-text-faint mt-1 leading-relaxed">Gracefully stop the server. Your host (Docker, systemd) should restart it automatically.</p>
+                            </div>
+                            <button @click="void restart()"
+                                aria-live="polite"
+                                class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer wb-btn"
+                                style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)">
+                                Restart
+                            </button>
+                        </div>
+
                         <!-- Forward auth card -->
-                        <div class="flex-1 rounded-lg p-3 flex flex-col gap-3 wb-border border">
+                        <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
                             <div>
                                 <p class="text-xs font-semibold wb-text-secondary">Forward auth</p>
                                 <p class="text-xs wb-text-faint mt-1 leading-relaxed">Trust a header set by your reverse proxy instead of requiring a password.</p>
                             </div>
                             <label class="switch-container">
                                 <input id="forward-auth-toggle" type="checkbox" class="switch-input"
+                                    aria-label="Enable forward auth"
                                     :checked="forwardAuthEnabled"
                                     @change="forwardAuthEnabled = $event.target.checked">
                                 <span class="switch-slider"></span>
