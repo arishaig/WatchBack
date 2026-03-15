@@ -238,7 +238,7 @@ document.addEventListener('alpine:init', () => {
             for (const c of thoughts) {
                 const key = c.postTitle || '';
                 if (!map.has(key)) {
-                    const g = { title: c.postTitle || null, url: c.postUrl || null, thoughts: [] };
+                    const g = { title: c.postTitle || null, url: c.postUrl || null, body: c.postBody || null, thoughts: [] };
                     map.set(key, g);
                     groups.push(g);
                 }

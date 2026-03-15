@@ -31,7 +31,8 @@ public record ThoughtResponse(
     string Source,
     IReadOnlyList<ThoughtResponse> Replies,
     string? PostTitle = null,
-    string? PostUrl = null);
+    string? PostUrl = null,
+    string? PostBody = null);
 
 public record ThoughtImageResponse(
     string Url,

@@ -314,9 +314,14 @@
                         <div :class="groupByThread && group.title ? 'thread-group' : ''"
                             :style="groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's' : ''">
                             <template x-if="groupByThread && group.title">
-                                <a :href="group.url" target="_blank" rel="noopener noreferrer"
-                                    class="block text-xs thread-title mb-2 truncate leading-tight font-semibold"
-                                    x-text="group.title"></a>
+                                <div>
+                                    <a :href="group.url" target="_blank" rel="noopener noreferrer"
+                                        class="block text-xs thread-title mb-1 truncate leading-tight font-semibold"
+                                        x-text="group.title"></a>
+                                    <div x-show="group.body"
+                                        class="text-xs wb-text-muted leading-relaxed mb-2 wb-md"
+                                        x-html="renderMarkdown(group.body || '')"></div>
+                                </div>
                             </template>
                             <div
                                 :class="groupByThread && group.title ? 'ml-2 border-l-2 reply-border pl-3 space-y-3' : (groupByThread ? 'space-y-3' : '')">

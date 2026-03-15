@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -136,6 +137,18 @@ public class RedditThoughtProvider(
                     : $"https://reddit.com/r/{submission.Subreddit}/comments/{submission.Id}/";
                 var thisPostTitle = submission.Title;
 
+                // Capture OP selftext for self-posts (not deleted/removed),
+                // collapsing runs of 3+ newlines down to 2 (one blank line)
+                var selftext = submission.Selftext;
+                string? thisPostBody = null;
+                if (submission.IsSelf &&
+                    !string.IsNullOrWhiteSpace(selftext) &&
+                    !selftext.Equals("[deleted]", StringComparison.Ordinal) &&
+                    !selftext.Equals("[removed]", StringComparison.Ordinal))
+                {
+                    thisPostBody = CollapseNewlines(selftext);
+                }
+
                 if (postTitle == null)
                 {
                     postTitle = thisPostTitle;
@@ -143,31 +156,6 @@ public class RedditThoughtProvider(
                 }
 
                 var threadThoughts = new List<Thought>();
-
-                // Prepend the OP selftext as a root thought for self-posts
-                var selftext = submission.Selftext;
-                if (submission.IsSelf &&
-                    !string.IsNullOrWhiteSpace(selftext) &&
-                    !selftext.Equals("[deleted]", StringComparison.Ordinal) &&
-                    !selftext.Equals("[removed]", StringComparison.Ordinal))
-                {
-                    threadThoughts.Add(new Thought(
-                        Id: $"reddit:{submission.Id}",
-                        ParentId: null,
-                        Title: submission.Title,
-                        Content: selftext,
-                        Url: thisPostUrl,
-                        Images: [],
-                        Author: submission.Author ?? "Unknown",
-                        Score: submission.Score,
-                        CreatedAt: submission.CreatedUtc.HasValue
-                            ? DateTimeOffset.FromUnixTimeSeconds(submission.CreatedUtc.Value)
-                            : DateTimeOffset.UtcNow,
-                        Source: "Reddit",
-                        Replies: [],
-                        PostTitle: thisPostTitle,
-                        PostUrl: thisPostUrl));
-                }
 
                 // Get comments for this submission via PullPush
                 var commentsUrl = $"https://api.pullpush.io/reddit/search/comment/?link_id={Uri.EscapeDataString(submission.Id)}&size={_options.MaxComments}&sort_type=score&sort=desc";
@@ -188,7 +176,7 @@ public class RedditThoughtProvider(
                 var comments = commentsList?.Data ?? [];
                 logger.LogInformation("PullPush: thread {ThreadId} ({Title}) returned {Count} comment(s)", submission.Id, submission.Title, comments.Length);
                 threadThoughts.AddRange(comments
-                    .Select(c => MapCommentToThought(c, thisPostTitle, thisPostUrl))
+                    .Select(c => MapCommentToThought(c, thisPostTitle, thisPostUrl, thisPostBody))
                     .Where(t => !IsDeletedOrRemoved(t)));
 
                 allThoughts.AddRange(threadThoughts);
@@ -234,16 +222,21 @@ public class RedditThoughtProvider(
         }
     }
 
-    private static Thought MapCommentToThought(PullPushCommentDto data, string? postTitle, string? postUrl)
+    private static Thought MapCommentToThought(PullPushCommentDto data, string? postTitle, string? postUrl, string? postBody)
     {
         var parentId = StripRedditPrefix(data.ParentId);
+
+        // Build per-comment permalink: {postUrl}{commentId}/
+        var commentUrl = postUrl != null && data.Id != null
+            ? $"{postUrl.TrimEnd('/')}/{Uri.EscapeDataString(data.Id)}/"
+            : null;
 
         return new Thought(
             Id: $"reddit:{data.Id}",
             ParentId: parentId,
             Title: null,
             Content: data.Body ?? "",
-            Url: null,
+            Url: commentUrl,
             Images: [],
             Author: data.Author ?? "Unknown",
             Score: data.Score,
@@ -253,7 +246,8 @@ public class RedditThoughtProvider(
             Source: "Reddit",
             Replies: [],
             PostTitle: postTitle,
-            PostUrl: postUrl);
+            PostUrl: postUrl,
+            PostBody: postBody);
     }
 
     private static string? StripRedditPrefix(string? redditId)
@@ -261,16 +255,21 @@ public class RedditThoughtProvider(
         if (string.IsNullOrEmpty(redditId))
             return null;
 
-        // Strip type prefix (t1_ = comment, t3_ = submission) and re-add "reddit:"
-        // so parentIds match the "reddit:{id}" format used for thought IDs.
-        if (redditId.StartsWith("t1_", StringComparison.Ordinal) ||
-            redditId.StartsWith("t3_", StringComparison.Ordinal))
-        {
+        // t3_ prefix = parent is the submission itself → top-level comment
+        if (redditId.StartsWith("t3_", StringComparison.Ordinal))
+            return null;
+
+        // t1_ prefix = parent is another comment → re-add "reddit:" to match thought IDs
+        if (redditId.StartsWith("t1_", StringComparison.Ordinal))
             return string.Concat("reddit:", redditId.AsSpan(3));
-        }
 
         return redditId;
     }
+
+    private static readonly Regex ExcessiveNewlines = new(@"\n{3,}", RegexOptions.Compiled);
+
+    private static string CollapseNewlines(string text) =>
+        ExcessiveNewlines.Replace(text.Trim(), "\n\n");
 
     private static bool MatchesEpisode(string title, int season, int episode)
     {

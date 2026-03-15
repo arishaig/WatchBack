@@ -233,7 +233,7 @@ public class RedditThoughtProviderTests : IDisposable
         // Assert
         capturedThoughts.Should().HaveCount(2);
         var topLevel = capturedThoughts.Single(t => t.Content == "Top level comment");
-        topLevel.ParentId.Should().Be("reddit:sub1"); // Stripped t3_ prefix, prepended "reddit:"
+        topLevel.ParentId.Should().BeNull(); // t3_ prefix = reply to submission, treated as top-level
 
         var reply = capturedThoughts.Single(t => t.Content == "Reply to top level");
         reply.ParentId.Should().Be("reddit:c1"); // Stripped t1_ prefix, prepended "reddit:"

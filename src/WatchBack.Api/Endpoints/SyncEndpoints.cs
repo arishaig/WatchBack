@@ -38,7 +38,7 @@ public static class SyncEndpoints
             {
                 var result = await syncService.SyncAsync(ct);
                 var response = MapSyncResult(result);
-                var json = System.Text.Json.JsonSerializer.Serialize(response);
+                var json = System.Text.Json.JsonSerializer.Serialize(response, Serialization.WatchBackJsonContext.Default.SyncResponse);
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
 
@@ -99,7 +99,8 @@ public static class SyncEndpoints
             Source: thought.Source,
             Replies: thought.Replies.Select(MapThought).ToList(),
             PostTitle: thought.PostTitle,
-            PostUrl: thought.PostUrl);
+            PostUrl: thought.PostUrl,
+            PostBody: thought.PostBody);
     }
 
     private static SourceResultResponse MapSourceResult(Core.Models.ThoughtResult result)
