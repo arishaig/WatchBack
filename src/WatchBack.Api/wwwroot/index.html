@@ -23,7 +23,7 @@
 <body class="antialiased font-sans p-4" x-data="app()">
 
     <!-- Loading state (full-screen, shown during initial load) -->
-    <div x-show="!initialized" class="wb-overlay"
+    <div x-show="!initialized && authState === 'checking'" class="wb-overlay"
         style="background-color:var(--wb-bg,#1a1a2e);z-index:100;">
         <div class="wb-spinner" role="status"></div>
     </div>
@@ -35,24 +35,114 @@
         <div class="wb-spinner" role="status"></div>
     </div>
 
+    <!-- Login -->
+    <div x-show="authState === 'login'" x-cloak
+        class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+        style="background-color: var(--wb-bg);">
+        <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
+            <div class="flex items-center justify-center gap-3 mb-8">
+                <img src="/watchback.png" alt="WatchBack Logo" class="w-10 h-10 object-contain wb-logo">
+                <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
+            </div>
+            <form @submit.prevent="void login()">
+                <div class="space-y-4">
+                    <div>
+                        <label for="login-username" class="text-xs font-medium wb-text-muted block mb-1">Username</label>
+                        <input id="login-username" type="text" x-model="loginUsername"
+                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                            autocomplete="username" :placeholder="onboardingComplete ? '' : 'watchback'">
+                    </div>
+                    <div>
+                        <label for="login-password" class="text-xs font-medium wb-text-muted block mb-1">Password</label>
+                        <input id="login-password" type="password" x-model="loginPassword"
+                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                            autocomplete="current-password">
+                    </div>
+                    <div x-show="loginError" class="text-xs text-center py-1" style="color:var(--wb-error-text)" x-text="loginError"></div>
+                    <button type="submit" :disabled="loginLoading"
+                        class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer wb-btn disabled:opacity-50"
+                        style="background-color:var(--wb-accent);"
+                        x-text="loginLoading ? 'Signing in\u2026' : 'Sign In'"></button>
+                </div>
+            </form>
+            <div x-show="!onboardingComplete" class="mt-6 space-y-4">
+                <!-- Theme picker -->
+                <div>
+                    <label class="text-xs font-medium wb-text-faint block mb-1">Theme</label>
+                    <div class="wb-select-wrap">
+                        <select x-model="theme" @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
+                            aria-label="Theme"
+                            class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-xs border">
+                            <template x-for="t in themes" :key="t.id">
+                                <option :value="t.id" x-text="t.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <!-- Docker log hint -->
+                <div class="text-xs wb-text-faint space-y-1.5">
+                    <p>Initial credentials are in the server logs:</p>
+                    <code class="block wb-surface-alt wb-border border rounded px-2.5 py-2 wb-text-muted font-mono text-[11px] select-all">docker logs &lt;container-name&gt;</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onboarding -->
+    <div x-show="authState === 'onboarding'" x-cloak
+        class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+        style="background-color: var(--wb-bg);">
+        <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
+            <div class="flex items-center justify-center gap-3 mb-4">
+                <img src="/watchback.png" alt="WatchBack Logo" class="w-8 h-8 object-contain wb-logo">
+                <h1 class="text-xl font-bold wb-accent-text">Set Up Account</h1>
+            </div>
+            <p class="text-xs wb-text-muted text-center mb-6">Choose a permanent username and password to continue.</p>
+            <form @submit.prevent="void setupAccount()">
+                <div class="space-y-4">
+                    <div>
+                        <label for="setup-username" class="text-xs font-medium wb-text-muted block mb-1">New Username</label>
+                        <input id="setup-username" type="text" x-model="setupUsername"
+                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                            autocomplete="username" placeholder="Choose a username">
+                    </div>
+                    <div>
+                        <label for="setup-password" class="text-xs font-medium wb-text-muted block mb-1">New Password</label>
+                        <input id="setup-password" type="password" x-model="setupPassword"
+                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                            autocomplete="new-password" placeholder="Choose a strong password">
+                    </div>
+                    <div x-show="setupError" class="text-xs text-center py-1" style="color:var(--wb-error-text)" x-text="setupError"></div>
+                    <button type="submit" :disabled="setupLoading"
+                        class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer wb-btn disabled:opacity-50"
+                        style="background-color:var(--wb-accent);"
+                        x-text="setupLoading ? 'Saving\u2026' : 'Complete Setup'"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Main app -->
     <div x-show="initialized" x-cloak class="wb-app mx-auto overflow-x-hidden pb-8">
 
         <header class="flex justify-between items-center mb-6 mt-2">
             <div class="flex items-center gap-3">
-                <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
+                <img src="/watchback.png" alt="WatchBack Logo" class="w-10 h-10 object-contain wb-logo">
+                <h1 class="text-2xl font-bold wb-accent-text hide-on-mobile">WatchBack</h1>
             </div>
             <div class="flex gap-2">
+                <button x-show="currentUser && currentUser.authMethod !== 'forwardAuth'" x-cloak
+                    @click="void logout()"
+                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface-alt wb-text-muted wb-border border"
+                    title="Sign out">
+                    <ion-icon name="log-out-sharp" aria-hidden="true"></ion-icon>
+                </button>
                 <button @click="showConfig = !showConfig"
                     :class="showConfig ? 'wb-surface-alt wb-text' : 'wb-surface-alt wb-text-muted'"
                     class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-border border"
                     title="Configuration">
                     <ion-icon name="settings-sharp" aria-hidden="true"></ion-icon>
                 </button>
-                <a href="/swagger/index.html" target="_blank" title="API Documentation"
-                    class="wb-surface-alt wb-text-muted px-3 py-2 rounded-lg text-sm leading-none cursor-pointer wb-btn wb-border border flex items-center">
-                    <ion-icon name="help-circle-sharp" aria-hidden="true"></ion-icon>
-                </a>
                 <button @click="void sync()"
                     class="wb-on-accent px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer wb-btn wb-border border"
                     style="background-color: var(--wb-accent);" :disabled="isLoading">
@@ -74,7 +164,8 @@
             role="alert">
             <span x-text="error"></span>
             <button @click="error = null; clearTimeout(errorTimer)"
-                class="ml-3 shrink-0 text-xs font-bold cursor-pointer opacity-70 hover:opacity-100"
+                class="ml-2 shrink-0 cursor-pointer opacity-70 hover:opacity-100 flex items-center justify-center"
+                style="min-width:2.75rem;min-height:2.75rem"
                 aria-label="Dismiss">
                 <ion-icon name="close-sharp" aria-hidden="true"></ion-icon>
             </button>
@@ -122,7 +213,7 @@
                                             class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                                         <button x-show="field.type === 'password'"
                                             type="button"
-                                            @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
+                                            @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
                                             :aria-label="showSecret ? 'Hide value' : 'Show value'"
                                             :aria-pressed="showSecret"
                                             class="wb-eye-btn">
@@ -203,17 +294,15 @@
                     <h2 class="text-sm font-semibold wb-text-secondary mb-3">Preferences</h2>
 
                     <div class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <label class="text-xs font-medium wb-text-muted">Theme</label>
+                        <div>
+                            <label class="text-xs font-medium wb-text-muted block mb-1">Theme</label>
                             <div class="wb-select-wrap">
                                 <select x-model="theme" @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
                                     aria-label="Theme"
-                                    class="wb-select wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
-                                    <option value="dark">Dark</option>
-                                    <option value="light">Light</option>
-                                    <option value="solarized-dark">Solarized Dark</option>
-                                    <option value="solarized-light">Solarized Light</option>
-                                    <option value="monokai">Monokai</option>
+                                    class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                    <template x-for="t in themes" :key="t.id">
+                                        <option :value="t.id" x-text="t.label"></option>
+                                    </template>
                                 </select>
                             </div>
                         </div>
@@ -234,12 +323,9 @@
 
                         <div>
                             <label for="time-machine-days" class="text-xs font-medium wb-text-muted block mb-1">Time Machine Window</label>
-                            <div class="flex items-center gap-2">
-                                <input type="number" min="1" max="365" id="time-machine-days"
-                                    x-model.number="prefEdits.timeMachineDays"
-                                    class="w-24 wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
-                                <span class="text-xs wb-text-faint">days</span>
-                            </div>
+                            <input type="number" min="1" max="365" id="time-machine-days"
+                                x-model.number="prefEdits.timeMachineDays"
+                                class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                         </div>
 
                         <button @click="void savePreferences()"
@@ -249,6 +335,70 @@
                             :class="prefSaveStatus === 'saved' ? 'test-ok' : prefSaveStatus === 'error' ? 'test-error' : 'wb-text-muted'"
                             x-text="prefSaveStatus === 'saving' ? 'Saving\u2026' : prefSaveStatus === 'saved' ? 'Saved \u2713' : prefSaveStatus === 'error' ? 'Error \u2717' : 'Save Preferences'">
                         </button>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════ Danger zone ═══════════════════ -->
+                <div class="mt-5 rounded-xl overflow-hidden" style="border:1px solid var(--wb-error-border)">
+                    <div class="px-4 py-2.5" style="background:var(--wb-error-bg);border-bottom:1px solid var(--wb-error-border)">
+                        <h2 class="text-xs font-semibold" style="color:var(--wb-error-text)">Danger zone</h2>
+                    </div>
+                    <div class="p-3 flex gap-3">
+
+                        <!-- Reset password card (hidden for forward auth users) -->
+                        <template x-if="currentUser?.authMethod !== 'forwardAuth'">
+                            <div class="flex-1 rounded-lg p-3 flex flex-col gap-3 wb-border border">
+                                <div>
+                                    <p class="text-xs font-semibold wb-text-secondary">Reset password</p>
+                                    <p class="text-xs wb-text-faint mt-1 leading-relaxed">Generate a new random password and print it to the server logs.</p>
+                                </div>
+                                <button @click="void resetPassword()"
+                                    :disabled="resetPasswordStatus === 'loading'"
+                                    aria-live="polite"
+                                    class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50 wb-btn"
+                                    style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
+                                    :class="resetPasswordStatus === 'ok' ? 'test-ok' : resetPasswordStatus === 'error' ? 'test-error' : ''"
+                                    x-text="resetPasswordStatus === 'loading' ? 'Resetting\u2026' : resetPasswordStatus === 'ok' ? 'Done \u2014 check logs \u2713' : resetPasswordStatus === 'error' ? 'Error \u2717' : 'Reset Password'">
+                                </button>
+                            </div>
+                        </template>
+
+                        <!-- Forward auth card -->
+                        <div class="flex-1 rounded-lg p-3 flex flex-col gap-3 wb-border border">
+                            <div>
+                                <p class="text-xs font-semibold wb-text-secondary">Forward auth</p>
+                                <p class="text-xs wb-text-faint mt-1 leading-relaxed">Trust a header set by your reverse proxy instead of requiring a password.</p>
+                            </div>
+                            <label class="switch-container">
+                                <input id="forward-auth-toggle" type="checkbox" class="switch-input"
+                                    :checked="forwardAuthEnabled"
+                                    @change="forwardAuthEnabled = $event.target.checked">
+                                <span class="switch-slider"></span>
+                            </label>
+                            <template x-if="forwardAuthEnabled">
+                                <div class="space-y-2">
+                                    <div>
+                                        <label for="forward-auth-header" class="text-xs font-medium wb-text-muted block mb-1">Header name</label>
+                                        <input id="forward-auth-header" type="text" x-model="forwardAuthHeaderEdit"
+                                            placeholder="X-Remote-User"
+                                            class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                    </div>
+                                    <div class="rounded-lg px-3 py-2 text-xs leading-relaxed"
+                                        style="background:var(--wb-error-bg);color:var(--wb-error-text);border:1px solid var(--wb-error-border)">
+                                        Only safe behind a trusted reverse proxy that sets this header after authenticating the user. If the app is directly reachable from the internet, anyone can bypass auth by sending this header.
+                                    </div>
+                                </div>
+                            </template>
+                            <button @click="void saveForwardAuth()"
+                                :disabled="forwardAuthSaveStatus === 'saving'"
+                                aria-live="polite"
+                                class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50 wb-btn"
+                                style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
+                                :class="forwardAuthSaveStatus === 'saved' ? 'test-ok' : forwardAuthSaveStatus === 'error' ? 'test-error' : ''"
+                                x-text="forwardAuthSaveStatus === 'saving' ? 'Saving\u2026' : forwardAuthSaveStatus === 'saved' ? 'Saved \u2713' : forwardAuthSaveStatus === 'error' ? 'Error \u2717' : 'Save'">
+                            </button>
+                        </div>
+
                     </div>
                 </div>
             </div>

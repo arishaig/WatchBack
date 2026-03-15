@@ -19,7 +19,7 @@ public static class ConfigEndpoints
         "Jellyfin", "Trakt", "Bluesky", "Reddit", "WatchBack"
     };
 
-    public static void MapConfigEndpoints(this WebApplication app)
+    public static void MapConfigEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api")
             .WithTags("Configuration");
@@ -37,7 +37,7 @@ public static class ConfigEndpoints
             .Accepts<Dictionary<string, string>>("application/json")
             .Produces(StatusCodes.Status200OK);
 
-        group.MapGet("/config/reveal/{key}", RevealConfigValue)
+        group.MapPost("/config/reveal/{key}", RevealConfigValue)
             .WithName("RevealConfigValue")
             .WithSummary("Reveal a stored secret value")
             .WithDescription("Returns the plaintext value of a password-type config field. Only whitelisted keys are accessible.")
@@ -56,6 +56,13 @@ public static class ConfigEndpoints
             .WithDescription("Tests the connection to a specified thought provider (reddit, trakt, bluesky) and returns the result")
             .Accepts<Dictionary<string, string>>("application/json")
             .Produces(StatusCodes.Status200OK);
+
+        group.MapGet("/themes", GetThemes)
+            .WithName("GetThemes")
+            .WithSummary("List available UI themes")
+            .WithDescription("Returns themes discovered from wwwroot/css/themes/*.css, ordered alphabetically. Label is derived from the filename.")
+            .Produces(StatusCodes.Status200OK)
+            .AllowAnonymous();
     }
 
     private static object GetConfig(
@@ -156,52 +163,39 @@ public static class ConfigEndpoints
         if (body == null)
             return Results.BadRequest("Invalid request body");
 
-        // Load existing user config
-        var existing = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-        if (File.Exists(configFile.Path))
+        await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
+        try
         {
-            try
+            var existing = await AuthEndpoints.ReadConfigFile(configFile.Path, ct);
+
+            // Apply updates (key format: "Section__Key")
+            foreach (var (flatKey, value) in body)
             {
-                var existingJson = await File.ReadAllTextAsync(configFile.Path, ct);
-                var parsed = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(existingJson);
-                if (parsed != null)
-                {
-                    foreach (var (section, values) in parsed)
-                        existing[section] = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
-                }
+                if (string.IsNullOrEmpty(value))
+                    continue; // skip empty values — preserve existing
+
+                var sep = flatKey.IndexOf("__", StringComparison.Ordinal);
+                if (sep < 0)
+                    continue;
+
+                var section = flatKey[..sep];
+                var key = flatKey[(sep + 2)..];
+
+                if (!s_allowedConfigSections.Contains(section))
+                    continue; // reject unknown sections
+
+                if (!existing.ContainsKey(section))
+                    existing[section] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                existing[section][key] = value;
             }
-            catch { /* start fresh if file is corrupted */ }
-        }
 
-        // Apply updates (key format: "Section__Key")
-        foreach (var (flatKey, value) in body)
+            await AuthEndpoints.WriteConfigFile(configFile.Path, existing, ct);
+        }
+        finally
         {
-            if (string.IsNullOrEmpty(value))
-                continue; // skip empty values — preserve existing
-
-            var sep = flatKey.IndexOf("__", StringComparison.Ordinal);
-            if (sep < 0)
-                continue;
-
-            var section = flatKey[..sep];
-            var key = flatKey[(sep + 2)..];
-
-            if (!s_allowedConfigSections.Contains(section))
-                continue; // reject unknown sections
-
-            if (!existing.ContainsKey(section))
-                existing[section] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            existing[section][key] = value;
+            AuthEndpoints.ConfigFileLock.Release();
         }
-
-        // Write back atomically
-        var dir = Path.GetDirectoryName(configFile.Path)!;
-        Directory.CreateDirectory(dir);
-        var json = JsonSerializer.Serialize(existing, s_jsonOptions);
-        var tmp = configFile.Path + ".tmp";
-        await File.WriteAllTextAsync(tmp, json, ct);
-        File.Move(tmp, configFile.Path, overwrite: true);
 
         return Results.Ok();
     }
@@ -223,6 +217,27 @@ public static class ConfigEndpoints
         return value is not null
             ? Results.Ok(new { value })
             : Results.NotFound();
+    }
+
+    private static IResult GetThemes(IWebHostEnvironment env)
+    {
+        var themesPath = Path.Combine(env.WebRootPath, "css", "themes");
+        if (!Directory.Exists(themesPath))
+            return Results.Ok(Array.Empty<object>());
+
+        var themes = Directory.GetFiles(themesPath, "*.css")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .Select(name => new
+            {
+                id = name,
+                label = string.Join(' ', name!.Split('-')
+                    .Select(w => w.Length > 0 ? char.ToUpperInvariant(w[0]) + w[1..] : w))
+            })
+            .ToArray();
+
+        return Results.Ok(themes);
     }
 
     private static object GetStatus(
@@ -310,6 +325,10 @@ public static class ConfigEndpoints
         if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(apiKey))
             return new { ok = false, message = "Server URL and API Key required" };
 
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var parsed)
+            || (parsed.Scheme != "http" && parsed.Scheme != "https"))
+            return new { ok = false, message = "Invalid URL — must be http:// or https://" };
+
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
 
@@ -324,7 +343,10 @@ public static class ConfigEndpoints
         try
         {
             using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(cts.Token), cancellationToken: cts.Token);
-            var version = doc.RootElement.TryGetProperty("Version", out var v) ? v.GetString() : null;
+            // Only extract the Version string — ignore everything else
+            var version = doc.RootElement.TryGetProperty("Version", out var v) && v.ValueKind == JsonValueKind.String
+                ? v.GetString()?[..Math.Min(v.GetString()!.Length, 32)]
+                : null;
             var message = version != null ? $"Jellyfin {version}" : "Connected";
             return new { ok = true, message };
         }

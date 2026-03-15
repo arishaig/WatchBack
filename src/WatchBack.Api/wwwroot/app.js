@@ -7,8 +7,11 @@
 function renderMarkdown(src) {
     if (!src) return '';
 
+    // Escape HTML entities first — prevents XSS while preserving literal &, <, > display
+    let t = src.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
     // Fenced code blocks (```...```)
-    let t = src.replace(/```([\s\S]*?)```/g, (_, code) =>
+    t = t.replace(/```([\s\S]*?)```/g, (_, code) =>
         '<pre class="wb-md-codeblock">' + code.trim() + '</pre>');
 
     // Process line-based features (blockquotes, headings, lists)
@@ -94,12 +97,77 @@ document.addEventListener('alpine:init', () => {
         testResults: {},
         lastTestResults: {},
         testAllStatus: null,
+        authState: 'checking', // checking | login | onboarding | app
+        loginUsername: '',
+        loginPassword: '',
+        loginError: null,
+        loginLoading: false,
+        setupUsername: '',
+        setupPassword: '',
+        setupError: null,
+        setupLoading: false,
+        currentUser: null,
+        resetPasswordStatus: null,
+        forwardAuthEnabled: false,
+        forwardAuthHeaderEdit: '',
+        forwardAuthSaveStatus: null,
+        onboardingComplete: true,
+        themes: [
+            { id: 'dark', label: 'Dark' },
+            { id: 'light', label: 'Light' },
+            { id: 'solarized-dark', label: 'Solarized Dark' },
+            { id: 'solarized-light', label: 'Solarized Light' },
+            { id: 'monokai', label: 'Monokai' },
+        ],
 
         async init() {
-            console.log("[WatchBack] Initializing application");
+            console.log("[WatchBack] Initializing");
             this.applyTheme(this.theme);
+            await this.fetchThemes();
+            const me = await this.checkAuth();
+            if (!me.authenticated) {
+                this.authState = 'login';
+                this.initialized = true;
+                return;
+            }
+            this.currentUser = me;
+            if (me.needsOnboarding) {
+                this.authState = 'onboarding';
+                this.initialized = true;
+                return;
+            }
+            await this.initApp();
+        },
 
-            // Load config
+        async fetchThemes() {
+            try {
+                const res = await fetch('/api/themes');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) this.themes = data;
+                }
+            } catch {
+                // keep default fallback list
+            }
+        },
+
+        async checkAuth() {
+            try {
+                const res = await fetch('/api/auth/me');
+                const me = await res.json();
+                this.onboardingComplete = me.onboardingComplete ?? true;
+                if (me.authenticated) {
+                    this.forwardAuthEnabled = !!me.forwardAuthHeader;
+                    this.forwardAuthHeaderEdit = me.forwardAuthHeader || 'X-Remote-User';
+                }
+                return me;
+            } catch {
+                return { authenticated: false };
+            }
+        },
+
+        async initApp() {
+            this.authState = 'app';
             try {
                 const cRes = await fetch('/api/config');
                 if (cRes.ok) {
@@ -109,11 +177,101 @@ document.addEventListener('alpine:init', () => {
             } catch (e) {
                 console.warn("[WatchBack] Config load failed:", e);
             }
-
-            // Initial sync
             await this.sync();
             this.initialized = true;
             this.setupSSE();
+        },
+
+        async login() {
+            if (this.loginLoading) return;
+            this.loginLoading = true;
+            this.loginError = null;
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: this.loginUsername, password: this.loginPassword }),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    this.currentUser = { username: this.loginUsername, authMethod: 'cookie' };
+                    if (data.needsOnboarding) {
+                        this.authState = 'onboarding';
+                    } else {
+                        await this.initApp();
+                    }
+                } else {
+                    this.loginError = data.message || 'Invalid credentials';
+                }
+            } catch {
+                this.loginError = 'Connection failed';
+            }
+            this.loginLoading = false;
+        },
+
+        async setupAccount() {
+            if (this.setupLoading) return;
+            this.setupLoading = true;
+            this.setupError = null;
+            try {
+                const res = await fetch('/api/auth/setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newUsername: this.setupUsername, newPassword: this.setupPassword }),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    this.currentUser = { username: this.setupUsername, authMethod: 'cookie' };
+                    await this.initApp();
+                } else {
+                    this.setupError = data.message || 'Setup failed';
+                }
+            } catch {
+                this.setupError = 'Connection failed';
+            }
+            this.setupLoading = false;
+        },
+
+        async logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            this.authState = 'login';
+            this.currentUser = null;
+            this.loginUsername = '';
+            this.loginPassword = '';
+            this.loginError = null;
+            this.initialized = false;
+            this.data = null;
+            this.configData = null;
+            this.initialized = true;
+        },
+
+        async resetPassword() {
+            this.resetPasswordStatus = 'loading';
+            try {
+                const res = await fetch('/api/auth/reset-password', { method: 'POST' });
+                const data = await res.json();
+                this.resetPasswordStatus = data.ok ? 'ok' : 'error';
+            } catch {
+                this.resetPasswordStatus = 'error';
+            }
+            setTimeout(() => { this.resetPasswordStatus = null; }, 5000);
+        },
+
+        async saveForwardAuth() {
+            this.forwardAuthSaveStatus = 'saving';
+            try {
+                const header = this.forwardAuthEnabled ? (this.forwardAuthHeaderEdit.trim() || 'X-Remote-User') : '';
+                const res = await fetch('/api/auth/forward-auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ header }),
+                });
+                const data = await res.json();
+                this.forwardAuthSaveStatus = data.ok ? 'saved' : 'error';
+            } catch {
+                this.forwardAuthSaveStatus = 'error';
+            }
+            setTimeout(() => { this.forwardAuthSaveStatus = null; }, 3000);
         },
 
         setupSSE() {

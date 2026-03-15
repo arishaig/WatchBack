@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 
+using WatchBack.Api.Auth;
 using WatchBack.Api.Endpoints;
 using WatchBack.Api.Serialization;
 using WatchBack.Core.Interfaces;
@@ -68,6 +70,10 @@ builder.Services
     .AddOptions<WatchBackOptions>()
     .BindConfiguration("WatchBack");
 
+builder.Services
+    .AddOptions<AuthOptions>()
+    .BindConfiguration("Auth");
+
 // Add infrastructure providers
 builder.Services.AddWatchBackInfrastructure();
 
@@ -80,6 +86,37 @@ builder.Services.AddSingleton<IPrefetchService, PrefetchService>();
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, WatchBackJsonContext.Default));
+
+// Add authentication / authorization
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "WatchBackSession";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.ExpireTimeSpan = TimeSpan.FromDays(30);
+        options.SlidingExpiration = true;
+        options.Events.OnRedirectToLogin = ctx =>
+        {
+            ctx.Response.StatusCode = 401;
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = ctx =>
+        {
+            ctx.Response.StatusCode = 403;
+            return Task.CompletedTask;
+        };
+    })
+    .AddScheme<ForwardAuthOptions, ForwardAuthHandler>("ForwardAuth", _ => { });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, "ForwardAuth")
+        .RequireAuthenticatedUser()
+        .Build();
+});
 
 // Add Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
@@ -107,6 +144,9 @@ using (var scope = app.Services.CreateScope())
     await dbContext.Database.MigrateAsync();
 }
 
+// Initialize auth — generate initial password if not set
+await InitializeAuthAsync(app);
+
 // Enable Swagger/OpenAPI
 app.UseSwagger();
 app.UseSwaggerUI(options =>
@@ -119,14 +159,47 @@ app.UseSwaggerUI(options =>
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 // Map endpoints
-app.MapSyncEndpoints();
-app.MapConfigEndpoints();
+app.MapAuthEndpoints(); // public auth endpoints
+var protectedGroup = app.MapGroup("").RequireAuthorization();
+protectedGroup.MapSyncEndpoints();
+protectedGroup.MapConfigEndpoints();
 
 // Map fallback to index.html for SPA
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+static async Task InitializeAuthAsync(WebApplication webApp)
+{
+    var passwordHash = webApp.Configuration["Auth:PasswordHash"] ?? "";
+    if (!string.IsNullOrEmpty(passwordHash))
+        return;
+
+    var password = AuthEndpoints.GeneratePassword();
+    var hasher = new Microsoft.AspNetCore.Identity.PasswordHasher<string>();
+    var hash = hasher.HashPassword("", password);
+
+    var configFile = webApp.Services.GetRequiredService<UserConfigFile>();
+    await AuthEndpoints.WriteAuthConfig(configFile, "watchback", hash, onboardingComplete: false, CancellationToken.None);
+
+    // Force reload so IOptionsSnapshot picks up new values on first request
+    if (webApp.Configuration is IConfigurationRoot configRoot)
+        configRoot.Reload();
+
+    var logger = webApp.Services.GetRequiredService<ILogger<Program>>();
+#pragma warning disable CA1848
+    logger.LogWarning("╔══════════════════════════════════════════════╗");
+    logger.LogWarning("║     WatchBack — Initial Credentials          ║");
+    logger.LogWarning("║  Username : watchback                        ║");
+    logger.LogWarning("║  Password : {Password,-32}║", password);
+    logger.LogWarning("║  Log in and complete account setup.          ║");
+    logger.LogWarning("╚══════════════════════════════════════════════╝");
+#pragma warning restore CA1848
+}
 
 // Make Program accessible for tests
 public partial class Program { }

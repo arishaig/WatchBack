@@ -7,7 +7,7 @@ namespace WatchBack.Api.Endpoints;
 
 public static class SyncEndpoints
 {
-    public static void MapSyncEndpoints(this WebApplication app)
+    public static void MapSyncEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api")
             .WithTags("Sync");
