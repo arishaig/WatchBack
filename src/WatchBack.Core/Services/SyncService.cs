@@ -59,10 +59,10 @@ public class SyncService : ISyncService
                 .Cast<ThoughtResult>()
                 .ToList();
 
-            // Collect all thoughts from all providers (flatten trees so counts include replies)
+            // Collect top-level thoughts from all providers (replies stay nested inside each thought)
             var allThoughts = sourceResults
                 .Where(r => r.Thoughts is { Count: > 0 })
-                .SelectMany(r => FlattenThoughts(r.Thoughts!))
+                .SelectMany(r => r.Thoughts!)
                 .OrderByDescending(t => t.CreatedAt)
                 .ToList();
 
@@ -94,13 +94,4 @@ public class SyncService : ISyncService
         }
     }
 
-    private static IEnumerable<Thought> FlattenThoughts(IEnumerable<Thought> thoughts)
-    {
-        foreach (var t in thoughts)
-        {
-            yield return t;
-            foreach (var r in FlattenThoughts(t.Replies))
-                yield return r;
-        }
-    }
 }

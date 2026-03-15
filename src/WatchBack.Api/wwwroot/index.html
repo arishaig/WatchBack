@@ -165,7 +165,8 @@
                                 </li>
                             </template>
                             <li class="flex items-start gap-2">
-                                <span :class="testIcon('reddit').cls" class="mt-0.5" role="img"
+                                <span :class="testIcon('reddit').cls" class="mt-0.5"
+                                    :aria-label="'Reddit: ' + testIcon('reddit').label" role="img"
                                     x-text="testIcon('reddit').icon"></span>
                                 <span>Comments from <strong class="wb-text-secondary">Reddit</strong></span>
                             </li>

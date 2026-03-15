@@ -181,11 +181,8 @@ document.addEventListener('alpine:init', () => {
         get activeThoughts() {
             if (!this.data) return [];
             const list = this.mode === 'time' ? (this.data.timeMachineThoughts || []) : (this.data.allThoughts || []);
-            // Only show root-level thoughts as top-level cards; replies render nested inside their parent
-            const ids = new Set(list.map(t => t.id));
-            const roots = list.filter(t => !t.parentId || !ids.has(t.parentId));
-            if (this.sourceFilter.size === 0) return roots;
-            return roots.filter(c => this.sourceFilter.has(c.source));
+            if (this.sourceFilter.size === 0) return list;
+            return list.filter(c => this.sourceFilter.has(c.source));
         },
 
         get hasThreadGroups() {
@@ -207,7 +204,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         get threadCount() {
-            return this.groupedThoughts.length;
+            return this.groupedThoughts.filter(g => g.title).length;
         },
 
         sourceCount(src) {
