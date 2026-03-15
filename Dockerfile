@@ -1,72 +1,56 @@
-# Stage 1: Build & Compile
-FROM python:3.14-slim-bookworm AS builder
+# Stage 1: Tailwind CSS compilation
+FROM debian:bookworm-slim AS tailwind
 
-# Install uv and build tools (curl for Tailwind download)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uv /usr/local/bin/
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+COPY src/WatchBack.Api/wwwroot/ /app/wwwroot/
 
-# 1. Install dependencies directly into the system path
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    uv export --frozen --no-dev --no-hashes --format requirements-txt > requirements.txt && \
-    uv pip install --system -r requirements.txt
-
-# 2. Tailwind compilation
-COPY static/ /app/static/
 RUN set -e; \
-    echo "Downloading tailwindcss..." && \
     curl -sLo /tmp/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 && \
-    test -f /tmp/tailwindcss || (echo "Failed to download tailwindcss" && exit 1) && \
     chmod +x /tmp/tailwindcss && \
-    printf '@import "tailwindcss";\n@source "./static/index.html";\n' > /app/tw.css && \
-    echo "Compiling tailwindcss..." && \
-    /tmp/tailwindcss -i /app/tw.css -o /app/static/tailwind.css --minify || (echo "Tailwind compilation failed" && exit 1) && \
-    test -f /app/static/tailwind.css || (echo "tailwind.css not created" && exit 1) && \
-    rm /tmp/tailwindcss /app/tw.css && \
-    ls -lh /app/static/
+    /tmp/tailwindcss -i /app/wwwroot/tw.css -o /app/wwwroot/tailwind.css --minify && \
+    rm /tmp/tailwindcss
 
-# Stage 2: Runtime
-FROM python:3.14-slim-bookworm
+# Stage 2: .NET build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+
+WORKDIR /src
+
+# Copy solution and project files
+COPY . .
+
+# Replace tailwind.css with freshly compiled version
+COPY --from=tailwind /app/wwwroot/tailwind.css /src/src/WatchBack.Api/wwwroot/tailwind.css
+
+# Restore dependencies
+RUN dotnet restore
+
+# Build and publish
+RUN dotnet publish -c Release -o /app/publish --no-restore
+
+# Runtime image
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
+# Create persistent data directory
+RUN mkdir -p /app/data
 
-ENV PUID=1000 \
-    PGID=1000 \
-    TZ=Etc/UTC \
-    CONFIG_DIR="/config" \
-    DATA_DIR="/data" \
-    PYTHONUNBUFFERED=1
+# Copy published application from build stage
+COPY --from=build /app/publish .
 
-# Setup default user and directories (entrypoint adjusts UID/GID at runtime)
-RUN groupadd -g 1000 abc && \
-    useradd -u 1000 -g abc -m abc && \
-    mkdir -p /config && \
-    mkdir -p /data && \
-    chown abc:abc /config && \
-    chown abc:abc /data
+EXPOSE 8484
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl --fail http://localhost:8484/health || exit 1
 
-# Copy app code and entrypoint
-COPY . .
-COPY --from=builder /app/static/tailwind.css /app/static/tailwind.css
-RUN chown -R abc:abc /app
-RUN chmod +x /app/entrypoint.sh
+# Use non-root user
+# aspnet base image has 'app' user at 1000, rename both user and group to watchback
+RUN groupmod -n watchback app && usermod -l watchback app && usermod -d /home/watchback -m watchback && chown -R watchback:watchback /app
+USER watchback
 
-# CLI entrypoint for password reset: docker exec watchback watchback reset-password <user>
-RUN echo '#!/bin/sh\nexec python /app/cli.py "$@"' > /usr/local/bin/watchback && chmod +x /usr/local/bin/watchback
+ENV ASPNETCORE_URLS=http://+:8484
 
-EXPOSE 8000
-
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1
-
-ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run application
+ENTRYPOINT ["dotnet", "WatchBack.Api.dll"]

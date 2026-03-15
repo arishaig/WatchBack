@@ -18,26 +18,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
+          dotnet-version: '10.0.x'
 
-      - name: Set up Python
-        run: uv python install
+      - name: Restore dependencies
+        run: dotnet restore
 
-      - name: Install dependencies
-        run: uv sync --all-groups
+      - name: Build
+        run: dotnet build --no-restore
 
-      - name: Run unit tests with coverage
-        run: uv run python -m pytest tests -v -m "not a11y"
+      - name: Run unit and integration tests
+        run: dotnet test tests/WatchBack.Core.Tests tests/WatchBack.Infrastructure.Tests tests/WatchBack.Api.Tests --no-build --filter "Category!=Accessibility" --verbosity normal
 
       - name: Install Playwright browsers
-        run: uv run playwright install chromium --with-deps
+        run: pwsh tests/WatchBack.Api.Tests/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
 
       - name: Run accessibility tests
-        run: uv run python -m pytest tests -v -m a11y --no-cov
+        run: dotnet test tests/WatchBack.Api.Tests --no-build --filter "Category=Accessibility" --verbosity normal
 
   docker:
     runs-on: ubuntu-latest
@@ -83,7 +82,7 @@ jobs:
             type=sha
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true

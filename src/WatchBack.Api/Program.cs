@@ -1,0 +1,230 @@
+using System.Threading.RateLimiting;
+
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Models;
+
+using WatchBack.Api.Auth;
+using WatchBack.Api.Endpoints;
+using WatchBack.Api.Serialization;
+using WatchBack.Core.Interfaces;
+using WatchBack.Core.Options;
+using WatchBack.Core.Services;
+using WatchBack.Infrastructure.Extensions;
+using WatchBack.Infrastructure.Persistence;
+using WatchBack.Infrastructure.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient();
+
+// Add database
+// Use environment variable or default path
+var databasePath = Environment.GetEnvironmentVariable("WATCHBACK_DATABASE_PATH");
+if (string.IsNullOrEmpty(databasePath))
+{
+    // Default: use /app/data for Docker, or AppData for local development
+    var basePath = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production"
+        ? "/app/data"
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WatchBack");
+    databasePath = Path.Combine(basePath, "watchback.db");
+}
+
+var dbDirectory = Path.GetDirectoryName(databasePath);
+if (dbDirectory != null)
+    Directory.CreateDirectory(dbDirectory);
+
+// Load user-editable config from the same directory as the database
+var userConfigPath = Path.Combine(dbDirectory ?? ".", "user-settings.json");
+builder.Configuration.AddJsonFile(userConfigPath, optional: true, reloadOnChange: true);
+builder.Services.AddSingleton(new WatchBack.Api.Endpoints.UserConfigFile(userConfigPath));
+
+builder.Services.AddDbContext<WatchBackDbContext>(options =>
+    options.UseSqlite($"Data Source={databasePath}"));
+
+// Configure options
+builder.Services
+    .AddOptions<JellyfinOptions>()
+    .BindConfiguration("Jellyfin")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<TraktOptions>()
+    .BindConfiguration("Trakt")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<BlueskyOptions>()
+    .BindConfiguration("Bluesky")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<RedditOptions>()
+    .BindConfiguration("Reddit");
+
+builder.Services
+    .AddOptions<WatchBackOptions>()
+    .BindConfiguration("WatchBack");
+
+builder.Services
+    .AddOptions<AuthOptions>()
+    .BindConfiguration("Auth");
+
+// Persist Data Protection keys so session cookies survive restarts
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dbDirectory ?? "."))
+    .SetApplicationName("WatchBack");
+
+// Add infrastructure providers
+builder.Services.AddWatchBackInfrastructure();
+
+// Add core services
+builder.Services.AddScoped<ISyncService, SyncService>();
+builder.Services.AddSingleton<ITimeMachineFilter, TimeMachineFilter>();
+builder.Services.AddSingleton<IReplyTreeBuilder, ReplyTreeBuilder>();
+builder.Services.AddSingleton<IPrefetchService, PrefetchService>();
+
+// Configure JSON serialization
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.TypeInfoResolverChain.Insert(0, WatchBackJsonContext.Default));
+
+// Rate limiting — protect login from brute-force
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("login", ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
+// Add authentication / authorization
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "WatchBackSession";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.ExpireTimeSpan = TimeSpan.FromDays(30);
+        options.SlidingExpiration = true;
+        options.Events.OnRedirectToLogin = ctx =>
+        {
+            ctx.Response.StatusCode = 401;
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = ctx =>
+        {
+            ctx.Response.StatusCode = 403;
+            return Task.CompletedTask;
+        };
+    })
+    .AddScheme<ForwardAuthOptions, ForwardAuthHandler>("ForwardAuth", _ => { });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, "ForwardAuth")
+        .RequireAuthenticatedUser()
+        .Build();
+});
+
+// Add Swagger/OpenAPI
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "WatchBack API",
+        Version = "v1",
+        Description = "Watch state detection and thought aggregation API",
+        Contact = new OpenApiContact
+        {
+            Name = "WatchBack",
+            Url = new Uri("https://github.com/watchback/watchback-net")
+        }
+    });
+});
+
+var app = builder.Build();
+
+// Initialize database
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<WatchBackDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
+
+// Initialize auth — generate initial password if not set
+await InitializeAuthAsync(app);
+
+// Enable Swagger/OpenAPI
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "WatchBack API v1");
+    options.RoutePrefix = "swagger"; // Available at /swagger
+});
+
+// Enable static files (frontend)
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
+
+// Map endpoints
+app.MapAuthEndpoints(); // public auth endpoints
+var protectedGroup = app.MapGroup("").RequireAuthorization();
+protectedGroup.MapSyncEndpoints();
+protectedGroup.MapConfigEndpoints();
+protectedGroup.MapSystemEndpoints();
+
+// Map fallback to index.html for SPA
+app.MapFallbackToFile("index.html");
+
+app.Run();
+
+static async Task InitializeAuthAsync(WebApplication webApp)
+{
+    var passwordHash = webApp.Configuration["Auth:PasswordHash"] ?? "";
+    if (!string.IsNullOrEmpty(passwordHash))
+        return;
+
+    var password = AuthEndpoints.GeneratePassword();
+    var hasher = new Microsoft.AspNetCore.Identity.PasswordHasher<string>();
+    var hash = hasher.HashPassword("", password);
+
+    var configFile = webApp.Services.GetRequiredService<UserConfigFile>();
+    await AuthEndpoints.WriteAuthConfig(configFile, "watchback", hash, onboardingComplete: false, CancellationToken.None);
+
+    // Force reload so IOptionsSnapshot picks up new values on first request
+    if (webApp.Configuration is IConfigurationRoot configRoot)
+        configRoot.Reload();
+
+    // Write directly to stdout — avoids logger pipeline so credentials
+    // don't end up in structured log sinks (Seq, ELK, etc.)
+    Console.WriteLine("╔══════════════════════════════════════════════╗");
+    Console.WriteLine("║     WatchBack — Initial Credentials          ║");
+    Console.WriteLine("║  Username : watchback                        ║");
+    Console.WriteLine($"║  Password : {password,-32}║");
+    Console.WriteLine("║  Log in and complete account setup.          ║");
+    Console.WriteLine("╚══════════════════════════════════════════════╝");
+}
+
+// Make Program accessible for tests
+public partial class Program { }

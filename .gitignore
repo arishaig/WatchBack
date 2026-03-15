@@ -1,36 +1,54 @@
-# General
-.DS_Store
-.env
-.env*
-!.env.example
+# Build artifacts
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.dylib
+*.so
 
-# Python
-__pycache__/
-*.py[cod]
-*.class
-/.venv/
-/bin/
-/lib/
-/lib64/
-lib64
-/include/
-pyvenv.cfg
-.pytest_cache/
-.uv/
-
-# Build
-dist/
-build/
-*.egg-info/
-
-# Local
-.idea/
+# IDE
 .vscode/
-.python-version
+.vs/
+.rider/
+*.swp
+*.swo
+*~
+.DS_Store
 
-# Coverage
-htmlcov/
-.coverage
+# Test artifacts
+coverage/
+*.trx
+TestResults/
 
-# Project Specific
-/config/
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files (local config, not committed)
+.env
+.env.local
+.env.*.local
+
+# Node modules (if frontend exists)
+node_modules/
+
+# Temporary files
+.tmp/
+temp/
+
+# Package lock files (if using npm)
+package-lock.json
+yarn.lock
+
+# Build output
+dist/
+publish/
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Visual Studio Code
+.vscode-ctags

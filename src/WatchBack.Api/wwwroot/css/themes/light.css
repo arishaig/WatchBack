@@ -1,0 +1,53 @@
+/* Light theme */
+
+html[data-theme="light"] {
+    color-scheme: light;
+
+    --wb-bg: #f3f4f6;
+    --wb-surface: #ffffff;
+    --wb-surface-alt: #e5e7eb;
+    --wb-border: #e5e7eb;
+    --wb-border-light: #d1d5db;
+
+    --wb-text: #1f2937;
+    --wb-text-secondary: #374151;
+    --wb-text-muted: #616774;
+    --wb-text-faint: #6a6f78;
+
+    --wb-accent: #2563eb;
+    --wb-accent-hover: #3b82f6;
+    --wb-accent-text: #2563eb;
+    --wb-on-accent: #ffffff;
+
+    --wb-switch-bg: #d1d5db;
+
+    --wb-reddit-bg: #fff1dd;
+    --wb-reddit-text: #9a3409;
+    --wb-reddit-hover: #ffe4c4;
+    --wb-reddit-muted: #b5430a;
+    --wb-reddit-border: #fdd3b1;
+
+    --wb-bluesky-bg: #e2eefe;
+    --wb-bluesky-text: #1d4ed8;
+    --wb-bluesky-hover: #bfdbfe;
+
+    --wb-trakt-bg: #e5e7eb;
+    --wb-trakt-text: #616774;
+
+    --wb-filter-inactive-bg: #ffffff;
+    --wb-filter-inactive-text: #6a6f78;
+
+    --wb-reply-bg: #f2f3f5;
+
+    --wb-success-text: #16a34a;
+    --wb-success-bg: #e8f6ed;
+    --wb-success-border: #b9e3c9;
+    --wb-error-text: #c72020;
+    --wb-error-bg: #fce9e9;
+    --wb-error-border: #f4bebe;
+    --wb-warn-text: #92600a;
+    --wb-warn-bg: #fef9e7;
+    --wb-warn-border: #f5d87e;
+
+    --wb-logo-filter: brightness(1);
+}
