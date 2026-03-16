@@ -34,8 +34,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0
 
 WORKDIR /app
 
-# Install curl for healthcheck (not included in aspnet runtime image)
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# Install curl (healthcheck) and gosu (privilege drop in entrypoint)
+RUN apt-get update && apt-get install -y --no-install-recommends curl gosu && rm -rf /var/lib/apt/lists/*
 
 # Create persistent data directory
 RUN mkdir -p /app/data
@@ -43,18 +43,21 @@ RUN mkdir -p /app/data
 # Copy published application from build stage
 COPY --from=build /app/publish .
 
+# Entrypoint: fixes bind-mount ownership then drops to non-root user
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 8484
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl --fail http://localhost:8484/health || exit 1
 
-# Use non-root user
-# aspnet base image has 'app' user at 1000, rename both user and group to watchback
+# Rename the built-in 'app' user/group to 'watchback' and own the app files.
+# The entrypoint runs as root, fixes /app/data perms, then drops to this user.
 RUN groupmod -n watchback app && usermod -l watchback app && usermod -d /home/watchback -m watchback && chown -R watchback:watchback /app
-USER watchback
 
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://+:8484
 
-# Run application
-ENTRYPOINT ["dotnet", "WatchBack.Api.dll"]
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["dotnet", "WatchBack.Api.dll"]
