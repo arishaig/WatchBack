@@ -57,10 +57,10 @@ public class ForwardAuthHandler : AuthenticationHandler<ForwardAuthOptions>
                 {
 #pragma warning disable CA1848
                     Logger.LogWarning(
-                        "ForwardAuth: rejected request from {IP} (trusted proxy is {TrustedIP})",
+                        "ForwardAuth: IP {IP} does not match trusted proxy {TrustedIP}, falling back to cookie auth",
                         remoteIp, s_trustedProxyIp);
 #pragma warning restore CA1848
-                    return Task.FromResult(AuthenticateResult.Fail("Untrusted source IP"));
+                    return Task.FromResult(AuthenticateResult.NoResult());
                 }
             }
         }

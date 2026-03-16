@@ -9,41 +9,37 @@ public class ReplyTreeBuilder : IReplyTreeBuilder
     {
         var flatList = flat.ToList();
         if (flatList.Count == 0)
-        {
             return [];
-        }
 
-        // Create a dictionary for quick parent lookup
-        var thoughtsById = flatList.ToDictionary(t => t.Id);
+        var byId = flatList.ToDictionary(t => t.Id);
 
-        // Build replies for each thought
-        var thoughtsWithReplies = new Dictionary<string, Thought>();
-        foreach (var thought in flatList)
+        // Group children by parent ID in a single pass
+        var byParent = flatList
+            .Where(t => t.ParentId != null)
+            .GroupBy(t => t.ParentId!)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // Build each node bottom-up via memoization
+        var built = new Dictionary<string, Thought>(flatList.Count);
+
+        Thought Build(Thought t)
         {
-            var replies = flatList
-                .Where(t => t.ParentId == thought.Id)
-                .Select(t => BuildTreeForThought(t, thoughtsById))
-                .ToList();
+            if (built.TryGetValue(t.Id, out var cached))
+                return cached;
 
-            thoughtsWithReplies[thought.Id] = thought with { Replies = replies };
+            var replies = byParent.TryGetValue(t.Id, out var children)
+                ? children.Select(Build).ToList()
+                : [];
+
+            var result = t with { Replies = replies };
+            built[t.Id] = result;
+            return result;
         }
 
-        // Find top-level thoughts (no ParentId or parent not found)
-        var topLevel = flatList
-            .Where(t => t.ParentId == null || !thoughtsById.ContainsKey(t.ParentId))
-            .Select(t => thoughtsWithReplies[t.Id])
+        // Top-level: no parent, or parent not in the set
+        return flatList
+            .Where(t => t.ParentId == null || !byId.ContainsKey(t.ParentId))
+            .Select(Build)
             .ToList();
-
-        return topLevel;
-    }
-
-    private static Thought BuildTreeForThought(Thought thought, Dictionary<string, Thought> allThoughts)
-    {
-        var replies = allThoughts.Values
-            .Where(t => t.ParentId == thought.Id)
-            .Select(t => BuildTreeForThought(t, allThoughts))
-            .ToList();
-
-        return thought with { Replies = replies };
     }
 }

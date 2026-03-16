@@ -49,6 +49,11 @@ public static class AuthEndpoints
             .WithSummary("Generate and store a new random password, logged to stdout")
             .RequireAuthorization();
 
+        group.MapPost("/change-password", ChangePassword)
+            .WithName("ChangePassword")
+            .WithSummary("Change the current user's password")
+            .RequireAuthorization();
+
         group.MapPost("/forward-auth", SaveForwardAuth)
             .WithName("SaveForwardAuth")
             .WithSummary("Enable or disable forward auth header bypass")
@@ -99,10 +104,19 @@ public static class AuthEndpoints
         if (result == PasswordVerificationResult.Failed)
             return Results.Ok(new { ok = false, message = "Invalid credentials." });
 
+        // Upgrade the stored hash if the hashing algorithm has been updated
+        if (result == PasswordVerificationResult.SuccessRehashNeeded)
+        {
+            var configFile = ctx.RequestServices.GetRequiredService<UserConfigFile>();
+            var newHash = hasher.HashPassword("", body.Password);
+            await WriteAuthConfig(configFile, opts.Username, newHash, opts.OnboardingComplete, ct);
+        }
+
         await SignInUser(ctx, body.Username);
 
         var needsOnboarding = !opts.OnboardingComplete;
-        return Results.Ok(new { ok = true, needsOnboarding, message = (string?)null });
+        var needsPasswordChange = result == PasswordVerificationResult.SuccessRehashNeeded;
+        return Results.Ok(new { ok = true, needsOnboarding, needsPasswordChange, message = (string?)null });
     }
 
     private static async Task<IResult> Logout(HttpContext ctx)
@@ -165,6 +179,29 @@ public static class AuthEndpoints
         Console.WriteLine("╚══════════════════════════════════════════════╝");
 
         return Results.Ok(new { ok = true, message = "New password generated. Check server logs." });
+    }
+
+    private static async Task<IResult> ChangePassword(
+        HttpContext ctx,
+        [FromBody] ChangePasswordRequest body,
+        IOptionsSnapshot<AuthOptions> authOptions,
+        UserConfigFile configFile,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(body.NewPassword))
+            return Results.Ok(new { ok = false, message = "Password is required." });
+
+        var opts = authOptions.Value;
+        var hasher = new PasswordHasher<string>();
+        var newHash = hasher.HashPassword("", body.NewPassword);
+
+        await WriteAuthConfig(configFile, opts.Username, newHash, opts.OnboardingComplete, ct);
+
+        // Re-sign-in so the session reflects the updated credential state
+        await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        await SignInUser(ctx, opts.Username);
+
+        return Results.Ok(new { ok = true, message = (string?)null });
     }
 
     private static async Task<IResult> SaveForwardAuth(
@@ -305,5 +342,6 @@ public static class AuthEndpoints
 
     private sealed record LoginRequest(string Username, string Password);
     private sealed record SetupRequest(string NewUsername, string NewPassword);
+    private sealed record ChangePasswordRequest(string NewPassword);
     private sealed record ForwardAuthSettingsRequest(string? Header);
 }

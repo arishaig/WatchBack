@@ -64,7 +64,9 @@ public static class SyncEndpoints
 
                 // Start sync; complete the channel when it finishes so ReadAllAsync terminates
                 var syncTask = syncService.SyncAsync(progress, ct);
-                _ = syncTask.ContinueWith(_ => channel.Writer.Complete(), TaskScheduler.Default);
+                _ = syncTask.ContinueWith(
+                    t => channel.Writer.Complete(t.IsFaulted ? t.Exception : null),
+                    TaskScheduler.Default);
 
                 // Drain progress ticks and forward them to the SSE stream
                 var completed = 0;
@@ -102,6 +104,12 @@ public static class SyncEndpoints
             catch (OperationCanceledException)
             {
                 break;
+            }
+            catch (Exception)
+            {
+                // Provider fault — pause before retrying the sync loop
+                try { await Task.Delay(5000, ct); }
+                catch (OperationCanceledException) { break; }
             }
         }
     }

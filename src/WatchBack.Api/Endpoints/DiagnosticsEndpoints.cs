@@ -5,7 +5,7 @@ using WatchBack.Api.Serialization;
 
 namespace WatchBack.Api.Endpoints;
 
-public static class DiagnosticsEndpoints
+internal static class DiagnosticsEndpoints
 {
     public static void MapDiagnosticsEndpoints(this IEndpointRouteBuilder app)
     {

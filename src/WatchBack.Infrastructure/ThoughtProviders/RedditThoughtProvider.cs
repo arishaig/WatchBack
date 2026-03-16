@@ -280,30 +280,44 @@ public class RedditThoughtProvider(
     private static string CollapseNewlines(string text) =>
         ExcessiveNewlines.Replace(text.Trim(), "\n\n");
 
+    // Cache compiled regexes keyed by (season, episode) — small, bounded set in practice
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int, int), Regex[]> s_episodeRegexCache = new();
+
+    private static Regex[] GetEpisodePatterns(int season, int episode)
+    {
+        return s_episodeRegexCache.GetOrAdd((season, episode), key =>
+        {
+            var (s, e) = key;
+            var sStr = s.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var sL = s.ToString("D2", System.Globalization.CultureInfo.InvariantCulture);
+            var eStr = e.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var eL = e.ToString("D2", System.Globalization.CultureInfo.InvariantCulture);
+
+            var patterns = new List<string>();
+
+            // SxxExx patterns with lookbehind/lookahead to prevent partial matches
+            foreach (var code in new[] { $"S{sL}E{eL}", $"S{sStr}E{eL}", $"S{sL}E{eStr}", $"S{sStr}E{eStr}" })
+                patterns.Add($@"(?<!\d){code}(?!\d)");
+
+            // NxNN patterns
+            patterns.Add($@"\b{sStr}X{eL}(?!\d)");
+            patterns.Add($@"\b{sStr}X{eStr}(?!\d)");
+
+            // "Season N ... Episode N"
+            patterns.Add($@"\bSEASON\s+{sStr}\b.{{0,30}}\bEPISODE\s+{eStr}\b");
+
+            return patterns.Select(p => new Regex(p, RegexOptions.Compiled | RegexOptions.IgnoreCase)).ToArray();
+        });
+    }
+
     private static bool MatchesEpisode(string title, int season, int episode)
     {
-        var t = title.ToUpperInvariant();
-        var s = season.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var sL = season.ToString("D2", System.Globalization.CultureInfo.InvariantCulture);
-        var e = episode.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var eL = episode.ToString("D2", System.Globalization.CultureInfo.InvariantCulture);
-
-        // Match SxxExx patterns (e.g. S4E6, S04E06, S4E06, S04E6)
-        foreach (var code in new[] { $"S{sL}E{eL}", $"S{s}E{eL}", $"S{sL}E{e}", $"S{s}E{e}" })
+        var patterns = GetEpisodePatterns(season, episode);
+        foreach (var regex in patterns)
         {
-            if (System.Text.RegularExpressions.Regex.IsMatch(t, $"{code}(?!\\d)"))
+            if (regex.IsMatch(title))
                 return true;
         }
-
-        // Match NxNN patterns (e.g. 4x06, 4x6)
-        if (System.Text.RegularExpressions.Regex.IsMatch(t, $@"\b{s}X{eL}(?!\d)") ||
-            System.Text.RegularExpressions.Regex.IsMatch(t, $@"\b{s}X{e}(?!\d)"))
-            return true;
-
-        // Match "Season N ... Episode N"
-        if (System.Text.RegularExpressions.Regex.IsMatch(t, $@"\bSEASON\s+{s}\b.{{0,30}}\bEPISODE\s+{e}\b"))
-            return true;
-
         return false;
     }
 

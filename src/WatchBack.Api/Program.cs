@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
@@ -178,14 +179,6 @@ using (var scope = app.Services.CreateScope())
 // Initialize auth — generate initial password if not set
 await InitializeAuthAsync(app);
 
-// Enable Swagger/OpenAPI
-app.UseSwagger();
-app.UseSwaggerUI(options =>
-{
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "WatchBack API v1");
-    options.RoutePrefix = "swagger"; // Available at /swagger
-});
-
 // Enable static files (frontend)
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -193,6 +186,26 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
+
+// Enable Swagger/OpenAPI — require authentication via middleware gate
+app.UseWhen(
+    ctx => ctx.Request.Path.StartsWithSegments("/swagger"),
+    branch => branch.Use(async (ctx, next) =>
+    {
+        var authResult = await ctx.AuthenticateAsync();
+        if (!authResult.Succeeded)
+        {
+            ctx.Response.Redirect("/");
+            return;
+        }
+        await next();
+    }));
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "WatchBack API v1");
+    options.RoutePrefix = "swagger"; // Available at /swagger
+});
 
 // Map endpoints
 app.MapAuthEndpoints(); // public auth endpoints

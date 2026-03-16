@@ -54,6 +54,12 @@ public class TraktThoughtProvider : IThoughtProvider
     {
         try
         {
+            if (string.IsNullOrEmpty(_options.ClientId))
+            {
+                _logger.LogDebug("Trakt: skipping — no Client ID configured");
+                return Empty;
+            }
+
             var episode = mediaContext as EpisodeContext;
             var cacheKey = episode != null
                 ? $"trakt:thoughts:{mediaContext.Title}:s{episode.SeasonNumber}e{episode.EpisodeNumber}"
@@ -200,13 +206,11 @@ public class TraktThoughtProvider : IThoughtProvider
         }
     }
 
-    private void ConfigureRequestHeaders(HttpRequestMessage request, bool auth = false)
+    private void ConfigureRequestHeaders(HttpRequestMessage request)
     {
         request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
         request.Headers.Add("trakt-api-version", "2");
         request.Headers.Add("trakt-api-key", _options.ClientId);
-        if (auth && !string.IsNullOrEmpty(_options.AccessToken))
-            request.Headers.Add("Authorization", $"Bearer {_options.AccessToken}");
     }
 }
 

@@ -96,7 +96,7 @@ public class BlueskyThoughtProvider(
                     ParentId: null,
                     Title: null,
                     Content: post.Record.Text,
-                    Url: post.Uri,
+                    Url: ToBlueskyWebUrl(post.Uri, post.Author?.Handle),
                     Images: post.Record.Embed?.Images?.Select(i => new ThoughtImage(Url: i.Image?.Link ?? "", Alt: i.Alt))
                         .ToList() ?? [],
                     Author: post.Author?.DisplayName ?? post.Author?.Handle ?? "Unknown",
@@ -204,6 +204,38 @@ public class BlueskyThoughtProvider(
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Converts an AT Protocol URI (at://did:plc:xxx/app.bsky.feed.post/rkey)
+    /// to a browsable https://bsky.app URL.
+    /// </summary>
+    private static string? ToBlueskyWebUrl(string? atUri, string? handle)
+    {
+        if (string.IsNullOrEmpty(atUri))
+            return null;
+
+        // Extract the rkey (last path segment) from the AT URI
+        var lastSlash = atUri.LastIndexOf('/');
+        if (lastSlash < 0)
+            return atUri;
+
+        var rkey = atUri[(lastSlash + 1)..];
+        if (string.IsNullOrEmpty(rkey))
+            return atUri;
+
+        // Use handle if available, otherwise extract the DID from the URI
+        var authority = handle;
+        if (string.IsNullOrEmpty(authority) && atUri.StartsWith("at://", StringComparison.Ordinal))
+        {
+            var afterScheme = atUri[5..];
+            var slashIdx = afterScheme.IndexOf('/');
+            authority = slashIdx > 0 ? afterScheme[..slashIdx] : afterScheme;
+        }
+
+        return !string.IsNullOrEmpty(authority)
+            ? $"https://bsky.app/profile/{authority}/post/{rkey}"
+            : atUri;
     }
 
     private static string NormalizeText(string text)

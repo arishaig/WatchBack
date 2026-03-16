@@ -74,6 +74,32 @@ function renderMarkdown(src) {
     return t;
 }
 
+/**
+ * Sanitize an SVG string by parsing it into DOM and stripping unsafe elements
+ * (script, foreignObject) and event-handler attributes (on*).
+ */
+function sanitizeSvg(raw) {
+    if (!raw) return '';
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(raw, 'image/svg+xml');
+    const svg = doc.querySelector('svg');
+    if (!svg) return '';
+    // Remove dangerous elements
+    for (const tag of ['script', 'foreignObject', 'iframe', 'object', 'embed']) {
+        svg.querySelectorAll(tag).forEach(el => el.remove());
+    }
+    // Remove event handlers and javascript: hrefs
+    const walk = el => {
+        for (const attr of [...el.attributes]) {
+            if (attr.name.startsWith('on') || (attr.name === 'href' && attr.value.trim().toLowerCase().startsWith('javascript:')))
+                el.removeAttribute(attr.name);
+        }
+        for (const child of el.children) walk(child);
+    };
+    walk(svg);
+    return svg.outerHTML;
+}
+
 document.addEventListener('alpine:init', () => {
     Alpine.data('app', () => ({
         // App state
@@ -87,7 +113,7 @@ document.addEventListener('alpine:init', () => {
         showConfig: false,
         configData: null,
         configEdits: {},   // flat dict keyed by field.key ("Section__Key")
-        saveStatus: {},    // per-integration save state (legacy, kept for compat)
+        saveStatus: {},    // per-integration save state
         saveAllStatus: null, // global save state: saving | saved | error | null
         prefEdits: {},     // preference field edits
         prefSaveStatus: null,
@@ -101,7 +127,7 @@ document.addEventListener('alpine:init', () => {
         testResults: {},
         lastTestResults: {},
         testAllStatus: null,
-        authState: 'checking', // checking | login | onboarding | app
+        authState: 'checking', // checking | login | onboarding | changePassword | app
         loginUsername: '',
         loginPassword: '',
         loginError: null,
@@ -110,7 +136,13 @@ document.addEventListener('alpine:init', () => {
         setupPassword: '',
         setupError: null,
         setupLoading: false,
+        changePwNew: '',
+        changePwConfirm: '',
+        changePwError: null,
+        changePwLoading: false,
+        passwordStrength: null, // { score: 0-4, label, color, width, warning, suggestions }
         currentUser: null,
+        restartStatus: null,
         resetPasswordStatus: null,
         syncProgress: null,
         clearCacheStatus: null,
@@ -211,6 +243,8 @@ document.addEventListener('alpine:init', () => {
                     this.currentUser = { username: this.loginUsername, authMethod: 'cookie' };
                     if (data.needsOnboarding) {
                         this.authState = 'onboarding';
+                    } else if (data.needsPasswordChange) {
+                        this.authState = 'changePassword';
                     } else {
                         await this.initApp();
                     }
@@ -246,6 +280,61 @@ document.addEventListener('alpine:init', () => {
             this.setupLoading = false;
         },
 
+        async changePassword() {
+            if (this.changePwLoading) return;
+            if (!this.changePwNew) {
+                this.changePwError = 'Password is required.';
+                return;
+            }
+            if (this.changePwNew !== this.changePwConfirm) {
+                this.changePwError = 'Passwords do not match.';
+                return;
+            }
+            this.changePwLoading = true;
+            this.changePwError = null;
+            try {
+                const res = await fetch('/api/auth/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newPassword: this.changePwNew }),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    await this.initApp();
+                } else {
+                    this.changePwError = data.message || 'Password change failed';
+                }
+            } catch {
+                this.changePwError = 'Connection failed';
+            }
+            this.changePwLoading = false;
+        },
+
+        async evaluatePasswordStrength(password) {
+            if (!password) { this.passwordStrength = null; return; }
+            // Lazy-load zxcvbn on first use
+            if (typeof zxcvbn === 'undefined') {
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = '/js/zxcvbn.min.js';
+                    s.onload = resolve;
+                    s.onerror = reject;
+                    document.head.appendChild(s);
+                });
+            }
+            const result = zxcvbn(password, [this.loginUsername, this.setupUsername, 'watchback'].filter(Boolean));
+            const labels = ['Very weak', 'Weak', 'Fair', 'Strong', 'Very strong'];
+            const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#16a34a'];
+            this.passwordStrength = {
+                score: result.score,
+                label: labels[result.score],
+                color: colors[result.score],
+                width: `${Math.max((result.score + 1) * 20, 10)}%`,
+                warning: result.feedback.warning || null,
+                suggestions: result.feedback.suggestions || [],
+            };
+        },
+
         async logout() {
             await fetch('/api/auth/logout', { method: 'POST' });
             this.authState = 'login';
@@ -253,10 +342,9 @@ document.addEventListener('alpine:init', () => {
             this.loginUsername = '';
             this.loginPassword = '';
             this.loginError = null;
-            this.initialized = false;
+            this.passwordStrength = null;
             this.data = null;
             this.configData = null;
-            this.initialized = true;
         },
 
         async resetPassword() {
@@ -312,7 +400,8 @@ document.addEventListener('alpine:init', () => {
             this.initialized = false;
             this.authState = 'checking';
             // Poll /api/auth/me until the server responds, then re-initialize
-            while (true) {
+            const maxRetries = 60;
+            for (let i = 0; i < maxRetries; i++) {
                 await new Promise(r => setTimeout(r, 1000));
                 try {
                     const res = await fetch('/api/auth/me');
@@ -321,6 +410,9 @@ document.addEventListener('alpine:init', () => {
                     // still down — keep polling
                 }
             }
+            this.restartStatus = 'error';
+            this.initialized = true;
+            this.authState = 'login';
         },
 
         setupSSE() {
@@ -378,7 +470,7 @@ document.addEventListener('alpine:init', () => {
 
         openLogStream() {
             this.closeLogStream();
-            const es = new EventSource('/api/diagnostics/logs/stream');
+            const es = new ReconnectingEventSource('/api/diagnostics/logs/stream', { max_retry_time: 60000 });
             es.onmessage = (e) => {
                 try {
                     const entry = JSON.parse(e.data);
@@ -776,7 +868,8 @@ document.addEventListener('alpine:init', () => {
                 payload['WatchBack__WatchProvider'] = this.prefEdits.watchProvider;
             if (this.prefEdits.searchEngine)
                 payload['WatchBack__SearchEngine'] = this.prefEdits.searchEngine;
-            payload['WatchBack__CustomSearchUrl'] = this.prefEdits.customSearchUrl ?? '';
+            if (this.prefEdits.customSearchUrl)
+                payload['WatchBack__CustomSearchUrl'] = this.prefEdits.customSearchUrl;
 
             this.prefSaveStatus = 'saving';
             try {

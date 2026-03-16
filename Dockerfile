@@ -7,7 +7,7 @@ WORKDIR /app
 COPY src/WatchBack.Api/wwwroot/ /app/wwwroot/
 
 RUN set -e; \
-    curl -sLo /tmp/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 && \
+    curl -sLo /tmp/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.2.1/tailwindcss-linux-x64 && \
     chmod +x /tmp/tailwindcss && \
     /tmp/tailwindcss -i /app/wwwroot/tw.css -o /app/wwwroot/tailwind.css --minify && \
     rm /tmp/tailwindcss
@@ -33,6 +33,9 @@ RUN dotnet publish -c Release -o /app/publish --no-restore
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 
 WORKDIR /app
+
+# Install curl for healthcheck (not included in aspnet runtime image)
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 # Create persistent data directory
 RUN mkdir -p /app/data

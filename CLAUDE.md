@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **WatchBackNet** is a .NET solution that provides a provider-based architecture for watch state tracking and comment data retrieval. It's designed to support multiple data sources through pluggable provider implementations.
 
-- **.NET Target**: .NET 9.0
+- **.NET Target**: .NET 10.0
 - **Architecture Pattern**: Provider pattern with dependency abstraction
 - **Build System**: dotnet CLI (MSBuild)
 

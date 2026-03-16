@@ -437,9 +437,12 @@ public static class ConfigEndpoints
         if (string.IsNullOrEmpty(appPassword))
             return new { ok = true, message = "Handle set (no app password to verify)" };
 
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
         var req = new HttpRequestMessage(HttpMethod.Post, "https://bsky.social/xrpc/com.atproto.server.createSession");
         req.Content = System.Net.Http.Json.JsonContent.Create(new { identifier = handle, password = appPassword });
-        var res = await http.SendAsync(req, ct);
+        var res = await http.SendAsync(req, cts.Token);
         return res.IsSuccessStatusCode
             ? new { ok = true, message = "Connected" }
             : new { ok = false, message = res.StatusCode == System.Net.HttpStatusCode.Unauthorized ? "Invalid credentials" : $"HTTP {(int)res.StatusCode}" };

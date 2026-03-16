@@ -36,7 +36,18 @@ public class PrefetchService(
         cache.Set(StateKey, new PrefetchState(current, targets), StateTtl);
 
         var ct = lifetime.ApplicationStopping;
-        _ = Task.Run(async () => await RunPrefetchAsync(targets, ct), ct);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RunPrefetchAsync(targets, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Prefetch: unhandled exception in background task");
+            }
+        }, ct);
     }
 
     // ── Eviction ─────────────────────────────────────────────────────────────

@@ -1,9 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 
 using WatchBack.Core.Interfaces;
-using WatchBack.Core.Options;
 using WatchBack.Infrastructure.Http;
-using WatchBack.Infrastructure.Persistence;
 using WatchBack.Infrastructure.ThoughtProviders;
 using WatchBack.Infrastructure.WatchStateProviders;
 
@@ -34,9 +32,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<TraktThoughtProvider>());
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<RedditThoughtProvider>());
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<BlueskyThoughtProvider>());
-
-        // Register configuration repository
-        services.AddScoped<IConfigurationRepository, ConfigurationRepository>();
 
         return services;
     }

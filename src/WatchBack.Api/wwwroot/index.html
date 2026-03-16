@@ -118,14 +118,74 @@
                     <div>
                         <label for="setup-password" class="text-xs font-medium wb-text-muted block mb-1">New Password</label>
                         <input id="setup-password" type="password" x-model="setupPassword"
+                            @input="evaluatePasswordStrength(setupPassword)"
                             class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
                             autocomplete="new-password" placeholder="Choose a strong password">
+                        <!-- Password strength meter -->
+                        <div x-show="passwordStrength" x-cloak class="mt-2">
+                            <div class="h-1.5 rounded-full overflow-hidden" style="background-color:var(--wb-border)">
+                                <div class="h-full rounded-full transition-all duration-300"
+                                    :style="`width:${passwordStrength?.width};background-color:${passwordStrength?.color}`"></div>
+                            </div>
+                            <div class="flex justify-between items-start mt-1">
+                                <span class="text-[11px] font-medium" :style="`color:${passwordStrength?.color}`" x-text="passwordStrength?.label"></span>
+                            </div>
+                            <p x-show="passwordStrength?.warning" class="text-[11px] wb-text-muted mt-0.5" x-text="passwordStrength?.warning"></p>
+                            <p x-show="passwordStrength?.suggestions?.length" class="text-[11px] wb-text-faint mt-0.5" x-text="passwordStrength?.suggestions?.[0]"></p>
+                        </div>
                     </div>
                     <div x-show="setupError" class="text-xs text-center py-1" style="color:var(--wb-error-text)" x-text="setupError"></div>
                     <button type="submit" :disabled="setupLoading"
                         class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer wb-btn disabled:opacity-50"
                         style="background-color:var(--wb-accent);"
                         x-text="setupLoading ? 'Saving\u2026' : 'Complete Setup'"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Password change (hash upgrade) -->
+    <div x-show="authState === 'changePassword'" x-cloak
+        class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+        style="background-color: var(--wb-bg);">
+        <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
+            <div class="flex items-center justify-center gap-3 mb-4">
+                <img src="/watchback.png" alt="WatchBack Logo" class="w-8 h-8 object-contain wb-logo">
+                <h1 class="text-xl font-bold wb-accent-text">Update Password</h1>
+            </div>
+            <p class="text-xs wb-text-muted text-center mb-6">Your password's security hash has been upgraded. Please set a new password to continue.</p>
+            <form @submit.prevent="void changePassword()">
+                <div class="space-y-4">
+                    <div>
+                        <label for="chpw-new" class="text-xs font-medium wb-text-muted block mb-1">New Password</label>
+                        <input id="chpw-new" type="password" x-model="changePwNew"
+                            @input="evaluatePasswordStrength(changePwNew)"
+                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                            autocomplete="new-password" placeholder="Choose a strong password">
+                        <!-- Password strength meter -->
+                        <div x-show="passwordStrength" x-cloak class="mt-2">
+                            <div class="h-1.5 rounded-full overflow-hidden" style="background-color:var(--wb-border)">
+                                <div class="h-full rounded-full transition-all duration-300"
+                                    :style="`width:${passwordStrength?.width};background-color:${passwordStrength?.color}`"></div>
+                            </div>
+                            <div class="flex justify-between items-start mt-1">
+                                <span class="text-[11px] font-medium" :style="`color:${passwordStrength?.color}`" x-text="passwordStrength?.label"></span>
+                            </div>
+                            <p x-show="passwordStrength?.warning" class="text-[11px] wb-text-muted mt-0.5" x-text="passwordStrength?.warning"></p>
+                            <p x-show="passwordStrength?.suggestions?.length" class="text-[11px] wb-text-faint mt-0.5" x-text="passwordStrength?.suggestions?.[0]"></p>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="chpw-confirm" class="text-xs font-medium wb-text-muted block mb-1">Confirm Password</label>
+                        <input id="chpw-confirm" type="password" x-model="changePwConfirm"
+                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                            autocomplete="new-password" placeholder="Re-enter password">
+                    </div>
+                    <div x-show="changePwError" class="text-xs text-center py-1" style="color:var(--wb-error-text)" x-text="changePwError"></div>
+                    <button type="submit" :disabled="changePwLoading"
+                        class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer wb-btn disabled:opacity-50"
+                        style="background-color:var(--wb-accent);"
+                        x-text="changePwLoading ? 'Saving\u2026' : 'Update Password'"></button>
                 </div>
             </form>
         </div>
@@ -225,7 +285,7 @@
                                 <span class="flex items-center gap-2">
                                     <span class="integration-logo"
                                         :style="'color: ' + integration.brandColor"
-                                        x-html="integration.logoSvg"></span>
+                                        x-html="sanitizeSvg(integration.logoSvg)"></span>
                                     <span class="text-sm font-semibold wb-text-secondary"
                                         x-text="integration.name"></span>
                                 </span>
