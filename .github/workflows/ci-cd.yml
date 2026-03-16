@@ -30,7 +30,7 @@ jobs:
         run: dotnet build --no-restore
 
       - name: Run unit and integration tests
-        run: dotnet test tests/WatchBack.Core.Tests tests/WatchBack.Infrastructure.Tests tests/WatchBack.Api.Tests --no-build --filter "Category!=Accessibility" --verbosity normal
+        run: dotnet test --no-build --filter "Category!=Accessibility" --verbosity normal
 
       - name: Install Playwright browsers
         run: pwsh tests/WatchBack.Api.Tests/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
