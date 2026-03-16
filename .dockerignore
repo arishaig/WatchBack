@@ -9,6 +9,10 @@ obj/
 *.exe
 *.pdb
 
+# Docker
+Dockerfile
+docker-compose*
+
 # IDE
 .vscode/
 .vs/
@@ -17,6 +21,7 @@ obj/
 *.swo
 *~
 .DS_Store
+.idea
 
 # Test artifacts
 coverage/
@@ -41,3 +46,8 @@ node_modules/
 # Temporary files
 .tmp/
 temp/
+
+# Other
+*.user
+*.suo
+*.swp
