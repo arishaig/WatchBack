@@ -1,0 +1,128 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+using WatchBack.Core.Interfaces;
+using WatchBack.Core.Models;
+using WatchBack.Core.Options;
+
+namespace WatchBack.Infrastructure.WatchStateProviders;
+
+[JsonSerializable(typeof(JellyfinSessionDto[]))]
+internal sealed partial class JellyfinJsonContext : JsonSerializerContext { }
+
+public class JellyfinWatchStateProvider : IWatchStateProvider
+{
+    private readonly HttpClient _httpClient;
+    private readonly JellyfinOptions _options;
+    private readonly IMemoryCache _cache;
+    private readonly ILogger<JellyfinWatchStateProvider> _logger;
+
+    public JellyfinWatchStateProvider(
+        HttpClient httpClient,
+        IOptionsSnapshot<JellyfinOptions> options,
+        IMemoryCache cache,
+        ILogger<JellyfinWatchStateProvider> logger)
+    {
+        _httpClient = httpClient;
+        _options = options.Value;
+        _cache = cache;
+        _logger = logger;
+    }
+
+    public DataProviderMetadata Metadata =>
+        new WatchStateDataProviderMetadata(
+            Name: "Jellyfin",
+            Description: "Jellyfin watch state provider",
+            BrandData: new BrandData(
+                    Color: "#5580D0",
+                    LogoSvg: "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Jellyfin</title><path d=\"M12 .002C8.826.002-1.398 18.537.16 21.666c1.56 3.129 22.14 3.094 23.682 0C25.384 18.573 15.177 0 12 0zm7.76 18.949c-1.008 2.028-14.493 2.05-15.514 0C3.224 16.9 9.92 4.755 12.003 4.755c2.081 0 8.77 12.166 7.759 14.196zM12 9.198c-1.054 0-4.446 6.15-3.93 7.189.518 1.04 7.348 1.027 7.86 0 .511-1.027-2.874-7.19-3.93-7.19z\"/></svg>"
+                )
+            );
+
+    public async Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var cacheKey = "jellyfin:session";
+            if (_cache.TryGetValue(cacheKey, out MediaContext? cached))
+            {
+                return cached;
+            }
+
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{_options.BaseUrl}/Sessions");
+            request.Headers.Add("X-Emby-Token", _options.ApiKey);
+            var response = await _httpClient.SendAsync(request, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var content = await response.Content.ReadAsStringAsync(ct);
+            var sessions = JsonSerializer.Deserialize<JellyfinSessionDto[]>(
+                content,
+                JellyfinJsonContext.Default.JellyfinSessionDtoArray) ?? [];
+
+            var activeSession = sessions.FirstOrDefault(s => s.NowPlayingItem != null);
+            if (activeSession?.NowPlayingItem == null)
+            {
+                return null;
+            }
+
+            var item = activeSession.NowPlayingItem;
+            var result = new EpisodeContext(
+                Title: item.SeriesName ?? item.Name ?? "Unknown",
+                ReleaseDate: item.PremiereDate.HasValue
+                    ? new DateTimeOffset(item.PremiereDate.Value, TimeSpan.Zero)
+                    : null,
+                EpisodeTitle: item.Name ?? "Unknown",
+                SeasonNumber: (short)(item.ParentIndexNumber ?? 0),
+                EpisodeNumber: (short)(item.IndexNumber ?? 0));
+
+            _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Jellyfin watch state fetch failed");
+            return null;
+        }
+    }
+
+    public async Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{_options.BaseUrl}/Sessions");
+            request.Headers.Add("X-Emby-Token", _options.ApiKey);
+            var response = await _httpClient.SendAsync(request, ct);
+
+            return new ServiceHealth(
+                IsHealthy: response.IsSuccessStatusCode,
+                Message: response.IsSuccessStatusCode ? "OK" : response.StatusCode.ToString(),
+                CheckedAt: DateTimeOffset.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceHealth(
+                IsHealthy: false,
+                Message: ex.Message,
+                CheckedAt: DateTimeOffset.UtcNow);
+        }
+    }
+}
+
+internal sealed record JellyfinSessionDto(
+    [property: JsonPropertyName("Id")] string Id,
+    [property: JsonPropertyName("NowPlayingItem")] JellyfinItemDto? NowPlayingItem);
+
+internal sealed record JellyfinItemDto(
+    [property: JsonPropertyName("Name")] string? Name,
+    [property: JsonPropertyName("SeriesName")] string? SeriesName,
+    [property: JsonPropertyName("ParentIndexNumber")] int? ParentIndexNumber,
+    [property: JsonPropertyName("IndexNumber")] int? IndexNumber,
+    [property: JsonPropertyName("PremiereDate")] DateTime? PremiereDate);

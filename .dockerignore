@@ -1,27 +1,43 @@
 # Git
 .git
-.github
+.gitignore
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.venv/
-.pytest_cache/
-.python-version
+# Build artifacts
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
 
-# Local config & storage
+# IDE
+.vscode/
+.vs/
+.rider/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test artifacts
+coverage/
+*.trx
+
+# Node modules (if frontend exists)
+node_modules/
+
+# Documentation
+*.md
+!README.md
+
+# Environment files
 .env
-.env*
-config/
-cache/
+.env.local
+.env.*.local
 
-# Project
-README.md
-CLAUDE.md
-tests/
-docker-compose.yml
-Dockerfile
-.dockerignore
-pytest.ini
-static/tailwind.css
+# Database files (don't include in image)
+*.db
+*.sqlite
+
+# Temporary files
+.tmp/
+temp/

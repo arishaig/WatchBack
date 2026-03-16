@@ -1,103 +1,101 @@
 # WatchBack
 
-<p align="center">
-  <img src="static/watchback.png" alt="WatchBack" width="120">
-</p>
-
-<p align="center">
-  <a href="https://github.com/arishaig/WatchBack/actions/workflows/ci-cd.yml">
-    <img src="https://github.com/arishaig/WatchBack/actions/workflows/ci-cd.yml/badge.svg" alt="CI/CD">
-  </a>
-  <a href="https://github.com/arishaig/WatchBack/pkgs/container/watchback">
-    <img src="https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker" alt="Docker Image">
-  </a>
-</p>
-
-A self-hosted companion for your TV watching. WatchBack connects to **Jellyfin** or **Trakt** to detect what you're watching, then pulls in reactions from **Trakt comments**, **Bluesky**, and **Reddit**. For older episodes, comments are filtered to the original air-date window so you can relive the "live" experience.
+WatchBack is a self-hosted companion app for your media server. While you watch a TV show or movie, it automatically fetches Reddit threads, Trakt comments, Bluesky posts, and other community discussions about the exact episode you're watching — and surfaces them in a clean, single-page UI.
 
 ## Features
 
-- ⏱️ **Time Machine** — Shows only comments posted within 14 days (configurable) of the episode's premiere
-- 💬 **Multi-Source** — Aggregates reactions from Trakt, Bluesky, and Reddit in one view
-- 🗂️ **Thread Grouping** — Optionally group Reddit comments by discussion thread
+- **Automatic sync** — detects what you're currently watching and fetches relevant discussions
+- **Time Machine** — filters results to only show reactions posted close to the original air date, so you get the authentic first-watch experience
+- **Multiple sources** — Reddit threads (via [PullPush](pullpush.io/)), Trakt comments, and Bluesky posts, all in one place
+- **Reddit search shortcut** — one-click search for the episode you're watching
+- **Multiple themes** — dark, light, Solarized Dark, Solarized Light, and Monokai
 
 ## Quick Start
 
-### Docker (recommended)
+### Docker Compose (recommended)
 
-```bash
-# 1. Clone and configure
-git clone https://github.com/arishaig/WatchBack.git
-cd WatchBack
-cp .env.example .env   # Edit with your API keys, or skip this step and configure directly in the UI
+```yaml
+services:
+  watchback:
+    image: watchback
+    build: .
+    container_name: watchback
+    ports:
+      - "5000:5000"
+    volumes:
+      - watchback-data:/app/data
+    environment:
+      Jellyfin__BaseUrl: http://jellyfin:8096
+      Jellyfin__ApiKey: your-api-key
+    restart: unless-stopped
 
-# 2. Run
-docker compose up -d --build
-
-# Visit http://localhost:8080
+volumes:
+  watchback-data:
 ```
 
-### Manual
+Then open `http://localhost:5000` — you'll be prompted to set a username and password on first run.
+
+### Running locally
 
 ```bash
-uv sync
-uv run uvicorn main:app --reload
-# Visit http://localhost:8000
+dotnet run --project src/WatchBack.Api
 ```
 
 ## Configuration
 
-All settings can be configured via environment variables **or** the in-app settings panel. UI overrides take priority over env vars.
+All provider settings can be configured in the UI under the gear icon, or via environment variables / `appsettings.json`. Environment variables use double-underscore as the section separator (e.g. `Jellyfin__ApiKey`).
+
+### Watch providers
+
+| Variable | Description |
+|---|---|
+| `Jellyfin__BaseUrl` | Base URL of your Jellyfin server |
+| `Jellyfin__ApiKey` | Jellyfin API key |
+
+### Thought providers
 
 | Variable | Description | Default |
 |---|---|---|
-| `JF_URL` | Jellyfin server URL | `http://jellyfin:8096` |
-| `JF_API_KEY` | Jellyfin API key | — |
-| `TRAKT_CLIENT_ID` | Trakt application Client ID | — |
-| `TRAKT_USERNAME` | Trakt username (enables session detection via Trakt) | — |
-| `TRAKT_ACCESS_TOKEN` | Trakt OAuth token (for private profiles) | — |
-| `REDDIT_AUTO_OPEN` | Auto-find Reddit discussion threads | — |
-| `REDDIT_MAX_THREADS` | Max Reddit threads to return | `3` |
-| `BSKY_IDENTIFIER` | Bluesky handle or email | — |
-| `BSKY_APP_PASSWORD` | Bluesky app password | — |
-| `TIME_MACHINE_DAYS` | Days after premiere to include in Time Machine | `14` |
-| `CONFIG_DIR` | Persistent storage path | `/config` |
+| `Reddit__MaxThreads` | Maximum number of Reddit threads to fetch | `3` |
+| `Reddit__MaxComments` | Maximum number of comments per thread | `250` |
+| `Trakt__ClientId` | Trakt API client ID | |
+| `Trakt__Username` | Trakt username to fetch comments for | |
+| `Bluesky__Handle` | Bluesky handle (e.g. `you.bsky.social`) | |
+| `Bluesky__AppPassword` | Bluesky app password | |
 
-### Capability Tiers
+### App preferences
 
-The app works progressively — configure only what you have:
+| Variable | Description | Default |
+|---|---|---|
+| `WatchBack__TimeMachineDays` | Days after air date to include in Time Machine | `14` |
+| `WatchBack__WatchProvider` | Active watch provider (`jellyfin`) | `jellyfin` |
+| `WatchBack__SearchEngine` | Search engine for Reddit shortcut (`google`, `duckduckgo`, `bing`, `custom`) | `google` |
+| `WatchBack__CustomSearchUrl` | URL prefix for custom search engine | |
 
-| Tier | What You Need | What You Get |
-|------|---------------|-------------|
-| 1 | `JF_API_KEY` | Jellyfin session detection, Reddit search links |
-| 2 | + `TRAKT_CLIENT_ID` | Trakt comments + Time Machine filter |
-| 3 | + `BSKY_*` credentials | Bluesky post search |
-| 4 | + `TRAKT_USERNAME` | Auto-detect playback via Trakt (no Jellyfin required) |
+### Forward auth
 
-## Architecture
+If you run WatchBack behind an auth proxy that passes a trusted header (e.g. `X-Remote-User`), you can enable forward auth in the Security section of the config UI. When active, the login screen is bypassed entirely.
 
-- **Backend**: Single-file FastAPI app ([main.py](main.py))
-- **Frontend**: Alpine.js SPA with Tailwind CSS ([static/index.html](static/index.html), [static/app.js](static/app.js), [static/css/](static/css/))
-- **Storage**: DiskCache for session data, config overrides, and API response caching
-- **Refresh**: SSE endpoint (`/api/stream`) driven by Jellyfin webhooks (`/api/webhook`) or a Trakt background poller
+## Adding a new provider
 
-## Development
+WatchBack is built around a provider pattern. To add a new watch state source or thought source:
+
+1. Implement `IWatchStateProvider` or `IThoughtProvider` from `WatchBack.Core`
+2. Register it in `Program.cs`
+
+See the existing implementations in `WatchBack.Infrastructure` for reference, and the interface XML docs in `WatchBack.Core/Interfaces` for the full contract.
+
+## Building
 
 ```bash
-# Install all dependencies (including dev/test)
-uv sync --all-groups
+# Build
+dotnet build
 
 # Run tests
-uv run python -m pytest tests -v -m "not a11y"
+dotnet test
 
-# Run accessibility tests (requires Playwright browsers)
-uv run playwright install chromium
-uv run python -m pytest tests -v -m a11y
-
-# Run with auto-reload
-uv run uvicorn main:app --reload
+# Publish (production)
+dotnet publish -c Release
 ```
 
-## License
-
-[GPL-3.0](LICENSE)
+The Docker build handles Tailwind CSS compilation automatically as a separate stage.

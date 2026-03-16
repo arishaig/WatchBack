@@ -1,0 +1,102 @@
+/* Alpine.js cloak — hide elements until Alpine initializes */
+[x-cloak] {
+    display: none !important;
+}
+
+/* ─── Typography system ─── */
+:root {
+    --font-display: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Global body styling (themed) */
+body {
+    background-color: var(--wb-bg);
+    color: var(--wb-text);
+    font-family: var(--font-body), sans-serif;
+    line-height: 1.6;
+    font-optical-sizing: auto;
+    -webkit-text-size-adjust: 100%;
+}
+
+/* WatchBack hero title */
+h1 {
+    font-family: var(--font-display), sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    text-rendering: optimizeLegibility;
+}
+
+/* Episode / movie title cards */
+main h2 {
+    font-family: var(--font-display), sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    text-rendering: optimizeLegibility;
+}
+
+/* Themed utility classes — surface & text */
+.wb-surface {
+    background-color: var(--wb-surface);
+}
+
+.wb-surface-alt {
+    background-color: var(--wb-surface-alt);
+}
+
+.wb-border {
+    border-color: var(--wb-border);
+}
+
+.wb-text {
+    color: var(--wb-text);
+}
+
+.wb-text-secondary {
+    color: var(--wb-text-secondary);
+}
+
+.wb-text-muted {
+    color: var(--wb-text-muted);
+}
+
+.wb-text-faint {
+    color: var(--wb-text-faint);
+}
+
+.wb-accent-text {
+    color: var(--wb-accent-text);
+}
+
+.wb-on-accent {
+    color: var(--wb-on-accent);
+}
+
+@media (width <= 475px) {
+    .hide-on-mobile {
+        display: none;
+    }
+
+    .show-on-mobile {
+        display: flex;
+    }
+}
+
+@media (width > 440px) {
+    .show-on-mobile {
+        display: none;
+    }
+}
+
+/* App container width */
+.wb-app {
+    max-width: 700px;
+}
+
+/* Logo */
+img.wb-logo {
+    filter: var(--wb-logo-filter);
+    -webkit-filter: var(--wb-logo-filter);
+}

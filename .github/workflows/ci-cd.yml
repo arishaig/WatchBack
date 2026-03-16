@@ -16,28 +16,27 @@ jobs:
     if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4.3.1
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
+          dotnet-version: '10.0.x'
 
-      - name: Set up Python
-        run: uv python install
+      - name: Restore dependencies
+        run: dotnet restore
 
-      - name: Install dependencies
-        run: uv sync --all-groups
+      - name: Build
+        run: dotnet build --no-restore
 
-      - name: Run unit tests with coverage
-        run: uv run python -m pytest tests -v -m "not a11y"
+      - name: Run unit and integration tests
+        run: dotnet test --no-build --filter "Category!=Accessibility&Category!=Integration" --verbosity normal
 
       - name: Install Playwright browsers
-        run: uv run playwright install chromium --with-deps
+        run: pwsh tests/WatchBack.Api.Tests/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
 
       - name: Run accessibility tests
-        run: uv run python -m pytest tests -v -m a11y --no-cov
+        run: dotnet test tests/WatchBack.Api.Tests --no-build --filter "Category=Accessibility" --verbosity normal
 
   docker:
     runs-on: ubuntu-latest
@@ -51,7 +50,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Generate version string
         id: version
@@ -62,10 +61,10 @@ jobs:
           echo "version=${DATE}.${COUNT}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -73,7 +72,7 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -83,7 +82,7 @@ jobs:
             type=sha
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -101,10 +100,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.6.1
         with:
           tag_name: v${{ needs.docker.outputs.version }}
           name: v${{ needs.docker.outputs.version }}

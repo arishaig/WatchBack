@@ -1,15 +1,42 @@
 services:
   watchback:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: watchback
-    env_file:
-      - .env
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Los_Angeles
-    volumes:
-      - ./config:/config
     ports:
-      - "8080:8000"
+      - "${WATCHBACK_PORT:-8484}:8484"
+    volumes:
+      - watchback-data:/app/data
+    # environment:
+      # All environmnet variables are optional. You can also set them in the UI.
+      # Values set in the UI are saved to user-settings.json
+
+      # ── Jellyfin ────────────────────────────────────────────────────────────
+      # Jellyfin__BaseUrl: http://jellyfin:8096
+      # Jellyfin__ApiKey: your-api-key
+
+      # ── Trakt ───────────────────────────────────────────────────────────────
+      # Trakt__ClientId: your-client-id
+      # Trakt__Username: your-username
+      # Trakt__AccessToken: your-oauth-access-token
+
+      # ── Bluesky ─────────────────────────────────────────────────────────────
+      # Bluesky__Handle: you.bsky.social
+      # Bluesky__AppPassword: xxxx-xxxx-xxxx-xxxx
+
+      # ── Reddit ──────────────────────────────────────────────────────────────
+      # No credentials required (uses public PullPush API).
+      # Reddit__MaxThreads: 3
+      # Reddit__MaxComments: 250
+
+      # ── App preferences ─────────────────────────────────────────────────────
+      # WatchBack__WatchProvider: jellyfin
+      # WatchBack__TimeMachineDays: 14
+      # WatchBack__SearchEngine: google      # google | duckduckgo | bing | custom
+      # WatchBack__CustomSearchUrl:          # base URL prefix when SearchEngine=custom
+
     restart: unless-stopped
+
+volumes:
+  watchback-data:
