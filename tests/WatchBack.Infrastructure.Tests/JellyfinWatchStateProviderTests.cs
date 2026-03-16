@@ -6,6 +6,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 using WatchBack.Infrastructure.WatchStateProviders;
@@ -185,6 +186,126 @@ public class JellyfinWatchStateProviderTests : IDisposable
         callCount.Should().Be(1); // Second call uses cache
         result1.Should().NotBeNull();
         result2.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Metadata_SupportedExternalIds_ContainsImdbTmdbTvdb()
+    {
+        // Arrange
+        var provider = new JellyfinWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        // Assert
+        provider.Metadata.Should().BeOfType<WatchStateDataProviderMetadata>();
+        var meta = (WatchStateDataProviderMetadata)provider.Metadata;
+        meta.SupportedExternalIds.Should().BeEquivalentTo([ExternalIdType.Imdb, ExternalIdType.Tmdb, ExternalIdType.Tvdb]);
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_WithAllProviderIds_PopulatesExternalIds()
+    {
+        // Arrange
+        var sessionJson = """
+            [
+                {
+                    "Id": "session1",
+                    "NowPlayingItem": {
+                        "Name": "Ozymandias",
+                        "SeriesName": "Breaking Bad",
+                        "ParentIndexNumber": 5,
+                        "IndexNumber": 14,
+                        "ProviderIds": {
+                            "Imdb": "tt0903747",
+                            "Tmdb": "1396",
+                            "Tvdb": "81189"
+                        }
+                    }
+                }
+            ]
+            """;
+
+        var handler = new MockHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sessionJson) });
+        var client = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
+        var provider = new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        // Act
+        var result = await provider.GetCurrentMediaContextAsync();
+
+        // Assert
+        var episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        episode.ExternalIds.Should().NotBeNull();
+        episode.ExternalIds![ExternalIdType.Imdb].Should().Be("tt0903747");
+        episode.ExternalIds[ExternalIdType.Tmdb].Should().Be("1396");
+        episode.ExternalIds[ExternalIdType.Tvdb].Should().Be("81189");
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_WithPartialProviderIds_PopulatesOnlyAvailableIds()
+    {
+        // Arrange
+        var sessionJson = """
+            [
+                {
+                    "Id": "session1",
+                    "NowPlayingItem": {
+                        "Name": "Ozymandias",
+                        "SeriesName": "Breaking Bad",
+                        "ParentIndexNumber": 5,
+                        "IndexNumber": 14,
+                        "ProviderIds": {
+                            "Tvdb": "81189"
+                        }
+                    }
+                }
+            ]
+            """;
+
+        var handler = new MockHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sessionJson) });
+        var client = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
+        var provider = new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        // Act
+        var result = await provider.GetCurrentMediaContextAsync();
+
+        // Assert
+        var episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        episode.ExternalIds.Should().NotBeNull();
+        episode.ExternalIds![ExternalIdType.Tvdb].Should().Be("81189");
+        episode.ExternalIds.Should().NotContainKey(ExternalIdType.Imdb);
+        episode.ExternalIds.Should().NotContainKey(ExternalIdType.Tmdb);
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_WithNoProviderIds_ReturnsNullExternalIds()
+    {
+        // Arrange
+        var sessionJson = """
+            [
+                {
+                    "Id": "session1",
+                    "NowPlayingItem": {
+                        "Name": "Breaking Bad",
+                        "SeriesName": "Breaking Bad",
+                        "ParentIndexNumber": 1,
+                        "IndexNumber": 1
+                    }
+                }
+            ]
+            """;
+
+        var handler = new MockHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sessionJson) });
+        var client = new HttpClient(handler) { BaseAddress = new Uri(_options.BaseUrl) };
+        var provider = new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        // Act
+        var result = await provider.GetCurrentMediaContextAsync();
+
+        // Assert
+        var episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        episode.ExternalIds.Should().BeNull();
     }
 
     [Fact]

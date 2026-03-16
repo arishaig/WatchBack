@@ -33,7 +33,7 @@ public class SyncServiceTests
         // Arrange
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
         var thoughtProviders = new[] { Substitute.For<IThoughtProvider>() };
-        var service = new SyncService(new[] { _watchStateProvider }, thoughtProviders, _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
+        var service = new SyncService(new[] { _watchStateProvider }, Array.Empty<IManualWatchStateProvider>(), thoughtProviders, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         var result = await service.SyncAsync();
@@ -86,7 +86,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), episode.ReleaseDate, 14).Returns([thought]);
 
         var thoughtProviders = new[] { thoughtProvider };
-        var service = new SyncService(new[] { _watchStateProvider }, thoughtProviders, _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
+        var service = new SyncService(new[] { _watchStateProvider }, Array.Empty<IManualWatchStateProvider>(), thoughtProviders, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         var result = await service.SyncAsync();
@@ -129,7 +129,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
             .Returns([]);
 
-        var service = new SyncService(new[] { _watchStateProvider }, new[] { provider1, provider2, provider3 }, _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
+        var service = new SyncService(new[] { _watchStateProvider }, Array.Empty<IManualWatchStateProvider>(), new[] { provider1, provider2, provider3 }, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         await service.SyncAsync();
@@ -167,7 +167,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), episode.ReleaseDate, 14)
             .Returns(filteredThoughts);
 
-        var service = new SyncService(new[] { _watchStateProvider }, new[] { thoughtProvider }, _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
+        var service = new SyncService(new[] { _watchStateProvider }, Array.Empty<IManualWatchStateProvider>(), new[] { thoughtProvider }, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         var result = await service.SyncAsync();
@@ -205,7 +205,7 @@ public class SyncServiceTests
 
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
 
-        var service = new SyncService(new[] { _watchStateProvider }, new[] { thoughtProvider1, thoughtProvider2 }, _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
+        var service = new SyncService(new[] { _watchStateProvider }, Array.Empty<IManualWatchStateProvider>(), new[] { thoughtProvider1, thoughtProvider2 }, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         var syncResult = await service.SyncAsync();
@@ -222,7 +222,9 @@ public class SyncServiceTests
         // Arrange
         var service = new SyncService(
             Array.Empty<IWatchStateProvider>(),
+            Array.Empty<IManualWatchStateProvider>(),
             Array.Empty<IThoughtProvider>(),
+            Array.Empty<IRatingsProvider>(),
             _timeMachineFilter,
             _prefetchService,
             _options,
@@ -263,7 +265,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
             .Returns(thoughts);
 
-        var service = new SyncService(new[] { _watchStateProvider }, new[] { thoughtProvider }, _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
+        var service = new SyncService(new[] { _watchStateProvider }, Array.Empty<IManualWatchStateProvider>(), new[] { thoughtProvider }, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         var result = await service.SyncAsync();
@@ -291,7 +293,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
 
         var capturedProgress = Substitute.For<IProgress<SyncProgressTick>>();
-        var service = new SyncService(new[] { _watchStateProvider }, new[] { provider1, provider2 }, _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
+        var service = new SyncService(new[] { _watchStateProvider }, Array.Empty<IManualWatchStateProvider>(), new[] { provider1, provider2 }, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options, Microsoft.Extensions.Logging.Abstractions.NullLogger<SyncService>.Instance);
 
         // Act
         await service.SyncAsync(capturedProgress);

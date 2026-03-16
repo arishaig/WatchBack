@@ -5,11 +5,15 @@ using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 
+using static WatchBack.Core.Models.ExternalIdType;
+
 namespace WatchBack.Core.Services;
 
 public class SyncService(
     IEnumerable<IWatchStateProvider> watchStateProviders,
+    IEnumerable<IManualWatchStateProvider> manualWatchStateProviders,
     IEnumerable<IThoughtProvider> thoughtProviders,
+    IEnumerable<IRatingsProvider> ratingsProviders,
     ITimeMachineFilter timeMachineFilter,
     IPrefetchService prefetchService,
     IOptionsSnapshot<WatchBackOptions> options,
@@ -20,11 +24,42 @@ public class SyncService(
     {
         try
         {
-            // Select the configured watch state provider, falling back to the first registered
-            var configured = options.Value.WatchProvider;
-            var watchStateProvider = watchStateProviders
-                .FirstOrDefault(p => p.Metadata.Name.Equals(configured, StringComparison.OrdinalIgnoreCase))
+            // Select the configured watch state provider (used as fallback and for suppression check)
+            var configuredName = options.Value.WatchProvider;
+            var configuredProvider = watchStateProviders
+                .FirstOrDefault(p => p.Metadata.Name.Equals(configuredName, StringComparison.OrdinalIgnoreCase))
                 ?? watchStateProviders.FirstOrDefault();
+
+            // Manual provider takes priority when it has an active context.
+            // While checking, also kick off the configured provider's check in parallel
+            // so we can report if it's also active (suppressed by the manual override).
+            IWatchStateProvider? watchStateProvider = null;
+            IWatchStateProvider? suppressedProvider = null;
+            MediaContext? suppressedContext = null;
+
+            foreach (var manual in manualWatchStateProviders)
+            {
+                // Run both checks concurrently when there is a non-manual configured provider
+                Task<MediaContext?> configuredTask = configuredProvider != null && configuredProvider != (IWatchStateProvider)manual
+                    ? configuredProvider.GetCurrentMediaContextAsync(ct)
+                    : Task.FromResult<MediaContext?>(null);
+
+                var manualContext = await manual.GetCurrentMediaContextAsync(ct);
+                if (manualContext != null)
+                {
+                    watchStateProvider = manual;
+                    var configuredContext = await configuredTask;
+                    if (configuredContext != null)
+                    {
+                        suppressedProvider = configuredProvider;
+                        suppressedContext = configuredContext;
+                    }
+                    break;
+                }
+            }
+
+            if (watchStateProvider == null)
+                watchStateProvider = configuredProvider;
 
             if (watchStateProvider == null)
             {
@@ -54,10 +89,17 @@ public class SyncService(
                     SourceResults: []);
             }
 
-            // Get thoughts from all providers in parallel
+            // Get thoughts and ratings from all providers in parallel
             var thoughtTasks = thoughtProviders
                 .Select(provider => provider.GetThoughtsAsync(mediaContext, progress, ct))
                 .ToList();
+
+            string? imdbId = null;
+            mediaContext.ExternalIds?.TryGetValue(Imdb, out imdbId);
+            var ratingsProviderList = ratingsProviders.ToList();
+            var ratingsTask = !string.IsNullOrEmpty(imdbId)
+                ? Task.WhenAll(ratingsProviderList.Select(p => p.GetRatingsAsync(imdbId, ct)))
+                : Task.FromResult<IReadOnlyList<MediaRating>[]>([]);
 
             var sourceResults = (await Task.WhenAll(thoughtTasks))
                 .Where(r => r != null)
@@ -77,6 +119,14 @@ public class SyncService(
                 mediaContext.ReleaseDate,
                 options.Value.TimeMachineDays);
 
+            var ratingsArrays = await ratingsTask;
+            var ratings = ratingsArrays.SelectMany(r => r).ToList();
+            // Attribute ratings to the first provider that returned results
+            var ratingsProviderName = ratingsProviderList
+                .Zip(ratingsArrays, (p, r) => (Provider: p, Results: r))
+                .FirstOrDefault(x => x.Results.Count > 0)
+                .Provider?.Metadata.Name;
+
             var result = new SyncResult(
                 Status: SyncStatus.Watching,
                 Title: mediaContext.Title,
@@ -84,7 +134,12 @@ public class SyncService(
                 AllThoughts: allThoughts,
                 TimeMachineThoughts: timeMachineThoughts.ToList(),
                 TimeMachineDays: options.Value.TimeMachineDays,
-                SourceResults: sourceResults);
+                SourceResults: sourceResults,
+                WatchProvider: watchStateProvider.Metadata.Name,
+                SuppressedProvider: suppressedProvider?.Metadata.Name,
+                SuppressedTitle: suppressedContext?.Title,
+                Ratings: ratings.Count > 0 ? ratings : null,
+                RatingsProvider: ratingsProviderName);
 
             // Proactively warm the cache for the next episode(s) in the background.
             if (mediaContext is EpisodeContext episode)

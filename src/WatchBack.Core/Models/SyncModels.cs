@@ -33,6 +33,9 @@ public record SyncProgressTick(int Weight, string Provider);
 /// <param name="TimeMachineThoughts">Thoughts filtered to only include those within the Time Machine window</param>
 /// <param name="TimeMachineDays">The number of days Time Machine is configured to filter relative to the air date</param>
 /// <param name="SourceResults">The aggregated results from each ThoughtProvider, including post metadata and Thought collections</param>
+/// <param name="WatchProvider">Name of the watch state provider that supplied the current media context</param>
+/// <param name="SuppressedProvider">Name of the configured provider that has active context but was overridden by the manual provider</param>
+/// <param name="SuppressedTitle">Title the suppressed provider would have shown</param>
 public record SyncResult(
     SyncStatus Status,
     string? Title,
@@ -40,4 +43,9 @@ public record SyncResult(
     IReadOnlyList<Thought> AllThoughts,
     IReadOnlyList<Thought> TimeMachineThoughts,
     int TimeMachineDays,
-    IReadOnlyList<ThoughtResult> SourceResults);
+    IReadOnlyList<ThoughtResult> SourceResults,
+    string? WatchProvider = null,
+    string? SuppressedProvider = null,
+    string? SuppressedTitle = null,
+    IReadOnlyList<MediaRating>? Ratings = null,
+    string? RatingsProvider = null);

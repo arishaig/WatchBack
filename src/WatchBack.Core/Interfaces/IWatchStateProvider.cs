@@ -14,7 +14,15 @@ public record WatchStateDataProviderMetadata(
     string Description,
     string? OverrideDisplayName = null,
     BrandData? BrandData = null
-) : DataProviderMetadata(Name, Description, OverrideDisplayName, BrandData);
+) : DataProviderMetadata(Name, Description, OverrideDisplayName, BrandData)
+{
+    /// <summary>
+    /// The set of external ID types this provider is capable of supplying.
+    /// Use well-known keys from <see cref="Models.ExternalIdType"/> where applicable.
+    /// An empty set means the provider does not populate <see cref="MediaContext.ExternalIds"/>.
+    /// </summary>
+    public IReadOnlySet<string> SupportedExternalIds { get; init; } = new HashSet<string>();
+}
 
 /// <summary>
 /// A WatchStateProvider is any service that provides metadata for a specific

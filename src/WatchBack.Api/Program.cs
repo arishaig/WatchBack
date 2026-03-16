@@ -83,6 +83,10 @@ builder.Services
     .BindConfiguration("WatchBack");
 
 builder.Services
+    .AddOptions<OmdbOptions>()
+    .BindConfiguration("Omdb");
+
+builder.Services
     .AddOptions<AuthOptions>()
     .BindConfiguration("Auth");
 
@@ -214,6 +218,8 @@ protectedGroup.MapSyncEndpoints();
 protectedGroup.MapConfigEndpoints();
 protectedGroup.MapSystemEndpoints();
 protectedGroup.MapDiagnosticsEndpoints();
+protectedGroup.MapManualWatchStateEndpoints();
+protectedGroup.MapSearchEndpoints();
 
 // Map fallback to index.html for SPA
 app.MapFallbackToFile("index.html");

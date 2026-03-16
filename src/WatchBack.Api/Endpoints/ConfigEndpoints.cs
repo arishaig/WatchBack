@@ -17,7 +17,7 @@ public static class ConfigEndpoints
 
     private static readonly HashSet<string> s_allowedConfigSections = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Jellyfin", "Trakt", "Bluesky", "Reddit", "WatchBack"
+        "Jellyfin", "Trakt", "Bluesky", "Reddit", "WatchBack", "Omdb"
     };
 
     public static void MapConfigEndpoints(this IEndpointRouteBuilder app)
@@ -79,8 +79,11 @@ public static class ConfigEndpoints
         IOptionsSnapshot<BlueskyOptions> bluesky,
         IOptionsSnapshot<RedditOptions> reddit,
         IOptionsSnapshot<WatchBackOptions> watchback,
+        IOptionsSnapshot<OmdbOptions> omdb,
         IEnumerable<IWatchStateProvider> watchStateProviders,
         IEnumerable<IThoughtProvider> thoughtProviders,
+        IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+        IEnumerable<IRatingsProvider> ratingsProviders,
         UserConfigFile configFile,
         CancellationToken ct)
     {
@@ -89,6 +92,7 @@ public static class ConfigEndpoints
         var b = bluesky.Value;
         var r = reddit.Value;
         var w = watchback.Value;
+        var o = omdb.Value;
 
         // Env-only config: baseline values before user-settings.json overrides
         var envCfg = new ConfigurationBuilder().AddEnvironmentVariables().Build();
@@ -105,6 +109,12 @@ public static class ConfigEndpoints
             if (p.Metadata.BrandData != null)
                 brandByName[p.Metadata.Name] = p.Metadata.BrandData;
         foreach (var p in thoughtProviders)
+            if (p.Metadata.BrandData != null)
+                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
+        foreach (var p in mediaSearchProviders)
+            if (p.Metadata.BrandData != null)
+                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
+        foreach (var p in ratingsProviders)
             if (p.Metadata.BrandData != null)
                 brandByName[p.Metadata.Name] = p.Metadata.BrandData;
 
@@ -160,6 +170,17 @@ public static class ConfigEndpoints
                         new { key = "Reddit__MaxComments", label = "Max Comments", type = "number", placeholder = "250", hasValue = true, value = r.MaxComments.ToString(System.Globalization.CultureInfo.InvariantCulture), envValue = EnvVal("Reddit__MaxComments"), isOverridden = IsOverriddenInUserSettings("Reddit", "MaxComments") }
                     },
                     configured = true
+                },
+                ["omdb"] = new
+                {
+                    name = "OMDb (Media Search)",
+                    logoSvg = brandByName.GetValueOrDefault("OMDb")?.LogoSvg ?? "",
+                    brandColor = brandByName.GetValueOrDefault("OMDb")?.Color ?? "",
+                    fields = new[]
+                    {
+                        new { key = "Omdb__ApiKey", label = "API Key", type = "password", placeholder = "Free at omdbapi.com (1 000 req/day)", hasValue = !string.IsNullOrEmpty(o.ApiKey), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Omdb", "ApiKey") }
+                    },
+                    configured = !string.IsNullOrEmpty(o.ApiKey)
                 }
             },
             preferences = new
@@ -277,13 +298,15 @@ public static class ConfigEndpoints
         string key,
         IOptionsSnapshot<JellyfinOptions> jellyfin,
         IOptionsSnapshot<TraktOptions> trakt,
-        IOptionsSnapshot<BlueskyOptions> bluesky)
+        IOptionsSnapshot<BlueskyOptions> bluesky,
+        IOptionsSnapshot<OmdbOptions> omdb)
     {
         var value = key switch
         {
             "Jellyfin__ApiKey"      => jellyfin.Value.ApiKey,
             "Trakt__AccessToken"    => trakt.Value.AccessToken,
             "Bluesky__AppPassword"  => bluesky.Value.AppPassword,
+            "Omdb__ApiKey"          => omdb.Value.ApiKey,
             _                       => null
         };
 
@@ -335,6 +358,7 @@ public static class ConfigEndpoints
         IOptionsSnapshot<TraktOptions> traktOpts,
         IOptionsSnapshot<JellyfinOptions> jellyfinOpts,
         IOptionsSnapshot<BlueskyOptions> blueskyOpts,
+        IOptionsSnapshot<OmdbOptions> omdbOpts,
         CancellationToken ct)
     {
         // Read credentials directly from the request body — bypasses IOptionsSnapshot timing
@@ -364,6 +388,8 @@ public static class ConfigEndpoints
                     Resolve("Bluesky__Handle", blueskyOpts.Value.Handle),
                     Resolve("Bluesky__AppPassword", blueskyOpts.Value.AppPassword), ct),
                 "reddit" => (object)new { ok = true, message = "Connected" },
+                "omdb" => await TestOmdb(http,
+                    Resolve("Omdb__ApiKey", omdbOpts.Value.ApiKey), ct),
                 _ => new { ok = false, message = $"Unknown service: {service}" }
             };
         }
@@ -427,6 +453,28 @@ public static class ConfigEndpoints
         {
             return new { ok = true, message = "Connected" };
         }
+    }
+
+    private static async Task<object> TestOmdb(HttpClient http, string apiKey, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(apiKey))
+            return new { ok = false, message = "No API key configured" };
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        var res = await http.GetAsync($"https://www.omdbapi.com/?apikey={Uri.EscapeDataString(apiKey)}&t=test", cts.Token);
+        if (!res.IsSuccessStatusCode)
+            return new { ok = false, message = $"HTTP {(int)res.StatusCode}" };
+
+        using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(cts.Token), cancellationToken: cts.Token);
+        // OMDb returns { "Response": "False", "Error": "Invalid API key!" } for bad keys
+        if (doc.RootElement.TryGetProperty("Error", out var err)
+            && err.ValueKind == JsonValueKind.String
+            && (err.GetString() ?? "").Contains("key", StringComparison.OrdinalIgnoreCase))
+            return new { ok = false, message = err.GetString() };
+
+        return new { ok = true, message = "Connected" };
     }
 
     private static async Task<object> TestBluesky(HttpClient http, string handle, string appPassword, CancellationToken ct)

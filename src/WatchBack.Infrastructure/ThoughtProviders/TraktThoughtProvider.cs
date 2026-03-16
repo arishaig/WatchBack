@@ -9,6 +9,8 @@ using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 
+using static WatchBack.Core.Models.ExternalIdType;
+
 namespace WatchBack.Infrastructure.ThoughtProviders;
 
 [JsonSerializable(typeof(TraktShowSearchItemDto[]))]
@@ -68,40 +70,12 @@ public class TraktThoughtProvider : IThoughtProvider
             if (_cache.TryGetValue(cacheKey, out ThoughtResult? cached))
                 return cached;
 
-            // Resolve show slug — cached separately for 24 h since it never changes
-            var slugCacheKey = $"trakt:slug:{mediaContext.Title}";
-            if (!_cache.TryGetValue(slugCacheKey, out string? showId) || showId == null)
+            // Resolve show slug — tries external IDs first (IMDB → TVDB → TMDB), then falls back to title search
+            var showId = await ResolveSlugAsync(mediaContext, ct);
+            if (showId == null)
             {
-                var searchRequest = new HttpRequestMessage(
-                    HttpMethod.Get,
-                    $"https://api.trakt.tv/search/show?query={Uri.EscapeDataString(mediaContext.Title)}");
-                ConfigureRequestHeaders(searchRequest);
-
-                var searchResponse = await _httpClient.SendAsync(searchRequest, ct);
-                if (!searchResponse.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("Trakt search failed: HTTP {Status} for '{Title}'",
-                        (int)searchResponse.StatusCode, mediaContext.Title);
-                    return Empty;
-                }
-
-                var searchContent = await searchResponse.Content.ReadAsStringAsync(ct);
-                var searchResults = JsonSerializer.Deserialize<TraktShowSearchItemDto[]>(
-                    searchContent,
-                    TraktThoughtJsonContext.Default.TraktShowSearchItemDtoArray);
-
-                var show = searchResults?.FirstOrDefault()?.Show;
-                if (show?.Ids?.Slug == null && show?.Ids?.Trakt == null)
-                {
-                    _logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
-                    return Empty;
-                }
-
-                showId = Uri.EscapeDataString(show.Ids?.Slug
-                    ?? show.Ids!.Trakt!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
-
-                _logger.LogDebug("Trakt: resolved '{Title}' → slug '{Slug}'", mediaContext.Title, showId);
-                _cache.Set(slugCacheKey, showId, TimeSpan.FromHours(24));
+                _logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
+                return Empty;
             }
 
             // Fetch comments
@@ -204,6 +178,80 @@ public class TraktThoughtProvider : IThoughtProvider
                 Message: ex.Message,
                 CheckedAt: DateTimeOffset.UtcNow);
         }
+    }
+
+    /// <summary>
+    /// Resolves a Trakt show slug from the media context. Tries external ID lookups in order
+    /// (IMDB → TVDB → TMDB) before falling back to a title text search. Result is cached for 24 h.
+    /// </summary>
+    private async Task<string?> ResolveSlugAsync(MediaContext mediaContext, CancellationToken ct)
+    {
+        var slugCacheKey = $"trakt:slug:{mediaContext.Title}";
+        if (_cache.TryGetValue(slugCacheKey, out string? cached) && cached != null)
+            return cached;
+
+        // Build the ordered list of ID lookups to attempt before falling back to text search.
+        // IMDB is tried first (most canonical), then TVDB (TV-specific), then TMDB.
+        var idLookups = new List<(string IdType, string IdValue)>();
+        if (mediaContext.ExternalIds?.TryGetValue(Imdb, out var imdbId) == true && imdbId != null)
+            idLookups.Add(("imdb", imdbId));
+        if (mediaContext.ExternalIds?.TryGetValue(Tvdb, out var tvdbId) == true && tvdbId != null)
+            idLookups.Add(("tvdb", tvdbId));
+        if (mediaContext.ExternalIds?.TryGetValue(Tmdb, out var tmdbId) == true && tmdbId != null)
+            idLookups.Add(("tmdb", tmdbId));
+
+        foreach (var (idType, idValue) in idLookups)
+        {
+            var url = $"https://api.trakt.tv/search/{idType}/{Uri.EscapeDataString(idValue)}?type=show";
+            var slug = await TryResolveSlugFromSearchUrlAsync(url, mediaContext.Title, ct);
+            if (slug != null)
+            {
+                _cache.Set(slugCacheKey, slug, TimeSpan.FromHours(24));
+                return slug;
+            }
+        }
+
+        // Fall back to title text search
+        var textSearchUrl = $"https://api.trakt.tv/search/show?query={Uri.EscapeDataString(mediaContext.Title)}";
+        var textSlug = await TryResolveSlugFromSearchUrlAsync(textSearchUrl, mediaContext.Title, ct);
+        if (textSlug != null)
+        {
+            _cache.Set(slugCacheKey, textSlug, TimeSpan.FromHours(24));
+            return textSlug;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Calls a Trakt search endpoint and extracts the slug from the first show result.
+    /// Returns null if the request fails or yields no results.
+    /// </summary>
+    private async Task<string?> TryResolveSlugFromSearchUrlAsync(string url, string title, CancellationToken ct)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        ConfigureRequestHeaders(request);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Trakt search failed: HTTP {Status} for '{Title}'",
+                (int)response.StatusCode, title);
+            return null;
+        }
+
+        var content = await response.Content.ReadAsStringAsync(ct);
+        var results = JsonSerializer.Deserialize<TraktShowSearchItemDto[]>(
+            content, TraktThoughtJsonContext.Default.TraktShowSearchItemDtoArray);
+
+        var show = results?.FirstOrDefault()?.Show;
+        if (show?.Ids?.Slug == null && show?.Ids?.Trakt == null)
+            return null;
+
+        var slug = Uri.EscapeDataString(show.Ids?.Slug
+            ?? show.Ids!.Trakt!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        _logger.LogDebug("Trakt: resolved '{Title}' → slug '{Slug}'", title, slug);
+        return slug;
     }
 
     private void ConfigureRequestHeaders(HttpRequestMessage request)

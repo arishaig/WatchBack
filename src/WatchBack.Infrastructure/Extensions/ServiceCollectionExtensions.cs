@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Infrastructure.Http;
+using WatchBack.Infrastructure.Omdb;
 using WatchBack.Infrastructure.ThoughtProviders;
 using WatchBack.Infrastructure.WatchStateProviders;
 
@@ -24,14 +25,26 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<RedditThoughtProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
         services.AddHttpClient<BlueskyThoughtProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
 
+        // ManualWatchStateProvider is a singleton so it can hold state across requests.
+        // Registered as both IManualWatchStateProvider (for SyncService priority check)
+        // and IWatchStateProvider (for health checks / provider enumeration).
+        services.AddSingleton<ManualWatchStateProvider>();
+        services.AddSingleton<IManualWatchStateProvider>(sp => sp.GetRequiredService<ManualWatchStateProvider>());
+
         // Register all watch state providers — active one is selected at runtime from config
         services.AddScoped<IWatchStateProvider>(sp => sp.GetRequiredService<JellyfinWatchStateProvider>());
         services.AddScoped<IWatchStateProvider>(sp => sp.GetRequiredService<TraktWatchStateProvider>());
+        services.AddScoped<IWatchStateProvider>(sp => sp.GetRequiredService<ManualWatchStateProvider>());
 
         // Register thought providers
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<TraktThoughtProvider>());
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<RedditThoughtProvider>());
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<BlueskyThoughtProvider>());
+
+        // Register media search and ratings providers — OMDb implements both interfaces
+        services.AddHttpClient<OmdbMediaSearchProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddSingleton<IMediaSearchProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
+        services.AddSingleton<IRatingsProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
 
         return services;
     }
