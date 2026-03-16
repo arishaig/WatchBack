@@ -18,6 +18,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
 
+      - name: Cache NuGet packages
+          uses: actions/cache@v3
+          with:
+            path: ~/.nuget/packages
+            key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+            restore-keys: |
+              nuget-${{ runner.os }}-
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v5.2.0
         with:
@@ -32,6 +40,12 @@ jobs:
       - name: Run unit and integration tests
         run: dotnet test --no-build --filter "Category!=Accessibility&Category!=Integration" --verbosity normal
 
+      - name: Cache Playwright browsers
+          uses: actions/cache@v3
+          with:
+            path: ~/.cache/ms-playwright
+            key: playwright-${{ runner.os }}-${{ hashFiles('tests/WatchBack.Api.Tests/bin/Debug/net10.0/playwright.ps1') }}
+            
       - name: Install Playwright browsers
         run: pwsh tests/WatchBack.Api.Tests/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
 
