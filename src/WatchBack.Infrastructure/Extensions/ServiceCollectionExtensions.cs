@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Infrastructure.Http;
-using WatchBack.Infrastructure.MediaSearch;
+using WatchBack.Infrastructure.Omdb;
 using WatchBack.Infrastructure.ThoughtProviders;
 using WatchBack.Infrastructure.WatchStateProviders;
 
@@ -41,9 +41,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<RedditThoughtProvider>());
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<BlueskyThoughtProvider>());
 
-        // Register media search providers
+        // Register media search and ratings providers — OMDb implements both interfaces
         services.AddHttpClient<OmdbMediaSearchProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
         services.AddSingleton<IMediaSearchProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
+        services.AddSingleton<IRatingsProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
 
         return services;
     }
