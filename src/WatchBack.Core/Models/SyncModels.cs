@@ -46,4 +46,6 @@ public record SyncResult(
     IReadOnlyList<ThoughtResult> SourceResults,
     string? WatchProvider = null,
     string? SuppressedProvider = null,
-    string? SuppressedTitle = null);
+    string? SuppressedTitle = null,
+    IReadOnlyList<MediaRating>? Ratings = null,
+    string? RatingsProvider = null);

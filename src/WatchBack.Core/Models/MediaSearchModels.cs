@@ -40,3 +40,10 @@ public record EpisodeInfo(
     int EpisodeNumber,
     int SeasonNumber,
     DateTimeOffset? AirDate);
+
+/// <summary>
+/// A single rating from a review aggregator or publication.
+/// </summary>
+/// <param name="Source">The name of the rating source (e.g. "Internet Movie Database", "Rotten Tomatoes").</param>
+/// <param name="Value">The rating value as a formatted string (e.g. "8.7/10", "97%").</param>
+public record MediaRating(string Source, string Value, BrandData? BrandData = null);
