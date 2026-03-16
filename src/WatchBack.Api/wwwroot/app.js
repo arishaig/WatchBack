@@ -157,6 +157,15 @@ document.addEventListener('alpine:init', () => {
         syncHistory: null,
         appVersion: null,
         copyLogsStatus: null,
+        alwaysShowSearch: localStorage.getItem('wb_alwaysShowSearch') === 'true',
+        searchQuery: '',
+        searchResults: [],
+        searchLoading: false,
+        searchError: null,
+        searchDrilldown: null, // { imdbId, title, poster, seasons: [] } when a series is selected
+        drilldownSeason: null, // selected SeasonInfo
+        drilldownEpisodes: [],
+        drilldownLoading: false,
         themes: [
             { id: 'dark', label: 'Dark' },
             { id: 'light', label: 'Light' },
@@ -949,6 +958,155 @@ document.addEventListener('alpine:init', () => {
             const allFailed = anyResult && results.every(r => r?.status === 'error');
             this.testAllStatus = allOk ? 'ok' : allFailed ? 'error' : 'warn';
             setTimeout(() => { this.testAllStatus = null; }, 5000);
+        },
+
+        get showSearchBox() {
+            // Never show if OMDb isn't configured
+            if (!this.configData?.integrations?.omdb?.configured) return false;
+            // Always show when manually overriding or toggled on; hide when another provider is active
+            if (this.alwaysShowSearch) return true;
+            if (!this.data || this.data.status !== 'Watching') return true;
+            return this.data.watchProvider === 'Manual';
+        },
+
+        toggleAlwaysShowSearch() {
+            this.alwaysShowSearch = !this.alwaysShowSearch;
+            if (this.alwaysShowSearch) {
+                localStorage.setItem('wb_alwaysShowSearch', 'true');
+            } else {
+                localStorage.removeItem('wb_alwaysShowSearch');
+            }
+        },
+
+        async searchMedia() {
+            const q = this.searchQuery.trim();
+            if (!q) return;
+            this.searchLoading = true;
+            this.searchError = null;
+            this.searchResults = [];
+            this.searchDrilldown = null;
+            this.drilldownSeason = null;
+            this.drilldownEpisodes = [];
+            try {
+                const res = await fetch('/api/search?q=' + encodeURIComponent(q));
+                if (res.ok) {
+                    this.searchResults = await res.json();
+                } else if (res.status === 503) {
+                    this.searchError = 'OMDb API key not configured.';
+                } else {
+                    this.searchError = 'Search failed.';
+                }
+            } catch {
+                this.searchError = 'Connection failed.';
+            }
+            this.searchLoading = false;
+        },
+
+        async selectSearchResult(result) {
+            // For a direct episode result (one-search path), immediately set the watch state
+            if (result.type === 'episode') {
+                // Parse "Show Title — Ep Title (S01E02)" back into episode parts
+                const epMatch = result.title.match(/^(.+?) — (.+?) \(S(\d+)E(\d+)\)$/);
+                if (epMatch) {
+                    await this.setManualWatchState({
+                        title: epMatch[1],
+                        episodeTitle: epMatch[2],
+                        seasonNumber: parseInt(epMatch[3], 10),
+                        episodeNumber: parseInt(epMatch[4], 10),
+                        releaseDate: result.releaseDate ?? null,
+                        externalIds: { imdb: result.imdbId },
+                    });
+                    return;
+                }
+            }
+            // For a movie, prefer the exact releaseDate; fall back to year-only approximation
+            if (result.type === 'movie') {
+                await this.setManualWatchState({
+                    title: result.title,
+                    releaseDate: result.releaseDate ?? (result.year ? result.year + '-01-01T00:00:00Z' : null),
+                    externalIds: { imdb: result.imdbId },
+                });
+                return;
+            }
+            // For a series, load seasons for drill-down
+            this.searchDrilldown = { imdbId: result.imdbId, title: result.title, poster: result.posterUrl, seasons: [] };
+            this.drilldownSeason = null;
+            this.drilldownEpisodes = [];
+            this.drilldownLoading = true;
+            try {
+                const res = await fetch('/api/search/show/' + encodeURIComponent(result.imdbId) + '/seasons');
+                if (res.ok) this.searchDrilldown.seasons = await res.json();
+            } catch {
+                this.searchError = 'Failed to load seasons.';
+            }
+            this.drilldownLoading = false;
+        },
+
+        async selectSeason(season) {
+            this.drilldownSeason = season;
+            this.drilldownEpisodes = [];
+            this.drilldownLoading = true;
+            try {
+                const res = await fetch(
+                    '/api/search/show/' + encodeURIComponent(this.searchDrilldown.imdbId) +
+                    '/season/' + season.seasonNumber + '/episodes');
+                if (res.ok) this.drilldownEpisodes = await res.json();
+            } catch {
+                this.searchError = 'Failed to load episodes.';
+            }
+            this.drilldownLoading = false;
+        },
+
+        async selectEpisode(ep) {
+            await this.setManualWatchState({
+                title: this.searchDrilldown.title,
+                episodeTitle: ep.title,
+                seasonNumber: ep.seasonNumber,
+                episodeNumber: ep.episodeNumber,
+                releaseDate: ep.airDate,
+                externalIds: Object.assign(
+                    { imdb: this.searchDrilldown.imdbId },
+                    ep.imdbId ? { imdbEpisode: ep.imdbId } : {}
+                ),
+            });
+        },
+
+        async setManualWatchState(context) {
+            try {
+                const res = await fetch('/api/watchstate/manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: context.title,
+                        releaseDate: context.releaseDate ?? null,
+                        episodeTitle: context.episodeTitle ?? null,
+                        seasonNumber: context.seasonNumber ?? null,
+                        episodeNumber: context.episodeNumber ?? null,
+                        externalIds: context.externalIds ?? null,
+                    }),
+                });
+                if (res.ok) {
+                    this.searchQuery = '';
+                    this.searchResults = [];
+                    this.searchDrilldown = null;
+                    this.drilldownSeason = null;
+                    this.drilldownEpisodes = [];
+                    await this.sync();
+                } else {
+                    this.searchError = 'Failed to set watch state.';
+                }
+            } catch {
+                this.searchError = 'Connection failed.';
+            }
+        },
+
+        async clearManualWatchState() {
+            try {
+                await fetch('/api/watchstate/manual', { method: 'DELETE' });
+                await this.sync();
+            } catch {
+                this.showError('Failed to clear manual watch state.');
+            }
         },
 
         formatDate(iso) {

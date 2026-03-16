@@ -12,6 +12,9 @@ namespace WatchBack.Api.Models;
 /// <param name="TimeMachineThoughts">Subset of AllThoughts filtered to the configured time window</param>
 /// <param name="TimeMachineDays">The number of days included in the time machine filter window</param>
 /// <param name="SourceResults">Aggregated results from each thought provider with post metadata</param>
+/// <param name="WatchProvider">Name of the watch state provider that supplied the current context</param>
+/// <param name="SuppressedProvider">Configured provider that has active context but was overridden by the manual provider</param>
+/// <param name="SuppressedTitle">Title the suppressed provider would have shown</param>
 public record SyncResponse(
     string Status,
     string? Title,
@@ -19,7 +22,10 @@ public record SyncResponse(
     IReadOnlyList<ThoughtResponse> AllThoughts,
     IReadOnlyList<ThoughtResponse> TimeMachineThoughts,
     int TimeMachineDays,
-    IReadOnlyList<SourceResultResponse> SourceResults);
+    IReadOnlyList<SourceResultResponse> SourceResults,
+    string? WatchProvider = null,
+    string? SuppressedProvider = null,
+    string? SuppressedTitle = null);
 
 /// <summary>
 /// Media context information for the currently watched content

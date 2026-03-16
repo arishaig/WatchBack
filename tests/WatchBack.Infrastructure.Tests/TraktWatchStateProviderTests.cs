@@ -6,6 +6,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 using WatchBack.Infrastructure.WatchStateProviders;
@@ -167,6 +168,117 @@ public class TraktWatchStateProviderTests : IDisposable
         callCount.Should().Be(1); // Cache hit on second call
         result1.Should().NotBeNull();
         result2.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Metadata_SupportedExternalIds_ContainsImdbTmdbTvdb()
+    {
+        // Arrange
+        var provider = new TraktWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        // Assert
+        provider.Metadata.Should().BeOfType<WatchStateDataProviderMetadata>();
+        var meta = (WatchStateDataProviderMetadata)provider.Metadata;
+        meta.SupportedExternalIds.Should().BeEquivalentTo([ExternalIdType.Imdb, ExternalIdType.Tmdb, ExternalIdType.Tvdb]);
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_WithAllShowIds_PopulatesExternalIds()
+    {
+        // Arrange
+        var responseJson = """
+            {
+                "show": {
+                    "title": "Breaking Bad",
+                    "ids": { "imdb": "tt0903747", "tmdb": 1396, "tvdb": 81189 }
+                },
+                "episode": {
+                    "season": 1,
+                    "number": 1,
+                    "title": "Pilot"
+                }
+            }
+            """;
+
+        var handler = new MockHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) });
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        // Act
+        var result = await provider.GetCurrentMediaContextAsync();
+
+        // Assert
+        var episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        episode.ExternalIds.Should().NotBeNull();
+        episode.ExternalIds![ExternalIdType.Imdb].Should().Be("tt0903747");
+        episode.ExternalIds[ExternalIdType.Tmdb].Should().Be("1396");
+        episode.ExternalIds[ExternalIdType.Tvdb].Should().Be("81189");
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_WithPartialShowIds_PopulatesOnlyAvailableIds()
+    {
+        // Arrange
+        var responseJson = """
+            {
+                "show": {
+                    "title": "Breaking Bad",
+                    "ids": { "imdb": "tt0903747" }
+                },
+                "episode": {
+                    "season": 1,
+                    "number": 1,
+                    "title": "Pilot"
+                }
+            }
+            """;
+
+        var handler = new MockHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) });
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        // Act
+        var result = await provider.GetCurrentMediaContextAsync();
+
+        // Assert
+        var episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        episode.ExternalIds.Should().NotBeNull();
+        episode.ExternalIds![ExternalIdType.Imdb].Should().Be("tt0903747");
+        episode.ExternalIds.Should().NotContainKey(ExternalIdType.Tmdb);
+        episode.ExternalIds.Should().NotContainKey(ExternalIdType.Tvdb);
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_WithNoShowIds_ReturnsNullExternalIds()
+    {
+        // Arrange
+        var responseJson = """
+            {
+                "show": {
+                    "title": "Breaking Bad"
+                },
+                "episode": {
+                    "season": 1,
+                    "number": 1,
+                    "title": "Pilot"
+                }
+            }
+            """;
+
+        var handler = new MockHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) });
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        // Act
+        var result = await provider.GetCurrentMediaContextAsync();
+
+        // Assert
+        var episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        episode.ExternalIds.Should().BeNull();
     }
 
     [Fact]

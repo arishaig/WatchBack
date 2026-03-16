@@ -9,6 +9,7 @@ namespace WatchBack.Core.Services;
 
 public class SyncService(
     IEnumerable<IWatchStateProvider> watchStateProviders,
+    IEnumerable<IManualWatchStateProvider> manualWatchStateProviders,
     IEnumerable<IThoughtProvider> thoughtProviders,
     ITimeMachineFilter timeMachineFilter,
     IPrefetchService prefetchService,
@@ -20,11 +21,42 @@ public class SyncService(
     {
         try
         {
-            // Select the configured watch state provider, falling back to the first registered
-            var configured = options.Value.WatchProvider;
-            var watchStateProvider = watchStateProviders
-                .FirstOrDefault(p => p.Metadata.Name.Equals(configured, StringComparison.OrdinalIgnoreCase))
+            // Select the configured watch state provider (used as fallback and for suppression check)
+            var configuredName = options.Value.WatchProvider;
+            var configuredProvider = watchStateProviders
+                .FirstOrDefault(p => p.Metadata.Name.Equals(configuredName, StringComparison.OrdinalIgnoreCase))
                 ?? watchStateProviders.FirstOrDefault();
+
+            // Manual provider takes priority when it has an active context.
+            // While checking, also kick off the configured provider's check in parallel
+            // so we can report if it's also active (suppressed by the manual override).
+            IWatchStateProvider? watchStateProvider = null;
+            IWatchStateProvider? suppressedProvider = null;
+            MediaContext? suppressedContext = null;
+
+            foreach (var manual in manualWatchStateProviders)
+            {
+                // Run both checks concurrently when there is a non-manual configured provider
+                Task<MediaContext?> configuredTask = configuredProvider != null && configuredProvider != (IWatchStateProvider)manual
+                    ? configuredProvider.GetCurrentMediaContextAsync(ct)
+                    : Task.FromResult<MediaContext?>(null);
+
+                var manualContext = await manual.GetCurrentMediaContextAsync(ct);
+                if (manualContext != null)
+                {
+                    watchStateProvider = manual;
+                    var configuredContext = await configuredTask;
+                    if (configuredContext != null)
+                    {
+                        suppressedProvider = configuredProvider;
+                        suppressedContext = configuredContext;
+                    }
+                    break;
+                }
+            }
+
+            if (watchStateProvider == null)
+                watchStateProvider = configuredProvider;
 
             if (watchStateProvider == null)
             {
@@ -84,7 +116,10 @@ public class SyncService(
                 AllThoughts: allThoughts,
                 TimeMachineThoughts: timeMachineThoughts.ToList(),
                 TimeMachineDays: options.Value.TimeMachineDays,
-                SourceResults: sourceResults);
+                SourceResults: sourceResults,
+                WatchProvider: watchStateProvider.Metadata.Name,
+                SuppressedProvider: suppressedProvider?.Metadata.Name,
+                SuppressedTitle: suppressedContext?.Title);
 
             // Proactively warm the cache for the next episode(s) in the background.
             if (mediaContext is EpisodeContext episode)

@@ -123,7 +123,10 @@ public static class SyncEndpoints
             AllThoughts: result.AllThoughts.Select(MapThought).ToList(),
             TimeMachineThoughts: result.TimeMachineThoughts.Select(MapThought).ToList(),
             TimeMachineDays: result.TimeMachineDays,
-            SourceResults: result.SourceResults.Select(MapSourceResult).ToList());
+            SourceResults: result.SourceResults.Select(MapSourceResult).ToList(),
+            WatchProvider: result.WatchProvider,
+            SuppressedProvider: result.SuppressedProvider,
+            SuppressedTitle: result.SuppressedTitle);
     }
 
     private static MediaContextResponse MapMediaContext(Core.Models.MediaContext context)

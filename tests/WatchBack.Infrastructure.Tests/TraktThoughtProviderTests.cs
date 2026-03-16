@@ -257,6 +257,146 @@ public class TraktThoughtProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task GetThoughtsAsync_WithImdbId_UsesIdLookupInsteadOfTitleSearch()
+    {
+        // Arrange
+        var mediaContext = new EpisodeContext(
+            Title: "Breaking Bad", ReleaseDate: null, EpisodeTitle: "Pilot", SeasonNumber: 1, EpisodeNumber: 1,
+            ExternalIds: new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0903747" });
+
+        var requestedUrls = new List<string>();
+        var searchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
+        var commentsJson = "[]";
+
+        var handler = new MockHttpMessageHandler(request =>
+        {
+            requestedUrls.Add(request.RequestUri?.ToString() ?? "");
+            return requestedUrls.Count == 1
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) };
+        });
+        var client = new HttpClient(handler);
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        // Act
+        await provider.GetThoughtsAsync(mediaContext);
+
+        // Assert — first request is the IMDB ID lookup, not a text search
+        requestedUrls[0].Should().Contain("/search/imdb/tt0903747");
+        requestedUrls[0].Should().NotContain("/search/show");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithImdbIdReturningNoResults_FallsBackToTitleSearch()
+    {
+        // Arrange
+        var mediaContext = new EpisodeContext(
+            Title: "Breaking Bad", ReleaseDate: null, EpisodeTitle: "Pilot", SeasonNumber: 1, EpisodeNumber: 1,
+            ExternalIds: new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0903747" });
+
+        var requestedUrls = new List<string>();
+        var titleSearchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
+        var commentsJson = "[]";
+
+        var handler = new MockHttpMessageHandler(request =>
+        {
+            var url = request.RequestUri?.ToString() ?? "";
+            requestedUrls.Add(url);
+            if (url.Contains("/search/imdb/"))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]") };
+            if (url.Contains("/search/show"))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(titleSearchJson) };
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) };
+        });
+        var client = new HttpClient(handler);
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        // Act
+        var result = await provider.GetThoughtsAsync(mediaContext);
+
+        // Assert — tried IMDB first, fell back to title search, still returned a result
+        requestedUrls.Should().Contain(u => u.Contains("/search/imdb/"));
+        requestedUrls.Should().Contain(u => u.Contains("/search/show"));
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithMultipleExternalIds_PrefersImdbOverTvdbAndTmdb()
+    {
+        // Arrange
+        var mediaContext = new EpisodeContext(
+            Title: "Breaking Bad", ReleaseDate: null, EpisodeTitle: "Pilot", SeasonNumber: 1, EpisodeNumber: 1,
+            ExternalIds: new Dictionary<string, string>
+            {
+                [ExternalIdType.Imdb] = "tt0903747",
+                [ExternalIdType.Tvdb] = "81189",
+                [ExternalIdType.Tmdb] = "1396"
+            });
+
+        var requestedUrls = new List<string>();
+        var searchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
+        var commentsJson = "[]";
+
+        var handler = new MockHttpMessageHandler(request =>
+        {
+            var url = request.RequestUri?.ToString() ?? "";
+            requestedUrls.Add(url);
+            return url.Contains("/search/imdb/") || url.Contains("/search/show")
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) };
+        });
+        var client = new HttpClient(handler);
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        // Act
+        await provider.GetThoughtsAsync(mediaContext);
+
+        // Assert — IMDB used first; TVDB and TMDB not needed
+        requestedUrls[0].Should().Contain("/search/imdb/tt0903747");
+        requestedUrls.Should().NotContain(u => u.Contains("/search/tvdb/"));
+        requestedUrls.Should().NotContain(u => u.Contains("/search/tmdb/"));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithOnlyTvdbId_UsesTvdbLookupAndSkipsTitleSearch()
+    {
+        // Arrange
+        var mediaContext = new EpisodeContext(
+            Title: "Breaking Bad", ReleaseDate: null, EpisodeTitle: "Pilot", SeasonNumber: 1, EpisodeNumber: 1,
+            ExternalIds: new Dictionary<string, string> { [ExternalIdType.Tvdb] = "81189" });
+
+        var requestedUrls = new List<string>();
+        var searchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
+        var commentsJson = "[]";
+
+        var handler = new MockHttpMessageHandler(request =>
+        {
+            var url = request.RequestUri?.ToString() ?? "";
+            requestedUrls.Add(url);
+            return url.Contains("/search/tvdb/") || url.Contains("/search/show")
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) };
+        });
+        var client = new HttpClient(handler);
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        // Act
+        await provider.GetThoughtsAsync(mediaContext);
+
+        // Assert — TVDB used, title search not needed
+        requestedUrls[0].Should().Contain("/search/tvdb/81189");
+        requestedUrls.Should().NotContain(u => u.Contains("/search/show"));
+    }
+
+    [Fact]
     public async Task GetThoughtsAsync_NullProgress_DoesNotThrow()
     {
         var handler = new MockHttpMessageHandler(() =>
