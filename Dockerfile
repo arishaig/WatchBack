@@ -9,8 +9,9 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Copy only the Tailwind input so Docker caches properly
+# Copy Tailwind input and source files so class scanning works
 COPY src/WatchBack.Api/wwwroot/tw.css /app/wwwroot/tw.css
+COPY src/WatchBack.Api/wwwroot/index.html /app/wwwroot/index.html
 
 # Download and install Tailwind (hard-coded version)
 RUN curl -sLo /usr/local/bin/tailwindcss \
