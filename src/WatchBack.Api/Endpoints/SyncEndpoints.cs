@@ -126,7 +126,9 @@ public static class SyncEndpoints
             SourceResults: result.SourceResults.Select(MapSourceResult).ToList(),
             WatchProvider: result.WatchProvider,
             SuppressedProvider: result.SuppressedProvider,
-            SuppressedTitle: result.SuppressedTitle);
+            SuppressedTitle: result.SuppressedTitle,
+            Ratings: result.Ratings?.Select(r => new MediaRatingResponse(r.Source, r.Value, r.BrandData?.LogoSvg, r.BrandData?.Color)).ToList(),
+            RatingsProvider: result.RatingsProvider);
     }
 
     private static MediaContextResponse MapMediaContext(Core.Models.MediaContext context)

@@ -83,6 +83,7 @@ public static class ConfigEndpoints
         IEnumerable<IWatchStateProvider> watchStateProviders,
         IEnumerable<IThoughtProvider> thoughtProviders,
         IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+        IEnumerable<IRatingsProvider> ratingsProviders,
         UserConfigFile configFile,
         CancellationToken ct)
     {
@@ -111,6 +112,9 @@ public static class ConfigEndpoints
             if (p.Metadata.BrandData != null)
                 brandByName[p.Metadata.Name] = p.Metadata.BrandData;
         foreach (var p in mediaSearchProviders)
+            if (p.Metadata.BrandData != null)
+                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
+        foreach (var p in ratingsProviders)
             if (p.Metadata.BrandData != null)
                 brandByName[p.Metadata.Name] = p.Metadata.BrandData;
 

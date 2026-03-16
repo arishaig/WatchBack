@@ -5,12 +5,15 @@ using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 
+using static WatchBack.Core.Models.ExternalIdType;
+
 namespace WatchBack.Core.Services;
 
 public class SyncService(
     IEnumerable<IWatchStateProvider> watchStateProviders,
     IEnumerable<IManualWatchStateProvider> manualWatchStateProviders,
     IEnumerable<IThoughtProvider> thoughtProviders,
+    IEnumerable<IRatingsProvider> ratingsProviders,
     ITimeMachineFilter timeMachineFilter,
     IPrefetchService prefetchService,
     IOptionsSnapshot<WatchBackOptions> options,
@@ -86,10 +89,17 @@ public class SyncService(
                     SourceResults: []);
             }
 
-            // Get thoughts from all providers in parallel
+            // Get thoughts and ratings from all providers in parallel
             var thoughtTasks = thoughtProviders
                 .Select(provider => provider.GetThoughtsAsync(mediaContext, progress, ct))
                 .ToList();
+
+            string? imdbId = null;
+            mediaContext.ExternalIds?.TryGetValue(Imdb, out imdbId);
+            var ratingsProviderList = ratingsProviders.ToList();
+            var ratingsTask = !string.IsNullOrEmpty(imdbId)
+                ? Task.WhenAll(ratingsProviderList.Select(p => p.GetRatingsAsync(imdbId, ct)))
+                : Task.FromResult<IReadOnlyList<MediaRating>[]>([]);
 
             var sourceResults = (await Task.WhenAll(thoughtTasks))
                 .Where(r => r != null)
@@ -109,6 +119,14 @@ public class SyncService(
                 mediaContext.ReleaseDate,
                 options.Value.TimeMachineDays);
 
+            var ratingsArrays = await ratingsTask;
+            var ratings = ratingsArrays.SelectMany(r => r).ToList();
+            // Attribute ratings to the first provider that returned results
+            var ratingsProviderName = ratingsProviderList
+                .Zip(ratingsArrays, (p, r) => (Provider: p, Results: r))
+                .FirstOrDefault(x => x.Results.Count > 0)
+                .Provider?.Metadata.Name;
+
             var result = new SyncResult(
                 Status: SyncStatus.Watching,
                 Title: mediaContext.Title,
@@ -119,7 +137,9 @@ public class SyncService(
                 SourceResults: sourceResults,
                 WatchProvider: watchStateProvider.Metadata.Name,
                 SuppressedProvider: suppressedProvider?.Metadata.Name,
-                SuppressedTitle: suppressedContext?.Title);
+                SuppressedTitle: suppressedContext?.Title,
+                Ratings: ratings.Count > 0 ? ratings : null,
+                RatingsProvider: ratingsProviderName);
 
             // Proactively warm the cache for the next episode(s) in the background.
             if (mediaContext is EpisodeContext episode)

@@ -25,7 +25,9 @@ public record SyncResponse(
     IReadOnlyList<SourceResultResponse> SourceResults,
     string? WatchProvider = null,
     string? SuppressedProvider = null,
-    string? SuppressedTitle = null);
+    string? SuppressedTitle = null,
+    IReadOnlyList<MediaRatingResponse>? Ratings = null,
+    string? RatingsProvider = null);
 
 /// <summary>
 /// Media context information for the currently watched content
@@ -100,3 +102,10 @@ public record SourceResultResponse(
     string? ImageUrl,
     IReadOnlyList<ThoughtResponse> Thoughts,
     string? NextPageToken);
+
+/// <summary>
+/// A single rating from a review aggregator or publication.
+/// </summary>
+/// <param name="Source">The name of the rating source (e.g. "Internet Movie Database", "Rotten Tomatoes").</param>
+/// <param name="Value">The rating value as a formatted string (e.g. "8.7/10", "97%").</param>
+public record MediaRatingResponse(string Source, string Value, string? LogoSvg = null, string? BrandColor = null);

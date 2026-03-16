@@ -22,5 +22,7 @@ namespace WatchBack.Api.Serialization;
 [JsonSerializable(typeof(IReadOnlyList<MediaSearchResult>))]
 [JsonSerializable(typeof(IReadOnlyList<SeasonInfo>))]
 [JsonSerializable(typeof(IReadOnlyList<EpisodeInfo>))]
+[JsonSerializable(typeof(IReadOnlyList<MediaRatingResponse>))]
+[JsonSerializable(typeof(MediaRatingResponse))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal sealed partial class WatchBackJsonContext : JsonSerializerContext { }
