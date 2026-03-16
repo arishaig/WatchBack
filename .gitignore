@@ -26,6 +26,13 @@ TestResults/
 *.sqlite
 *.sqlite3
 
+# Runtime data directory (bind-mounted volume in Docker)
+config/
+
+# Test coverage artifacts
+.coverage
+coverage.xml
+
 # Environment files (local config, not committed)
 .env
 .env.local
