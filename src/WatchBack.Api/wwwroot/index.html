@@ -294,12 +294,13 @@
                 </button>
                 <button type="button"
                         @click="showConfig = false"
+                        aria-label="Close configuration panel"
                         class="ml-auto -mb-px px-4 py-2 flex items-center justify-center cursor-pointer 
                                text-md font-medium transition-all duration-300 ease-out 
-                               transform-gpu will-change-transform
+                               transform-gpu
                                hover:wb-surface-alt hover:scale-110 
                                active:scale-95">
-                    <ion-icon name="close-sharp" class="block pointer-events-none"></ion-icon>
+                    <ion-icon name="close-sharp" class="block pointer-events-none" aria-hidden="true"></ion-icon>
                 </button>
             </div>
 
