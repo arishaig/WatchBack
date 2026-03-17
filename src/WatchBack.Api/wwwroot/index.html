@@ -12,7 +12,8 @@
     <link rel="manifest" href="/site.webmanifest">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap"
+          rel="stylesheet">
     <link rel="stylesheet" href="/tailwind.css">
     <script src="/js/reconnecting-eventsource.min.js"></script>
     <script defer src="/js/alpine.min.js"></script>
@@ -22,252 +23,288 @@
 <!-- suppress HtmlUnknownTag, JSUnresolvedVariable, JSUnresolvedFunction, JSUnusedLocalSymbols, JSIgnoredPromiseFromCall, JSCommaOperator, JSUnreachableCode, SpellCheckingInspection, HtmlFormInputWithoutLabel, RequiredAttributes -->
 <body class="antialiased font-sans p-4" x-data="app()">
 
-    <!-- Loading state (full-screen, shown during initial load) -->
-    <div x-show="!initialized && authState === 'checking'" class="wb-overlay"
-        style="background-color:var(--wb-bg,#1a1a2e);z-index:100;">
-        <div class="wb-spinner" role="status"></div>
-    </div>
+<!-- Loading state (full-screen, shown during initial load) -->
+<div x-show="!initialized && authState === 'checking'" class="wb-overlay"
+     style="background-color:var(--wb-bg,#1a1a2e);z-index:100;">
+    <div class="wb-spinner" role="status"></div>
+</div>
 
-    <!-- Sync loading overlay -->
-    <div x-show="isLoading" x-cloak x-transition.opacity.duration.200ms class="wb-overlay"
-        style="background-color:rgba(0,0,0,0.45);z-index:50;"
-        aria-live="polite" aria-label="Loading">
-        <div class="wb-spinner" role="status"></div>
-    </div>
+<!-- Sync loading overlay -->
+<div x-show="isLoading" x-cloak x-transition.opacity.duration.200ms class="wb-overlay"
+     style="background-color:rgba(0,0,0,0.45);z-index:50;"
+     aria-live="polite" aria-label="Loading">
+    <div class="wb-spinner" role="status"></div>
+</div>
 
-    <!-- SSE sync progress bar -->
-    <div x-show="syncProgress && syncProgress.total > 0" x-cloak
-        class="fixed top-0 left-0 right-0 z-[150]" style="height:3px;background:var(--wb-border)"
-        role="progressbar" :aria-valuenow="syncProgress?.completed" :aria-valuemax="syncProgress?.total">
-        <div class="h-full transition-all duration-300 ease-out" style="background:var(--wb-accent)"
-            :style="`width:${syncProgress ? Math.round(syncProgress.completed / syncProgress.total * 100) : 0}%`">
+<!-- SSE sync progress bar -->
+<div x-show="syncProgress && syncProgress.total > 0" x-cloak
+     class="fixed top-0 left-0 right-0 z-[150]" style="height:3px;background:var(--wb-border)"
+     role="progressbar" :aria-valuenow="syncProgress?.completed" :aria-valuemax="syncProgress?.total">
+    <div class="h-full transition-all duration-300 ease-out" style="background:var(--wb-accent)"
+         :style="`width:${syncProgress ? Math.round(syncProgress.completed / syncProgress.total * 100) : 0}%`">
+    </div>
+</div>
+
+<!-- Login -->
+<div x-show="authState === 'login'" x-cloak
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+     style="background-color: var(--wb-bg);">
+    <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
+        <div class="flex items-center justify-center gap-3 mb-8">
+            <img src="/watchback.png" alt="WatchBack Logo" class="w-10 h-10 object-contain wb-logo">
+            <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
         </div>
-    </div>
-
-    <!-- Login -->
-    <div x-show="authState === 'login'" x-cloak
-        class="fixed inset-0 z-[200] flex items-center justify-center p-4"
-        style="background-color: var(--wb-bg);">
-        <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
-            <div class="flex items-center justify-center gap-3 mb-8">
-                <img src="/watchback.png" alt="WatchBack Logo" class="w-10 h-10 object-contain wb-logo">
-                <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
-            </div>
-            <form @submit.prevent="void login()">
-                <div class="space-y-4">
-                    <div>
-                        <label for="login-username" class="text-xs font-medium wb-text-muted block mb-1">Username</label>
-                        <input id="login-username" type="text" x-model="loginUsername"
-                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
-                            autocomplete="username" :placeholder="needsOnboarding ? 'watchback' : ''">
-                    </div>
-                    <div>
-                        <label for="login-password" class="text-xs font-medium wb-text-muted block mb-1">Password</label>
-                        <input id="login-password" type="password" x-model="loginPassword"
-                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
-                            autocomplete="current-password">
-                    </div>
-                    <div x-show="loginError" class="text-xs text-center py-1" style="color:var(--wb-error-text)" x-text="loginError"></div>
-                    <button type="submit" :disabled="loginLoading"
-                        class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer wb-btn disabled:opacity-50"
+        <form @submit.prevent="void login()">
+            <div class="space-y-4">
+                <div>
+                    <label for="login-username" class="text-xs font-medium wb-text-muted block mb-1">Username</label>
+                    <input id="login-username" type="text" x-model="loginUsername"
+                           class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                           autocomplete="username" :placeholder="needsOnboarding ? 'watchback' : ''">
+                </div>
+                <div>
+                    <label for="login-password" class="text-xs font-medium wb-text-muted block mb-1">Password</label>
+                    <input id="login-password" type="password" x-model="loginPassword"
+                           class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                           autocomplete="current-password">
+                </div>
+                <div x-show="loginError" class="text-xs text-center py-1" style="color:var(--wb-error-text)"
+                     x-text="loginError"></div>
+                <button type="submit" :disabled="loginLoading"
+                        class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer
+                               wb-btn disabled:opacity-50
+                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                         style="background-color:var(--wb-accent);"
                         x-text="loginLoading ? 'Signing in\u2026' : 'Sign In'"></button>
-                </div>
-            </form>
-            <div x-show="needsOnboarding" class="mt-6 space-y-4">
-                <!-- Theme picker -->
-                <div>
-                    <label class="text-xs font-medium wb-text-faint block mb-1">Theme</label>
-                    <div class="wb-select-wrap">
-                        <select x-model="theme" @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
+            </div>
+        </form>
+        <div x-show="needsOnboarding" class="mt-6 space-y-4">
+            <!-- Theme picker -->
+            <div>
+                <label class="text-xs font-medium wb-text-faint block mb-1">Theme</label>
+                <div class="wb-select-wrap">
+                    <select x-model="theme" @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
                             aria-label="Theme"
                             class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-xs border">
-                            <template x-for="t in themes" :key="t.id">
-                                <option :value="t.id" x-text="t.label"></option>
-                            </template>
-                        </select>
-                    </div>
+                        <template x-for="t in themes" :key="t.id">
+                            <option :value="t.id" x-text="t.label"></option>
+                        </template>
+                    </select>
                 </div>
-                <!-- Docker log hint -->
-                <div class="text-xs wb-text-faint space-y-1.5">
-                    <p>Initial credentials are in the server logs:</p>
-                    <code class="block wb-surface-alt wb-border border rounded px-2.5 py-2 wb-text-muted font-mono text-[11px] select-all">docker logs &lt;container-name&gt;</code>
-                </div>
+            </div>
+            <!-- Docker log hint -->
+            <div class="text-xs wb-text-faint space-y-1.5">
+                <p>Initial credentials are in the server logs:</p>
+                <code class="block wb-surface-alt wb-border border rounded px-2.5 py-2 wb-text-muted font-mono text-[11px] select-all">docker
+                    logs &lt;container-name&gt;</code>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Onboarding -->
-    <div x-show="authState === 'onboarding'" x-cloak
-        class="fixed inset-0 z-[200] flex items-center justify-center p-4"
-        style="background-color: var(--wb-bg);">
-        <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
-            <div class="flex items-center justify-center gap-3 mb-4">
-                <img src="/watchback.png" alt="WatchBack Logo" class="w-8 h-8 object-contain wb-logo">
-                <h1 class="text-xl font-bold wb-accent-text">Set Up Account</h1>
-            </div>
-            <p class="text-xs wb-text-muted text-center mb-6">Choose a permanent username and password to continue.</p>
-            <form @submit.prevent="void setupAccount()">
-                <div class="space-y-4">
-                    <div>
-                        <label for="setup-username" class="text-xs font-medium wb-text-muted block mb-1">New Username</label>
-                        <input id="setup-username" type="text" x-model="setupUsername"
-                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
-                            autocomplete="username" placeholder="Choose a username">
-                    </div>
-                    <div>
-                        <label for="setup-password" class="text-xs font-medium wb-text-muted block mb-1">New Password</label>
-                        <input id="setup-password" type="password" x-model="setupPassword"
-                            @input="evaluatePasswordStrength(setupPassword)"
-                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
-                            autocomplete="new-password" placeholder="Choose a strong password">
-                        <!-- Password strength meter -->
-                        <div x-show="passwordStrength" x-cloak class="mt-2">
-                            <div class="h-1.5 rounded-full overflow-hidden" style="background-color:var(--wb-border)">
-                                <div class="h-full rounded-full transition-all duration-300"
-                                    :style="`width:${passwordStrength?.width};background-color:${passwordStrength?.color}`"></div>
-                            </div>
-                            <div class="flex justify-between items-start mt-1">
-                                <span class="text-[11px] font-medium" :style="`color:${passwordStrength?.color}`" x-text="passwordStrength?.label"></span>
-                            </div>
-                            <p x-show="passwordStrength?.warning" class="text-[11px] wb-text-muted mt-0.5" x-text="passwordStrength?.warning"></p>
-                            <p x-show="passwordStrength?.suggestions?.length" class="text-[11px] wb-text-faint mt-0.5" x-text="passwordStrength?.suggestions?.[0]"></p>
+<!-- Onboarding -->
+<div x-show="authState === 'onboarding'" x-cloak
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+     style="background-color: var(--wb-bg);">
+    <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
+        <div class="flex items-center justify-center gap-3 mb-4">
+            <img src="/watchback.png" alt="WatchBack Logo" class="w-8 h-8 object-contain wb-logo">
+            <h1 class="text-xl font-bold wb-accent-text">Set Up Account</h1>
+        </div>
+        <p class="text-xs wb-text-muted text-center mb-6">Choose a permanent username and password to continue.</p>
+        <form @submit.prevent="void setupAccount()">
+            <div class="space-y-4">
+                <div>
+                    <label for="setup-username" class="text-xs font-medium wb-text-muted block mb-1">New
+                        Username</label>
+                    <input id="setup-username" type="text" x-model="setupUsername"
+                           class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                           autocomplete="username" placeholder="Choose a username">
+                </div>
+                <div>
+                    <label for="setup-password" class="text-xs font-medium wb-text-muted block mb-1">New
+                        Password</label>
+                    <input id="setup-password" type="password" x-model="setupPassword"
+                           @input="evaluatePasswordStrength(setupPassword)"
+                           class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                           autocomplete="new-password" placeholder="Choose a strong password">
+                    <!-- Password strength meter -->
+                    <div x-show="passwordStrength" x-cloak class="mt-2">
+                        <div class="h-1.5 rounded-full overflow-hidden" style="background-color:var(--wb-border)">
+                            <div class="h-full rounded-full transition-all duration-300"
+                                 :style="`width:${passwordStrength?.width};background-color:${passwordStrength?.color}`"></div>
                         </div>
+                        <div class="flex justify-between items-start mt-1">
+                            <span class="text-[11px] font-medium" :style="`color:${passwordStrength?.color}`"
+                                  x-text="passwordStrength?.label"></span>
+                        </div>
+                        <p x-show="passwordStrength?.warning" class="text-[11px] wb-text-muted mt-0.5"
+                           x-text="passwordStrength?.warning"></p>
+                        <p x-show="passwordStrength?.suggestions?.length" class="text-[11px] wb-text-faint mt-0.5"
+                           x-text="passwordStrength?.suggestions?.[0]"></p>
                     </div>
-                    <div x-show="setupError" class="text-xs text-center py-1" style="color:var(--wb-error-text)" x-text="setupError"></div>
-                    <button type="submit" :disabled="setupLoading"
-                        class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer wb-btn disabled:opacity-50"
+                </div>
+                <div x-show="setupError" class="text-xs text-center py-1" style="color:var(--wb-error-text)"
+                     x-text="setupError"></div>
+                <button type="submit" :disabled="setupLoading"
+                        class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer
+                               wb-btn disabled:opacity-50
+                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                         style="background-color:var(--wb-accent);"
                         x-text="setupLoading ? 'Saving\u2026' : 'Complete Setup'"></button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Password change (hash upgrade) -->
-    <div x-show="authState === 'changePassword'" x-cloak
-        class="fixed inset-0 z-[200] flex items-center justify-center p-4"
-        style="background-color: var(--wb-bg);">
-        <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
-            <div class="flex items-center justify-center gap-3 mb-4">
-                <img src="/watchback.png" alt="WatchBack Logo" class="w-8 h-8 object-contain wb-logo">
-                <h1 class="text-xl font-bold wb-accent-text">Update Password</h1>
             </div>
-            <p class="text-xs wb-text-muted text-center mb-6">Your password's security hash has been upgraded. Please set a new password to continue.</p>
-            <form @submit.prevent="void changePassword()">
-                <div class="space-y-4">
-                    <div>
-                        <label for="chpw-new" class="text-xs font-medium wb-text-muted block mb-1">New Password</label>
-                        <input id="chpw-new" type="password" x-model="changePwNew"
-                            @input="evaluatePasswordStrength(changePwNew)"
-                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
-                            autocomplete="new-password" placeholder="Choose a strong password">
-                        <!-- Password strength meter -->
-                        <div x-show="passwordStrength" x-cloak class="mt-2">
-                            <div class="h-1.5 rounded-full overflow-hidden" style="background-color:var(--wb-border)">
-                                <div class="h-full rounded-full transition-all duration-300"
-                                    :style="`width:${passwordStrength?.width};background-color:${passwordStrength?.color}`"></div>
-                            </div>
-                            <div class="flex justify-between items-start mt-1">
-                                <span class="text-[11px] font-medium" :style="`color:${passwordStrength?.color}`" x-text="passwordStrength?.label"></span>
-                            </div>
-                            <p x-show="passwordStrength?.warning" class="text-[11px] wb-text-muted mt-0.5" x-text="passwordStrength?.warning"></p>
-                            <p x-show="passwordStrength?.suggestions?.length" class="text-[11px] wb-text-faint mt-0.5" x-text="passwordStrength?.suggestions?.[0]"></p>
+        </form>
+    </div>
+</div>
+
+<!-- Password change (hash upgrade) -->
+<div x-show="authState === 'changePassword'" x-cloak
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+     style="background-color: var(--wb-bg);">
+    <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
+        <div class="flex items-center justify-center gap-3 mb-4">
+            <img src="/watchback.png" alt="WatchBack Logo" class="w-8 h-8 object-contain wb-logo">
+            <h1 class="text-xl font-bold wb-accent-text">Update Password</h1>
+        </div>
+        <p class="text-xs wb-text-muted text-center mb-6">Your password's security hash has been upgraded. Please set a
+            new password to continue.</p>
+        <form @submit.prevent="void changePassword()">
+            <div class="space-y-4">
+                <div>
+                    <label for="chpw-new" class="text-xs font-medium wb-text-muted block mb-1">New Password</label>
+                    <input id="chpw-new" type="password" x-model="changePwNew"
+                           @input="evaluatePasswordStrength(changePwNew)"
+                           class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                           autocomplete="new-password" placeholder="Choose a strong password">
+                    <!-- Password strength meter -->
+                    <div x-show="passwordStrength" x-cloak class="mt-2">
+                        <div class="h-1.5 rounded-full overflow-hidden" style="background-color:var(--wb-border)">
+                            <div class="h-full rounded-full transition-all duration-300"
+                                 :style="`width:${passwordStrength?.width};background-color:${passwordStrength?.color}`"></div>
                         </div>
+                        <div class="flex justify-between items-start mt-1">
+                            <span class="text-[11px] font-medium" :style="`color:${passwordStrength?.color}`"
+                                  x-text="passwordStrength?.label"></span>
+                        </div>
+                        <p x-show="passwordStrength?.warning" class="text-[11px] wb-text-muted mt-0.5"
+                           x-text="passwordStrength?.warning"></p>
+                        <p x-show="passwordStrength?.suggestions?.length" class="text-[11px] wb-text-faint mt-0.5"
+                           x-text="passwordStrength?.suggestions?.[0]"></p>
                     </div>
-                    <div>
-                        <label for="chpw-confirm" class="text-xs font-medium wb-text-muted block mb-1">Confirm Password</label>
-                        <input id="chpw-confirm" type="password" x-model="changePwConfirm"
-                            class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
-                            autocomplete="new-password" placeholder="Re-enter password">
-                    </div>
-                    <div x-show="changePwError" class="text-xs text-center py-1" style="color:var(--wb-error-text)" x-text="changePwError"></div>
-                    <button type="submit" :disabled="changePwLoading"
-                        class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer wb-btn disabled:opacity-50"
+                </div>
+                <div>
+                    <label for="chpw-confirm" class="text-xs font-medium wb-text-muted block mb-1">Confirm
+                        Password</label>
+                    <input id="chpw-confirm" type="password" x-model="changePwConfirm"
+                           class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                           autocomplete="new-password" placeholder="Re-enter password">
+                </div>
+                <div x-show="changePwError" class="text-xs text-center py-1" style="color:var(--wb-error-text)"
+                     x-text="changePwError"></div>
+                <button type="submit" :disabled="changePwLoading"
+                        class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer
+                               wb-btn disabled:opacity-50
+                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                         style="background-color:var(--wb-accent);"
                         x-text="changePwLoading ? 'Saving\u2026' : 'Update Password'"></button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Main app -->
-    <div x-show="initialized" x-cloak class="wb-app mx-auto overflow-x-hidden pb-8">
-
-        <header class="flex justify-between items-center mb-6 mt-2">
-            <div class="flex items-center gap-3">
-                <img src="/watchback.png" alt="WatchBack Logo" class="w-10 h-10 object-contain wb-logo">
-                <h1 class="text-2xl font-bold wb-accent-text hide-on-mobile">WatchBack</h1>
             </div>
-            <div class="flex gap-2">
-                <button x-show="currentUser && currentUser.authMethod !== 'forwardAuth'" x-cloak
+        </form>
+    </div>
+</div>
+
+<!-- Main app -->
+<div x-show="initialized" x-cloak class="wb-app mx-auto overflow-x-hidden pb-8">
+
+    <header class="flex justify-between items-center mb-6 mt-2">
+        <div class="flex items-center gap-3">
+            <img src="/watchback.png" alt="WatchBack Logo" class="w-10 h-10 object-contain wb-logo">
+            <h1 class="text-2xl font-bold wb-accent-text hide-on-mobile">WatchBack</h1>
+        </div>
+        <div class="flex gap-2">
+            <button x-show="currentUser && currentUser.authMethod !== 'forwardAuth'" x-cloak
                     @click="void logout()"
-                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface-alt wb-text-muted wb-border border"
+                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface-alt
+                           wb-text-muted wb-border border
+                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                     title="Sign out">
-                    <ion-icon name="log-out-sharp" aria-hidden="true"></ion-icon>
-                </button>
-                <button @click="showConfig = !showConfig"
+                <ion-icon name="log-out-sharp" aria-hidden="true"></ion-icon>
+            </button>
+            <button @click="showConfig = !showConfig"
                     :class="showConfig ? 'wb-surface-alt wb-text' : 'wb-surface-alt wb-text-muted'"
-                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-border border"
+                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-border border
+                           hover:scale-[1.01] active:scale-95 transition-all"
                     title="Configuration">
-                    <ion-icon name="settings-sharp" aria-hidden="true"></ion-icon>
-                </button>
-                <button @click="void sync()"
-                    class="wb-on-accent px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 min-w-[7rem] cursor-pointer wb-btn wb-border border"
+                <ion-icon name="settings-sharp" aria-hidden="true"></ion-icon>
+            </button>
+            <button @click="void sync()"
+                    class="wb-on-accent px-4 py-2 rounded-lg font-medium flex items-center justify-center
+                           gap-2 min-w-[7rem] cursor-pointer wb-btn wb-border border
+                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                     style="background-color: var(--wb-accent);" :disabled="isLoading">
                     <span x-show="!isLoading" class="flex items-center gap-2">
                         <ion-icon name="sync-sharp" aria-hidden="true"></ion-icon> Sync
                     </span>
-                    <span x-show="isLoading" x-cloak
-                        class="inline-block w-5 h-5 border-2 border-transparent border-t-current rounded-full animate-spin"
-                        aria-hidden="true"></span>
-                    <span x-show="isLoading" class="sr-only">Syncing</span>
-                </button>
-            </div>
-        </header>
-
-        <!-- Error banner -->
-        <div x-show="error" x-cloak x-transition:enter="config-enter" x-transition:leave="config-leave"
-            class="mb-4 p-3 rounded-lg text-sm flex items-center justify-between"
-            style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
-            role="alert">
-            <span x-text="error"></span>
-            <button @click="error = null; clearTimeout(errorTimer)"
-                class="ml-2 shrink-0 cursor-pointer opacity-70 hover:opacity-100 flex items-center justify-center"
-                style="min-width:2.75rem;min-height:2.75rem"
-                aria-label="Dismiss">
-                <ion-icon name="close-sharp" aria-hidden="true"></ion-icon>
+                <span x-show="isLoading" x-cloak
+                      class="inline-block w-5 h-5 border-2 border-transparent border-t-current rounded-full animate-spin"
+                      aria-hidden="true"></span>
+                <span x-show="isLoading" class="sr-only">Syncing</span>
             </button>
         </div>
+    </header>
 
-        <!-- Config panel -->
-        <div x-show="showConfig" x-cloak role="region" aria-label="Configuration" @keydown.escape="showConfig = false"
-            x-transition:enter="config-enter" x-transition:leave="config-leave"
-            class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
-            <div class="p-4">
-                <!-- ─── Tab navigation ─── -->
-                <div class="flex gap-0 mb-5 border-b wb-border">
-                    <button type="button"
+    <!-- Error banner -->
+    <div x-show="error" x-cloak x-transition:enter="config-enter" x-transition:leave="config-leave"
+         class="mb-4 p-3 rounded-lg text-sm flex items-center justify-between"
+         style="background: var(--wb-error-bg); color: var(--wb-error-text); border: 1px solid var(--wb-error-border);"
+         role="alert">
+        <span x-text="error"></span>
+        <button @click="error = null; clearTimeout(errorTimer)"
+                class="ml-2 shrink-0 cursor-pointer opacity-70 hover:opacity-100
+                       flex items-center justify-center
+                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                style="min-width:2.75rem;min-height:2.75rem"
+                aria-label="Dismiss">
+            <ion-icon name="close-sharp" aria-hidden="true"></ion-icon>
+        </button>
+    </div>
+
+    <!-- Config panel -->
+    <div x-show="showConfig" x-cloak role="region" aria-label="Configuration" @keydown.escape="showConfig = false"
+         x-transition:enter="config-enter" x-transition:leave="config-leave"
+         class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
+        <div class="p-4">
+            <!-- ─── Tab navigation ─── -->
+            <div class="flex gap-0 mb-5 border-b wb-border">
+                <button type="button"
                         @click="configTab = 'settings'; closeLogStream()"
                         class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
                         :class="configTab === 'settings'
                             ? 'wb-text-secondary border-current' : 'wb-text-faint border-transparent hover:wb-text-muted'"
                         style="border-color: configTab === 'settings' ? 'var(--wb-accent)' : undefined"
                         :style="configTab === 'settings' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'">
-                        Settings
-                    </button>
-                    <button type="button"
+                    Settings
+                </button>
+                <button type="button"
                         @click="switchConfigTab('diagnostics')"
                         class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
                         :class="configTab === 'diagnostics'
                             ? 'wb-text-secondary' : 'wb-text-faint hover:wb-text-muted'"
                         :style="configTab === 'diagnostics' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'">
-                        Diagnostics
-                    </button>
-                </div>
+                    Diagnostics
+                </button>
+                <button type="button"
+                        @click="showConfig = false"
+                        class="ml-auto -mb-px px-4 py-2 flex items-center justify-center cursor-pointer 
+                               text-md font-medium transition-all duration-300 ease-out 
+                               transform-gpu will-change-transform
+                               hover:wb-surface-alt hover:scale-110 
+                               active:scale-95">
+                    <ion-icon name="close-sharp" class="block pointer-events-none"></ion-icon>
+                </button>
+            </div>
 
-                <!-- ─── Settings tab ─── -->
-                <div x-show="configTab === 'settings'">
+            <!-- ─── Settings tab ─── -->
+            <div x-show="configTab === 'settings'">
 
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
                 <h2 class="text-sm font-semibold wb-text-secondary mb-3">Integrations</h2>
@@ -275,75 +312,79 @@
                 <div class="space-y-3">
                     <template x-for="[key, integration] in Object.entries(configData?.integrations || {})" :key="key">
                         <div class="integration-card rounded-xl overflow-hidden"
-                            :style="'--card-accent: ' + integration.brandColor">
+                             :style="'--card-accent: ' + integration.brandColor">
                             <!-- Card header: logo + service name + collapse toggle -->
                             <button type="button"
-                                @click="toggleSection(key)"
-                                :aria-expanded="!collapsedSections[key]"
-                                class="w-full flex items-center justify-between gap-2 p-4 cursor-pointer text-left"
-                                :class="collapsedSections[key] ? '' : 'pb-3'">
+                                    @click="toggleSection(key)"
+                                    :aria-expanded="!collapsedSections[key]"
+                                    class="w-full flex items-center justify-between gap-2 p-4 cursor-pointer text-left"
+                                    :class="collapsedSections[key] ? '' : 'pb-3'">
                                 <span class="flex items-center gap-2">
                                     <span class="integration-logo"
-                                        :style="'color: ' + integration.brandColor"
-                                        x-html="sanitizeSvg(integration.logoSvg)"></span>
+                                          :style="'color: ' + integration.brandColor"
+                                          x-html="sanitizeSvg(integration.logoSvg)"></span>
                                     <span class="text-sm font-semibold wb-text-secondary"
-                                        x-text="integration.name"></span>
+                                          x-text="integration.name"></span>
                                 </span>
-                                <ion-icon :name="collapsedSections[key] ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
-                                    class="wb-text-faint shrink-0" aria-hidden="true"></ion-icon>
+                                <ion-icon
+                                        :name="collapsedSections[key] ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
+                                        class="wb-text-faint shrink-0" aria-hidden="true"></ion-icon>
                             </button>
                             <!-- Collapsible body: fields + test button -->
                             <div x-show="!collapsedSections[key]"
-                                x-transition:enter="transition ease-out duration-150"
-                                x-transition:enter-start="opacity-0"
-                                x-transition:enter-end="opacity-100"
-                                x-transition:leave="transition ease-in duration-100"
-                                x-transition:leave-start="opacity-100"
-                                x-transition:leave-end="opacity-0"
-                                class="px-4 pb-4 space-y-3">
+                                 x-transition:enter="transition ease-out duration-150"
+                                 x-transition:enter-start="opacity-0"
+                                 x-transition:enter-end="opacity-100"
+                                 x-transition:leave="transition ease-in duration-100"
+                                 x-transition:leave-start="opacity-100"
+                                 x-transition:leave-end="opacity-0"
+                                 class="px-4 pb-4 space-y-3">
                                 <template x-for="field in integration.fields" :key="field.key">
                                     <div x-data="{ showSecret: false }">
                                         <div class="flex justify-between mb-1">
                                             <label :for="'field-' + field.key"
-                                                class="text-xs font-medium wb-text-muted"
-                                                x-text="field.label"></label>
+                                                   class="text-xs font-medium wb-text-muted"
+                                                   x-text="field.label"></label>
                                             <span class="flex items-center gap-2">
                                                 <span x-show="field.type === 'password' && field.hasValue && !configEdits[field.key]"
-                                                    class="text-xs wb-text-faint">set</span>
+                                                      class="text-xs wb-text-faint">set</span>
                                                 <button x-show="field.isOverridden" type="button"
-                                                    @click="void resetConfigKeys([field.key])"
-                                                    :title="field.envValue ? 'Reset to: ' + field.envValue : 'Clear override'"
-                                                    class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
+                                                        @click="void resetConfigKeys([field.key])"
+                                                        :title="field.envValue ? 'Reset to: ' + field.envValue : 'Clear override'"
+                                                        class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
                                             </span>
                                         </div>
                                         <!--suppress HtmlFormInputWithoutLabel -->
                                         <div class="relative">
                                             <input :id="'field-' + field.key"
-                                                :type="field.type"
-                                                :placeholder="field.type === 'password' && field.hasValue ? '(unchanged)' : field.placeholder"
-                                                x-model="configEdits[field.key]"
-                                                x-ref="inp"
-                                                autocomplete="off"
-                                                :class="field.type === 'password' ? 'pr-9' : ''"
-                                                class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
+                                                   :type="field.type"
+                                                   :placeholder="field.type === 'password' && field.hasValue ? '(unchanged)' : field.placeholder"
+                                                   x-model="configEdits[field.key]"
+                                                   x-ref="inp"
+                                                   autocomplete="off"
+                                                   :class="field.type === 'password' ? 'pr-9' : ''"
+                                                   class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
                                             <button x-show="field.type === 'password'"
-                                                type="button"
-                                                @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
-                                                :aria-label="showSecret ? 'Hide value' : 'Show value'"
-                                                :aria-pressed="showSecret"
-                                                class="wb-eye-btn">
-                                                <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'" aria-hidden="true"></ion-icon>
+                                                    type="button"
+                                                    @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
+                                                    :aria-label="showSecret ? 'Hide value' : 'Show value'"
+                                                    :aria-pressed="showSecret"
+                                                    class="wb-eye-btn">
+                                                <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'"
+                                                          aria-hidden="true"></ion-icon>
                                             </button>
                                         </div>
                                     </div>
                                 </template>
                                 <!-- Test button -->
                                 <button @click="void testService(key)"
-                                    :disabled="testResults[key]?.status === 'testing' || (!integration.configured && !integration.fields.some(f => configEdits[f.key]))"
-                                    aria-live="polite"
-                                    class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
-                                    :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
-                                    x-text="testResults[key]?.status === 'testing' ? 'Testing\u2026' : testResults[key]?.message || 'Test Connection'">
+                                        :disabled="testResults[key]?.status === 'testing' || (!integration.configured && !integration.fields.some(f => configEdits[f.key]))"
+                                        aria-live="polite"
+                                        class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface
+                                               wb-text-muted cursor-pointer disabled:opacity-50 wb-btn
+                                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                        :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
+                                        x-text="testResults[key]?.status === 'testing' ? 'Testing\u2026' : testResults[key]?.message || 'Test Connection'">
                                 </button>
                             </div>
                         </div>
@@ -353,29 +394,31 @@
                 <!-- Save + feature summary -->
                 <div class="wb-border border-t mt-8 pt-5 space-y-3">
                     <button @click="void saveAllConfig()"
-                        :disabled="saveAllStatus === 'saving'"
-                        aria-live="polite"
-                        class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt cursor-pointer disabled:opacity-50 wb-btn"
-                        :class="saveAllStatus === 'saved' ? 'test-ok' : saveAllStatus === 'error' ? 'test-error' : 'wb-text-muted'"
-                        x-text="saveAllStatus === 'saving' ? 'Saving\u2026' : saveAllStatus === 'saved' ? 'Saved \u2713' : saveAllStatus === 'error' ? 'Error \u2717' : 'Save'">
+                            :disabled="saveAllStatus === 'saving'"
+                            aria-live="polite"
+                            class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                                   cursor-pointer disabled:opacity-50 wb-btn
+                                   hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                            :class="saveAllStatus === 'saved' ? 'test-ok' : saveAllStatus === 'error' ? 'test-error' : 'wb-text-muted'"
+                            x-text="saveAllStatus === 'saving' ? 'Saving\u2026' : saveAllStatus === 'saved' ? 'Saved \u2713' : saveAllStatus === 'error' ? 'Error \u2717' : 'Save'">
                     </button>
 
                     <!-- Feature summary -->
                     <template x-if="configData">
                         <ul class="space-y-1.5 text-sm wb-text-muted" role="list">
                             <template
-                                x-for="[key, integration] in Object.entries(configData?.integrations || {})"
-                                :key="'feat-' + key">
+                                    x-for="[key, integration] in Object.entries(configData?.integrations || {})"
+                                    :key="'feat-' + key">
                                 <li class="flex items-start gap-2">
                                     <span :class="testIcon(key).cls" class="mt-0.5"
-                                        :aria-label="integration.name + ': ' + testIcon(key).label" role="img"
-                                        x-text="testIcon(key).icon"></span>
+                                          :aria-label="integration.name + ': ' + testIcon(key).label" role="img"
+                                          x-text="testIcon(key).icon"></span>
                                     <span>
                                         <template x-if="integration.configured">
                                             <span>
                                                 <span x-text="key === 'jellyfin' || key === 'trakt' ? 'Watch data' : 'Posts'"></span>
                                                 from <strong class="wb-text-secondary"
-                                                    x-text="integration.name"></strong>
+                                                             x-text="integration.name"></strong>
                                             </span>
                                         </template>
                                         <template x-if="!integration.configured">
@@ -388,17 +431,19 @@
                             </template>
                             <li class="flex items-start gap-2">
                                 <span :class="testIcon('reddit').cls" class="mt-0.5"
-                                    :aria-label="'Reddit: ' + testIcon('reddit').label" role="img"
-                                    x-text="testIcon('reddit').icon"></span>
+                                      :aria-label="'Reddit: ' + testIcon('reddit').label" role="img"
+                                      x-text="testIcon('reddit').icon"></span>
                                 <span>Comments from <strong class="wb-text-secondary">Reddit</strong></span>
                             </li>
                             <li class="pt-1">
                                 <button @click="void testAll()"
-                                    :disabled="testAllStatus === 'testing'"
-                                    aria-live="polite"
-                                    class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer disabled:opacity-50 wb-btn"
-                                    :class="testAllStatus === 'ok' ? 'test-ok' : testAllStatus === 'error' ? 'test-error' : testAllStatus === 'warn' ? 'test-warn' : ''"
-                                    x-text="testAllStatus === 'testing' ? 'Testing\u2026' : testAllStatus === 'ok' ? 'All Connected \u2713' : testAllStatus === 'error' ? 'All Failed \u2717' : testAllStatus === 'warn' ? 'Some Failed' : 'Test All Connections'">
+                                        :disabled="testAllStatus === 'testing'"
+                                        aria-live="polite"
+                                        class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                                               wb-text-muted cursor-pointer disabled:opacity-50 wb-btn
+                                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                        :class="testAllStatus === 'ok' ? 'test-ok' : testAllStatus === 'error' ? 'test-error' : testAllStatus === 'warn' ? 'test-warn' : ''"
+                                        x-text="testAllStatus === 'testing' ? 'Testing\u2026' : testAllStatus === 'ok' ? 'All Connected \u2713' : testAllStatus === 'error' ? 'All Failed \u2717' : testAllStatus === 'warn' ? 'Some Failed' : 'Test All Connections'">
                                 </button>
                             </li>
                         </ul>
@@ -408,27 +453,28 @@
                 <!-- ═══════════════════ Preferences ═══════════════════ -->
                 <div class="wb-border border-t mt-5 pt-5">
                     <button type="button" @click="toggleSection('preferences')"
-                        :aria-expanded="!collapsedSections.preferences"
-                        class="w-full flex items-center justify-between gap-2 mb-3 cursor-pointer">
+                            :aria-expanded="!collapsedSections.preferences"
+                            class="w-full flex items-center justify-between gap-2 mb-3 cursor-pointer">
                         <h2 class="text-sm font-semibold wb-text-secondary">Preferences</h2>
                         <ion-icon :name="collapsedSections.preferences ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
-                            class="wb-text-faint shrink-0" aria-hidden="true"></ion-icon>
+                                  class="wb-text-faint shrink-0" aria-hidden="true"></ion-icon>
                     </button>
 
                     <div x-show="!collapsedSections.preferences"
-                        x-transition:enter="transition ease-out duration-150"
-                        x-transition:enter-start="opacity-0"
-                        x-transition:enter-end="opacity-100"
-                        x-transition:leave="transition ease-in duration-100"
-                        x-transition:leave-start="opacity-100"
-                        x-transition:leave-end="opacity-0"
-                        class="space-y-4">
+                         x-transition:enter="transition ease-out duration-150"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         x-transition:leave="transition ease-in duration-100"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         class="space-y-4">
                         <div>
                             <label class="text-xs font-medium wb-text-muted block mb-1">Theme</label>
                             <div class="wb-select-wrap">
-                                <select x-model="theme" @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
-                                    aria-label="Theme"
-                                    class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                <select x-model="theme"
+                                        @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
+                                        aria-label="Theme"
+                                        class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                                     <template x-for="t in themes" :key="t.id">
                                         <option :value="t.id" x-text="t.label"></option>
                                     </template>
@@ -440,14 +486,17 @@
                             <div>
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium wb-text-muted">Watch Provider</label>
-                                    <button x-show="configData?.preferences?.overrides?.['WatchBack__WatchProvider']" type="button"
-                                        @click="void resetConfigKeys(['WatchBack__WatchProvider'])"
-                                        :title="configData?.preferences?.envValues?.['WatchBack__WatchProvider'] ? 'Reset to: ' + configData.preferences.envValues['WatchBack__WatchProvider'] : 'Clear override'"
-                                        class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
+                                    <button x-show="configData?.preferences?.overrides?.['WatchBack__WatchProvider']"
+                                            type="button"
+                                            @click="void resetConfigKeys(['WatchBack__WatchProvider'])"
+                                            :title="configData?.preferences?.envValues?.['WatchBack__WatchProvider'] ? 'Reset to: ' + configData.preferences.envValues['WatchBack__WatchProvider'] : 'Clear override'"
+                                            class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">
+                                        ↺
+                                    </button>
                                 </div>
                                 <div class="wb-select-wrap">
                                     <select x-model="prefEdits.watchProvider" aria-label="Watch provider"
-                                        class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                            class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                                         <template x-for="wp in configData.preferences.watchProviders" :key="wp.value">
                                             <option :value="wp.value" x-text="wp.label"></option>
                                         </template>
@@ -458,28 +507,33 @@
 
                         <div>
                             <div class="flex justify-between mb-1">
-                                <label for="time-machine-days" class="text-xs font-medium wb-text-muted">Time Machine Window</label>
-                                <button x-show="configData?.preferences?.overrides?.['WatchBack__TimeMachineDays']" type="button"
-                                    @click="void resetConfigKeys(['WatchBack__TimeMachineDays'])"
-                                    :title="configData?.preferences?.envValues?.['WatchBack__TimeMachineDays'] ? 'Reset to: ' + configData.preferences.envValues['WatchBack__TimeMachineDays'] : 'Clear override'"
-                                    class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
+                                <label for="time-machine-days" class="text-xs font-medium wb-text-muted">Time Machine
+                                    Window</label>
+                                <button x-show="configData?.preferences?.overrides?.['WatchBack__TimeMachineDays']"
+                                        type="button"
+                                        @click="void resetConfigKeys(['WatchBack__TimeMachineDays'])"
+                                        :title="configData?.preferences?.envValues?.['WatchBack__TimeMachineDays'] ? 'Reset to: ' + configData.preferences.envValues['WatchBack__TimeMachineDays'] : 'Clear override'"
+                                        class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺
+                                </button>
                             </div>
                             <input type="number" min="1" max="365" id="time-machine-days"
-                                x-model.number="prefEdits.timeMachineDays"
-                                class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                   x-model.number="prefEdits.timeMachineDays"
+                                   class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                         </div>
 
                         <div>
                             <div class="flex justify-between mb-1">
                                 <label class="text-xs font-medium wb-text-muted">Reddit Search Engine</label>
-                                <button x-show="configData?.preferences?.overrides?.['WatchBack__SearchEngine']" type="button"
-                                    @click="void resetConfigKeys(['WatchBack__SearchEngine', 'WatchBack__CustomSearchUrl'])"
-                                    :title="configData?.preferences?.envValues?.['WatchBack__SearchEngine'] ? 'Reset to: ' + configData.preferences.envValues['WatchBack__SearchEngine'] : 'Clear override'"
-                                    class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
+                                <button x-show="configData?.preferences?.overrides?.['WatchBack__SearchEngine']"
+                                        type="button"
+                                        @click="void resetConfigKeys(['WatchBack__SearchEngine', 'WatchBack__CustomSearchUrl'])"
+                                        :title="configData?.preferences?.envValues?.['WatchBack__SearchEngine'] ? 'Reset to: ' + configData.preferences.envValues['WatchBack__SearchEngine'] : 'Clear override'"
+                                        class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺
+                                </button>
                             </div>
                             <div class="wb-select-wrap">
                                 <select x-model="prefEdits.searchEngine" aria-label="Reddit search engine"
-                                    class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                        class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                                     <option value="google">Google</option>
                                     <option value="duckduckgo">DuckDuckGo</option>
                                     <option value="bing">Bing</option>
@@ -488,30 +542,34 @@
                             </div>
                             <div x-show="prefEdits.searchEngine === 'custom'" class="mt-2">
                                 <input type="url" id="custom-search-url" placeholder="https://example.com/search?q="
-                                    x-model="prefEdits.customSearchUrl"
-                                    class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                    aria-label="Custom search URL prefix">
+                                       x-model="prefEdits.customSearchUrl"
+                                       class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
+                                       aria-label="Custom search URL prefix">
                                 <p class="text-xs wb-text-faint mt-1">Search terms will be appended to this URL.</p>
                             </div>
                         </div>
 
                         <!-- Always show manual search toggle (localStorage only — no server save needed) -->
                         <div class="flex items-center justify-between py-1">
-                            <label class="text-xs font-medium wb-text-muted cursor-pointer" @click="toggleAlwaysShowSearch()">Always show media search</label>
-                            <button type="button" role="switch" :aria-checked="alwaysShowSearch" @click="toggleAlwaysShowSearch()" aria-label="Always show media search"
-                                class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors wb-btn"
-                                :style="alwaysShowSearch ? 'background-color:var(--wb-accent)' : 'background-color:var(--wb-border)'">
+                            <label class="text-xs font-medium wb-text-muted cursor-pointer"
+                                   @click="toggleAlwaysShowSearch()">Always show media search</label>
+                            <button type="button" role="switch" :aria-checked="alwaysShowSearch"
+                                    @click="toggleAlwaysShowSearch()" aria-label="Always show media search"
+                                    class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors wb-btn"
+                                    :style="alwaysShowSearch ? 'background-color:var(--wb-accent)' : 'background-color:var(--wb-border)'">
                                 <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
-                                    :class="alwaysShowSearch ? 'translate-x-4' : 'translate-x-0'"></span>
+                                      :class="alwaysShowSearch ? 'translate-x-4' : 'translate-x-0'"></span>
                             </button>
                         </div>
 
                         <button @click="void savePreferences()"
-                            :disabled="prefSaveStatus === 'saving'"
-                            aria-live="polite"
-                            class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt cursor-pointer disabled:opacity-50 wb-btn"
-                            :class="prefSaveStatus === 'saved' ? 'test-ok' : prefSaveStatus === 'error' ? 'test-error' : 'wb-text-muted'"
-                            x-text="prefSaveStatus === 'saving' ? 'Saving\u2026' : prefSaveStatus === 'saved' ? 'Saved \u2713' : prefSaveStatus === 'error' ? 'Error \u2717' : 'Save Preferences'">
+                                :disabled="prefSaveStatus === 'saving'"
+                                aria-live="polite"
+                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                                       cursor-pointer disabled:opacity-50 wb-btn
+                                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                :class="prefSaveStatus === 'saved' ? 'test-ok' : prefSaveStatus === 'error' ? 'test-error' : 'wb-text-muted'"
+                                x-text="prefSaveStatus === 'saving' ? 'Saving\u2026' : prefSaveStatus === 'saved' ? 'Saved \u2713' : prefSaveStatus === 'error' ? 'Error \u2717' : 'Save Preferences'">
                         </button>
                     </div>
                 </div>
@@ -519,37 +577,40 @@
                 <!-- ═══════════════════ Danger zone ═══════════════════ -->
                 <div class="mt-5 rounded-xl overflow-hidden" style="border:1px solid var(--wb-error-border)">
                     <button type="button" @click="toggleSection('dangerZone')"
-                        :aria-expanded="!collapsedSections.dangerZone"
-                        class="w-full flex items-center justify-between gap-2 px-4 py-2.5 cursor-pointer"
-                        style="background:var(--wb-error-bg)"
-                        :style="collapsedSections.dangerZone ? '' : 'border-bottom:1px solid var(--wb-error-border)'">
+                            :aria-expanded="!collapsedSections.dangerZone"
+                            class="w-full flex items-center justify-between gap-2 px-4 py-2.5 cursor-pointer"
+                            style="background:var(--wb-error-bg)"
+                            :style="collapsedSections.dangerZone ? '' : 'border-bottom:1px solid var(--wb-error-border)'">
                         <h2 class="text-xs font-semibold" style="color:var(--wb-error-text)">Danger zone</h2>
                         <ion-icon :name="collapsedSections.dangerZone ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
-                            style="color:var(--wb-error-text)" class="shrink-0" aria-hidden="true"></ion-icon>
+                                  style="color:var(--wb-error-text)" class="shrink-0" aria-hidden="true"></ion-icon>
                     </button>
                     <div x-show="!collapsedSections.dangerZone"
-                        x-transition:enter="transition ease-out duration-150"
-                        x-transition:enter-start="opacity-0"
-                        x-transition:enter-end="opacity-100"
-                        x-transition:leave="transition ease-in duration-100"
-                        x-transition:leave-start="opacity-100"
-                        x-transition:leave-end="opacity-0"
-                        class="p-3 grid grid-cols-2 gap-3">
+                         x-transition:enter="transition ease-out duration-150"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         x-transition:leave="transition ease-in duration-100"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         class="p-3 grid grid-cols-2 gap-3">
 
                         <!-- Reset password card (hidden for forward auth users) -->
                         <template x-if="currentUser?.authMethod !== 'forwardAuth'">
                             <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
                                 <div>
                                     <p class="text-xs font-semibold wb-text-secondary">Reset password</p>
-                                    <p class="text-xs wb-text-faint mt-1 leading-relaxed">Generate a new random password and print it to the server logs.</p>
+                                    <p class="text-xs wb-text-faint mt-1 leading-relaxed">Generate a new random password
+                                        and print it to the server logs.</p>
                                 </div>
                                 <button @click="void resetPassword()"
-                                    :disabled="resetPasswordStatus === 'loading'"
-                                    aria-live="polite"
-                                    class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50 wb-btn"
-                                    style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
-                                    :class="resetPasswordStatus === 'ok' ? 'test-ok' : resetPasswordStatus === 'error' ? 'test-error' : ''"
-                                    x-text="resetPasswordStatus === 'loading' ? 'Resetting\u2026' : resetPasswordStatus === 'ok' ? 'Done \u2014 check logs \u2713' : resetPasswordStatus === 'error' ? 'Error \u2717' : 'Reset Password'">
+                                        :disabled="resetPasswordStatus === 'loading'"
+                                        aria-live="polite"
+                                        class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer
+                                               disabled:opacity-50 wb-btn
+                                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                        style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
+                                        :class="resetPasswordStatus === 'ok' ? 'test-ok' : resetPasswordStatus === 'error' ? 'test-error' : ''"
+                                        x-text="resetPasswordStatus === 'loading' ? 'Resetting\u2026' : resetPasswordStatus === 'ok' ? 'Done \u2014 check logs \u2713' : resetPasswordStatus === 'error' ? 'Error \u2717' : 'Reset Password'">
                                 </button>
                             </div>
                         </template>
@@ -558,15 +619,18 @@
                         <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
                             <div>
                                 <p class="text-xs font-semibold wb-text-secondary">Clear cache</p>
-                                <p class="text-xs wb-text-faint mt-1 leading-relaxed">Evict all in-memory thought caches. Useful after changing provider settings.</p>
+                                <p class="text-xs wb-text-faint mt-1 leading-relaxed">Evict all in-memory thought
+                                    caches. Useful after changing provider settings.</p>
                             </div>
                             <button @click="void clearCache()"
-                                :disabled="clearCacheStatus === 'loading'"
-                                aria-live="polite"
-                                class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50 wb-btn"
-                                style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
-                                :class="clearCacheStatus === 'ok' ? 'test-ok' : clearCacheStatus === 'error' ? 'test-error' : ''"
-                                x-text="clearCacheStatus === 'loading' ? 'Clearing\u2026' : clearCacheStatus === 'ok' ? 'Cleared \u2713' : clearCacheStatus === 'error' ? 'Error \u2717' : 'Clear Cache'">
+                                    :disabled="clearCacheStatus === 'loading'"
+                                    aria-live="polite"
+                                    class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer
+                                           disabled:opacity-50 wb-btn
+                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
+                                    :class="clearCacheStatus === 'ok' ? 'test-ok' : clearCacheStatus === 'error' ? 'test-error' : ''"
+                                    x-text="clearCacheStatus === 'loading' ? 'Clearing\u2026' : clearCacheStatus === 'ok' ? 'Cleared \u2713' : clearCacheStatus === 'error' ? 'Error \u2717' : 'Clear Cache'">
                             </button>
                         </div>
 
@@ -574,12 +638,15 @@
                         <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
                             <div>
                                 <p class="text-xs font-semibold wb-text-secondary">Restart</p>
-                                <p class="text-xs wb-text-faint mt-1 leading-relaxed">Gracefully stop the server. Your host (Docker, systemd) should restart it automatically.</p>
+                                <p class="text-xs wb-text-faint mt-1 leading-relaxed">Gracefully stop the server. Your
+                                    host (Docker, systemd) should restart it automatically.</p>
                             </div>
                             <button @click="void restart()"
-                                aria-live="polite"
-                                class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer wb-btn"
-                                style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)">
+                                    aria-live="polite"
+                                    class="mt-auto w-full py-2 rounded-lg text-xs
+                                           font-medium cursor-pointer wb-btn
+                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)">
                                 Restart
                             </button>
                         </div>
@@ -588,541 +655,580 @@
                         <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
                             <div>
                                 <p class="text-xs font-semibold wb-text-secondary">Forward auth</p>
-                                <p class="text-xs wb-text-faint mt-1 leading-relaxed">Trust a header set by your reverse proxy instead of requiring a password.</p>
+                                <p class="text-xs wb-text-faint mt-1 leading-relaxed">Trust a header set by your reverse
+                                    proxy instead of requiring a password.</p>
                             </div>
                             <label class="switch-container">
                                 <input id="forward-auth-toggle" type="checkbox" class="switch-input"
-                                    aria-label="Enable forward auth"
-                                    :checked="forwardAuthEnabled"
-                                    @change="forwardAuthEnabled = $event.target.checked">
+                                       aria-label="Enable forward auth"
+                                       :checked="forwardAuthEnabled"
+                                       @change="forwardAuthEnabled = $event.target.checked">
                                 <span class="switch-slider"></span>
                             </label>
                             <template x-if="forwardAuthEnabled">
                                 <div class="space-y-2">
                                     <div>
-                                        <label for="forward-auth-header" class="text-xs font-medium wb-text-muted block mb-1">Header name</label>
+                                        <label for="forward-auth-header"
+                                               class="text-xs font-medium wb-text-muted block mb-1">Header name</label>
                                         <input id="forward-auth-header" type="text" x-model="forwardAuthHeaderEdit"
-                                            placeholder="X-Remote-User"
-                                            class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                               placeholder="X-Remote-User"
+                                               class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                                     </div>
                                     <div class="rounded-lg px-3 py-2 text-xs leading-relaxed"
-                                        style="background:var(--wb-error-bg);color:var(--wb-error-text);border:1px solid var(--wb-error-border)">
-                                        Only safe behind a trusted reverse proxy that sets this header after authenticating the user. If the app is directly reachable from the internet, anyone can bypass auth by sending this header.
+                                         style="background:var(--wb-error-bg);color:var(--wb-error-text);border:1px solid var(--wb-error-border)">
+                                        Only safe behind a trusted reverse proxy that sets this header after
+                                        authenticating the user. If the app is directly reachable from the internet,
+                                        anyone can bypass auth by sending this header.
                                     </div>
                                 </div>
                             </template>
                             <button @click="void saveForwardAuth()"
-                                :disabled="forwardAuthSaveStatus === 'saving'"
-                                aria-live="polite"
-                                class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50 wb-btn"
-                                style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
-                                :class="forwardAuthSaveStatus === 'saved' ? 'test-ok' : forwardAuthSaveStatus === 'error' ? 'test-error' : ''"
-                                x-text="forwardAuthSaveStatus === 'saving' ? 'Saving\u2026' : forwardAuthSaveStatus === 'saved' ? 'Saved \u2713' : forwardAuthSaveStatus === 'error' ? 'Error \u2717' : 'Save'">
+                                    :disabled="forwardAuthSaveStatus === 'saving'"
+                                    aria-live="polite"
+                                    class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer
+                                           disabled:opacity-50 wb-btn
+                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
+                                    :class="forwardAuthSaveStatus === 'saved' ? 'test-ok' : forwardAuthSaveStatus === 'error' ? 'test-error' : ''"
+                                    x-text="forwardAuthSaveStatus === 'saving' ? 'Saving\u2026' : forwardAuthSaveStatus === 'saved' ? 'Saved \u2713' : forwardAuthSaveStatus === 'error' ? 'Error \u2717' : 'Save'">
                             </button>
                         </div>
 
                     </div>
                 </div>
 
-                </div><!-- /settings tab -->
+            </div><!-- /settings tab -->
 
-                <!-- ─── Diagnostics tab ─── -->
-                <div x-show="configTab === 'diagnostics'">
+            <!-- ─── Diagnostics tab ─── -->
+            <div x-show="configTab === 'diagnostics'">
 
-                    <!-- Last sync status -->
-                    <div class="mb-5">
-                        <h2 class="text-sm font-semibold wb-text-secondary mb-3">Last Sync</h2>
-                        <template x-if="syncHistory">
-                            <div class="wb-surface rounded-xl p-3 wb-border border space-y-2">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-xs wb-text-muted" x-text="formatRelativeTime(syncHistory.timestamp)"></span>
-                                    <!-- Decorative dot (aria-hidden) + accessible status text -->
-                                    <span class="flex items-center gap-1.5 text-xs wb-text-secondary font-medium">
+                <!-- Last sync status -->
+                <div class="mb-5">
+                    <h2 class="text-sm font-semibold wb-text-secondary mb-3">Last Sync</h2>
+                    <template x-if="syncHistory">
+                        <div class="wb-surface rounded-xl p-3 wb-border border space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs wb-text-muted"
+                                      x-text="formatRelativeTime(syncHistory.timestamp)"></span>
+                                <!-- Decorative dot (aria-hidden) + accessible status text -->
+                                <span class="flex items-center gap-1.5 text-xs wb-text-secondary font-medium">
                                         <span class="inline-block w-1.5 h-1.5 rounded-full shrink-0" aria-hidden="true"
-                                            :style="syncHistory.status === 'Watching' ? 'background:var(--wb-success-text)' : syncHistory.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint)'"></span>
+                                              :style="syncHistory.status === 'Watching' ? 'background:var(--wb-success-text)' : syncHistory.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint)'"></span>
                                         <span x-text="syncHistory.status"></span>
                                     </span>
-                                </div>
-                                <p x-show="syncHistory.title" class="text-sm wb-text-secondary font-medium" x-text="syncHistory.title"></p>
-                                <template x-if="(syncHistory.sources || []).length > 0">
-                                    <div class="space-y-1 pt-1">
-                                        <template x-for="src in syncHistory.sources" :key="src.source">
-                                            <div class="flex items-center justify-between text-xs">
-                                                <span class="wb-text-muted" x-text="src.source"></span>
-                                                <span class="wb-text-muted" x-text="src.thoughtCount + ' found'"></span>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </template>
                             </div>
-                        </template>
-                        <template x-if="!syncHistory">
-                            <p class="text-xs wb-text-muted">No sync data yet. Waiting for first sync cycle…</p>
-                        </template>
-                    </div>
-
-                    <!-- App version -->
-                    <p x-show="appVersion" class="text-xs wb-text-muted mb-5">
-                        Version <span x-text="appVersion" class="font-mono"></span>
-                    </p>
-
-                    <!-- Log viewer -->
-                    <div>
-                        <div class="flex items-center justify-between mb-3">
-                            <h2 class="text-sm font-semibold wb-text-secondary">Application Logs</h2>
-                            <div class="flex items-center gap-3">
-                                <div class="wb-select-wrap">
-                                    <select x-model="logLevel" aria-label="Minimum log level"
-                                        class="wb-select wb-surface-alt wb-border wb-text-secondary rounded-lg px-2 py-1 text-xs border">
-                                        <option value="All">All</option>
-                                        <option value="Debug">Debug+</option>
-                                        <option value="Information">Info+</option>
-                                        <option value="Warning">Warning+</option>
-                                        <option value="Error">Error+</option>
-                                    </select>
-                                </div>
-                                <button type="button" @click="void copyLogs()"
-                                    aria-live="polite"
-                                    class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer wb-btn"
-                                    x-text="copyLogsStatus === 'copied' ? 'Copied \u2713' : copyLogsStatus === 'error' ? 'Error \u2717' : 'Copy'">
-                                </button>
-                                <button type="button" @click="void clearLogs()"
-                                    class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt wb-text-muted cursor-pointer wb-btn">
-                                    Clear
-                                </button>
-                            </div>
-                        </div>
-
-                        <div id="log-container"
-                            class="wb-surface wb-border border rounded-xl font-mono overflow-y-auto"
-                            style="height:20rem;font-size:11px;line-height:1.5;">
-                            <template x-if="filteredLogs.length === 0">
-                                <p class="p-3 wb-text-muted text-xs">No log entries matching the current filter.</p>
-                            </template>
-                            <template x-for="(entry, i) in filteredLogs" :key="i">
-                                <div class="px-3 py-1 flex gap-2 items-start"
-                                    :class="i < filteredLogs.length - 1 ? 'border-b wb-border' : ''">
-                                    <span class="wb-text-muted shrink-0 tabular-nums" x-text="formatLogTime(entry.timestamp)"></span>
-                                    <span class="shrink-0 font-bold w-8 text-center" :class="logLevelClass(entry.level)"
-                                        x-text="logLevelAbbr(entry.level)"></span>
-                                    <div class="flex-1 min-w-0 break-words">
-                                        <span class="wb-text-muted">[<span x-text="entry.category"></span>]</span>
-                                        <span class="wb-text-secondary" x-text="' ' + entry.message"></span>
-                                        <div x-show="entry.exceptionText"
-                                            class="wb-text-muted mt-0.5 break-words"
-                                            x-text="entry.exceptionText"></div>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-
-                </div><!-- /diagnostics tab -->
-
-            </div>
-        </div>
-
-        <!-- ════════════════ Manual media search ════════════════ -->
-        <div x-show="showSearchBox" class="mb-6">
-
-            <!-- Manual override active indicator -->
-            <template x-if="data?.watchProvider === 'Manual'">
-                <div class="mb-3 px-3 py-2.5 rounded-xl wb-surface wb-border border text-xs space-y-2">
-                    <div class="flex items-center justify-between gap-3">
-                        <span class="wb-text-muted leading-snug">
-                            Manual override: <strong class="wb-text-secondary" x-text="data.title"></strong>
-                        </span>
-                        <button type="button" @click="clearManualWatchState()"
-                            class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                                   wb-surface-alt wb-border border wb-text-muted hover:wb-error-text cursor-pointer wb-btn transition-colors"
-                            title="Clear manual watch state">
-                            <ion-icon name="close-circle-outline" class="text-base" aria-hidden="true"></ion-icon>
-                            Clear
-                        </button>
-                    </div>
-                    <template x-if="data?.suppressedProvider && data?.suppressedTitle">
-                        <p class="wb-text-faint leading-snug">
-                            <ion-icon name="radio-outline" class="align-middle" aria-hidden="true"></ion-icon>
-                            <span x-text="data.suppressedProvider"></span> is playing
-                            <strong class="wb-text-muted" x-text="data.suppressedTitle"></strong>
-                            — clear to switch.
-                        </p>
-                    </template>
-                </div>
-            </template>
-
-            <!-- Search input -->
-            <form @submit.prevent="searchMedia()" class="flex gap-2">
-                <input type="search" x-model="searchQuery" placeholder="Search movies &amp; TV shows…"
-                    autocomplete="off" autocorrect="off" spellcheck="false"
-                    class="flex-1 wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border focus:outline-none"
-                    aria-label="Search movies and TV shows">
-                <button type="submit" :disabled="searchLoading || !searchQuery.trim()"
-                    class="px-4 py-2 rounded-lg text-sm font-medium wb-surface wb-border border wb-text-secondary cursor-pointer disabled:opacity-40 wb-btn flex items-center gap-1.5">
-                    <ion-icon :name="searchLoading ? 'hourglass-outline' : 'search-sharp'" aria-hidden="true"></ion-icon>
-                    <span class="hide-on-mobile" x-text="searchLoading ? 'Searching…' : 'Search'"></span>
-                </button>
-            </form>
-
-            <!-- Search error -->
-            <p x-show="searchError" x-text="searchError" class="text-xs wb-error-text mt-2 px-1"></p>
-
-            <!-- Search results -->
-            <template x-if="searchResults.length > 0 && !searchDrilldown">
-                <div class="mt-3 space-y-2">
-                    <template x-for="result in searchResults" :key="result.imdbId">
-                        <button type="button" @click="selectSearchResult(result)"
-                            class="w-full flex gap-3 items-start p-3 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn transition-colors">
-                            <img x-show="result.posterUrl" :src="result.posterUrl" :alt="result.title + ' poster'"
-                                class="w-12 h-16 object-cover rounded shrink-0 bg-gray-800" loading="lazy">
-                            <div x-show="!result.posterUrl"
-                                class="w-12 h-16 rounded shrink-0 flex items-center justify-center wb-surface-alt wb-border border">
-                                <ion-icon name="film-outline" class="wb-text-faint" aria-hidden="true"></ion-icon>
-                            </div>
-                            <div class="min-w-0">
-                                <p class="text-sm font-semibold wb-text-secondary leading-snug" x-text="result.title"></p>
-                                <p class="text-xs wb-text-muted mt-0.5">
-                                    <span x-text="result.year"></span>
-                                    <span class="mx-1">·</span>
-                                    <span class="capitalize" x-text="result.type"></span>
-                                </p>
-                                <p x-show="result.type === 'series'" class="text-xs wb-text-faint mt-1">Tap to browse seasons →</p>
-                            </div>
-                        </button>
-                    </template>
-                </div>
-            </template>
-
-            <!-- Series drill-down: seasons -->
-            <template x-if="searchDrilldown && !drilldownSeason">
-                <div class="mt-3">
-                    <div class="flex items-center gap-2 mb-3">
-                        <button type="button" @click="searchDrilldown = null; drilldownSeason = null; drilldownEpisodes = []"
-                            class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer wb-btn">← Back</button>
-                        <p class="text-sm font-semibold wb-text-secondary" x-text="searchDrilldown.title"></p>
-                    </div>
-                    <p class="text-xs wb-text-muted mb-2" x-show="!drilldownLoading">Select a season</p>
-                    <p class="text-xs wb-text-faint" x-show="drilldownLoading">Loading seasons…</p>
-                    <div class="flex flex-wrap gap-2">
-                        <template x-for="season in searchDrilldown.seasons" :key="season.seasonNumber">
-                            <button type="button" @click="selectSeason(season)"
-                                class="px-4 py-2 rounded-lg text-sm wb-surface wb-border border wb-text-secondary cursor-pointer hover:wb-surface-alt wb-btn transition-colors">
-                                Season <span x-text="season.seasonNumber"></span>
-                            </button>
-                        </template>
-                    </div>
-                </div>
-            </template>
-
-            <!-- Series drill-down: episodes -->
-            <template x-if="searchDrilldown && drilldownSeason">
-                <div class="mt-3">
-                    <div class="flex items-center gap-2 mb-3">
-                        <button type="button" @click="drilldownSeason = null; drilldownEpisodes = []"
-                            class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer wb-btn">← Seasons</button>
-                        <p class="text-sm font-semibold wb-text-secondary"
-                            x-text="searchDrilldown.title + ' — Season ' + drilldownSeason.seasonNumber"></p>
-                    </div>
-                    <p class="text-xs wb-text-faint" x-show="drilldownLoading">Loading episodes…</p>
-                    <div class="space-y-1" x-show="!drilldownLoading">
-                        <template x-for="ep in drilldownEpisodes" :key="ep.episodeNumber">
-                            <button type="button" @click="selectEpisode(ep)"
-                                class="w-full flex items-center gap-3 px-3 py-2 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn transition-colors">
-                                <span class="text-xs wb-text-faint shrink-0 w-8 text-right"
-                                    x-text="'E' + String(ep.episodeNumber).padStart(2, '0')"></span>
-                                <span class="text-sm wb-text-secondary truncate" x-text="ep.title"></span>
-                                <span x-show="ep.airDate" class="text-xs wb-text-faint shrink-0 ml-auto"
-                                    x-text="formatDate(ep.airDate)"></span>
-                            </button>
-                        </template>
-                    </div>
-                </div>
-            </template>
-
-        </div>
-
-        <!-- Success state: show comments -->
-
-        <template x-if="data?.status === 'Watching'">
-            <main>
-                <div class="wb-surface p-4 rounded-xl mb-6 shadow-md wb-border border comment-card">
-                    <h2 class="text-xl font-bold mb-1"
-                        x-text="data?.metadata?.episodeTitle ? data.title + ' - ' + data.metadata.episodeTitle : data?.title"></h2>
-                    <p class="text-sm wb-text-muted">Aired: <span
-                            x-text="formatDate(data?.metadata?.releaseDate)"></span>
-                    </p>
-                    <template x-if="(data?.ratings || []).length > 0">
-                        <div class="flex gap-2 flex-wrap mt-3">
-                            <template x-for="r in data.ratings" :key="r.source">
-                                <span class="inline-flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg wb-surface-alt border wb-text-muted"
-                                    :style="r.brandColor ? `border-color: ${r.brandColor}60` : 'border-color: var(--wb-border)'">
-                                    <template x-if="r.logoSvg">
-                                        <span class="inline-flex items-center w-5 h-5 shrink-0"
-                                            :style="`color: ${r.brandColor}; fill: ${r.brandColor}`"
-                                            x-html="r.logoSvg"></span>
+                            <p x-show="syncHistory.title" class="text-sm wb-text-secondary font-medium"
+                               x-text="syncHistory.title"></p>
+                            <template x-if="(syncHistory.sources || []).length > 0">
+                                <div class="space-y-1 pt-1">
+                                    <template x-for="src in syncHistory.sources" :key="src.source">
+                                        <div class="flex items-center justify-between text-xs">
+                                            <span class="wb-text-muted" x-text="src.source"></span>
+                                            <span class="wb-text-muted" x-text="src.thoughtCount + ' found'"></span>
+                                        </div>
                                     </template>
-                                    <span x-text="`${r.source}: ${r.value}`"></span>
-                                </span>
-                            </template>
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Mode toggle & source filters (only when there are thoughts) -->
-                <template x-if="(data?.allThoughts || []).length > 0">
-                    <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border comment-card"
-                        style="animation-delay:0.05s">
-                        <button x-show="showTimeMachine" @click="mode = 'time'"
-                            :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
-                            :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
-                            class="flex gap-1.5 items-center justify-center flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
-                            <span class="flex hide-on-mobile">Time Machine</span>
-                            <ion-icon class="show-on-mobile" name="hourglass-sharp" aria-hidden="true"></ion-icon>
-                            <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
-                        </button>
-                        <button @click="mode = 'all'" :class="mode === 'all' ? 'wb-on-accent shadow' : 'wb-text-muted'"
-                            :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
-                            class="flex gap-1.5 items-center justify-center flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
-                            <span class="flex hide-on-mobile">All Comments</span>
-                            <ion-icon class="show-on-mobile" name="chatbubbles-sharp" aria-hidden="true"></ion-icon>
-                            <span x-text="'(' + allThoughtsCount + ')'" class="text-xs font-normal"></span>
-                        </button>
-                    </div>
-                </template>
-
-                <!-- Reddit search — always visible when watching an episode -->
-                <div x-show="data?.metadata?.seasonNumber != null" class="mb-4 comment-card" style="animation-delay:0.05s">
-                    <a :href="redditSearchUrl(data.title, data.metadata.seasonNumber, data.metadata.episodeNumber)"
-                        target="_blank" rel="noopener noreferrer"
-                        class="w-full py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn flex items-center justify-center gap-1.5"><ion-icon
-                            name="logo-reddit" aria-hidden="true"></ion-icon> Reddit <ion-icon name="search-sharp"
-                            aria-hidden="true"></ion-icon></a>
-                </div>
-
-                <!-- No discussions found -->
-                <template x-if="(data?.allThoughts || []).length === 0">
-                    <div class="py-16 text-center comment-card" style="animation-delay:0.1s">
-                        <p class="wb-text-muted text-base mb-2">No discussions found.</p>
-                        <p class="text-xs wb-text-faint">Nothing has been posted about this episode yet, or the sources haven't indexed it.</p>
-                    </div>
-                </template>
-
-                <!-- Source filter pills (only when thoughts exist) -->
-                <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card"
-                    style="animation-delay:0.1s">
-                    <template x-for="src in availableSources" :key="src">
-                        <button x-show="sourceCount(src) > 0" @click="toggleSource(src)"
-                            :class="sourceActive(src) ? 'filter-' + src.toLowerCase() : 'filter-inactive'"
-                            class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer wb-btn">
-                            <span x-text="src"></span>
-                            <span x-text="sourceCount(src)"
-                                class="text-xs font-semibold opacity-70 tabular-nums"></span>
-                        </button>
-                    </template>
-                </div>
-
-                <!-- Thread grouping toggle -->
-                <div x-show="hasThreadGroups" class="flex justify-center mb-4">
-                    <button @click="handleThreadToggle()"
-                        :class="groupByThread ? 'filter-reddit' : 'filter-inactive'"
-                        class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase wb-border border cursor-pointer wb-btn">
-                        <span x-text="groupByThread ? '📁 Grouped by thread' : '📁 Group by thread'"></span>
-                        <span x-text="threadCount"
-                            class="text-xs font-semibold opacity-70 tabular-nums"></span>
-                    </button>
-                </div>
-
-                <!-- Comments list -->
-                <div class="pb-8" :class="groupByThread ? 'space-y-6' : 'space-y-4'">
-                    <template x-for="(group, gi) in renderGroups" :key="gi">
-                        <div :class="groupByThread && group.title ? 'thread-group' : ''"
-                            :style="groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's' : ''">
-                            <template x-if="groupByThread && group.title">
-                                <div>
-                                    <a :href="group.url" target="_blank" rel="noopener noreferrer"
-                                        class="block text-xs thread-title mb-1 truncate leading-tight font-semibold"
-                                        x-text="group.title"></a>
-                                    <div x-show="group.body"
-                                        class="text-xs wb-text-muted leading-relaxed mb-2 wb-md"
-                                        x-html="renderMarkdown(group.body || '')"></div>
                                 </div>
                             </template>
-                            <div
-                                :class="groupByThread && group.title ? 'ml-2 border-l-2 reply-border pl-3 space-y-3' : (groupByThread ? 'space-y-3' : '')">
-                                <template x-for="(thought, ci) in group.thoughts" :key="thought.id">
-                                    <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card"
-                                        :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's'">
-                                        <div class="flex items-start mb-2 gap-2">
-                                            <div class="flex-1 min-w-0"
-                                                x-show="!groupByThread && thought.postTitle">
-                                                <a :href="thought.postUrl" target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    class="text-[11px] thread-title truncate leading-tight block"
-                                                    x-text="thought.postTitle"></a>
-                                            </div>
-                                            <div class="flex gap-1"
-                                                :class="groupByThread || !thought.postTitle ? 'ml-auto' : 'shrink-0'">
-                                                <a x-show="thought.source === 'Bluesky'" :href="thought.url"
-                                                    target="_blank" rel="noopener noreferrer"
-                                                    class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                                    title="View original post"><svg xmlns="http://www.w3.org/2000/svg"
-                                                        viewBox="0 0 360 320"
-                                                        class="inline-block w-[1em] h-[1em] align-[-0.1em]"
-                                                        aria-hidden="true" fill="currentColor">
-                                                        <path
-                                                            d="M180 142c-16.3-34.8-60.2-99.7-101.5-127.8C50.8-9.5 23.8.4 12.5 7.2-6.8 18.5 5.4 56.7 22 74c22 23 45.8 32.8 79.3 33.5-31.4 5.8-62.1 22.7-79.8 41.7C6.2 166.6 0 177.5 0 188.6c0 28 39.5 58.1 72.5 48.1C133 218 163.5 159.5 180 130c16.5 29.5 47 88 107.5 106.7 33 10 72.5-20.1 72.5-48.1 0-11.1-6.2-22-21.5-39.4-17.7-19-48.4-35.9-79.8-41.7 33.5-.7 57.3-10.5 79.3-33.5 16.6-17.3 28.8-55.5 9.5-66.8C336.2.4 309.2-9.5 281.5 14.2 240.2 42.3 196.3 107.2 180 142z" />
-                                                    </svg> BlueSky <ion-icon name="open-sharp"
-                                                        aria-hidden="true"></ion-icon></a>
-                                                <a x-show="thought.source === 'Reddit'" :href="thought.url"
-                                                    target="_blank" rel="noopener noreferrer"
-                                                    class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                                    title="View on Reddit"><ion-icon name="logo-reddit"
-                                                        aria-hidden="true"></ion-icon> Reddit <ion-icon
-                                                        name="open-sharp" aria-hidden="true"></ion-icon></a>
-                                                <span x-show="thought.source === 'Trakt'"
-                                                    class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
-                                            </div>
-                                        </div>
-
-                                        <div class="wb-text-secondary text-sm leading-relaxed mb-3 wb-md"
-                                            x-html="renderMarkdown(thought.content)"></div>
-
-                                        <template x-if="thought.images && thought.images.length > 0">
-                                            <div class="grid gap-2 mb-3"
-                                                :class="thought.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
-                                                <template x-for="img in thought.images" :key="img.url">
-                                                    <div @click="lightboxImg = img.url"
-                                                        @keydown.enter="lightboxImg = img.url" tabindex="0"
-                                                        role="button" aria-label="View full image"
-                                                        class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
-                                                        style="background-color: var(--wb-bg);">
-                                                        <img src="" :src="img.url" alt="" :alt="img.alt || 'Image from post'"
-                                                            class="w-full h-auto object-cover hover:scale-110 transition-transform duration-300"
-                                                            loading="lazy">
-                                                    </div>
-                                                </template>
-                                            </div>
-                                        </template>
-
-                                        <div class="flex justify-between items-center text-xs wb-text-faint">
-                                            <span class="font-medium wb-text-muted"
-                                                x-text="'@' + thought.author"></span>
-                                            <div class="flex items-center gap-3">
-                                                <span x-show="thought.score != null && thought.score !== 0"
-                                                    class="wb-text-faint"
-                                                    x-text="'&#9650; ' + formatScore(thought.score)"></span>
-                                                <span x-text="formatDate(thought.createdAt)"></span>
-                                            </div>
-                                        </div>
-
-                                        <!-- Level 1 replies -->
-                                        <template x-if="thought.replies && thought.replies.length > 0">
-                                            <div class="mt-3 border-l-2 reply-border pl-3 space-y-3">
-                                                <template x-for="reply in thought.replies" :key="reply.id">
-                                                    <div>
-                                                        <div class="reply-bg p-3 rounded-lg">
-                                                            <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
-                                                                x-html="renderMarkdown(reply.content)"></div>
-                                                            <div
-                                                                class="flex justify-between items-center text-xs wb-text-faint">
-                                                                <span class="font-medium wb-text-muted"
-                                                                    x-text="'@' + reply.author"></span>
-                                                                <div class="flex items-center gap-3">
-                                                                    <span
-                                                                        x-show="reply.score != null && reply.score !== 0"
-                                                                        class="wb-text-faint"
-                                                                        x-text="'&#9650; ' + formatScore(reply.score)"></span>
-                                                                    <span
-                                                                        x-text="formatDate(reply.createdAt)"></span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        <!-- Level 2 replies -->
-                                                        <template x-if="reply.replies && reply.replies.length > 0">
-                                                            <div
-                                                                class="mt-2 ml-3 border-l-2 reply-border pl-3 space-y-2">
-                                                                <template x-for="subreply in reply.replies"
-                                                                    :key="subreply.id">
-                                                                    <div>
-                                                                        <div class="reply-bg p-3 rounded-lg">
-                                                                            <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
-                                                                                x-html="renderMarkdown(subreply.content)">
-                                                                            </div>
-                                                                            <div
-                                                                                class="flex justify-between items-center text-xs wb-text-faint">
-                                                                                <span class="font-medium wb-text-muted"
-                                                                                    x-text="'@' + subreply.author"></span>
-                                                                                <div class="flex items-center gap-3">
-                                                                                    <span
-                                                                                        x-show="subreply.score != null && subreply.score !== 0"
-                                                                                        class="wb-text-faint"
-                                                                                        x-text="'&#9650; ' + formatScore(subreply.score)"></span>
-                                                                                    <span
-                                                                                        x-text="formatDate(subreply.createdAt)"></span>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                        <template
-                                                                            x-if="subreply.replies && subreply.replies.length > 0">
-                                                                            <a :href="subreply.url" target="_blank"
-                                                                                rel="noopener noreferrer"
-                                                                                class="block mt-1 ml-3 text-xs wb-text-faint hover:wb-text-muted transition-colors"
-                                                                                x-text="'&#8627; ' + countAllReplies(subreply) + ' more ' + (countAllReplies(subreply) === 1 ? 'reply' : 'replies') + ' in thread'"></a>
-                                                                        </template>
-                                                                    </div>
-                                                                </template>
-                                                            </div>
-                                                        </template>
-                                                    </div>
-                                                </template>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </template>
-                            </div>
                         </div>
                     </template>
-
-                    <!-- Per-filter empty state (thoughts exist but filter hides all) -->
-                    <template x-if="(data?.allThoughts || []).length > 0 && activeThoughts.length === 0">
-                        <div class="py-12 text-center">
-                            <p class="wb-text-faint">No comments match the current filter.</p>
-                        </div>
+                    <template x-if="!syncHistory">
+                        <p class="text-xs wb-text-muted">No sync data yet. Waiting for first sync cycle…</p>
                     </template>
                 </div>
-            </main>
-        </template>
 
-        <!-- Error state -->
-        <template x-if="data?.status === 'Error'">
-            <main class="text-center py-20 px-6">
-                <p class="wb-error-text text-lg mb-2">An error occurred.</p>
-                <p class="text-xs wb-text-faint">Check your configuration and try syncing again.</p>
-            </main>
-        </template>
+                <!-- App version -->
+                <p x-show="appVersion" class="text-xs wb-text-muted mb-5">
+                    Version <span x-text="appVersion" class="font-mono"></span>
+                </p>
 
-        <!-- Idle state -->
-        <template x-if="data?.status === 'Idle'">
-            <main class="text-center py-20 px-6">
-                <p class="wb-text-muted text-lg mb-2">Nothing playing.</p>
-                <p class="text-xs wb-text-faint">The dashboard will update automatically when you start playback.</p>
-            </main>
-        </template>
+                <!-- Log viewer -->
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold wb-text-secondary">Application Logs</h2>
+                        <div class="flex items-center gap-3">
+                            <div class="wb-select-wrap">
+                                <select x-model="logLevel" aria-label="Minimum log level"
+                                        class="wb-select wb-surface-alt wb-border wb-text-secondary rounded-lg px-2 py-1 text-xs border">
+                                    <option value="All">All</option>
+                                    <option value="Debug">Debug+</option>
+                                    <option value="Information">Info+</option>
+                                    <option value="Warning">Warning+</option>
+                                    <option value="Error">Error+</option>
+                                </select>
+                            </div>
+                            <button type="button" @click="void copyLogs()"
+                                    aria-live="polite"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                                           wb-text-muted cursor-pointer wb-btn
+                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    x-text="copyLogsStatus === 'copied' ? 'Copied \u2713' : copyLogsStatus === 'error' ? 'Error \u2717' : 'Copy'">
+                            </button>
+                            <button type="button" @click="void clearLogs()"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                                           wb-text-muted cursor-pointer wb-btn
+                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
 
-        <!-- Image lightbox overlay -->
-        <div x-show="lightboxImg" x-transition.opacity.duration.200ms @click="lightboxImg = null"
-            @keydown.escape.window="lightboxImg = null" role="dialog" aria-label="Image viewer" aria-modal="true"
-            class="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer"
-            style="background-color: rgba(0,0,0,0.85);" x-cloak>
-            <img src="" :src="lightboxImg" @click.stop alt="Enlarged image"
-                class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl cursor-default">
+                    <div id="log-container"
+                         class="wb-surface wb-border border rounded-xl font-mono overflow-y-auto"
+                         style="height:20rem;font-size:11px;line-height:1.5;">
+                        <template x-if="filteredLogs.length === 0">
+                            <p class="p-3 wb-text-muted text-xs">No log entries matching the current filter.</p>
+                        </template>
+                        <template x-for="(entry, i) in filteredLogs" :key="i">
+                            <div class="px-3 py-1 flex gap-2 items-start"
+                                 :class="i < filteredLogs.length - 1 ? 'border-b wb-border' : ''">
+                                <span class="wb-text-muted shrink-0 tabular-nums"
+                                      x-text="formatLogTime(entry.timestamp)"></span>
+                                <span class="shrink-0 font-bold w-8 text-center" :class="logLevelClass(entry.level)"
+                                      x-text="logLevelAbbr(entry.level)"></span>
+                                <div class="flex-1 min-w-0 break-words">
+                                    <span class="wb-text-muted">[<span x-text="entry.category"></span>]</span>
+                                    <span class="wb-text-secondary" x-text="' ' + entry.message"></span>
+                                    <div x-show="entry.exceptionText"
+                                         class="wb-text-muted mt-0.5 break-words"
+                                         x-text="entry.exceptionText"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+            </div><!-- /diagnostics tab -->
+
         </div>
     </div>
 
-    <script src="/app.js"></script>
-    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
-    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <!-- ════════════════ Manual media search ════════════════ -->
+    <div x-show="showSearchBox" class="mb-6">
+
+        <!-- Manual override active indicator -->
+        <template x-if="data?.watchProvider === 'Manual'">
+            <div class="mb-3 px-3 py-2.5 rounded-xl wb-surface wb-border border text-xs space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                        <span class="wb-text-muted leading-snug">
+                            Manual override: <strong class="wb-text-secondary" x-text="data.title"></strong>
+                        </span>
+                    <button type="button" @click="clearManualWatchState()"
+                            class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                                   wb-surface-alt wb-border border wb-text-muted hover:wb-error-text cursor-pointer
+                                   wb-btn transition-colors
+                                   hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                            title="Clear manual watch state">
+                        <ion-icon name="close-circle-outline" class="text-base" aria-hidden="true"></ion-icon>
+                        Clear
+                    </button>
+                </div>
+                <template x-if="data?.suppressedProvider && data?.suppressedTitle">
+                    <p class="wb-text-faint leading-snug">
+                        <ion-icon name="radio-outline" class="align-middle" aria-hidden="true"></ion-icon>
+                        <span x-text="data.suppressedProvider"></span> is playing
+                        <strong class="wb-text-muted" x-text="data.suppressedTitle"></strong>
+                        — clear to switch.
+                    </p>
+                </template>
+            </div>
+        </template>
+
+        <!-- Search input -->
+        <form @submit.prevent="searchMedia()" class="flex gap-2">
+            <input type="search" x-model="searchQuery" placeholder="Search movies &amp; TV shows…"
+                   autocomplete="off" autocorrect="off" spellcheck="false"
+                   class="flex-1 wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border focus:outline-none"
+                   aria-label="Search movies and TV shows">
+            <button type="submit" :disabled="searchLoading || !searchQuery.trim()"
+                    class="px-4 py-2 rounded-lg text-sm font-medium wb-surface wb-border border wb-text-secondary
+                           cursor-pointer disabled:opacity-40 wb-btn flex items-center gap-1.5
+                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu">
+                <ion-icon :name="searchLoading ? 'hourglass-outline' : 'search-sharp'" aria-hidden="true"></ion-icon>
+                <span class="hide-on-mobile" x-text="searchLoading ? 'Searching…' : 'Search'"></span>
+            </button>
+        </form>
+
+        <!-- Search error -->
+        <p x-show="searchError" x-text="searchError" class="text-xs wb-error-text mt-2 px-1"></p>
+
+        <!-- Search results -->
+        <template x-if="searchResults.length > 0 && !searchDrilldown">
+            <div class="mt-3 space-y-2">
+                <template x-for="result in searchResults" :key="result.imdbId">
+                    <button type="button" @click="selectSearchResult(result)"
+                            class="w-full flex gap-3 items-start p-3 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn transition-colors">
+                        <img x-show="result.posterUrl" :src="result.posterUrl" :alt="result.title + ' poster'"
+                             class="w-12 h-16 object-cover rounded shrink-0 bg-gray-800" loading="lazy">
+                        <div x-show="!result.posterUrl"
+                             class="w-12 h-16 rounded shrink-0 flex items-center justify-center wb-surface-alt wb-border border">
+                            <ion-icon name="film-outline" class="wb-text-faint" aria-hidden="true"></ion-icon>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold wb-text-secondary leading-snug" x-text="result.title"></p>
+                            <p class="text-xs wb-text-muted mt-0.5">
+                                <span x-text="result.year"></span>
+                                <span class="mx-1">·</span>
+                                <span class="capitalize" x-text="result.type"></span>
+                            </p>
+                            <p x-show="result.type === 'series'" class="text-xs wb-text-faint mt-1">Tap to browse
+                                seasons →</p>
+                        </div>
+                    </button>
+                </template>
+            </div>
+        </template>
+
+        <!-- Series drill-down: seasons -->
+        <template x-if="searchDrilldown && !drilldownSeason">
+            <div class="mt-3">
+                <div class="flex items-center gap-2 mb-3">
+                    <button type="button"
+                            @click="searchDrilldown = null; drilldownSeason = null; drilldownEpisodes = []"
+                            class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer wb-btn">← Back
+                    </button>
+                    <p class="text-sm font-semibold wb-text-secondary" x-text="searchDrilldown.title"></p>
+                </div>
+                <p class="text-xs wb-text-muted mb-2" x-show="!drilldownLoading">Select a season</p>
+                <p class="text-xs wb-text-faint" x-show="drilldownLoading">Loading seasons…</p>
+                <div class="flex flex-wrap gap-2">
+                    <template x-for="season in searchDrilldown.seasons" :key="season.seasonNumber">
+                        <button type="button" @click="selectSeason(season)"
+                                class="px-4 py-2 rounded-lg text-sm wb-surface wb-border border wb-text-secondary cursor-pointer hover:wb-surface-alt wb-btn transition-colors">
+                            Season <span x-text="season.seasonNumber"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        <!-- Series drill-down: episodes -->
+        <template x-if="searchDrilldown && drilldownSeason">
+            <div class="mt-3">
+                <div class="flex items-center gap-2 mb-3">
+                    <button type="button" @click="drilldownSeason = null; drilldownEpisodes = []"
+                            class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer wb-btn">← Seasons
+                    </button>
+                    <p class="text-sm font-semibold wb-text-secondary"
+                       x-text="searchDrilldown.title + ' — Season ' + drilldownSeason.seasonNumber"></p>
+                </div>
+                <p class="text-xs wb-text-faint" x-show="drilldownLoading">Loading episodes…</p>
+                <div class="space-y-1" x-show="!drilldownLoading">
+                    <template x-for="ep in drilldownEpisodes" :key="ep.episodeNumber">
+                        <button type="button" @click="selectEpisode(ep)"
+                                class="w-full flex items-center gap-3 px-3 py-2 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn transition-colors">
+                                <span class="text-xs wb-text-faint shrink-0 w-8 text-right"
+                                      x-text="'E' + String(ep.episodeNumber).padStart(2, '0')"></span>
+                            <span class="text-sm wb-text-secondary truncate" x-text="ep.title"></span>
+                            <span x-show="ep.airDate" class="text-xs wb-text-faint shrink-0 ml-auto"
+                                  x-text="formatDate(ep.airDate)"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+    </div>
+
+    <!-- Success state: show comments -->
+
+    <template x-if="data?.status === 'Watching'">
+        <main>
+            <div class="wb-surface p-4 rounded-xl mb-6 shadow-md wb-border border comment-card">
+                <h2 class="text-xl font-bold mb-1"
+                    x-text="data?.metadata?.episodeTitle ? data.title + ' - ' + data.metadata.episodeTitle : data?.title"></h2>
+                <p class="text-sm wb-text-muted">Aired: <span
+                        x-text="formatDate(data?.metadata?.releaseDate)"></span>
+                </p>
+                <template x-if="(data?.ratings || []).length > 0">
+                    <div class="flex gap-2 flex-wrap mt-3">
+                        <template x-for="r in data.ratings" :key="r.source">
+                                <span class="inline-flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg wb-surface-alt border wb-text-muted"
+                                      :style="r.brandColor ? `border-color: ${r.brandColor}60` : 'border-color: var(--wb-border)'">
+                                    <template x-if="r.logoSvg">
+                                        <span class="inline-flex items-center w-5 h-5 shrink-0"
+                                              :style="`color: ${r.brandColor}; fill: ${r.brandColor}`"
+                                              x-html="r.logoSvg"></span>
+                                    </template>
+                                    <span x-text="`${r.source}: ${r.value}`"></span>
+                                </span>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Mode toggle & source filters (only when there are thoughts) -->
+            <template x-if="(data?.allThoughts || []).length > 0">
+                <div class="flex gap-2 mb-6 wb-surface p-1 rounded-lg wb-border border comment-card"
+                     style="animation-delay:0.05s">
+                    <button x-show="showTimeMachine" @click="mode = 'time'"
+                            :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
+                            :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
+                            class="flex gap-1.5 items-center justify-center flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
+                        <span class="flex hide-on-mobile">Time Machine</span>
+                        <ion-icon class="show-on-mobile" name="hourglass-sharp" aria-hidden="true"></ion-icon>
+                        <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
+                    </button>
+                    <button @click="mode = 'all'" :class="mode === 'all' ? 'wb-on-accent shadow' : 'wb-text-muted'"
+                            :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
+                            class="flex gap-1.5 items-center justify-center flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
+                        <span class="flex hide-on-mobile">All Comments</span>
+                        <ion-icon class="show-on-mobile" name="chatbubbles-sharp" aria-hidden="true"></ion-icon>
+                        <span x-text="'(' + allThoughtsCount + ')'" class="text-xs font-normal"></span>
+                    </button>
+                </div>
+            </template>
+
+            <!-- Reddit search — always visible when watching an episode -->
+            <div x-show="data?.metadata?.seasonNumber != null" class="mb-4 comment-card" style="animation-delay:0.05s">
+                <a :href="redditSearchUrl(data.title, data.metadata.seasonNumber, data.metadata.episodeNumber)"
+                   target="_blank" rel="noopener noreferrer"
+                   class="w-full py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn flex items-center justify-center gap-1.5">
+                    <ion-icon
+                            name="logo-reddit" aria-hidden="true"></ion-icon>
+                    Reddit
+                    <ion-icon name="search-sharp"
+                              aria-hidden="true"></ion-icon>
+                </a>
+            </div>
+
+            <!-- No discussions found -->
+            <template x-if="(data?.allThoughts || []).length === 0">
+                <div class="py-16 text-center comment-card" style="animation-delay:0.1s">
+                    <p class="wb-text-muted text-base mb-2">No discussions found.</p>
+                    <p class="text-xs wb-text-faint">Nothing has been posted about this episode yet, or the sources
+                        haven't indexed it.</p>
+                </div>
+            </template>
+
+            <!-- Source filter pills (only when thoughts exist) -->
+            <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card"
+                 style="animation-delay:0.1s">
+                <template x-for="src in availableSources" :key="src">
+                    <button x-show="sourceCount(src) > 0" @click="toggleSource(src)"
+                            :class="sourceActive(src) ? 'filter-' + src.toLowerCase() : 'filter-inactive'"
+                            class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase
+                                   wb-border border cursor-pointer wb-btn
+                                   hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu">
+                        <span x-text="src"></span>
+                        <span x-text="sourceCount(src)"
+                              class="text-xs font-semibold opacity-70 tabular-nums"></span>
+                    </button>
+                </template>
+            </div>
+
+            <!-- Thread grouping toggle -->
+            <div x-show="hasThreadGroups" class="flex justify-center mb-4">
+                <button @click="handleThreadToggle()"
+                        :class="groupByThread ? 'filter-reddit' : 'filter-inactive'"
+                        class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase
+                               wb-border border cursor-pointer wb-btn
+                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu">
+                    <span x-text="groupByThread ? '📁 Grouped by thread' : '📁 Group by thread'"></span>
+                    <span x-text="threadCount"
+                          class="text-xs font-semibold opacity-70 tabular-nums"></span>
+                </button>
+            </div>
+
+            <!-- Comments list -->
+            <div class="pb-8" :class="groupByThread ? 'space-y-6' : 'space-y-4'">
+                <template x-for="(group, gi) in renderGroups" :key="gi">
+                    <div :class="groupByThread && group.title ? 'thread-group' : ''"
+                         :style="groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's' : ''">
+                        <template x-if="groupByThread && group.title">
+                            <div>
+                                <a :href="group.url" target="_blank" rel="noopener noreferrer"
+                                   class="block text-xs thread-title mb-1 truncate leading-tight font-semibold"
+                                   x-text="group.title"></a>
+                                <div x-show="group.body"
+                                     class="text-xs wb-text-muted leading-relaxed mb-2 wb-md"
+                                     x-html="renderMarkdown(group.body || '')"></div>
+                            </div>
+                        </template>
+                        <div
+                                :class="groupByThread && group.title ? 'ml-2 border-l-2 reply-border pl-3 space-y-3' : (groupByThread ? 'space-y-3' : '')">
+                            <template x-for="(thought, ci) in group.thoughts" :key="thought.id">
+                                <div class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card"
+                                     :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's'">
+                                    <div class="flex items-start mb-2 gap-2">
+                                        <div class="flex-1 min-w-0"
+                                             x-show="!groupByThread && thought.postTitle">
+                                            <a :href="thought.postUrl" target="_blank"
+                                               rel="noopener noreferrer"
+                                               class="text-[11px] thread-title truncate leading-tight block"
+                                               x-text="thought.postTitle"></a>
+                                        </div>
+                                        <div class="flex gap-1"
+                                             :class="groupByThread || !thought.postTitle ? 'ml-auto' : 'shrink-0'">
+                                            <a x-show="thought.source === 'Bluesky'" :href="thought.url"
+                                               target="_blank" rel="noopener noreferrer"
+                                               class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
+                                               title="View original post">
+                                                <svg xmlns="http://www.w3.org/2000/svg"
+                                                     viewBox="0 0 360 320"
+                                                     class="inline-block w-[1em] h-[1em] align-[-0.1em]"
+                                                     aria-hidden="true" fill="currentColor">
+                                                    <path
+                                                            d="M180 142c-16.3-34.8-60.2-99.7-101.5-127.8C50.8-9.5 23.8.4 12.5 7.2-6.8 18.5 5.4 56.7 22 74c22 23 45.8 32.8 79.3 33.5-31.4 5.8-62.1 22.7-79.8 41.7C6.2 166.6 0 177.5 0 188.6c0 28 39.5 58.1 72.5 48.1C133 218 163.5 159.5 180 130c16.5 29.5 47 88 107.5 106.7 33 10 72.5-20.1 72.5-48.1 0-11.1-6.2-22-21.5-39.4-17.7-19-48.4-35.9-79.8-41.7 33.5-.7 57.3-10.5 79.3-33.5 16.6-17.3 28.8-55.5 9.5-66.8C336.2.4 309.2-9.5 281.5 14.2 240.2 42.3 196.3 107.2 180 142z"/>
+                                                </svg>
+                                                BlueSky
+                                                <ion-icon name="open-sharp"
+                                                          aria-hidden="true"></ion-icon>
+                                            </a>
+                                            <a x-show="thought.source === 'Reddit'" :href="thought.url"
+                                               target="_blank" rel="noopener noreferrer"
+                                               class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
+                                               title="View on Reddit">
+                                                <ion-icon name="logo-reddit"
+                                                          aria-hidden="true"></ion-icon>
+                                                Reddit
+                                                <ion-icon
+                                                        name="open-sharp" aria-hidden="true"></ion-icon>
+                                            </a>
+                                            <span x-show="thought.source === 'Trakt'"
+                                                  class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="wb-text-secondary text-sm leading-relaxed mb-3 wb-md"
+                                         x-html="renderMarkdown(thought.content)"></div>
+
+                                    <template x-if="thought.images && thought.images.length > 0">
+                                        <div class="grid gap-2 mb-3"
+                                             :class="thought.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
+                                            <template x-for="img in thought.images" :key="img.url">
+                                                <div @click="lightboxImg = img.url"
+                                                     @keydown.enter="lightboxImg = img.url" tabindex="0"
+                                                     role="button" aria-label="View full image"
+                                                     class="block overflow-hidden rounded-lg wb-border border cursor-pointer"
+                                                     style="background-color: var(--wb-bg);">
+                                                    <img src="" :src="img.url" alt=""
+                                                         :alt="img.alt || 'Image from post'"
+                                                         class="w-full h-auto object-cover hover:scale-110 transition-transform duration-300"
+                                                         loading="lazy">
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <div class="flex justify-between items-center text-xs wb-text-faint">
+                                            <span class="font-medium wb-text-muted"
+                                                  x-text="'@' + thought.author"></span>
+                                        <div class="flex items-center gap-3">
+                                                <span x-show="thought.score != null && thought.score !== 0"
+                                                      class="wb-text-faint"
+                                                      x-text="'&#9650; ' + formatScore(thought.score)"></span>
+                                            <span x-text="formatDate(thought.createdAt)"></span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Level 1 replies -->
+                                    <template x-if="thought.replies && thought.replies.length > 0">
+                                        <div class="mt-3 border-l-2 reply-border pl-3 space-y-3">
+                                            <template x-for="reply in thought.replies" :key="reply.id">
+                                                <div>
+                                                    <div class="reply-bg p-3 rounded-lg">
+                                                        <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
+                                                             x-html="renderMarkdown(reply.content)"></div>
+                                                        <div
+                                                                class="flex justify-between items-center text-xs wb-text-faint">
+                                                                <span class="font-medium wb-text-muted"
+                                                                      x-text="'@' + reply.author"></span>
+                                                            <div class="flex items-center gap-3">
+                                                                    <span
+                                                                            x-show="reply.score != null && reply.score !== 0"
+                                                                            class="wb-text-faint"
+                                                                            x-text="'&#9650; ' + formatScore(reply.score)"></span>
+                                                                <span
+                                                                        x-text="formatDate(reply.createdAt)"></span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Level 2 replies -->
+                                                    <template x-if="reply.replies && reply.replies.length > 0">
+                                                        <div
+                                                                class="mt-2 ml-3 border-l-2 reply-border pl-3 space-y-2">
+                                                            <template x-for="subreply in reply.replies"
+                                                                      :key="subreply.id">
+                                                                <div>
+                                                                    <div class="reply-bg p-3 rounded-lg">
+                                                                        <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
+                                                                             x-html="renderMarkdown(subreply.content)">
+                                                                        </div>
+                                                                        <div
+                                                                                class="flex justify-between items-center text-xs wb-text-faint">
+                                                                                <span class="font-medium wb-text-muted"
+                                                                                      x-text="'@' + subreply.author"></span>
+                                                                            <div class="flex items-center gap-3">
+                                                                                    <span
+                                                                                            x-show="subreply.score != null && subreply.score !== 0"
+                                                                                            class="wb-text-faint"
+                                                                                            x-text="'&#9650; ' + formatScore(subreply.score)"></span>
+                                                                                <span
+                                                                                        x-text="formatDate(subreply.createdAt)"></span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <template
+                                                                            x-if="subreply.replies && subreply.replies.length > 0">
+                                                                        <a :href="subreply.url" target="_blank"
+                                                                           rel="noopener noreferrer"
+                                                                           class="block mt-1 ml-3 text-xs wb-text-faint hover:wb-text-muted transition-colors"
+                                                                           x-text="'&#8627; ' + countAllReplies(subreply) + ' more ' + (countAllReplies(subreply) === 1 ? 'reply' : 'replies') + ' in thread'"></a>
+                                                                    </template>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Per-filter empty state (thoughts exist but filter hides all) -->
+                <template x-if="(data?.allThoughts || []).length > 0 && activeThoughts.length === 0">
+                    <div class="py-12 text-center">
+                        <p class="wb-text-faint">No comments match the current filter.</p>
+                    </div>
+                </template>
+            </div>
+        </main>
+    </template>
+
+    <!-- Error state -->
+    <template x-if="data?.status === 'Error'">
+        <main class="text-center py-20 px-6">
+            <p class="wb-error-text text-lg mb-2">An error occurred.</p>
+            <p class="text-xs wb-text-faint">Check your configuration and try syncing again.</p>
+        </main>
+    </template>
+
+    <!-- Idle state -->
+    <template x-if="data?.status === 'Idle'">
+        <main class="text-center py-20 px-6">
+            <p class="wb-text-muted text-lg mb-2">Nothing playing.</p>
+            <p class="text-xs wb-text-faint">The dashboard will update automatically when you start playback.</p>
+        </main>
+    </template>
+
+    <!-- Image lightbox overlay -->
+    <div x-show="lightboxImg" x-transition.opacity.duration.200ms @click="lightboxImg = null"
+         @keydown.escape.window="lightboxImg = null" role="dialog" aria-label="Image viewer" aria-modal="true"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer"
+         style="background-color: rgba(0,0,0,0.85);" x-cloak>
+        <img src="" :src="lightboxImg" @click.stop alt="Enlarged image"
+             class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl cursor-default">
+    </div>
+</div>
+
+<script src="/app.js"></script>
+<script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+<script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
 </body>
 
 </html>
