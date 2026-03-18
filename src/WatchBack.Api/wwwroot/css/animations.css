@@ -74,12 +74,55 @@
     animation: check-pop 0.35s ease-out both;
 }
 
+/* ─── Segmented progress bar ─── */
+
+/* Traveling shine that simulates material flowing left → right */
+@keyframes wb-progress-shimmer {
+    0%   { transform: translateX(-200%); }
+    100% { transform: translateX(300%); }
+}
+
+/* Outer container glow breathes while the bar is active */
+@keyframes wb-progress-glow-pulse {
+    0%, 100% { opacity: 0.7; }
+    50%       { opacity: 1;   }
+}
+
+.wb-segment {
+    position: relative;
+    overflow: hidden;
+    /* Snappy ease-out-quart: fast start, clean settle */
+    transition: width 220ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Traveling shimmer band — sits on top of the segment colour */
+.wb-segment::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 55%;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.32) 50%,
+        transparent 100%
+    );
+    animation: wb-progress-shimmer 2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+/* Outer glow wrapper pulses to signal active loading */
+.wb-segments-glow {
+    animation: wb-progress-glow-pulse 2s ease-in-out infinite;
+}
+
 /* ─── Respect reduced motion ─── */
 @media (prefers-reduced-motion: reduce) {
     .comment-card,
     .thread-group,
     .config-enter,
-    .config-leave {
+    .config-leave,
+    .wb-segment::after,
+    .wb-segments-glow {
         animation: none !important;
     }
 }

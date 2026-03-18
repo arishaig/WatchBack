@@ -6,4 +6,5 @@ public class WatchBackOptions
     public string WatchProvider { get; set; } = "jellyfin";
     public string SearchEngine { get; set; } = "google";
     public string CustomSearchUrl { get; set; } = "";
+    public bool SegmentedProgressBar { get; set; }
 }

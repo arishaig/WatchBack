@@ -2,9 +2,11 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
+using WatchBack.Core.Options;
 
 namespace WatchBack.Infrastructure.Services;
 
@@ -12,9 +14,11 @@ public class PrefetchService(
     IServiceScopeFactory scopeFactory,
     IMemoryCache cache,
     ILogger<PrefetchService> logger,
-    IHostApplicationLifetime lifetime)
+    IHostApplicationLifetime lifetime,
+    IOptionsMonitor<RedditOptions> redditOptions)
     : IPrefetchService
 {
+    private readonly IOptionsMonitor<RedditOptions> _redditOptions = redditOptions;
     // Sentinel stored in IMemoryCache so the prefetch state survives the request scope.
     private const string StateKey = "watchback:prefetch:state";
 
@@ -28,6 +32,10 @@ public class PrefetchService(
     public void SchedulePrefetch(EpisodeContext current)
     {
         EvictStaleTargets(current);
+
+        // Already prefetched (or in flight) for this episode — don't re-schedule.
+        if (cache.TryGetValue(StateKey, out PrefetchState? existing) && existing?.TriggerEpisode == current)
+            return;
 
         var targets = BuildTargets(current);
         if (targets.Length == 0)
@@ -170,10 +178,11 @@ public class PrefetchService(
     /// Cache keys used by each thought provider for a given episode.
     /// Must stay in sync with the key formats in the individual providers.
     /// </summary>
-    private static IEnumerable<string> ThoughtCacheKeys(EpisodeContext ep)
+    private IEnumerable<string> ThoughtCacheKeys(EpisodeContext ep)
     {
-        // RedditThoughtProvider: reddit:thoughts:{Title}:S{S:D2}E{E:D2}
-        yield return $"reddit:thoughts:{ep.Title}:S{ep.SeasonNumber:D2}E{ep.EpisodeNumber:D2}";
+        // RedditThoughtProvider: reddit:thoughts:{Title}:S{S:D2}E{E:D2}:t{MaxThreads}
+        var maxThreads = _redditOptions.CurrentValue.MaxThreads;
+        yield return $"reddit:thoughts:{ep.Title}:S{ep.SeasonNumber:D2}E{ep.EpisodeNumber:D2}:t{maxThreads}";
 
         // TraktThoughtProvider: trakt:thoughts:{Title}:s{S}e{E}  (unpadded)
         yield return $"trakt:thoughts:{ep.Title}:s{ep.SeasonNumber}e{ep.EpisodeNumber}";

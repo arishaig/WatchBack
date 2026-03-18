@@ -18,11 +18,13 @@ public static class ServiceCollectionExtensions
         // Register typed HTTP clients for each provider — all share the resilience handler.
         // 10-second timeout keeps sync fast when a provider is misconfigured or unreachable.
         static void ConfigureClient(HttpClient c) => c.Timeout = TimeSpan.FromSeconds(10);
+        // PullPush is a community API that can be slow under load — give it more headroom.
+        static void ConfigureRedditClient(HttpClient c) => c.Timeout = TimeSpan.FromSeconds(30);
 
         services.AddHttpClient<JellyfinWatchStateProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
         services.AddHttpClient<TraktWatchStateProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
         services.AddHttpClient<TraktThoughtProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
-        services.AddHttpClient<RedditThoughtProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<RedditThoughtProvider>().ConfigureHttpClient(ConfigureRedditClient).AddHttpMessageHandler<ResilientHttpHandler>();
         services.AddHttpClient<BlueskyThoughtProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
 
         // ManualWatchStateProvider is a singleton so it can hold state across requests.

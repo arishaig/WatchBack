@@ -145,6 +145,9 @@ document.addEventListener('alpine:init', () => {
         restartStatus: null,
         resetPasswordStatus: null,
         syncProgress: null,
+        showSyncBar: false,
+        syncSegments: [],
+        _progressTickCount: 0,
         clearCacheStatus: null,
         forwardAuthEnabled: false,
         forwardAuthHeaderEdit: '',
@@ -431,12 +434,28 @@ document.addEventListener('alpine:init', () => {
                     try {
                         const data = JSON.parse(e.data.replace(/^data: /, ''));
                         if (data.completed !== undefined) {
+                            console.debug("[WatchBack] SSE progress:", data.completed, "/", data.total);
+                            this._progressTickCount++;
+                            // Show bar once we've seen enough ticks to know real work is happening.
+                            // Cached syncs produce ≤4 events (initial 0% + Trakt + Bluesky + force-100%),
+                            // so a threshold of 5 means only genuine uncached syncs reveal the bar.
+                            if (this._progressTickCount >= 5) this.showSyncBar = true;
+                            // Ignore the force-100% snap event (completed === total): it causes a
+                            // visual flash by jumping the bar to full width all at once.
+                            // The bar holds at its natural fill level until the sync result clears it.
+                            if (data.completed >= data.total) return;
                             this.syncProgress = { completed: data.completed, total: data.total };
+                            if (data.providers) this.syncSegments = data.providers;
                             return;
                         }
                         // Only accept real sync responses (must have a status field)
                         if (!data?.status) return;
-                        this.syncProgress = null;
+                        setTimeout(() => {
+                            this.syncProgress = null;
+                            this.syncSegments = [];
+                            this.showSyncBar = false;
+                            this._progressTickCount = 0;
+                        }, 500);
                         console.debug("[WatchBack] SSE update:", data);
                         this.data = data;
                     } catch (err) {
@@ -708,37 +727,15 @@ document.addEventListener('alpine:init', () => {
         },
 
         async sync() {
-            if (this.isLoading) return;
-            console.debug("[WatchBack] Syncing data...");
-            this.isLoading = true;
+            // Fire the trigger — the SSE loop wakes immediately, runs the sync,
+            // and delivers progress ticks + the result back through the stream.
+            console.debug("[WatchBack] Triggering sync...");
             try {
-                const res = await fetch('/api/sync?t=' + Date.now());
-                const newData = await res.json();
-
-                if (newData?.status === 'Watching') {
-                    this.error = null;
-                    console.info(`[WatchBack] Synced: ${newData.title}`, {
-                        timeMachine: newData.timeMachineThoughts?.length || 0,
-                        allThoughts: newData.allThoughts?.length || 0
-                    });
-                } else if (newData?.status === 'Idle') {
-                    console.debug("[WatchBack] No active session");
-                } else if (newData?.status === 'Error') {
-                    this.showError('Sync failed');
-                } else {
-                    console.warn(`[WatchBack] Sync status: ${newData?.status}`);
-                }
-
-                this.data = newData;
-                // Default to time machine when meaningful
-                if (this.data?.status === 'Watching') {
-                    this.mode = this.showTimeMachine ? 'time' : 'all';
-                }
+                await fetch('/api/sync/trigger', { method: 'POST' });
             } catch (e) {
-                console.error("[WatchBack] Sync failed:", e);
+                console.error("[WatchBack] Trigger failed:", e);
                 this.showError('Connection failed');
             }
-            finally { this.isLoading = false; }
         },
 
         _initConfigEdits(configData) {
@@ -755,6 +752,7 @@ document.addEventListener('alpine:init', () => {
                 watchProvider: configData?.preferences?.watchProvider ?? 'jellyfin',
                 searchEngine: configData?.preferences?.searchEngine ?? 'google',
                 customSearchUrl: configData?.preferences?.customSearchUrl ?? '',
+                segmentedProgressBar: configData?.preferences?.segmentedProgressBar ?? false,
             };
         },
 
@@ -879,6 +877,7 @@ document.addEventListener('alpine:init', () => {
                 payload['WatchBack__SearchEngine'] = this.prefEdits.searchEngine;
             if (this.prefEdits.customSearchUrl)
                 payload['WatchBack__CustomSearchUrl'] = this.prefEdits.customSearchUrl;
+            payload['WatchBack__SegmentedProgressBar'] = String(this.prefEdits.segmentedProgressBar ?? false);
 
             this.prefSaveStatus = 'saving';
             try {
@@ -1091,6 +1090,27 @@ document.addEventListener('alpine:init', () => {
                     this.searchDrilldown = null;
                     this.drilldownSeason = null;
                     this.drilldownEpisodes = [];
+                    // Show the selected media immediately — thoughts arrive via SSE once the sync completes
+                    this.data = {
+                        status: 'Watching',
+                        title: context.title,
+                        metadata: {
+                            title: context.title,
+                            releaseDate: context.releaseDate ?? null,
+                            episodeTitle: context.episodeTitle ?? null,
+                            seasonNumber: context.seasonNumber ?? null,
+                            episodeNumber: context.episodeNumber ?? null,
+                        },
+                        allThoughts: [],
+                        timeMachineThoughts: [],
+                        timeMachineDays: this.data?.timeMachineDays ?? 14,
+                        sourceResults: [],
+                        watchProvider: null,
+                        suppressedProvider: null,
+                        suppressedTitle: null,
+                        ratings: null,
+                        ratingsProvider: null,
+                    };
                     await this.sync();
                 } else {
                     this.searchError = 'Failed to set watch state.';

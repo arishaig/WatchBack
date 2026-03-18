@@ -1,6 +1,8 @@
 using System.Text;
 using System.Threading.Channels;
 
+using Microsoft.AspNetCore.Mvc;
+
 using WatchBack.Api.Logging;
 using WatchBack.Api.Models;
 using WatchBack.Core.Interfaces;
@@ -21,6 +23,16 @@ public static class SyncEndpoints
             .WithDescription("Retrieves the current media context, all associated thoughts from providers, and filtered time-machine thoughts")
             .Produces<SyncResponse>(StatusCodes.Status200OK);
 
+        group.MapPost("/sync/trigger", (SyncTrigger trigger) =>
+            {
+                trigger.Signal();
+                return Results.NoContent();
+            })
+            .WithName("TriggerSync")
+            .WithSummary("Trigger an immediate sync")
+            .WithDescription("Wakes the SSE polling loop so it syncs immediately instead of waiting up to 5 seconds")
+            .Produces(StatusCodes.Status204NoContent);
+
         group.MapGet("/sync/stream", GetSyncStream)
             .WithName("GetSyncStream")
             .WithSummary("Stream sync status updates")
@@ -36,8 +48,9 @@ public static class SyncEndpoints
 
     private static async Task GetSyncStream(
         ISyncService syncService,
-        IEnumerable<IThoughtProvider> thoughtProviders,
+        [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         SyncHistoryStore syncHistory,
+        SyncTrigger syncTrigger,
         HttpContext context,
         CancellationToken ct)
     {
@@ -45,7 +58,13 @@ public static class SyncEndpoints
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
 
-        var totalWeight = thoughtProviders.Sum(p => p.ExpectedWeight);
+        var providerList = thoughtProviders.ToList();
+        var totalWeight = providerList.Sum(p => p.ExpectedWeight);
+
+        // Pre-build provider metadata for the segmented bar: name → (color, totalWeight)
+        var providerMeta = providerList.ToDictionary(
+            p => p.Metadata.Name,
+            p => (Color: p.Metadata.BrandData?.Color ?? "var(--wb-accent)", Total: p.ExpectedWeight));
 
         while (!ct.IsCancellationRequested)
         {
@@ -59,7 +78,7 @@ public static class SyncEndpoints
 
                 // Emit 0% so the bar appears immediately
                 await context.Response.WriteAsync(
-                    $"data: {{\"completed\":0,\"total\":{totalWeight}}}\n\n", ct);
+                    BuildProgressEvent(0, totalWeight, []), ct);
                 await context.Response.Body.FlushAsync(ct);
 
                 // Start sync; complete the channel when it finishes so ReadAllAsync terminates
@@ -70,19 +89,33 @@ public static class SyncEndpoints
 
                 // Drain progress ticks and forward them to the SSE stream
                 var completed = 0;
+                var providerCompleted = new Dictionary<string, int>();
                 await foreach (var tick in channel.Reader.ReadAllAsync(ct))
                 {
                     completed += tick.Weight;
+                    providerCompleted[tick.Provider] = providerCompleted.GetValueOrDefault(tick.Provider) + tick.Weight;
+
+                    var segments = providerMeta
+                        .OrderBy(kv => kv.Value.Total)
+                        .Select(kv => new ProgressSegment(
+                            kv.Key, kv.Value.Color,
+                            Math.Min(providerCompleted.GetValueOrDefault(kv.Key), kv.Value.Total),
+                            kv.Value.Total)).ToArray();
+
                     await context.Response.WriteAsync(
-                        $"data: {{\"completed\":{Math.Min(completed, totalWeight)},\"total\":{totalWeight}}}\n\n", ct);
+                        BuildProgressEvent(Math.Min(completed, totalWeight), totalWeight, segments), ct);
                     await context.Response.Body.FlushAsync(ct);
                 }
 
                 // Force 100% in case providers reported fewer ticks than expected (e.g. cache hits)
                 if (completed < totalWeight)
                 {
+                    var fullSegments = providerMeta
+                        .OrderBy(kv => kv.Value.Total)
+                        .Select(kv => new ProgressSegment(
+                            kv.Key, kv.Value.Color, kv.Value.Total, kv.Value.Total)).ToArray();
                     await context.Response.WriteAsync(
-                        $"data: {{\"completed\":{totalWeight},\"total\":{totalWeight}}}\n\n", ct);
+                        BuildProgressEvent(totalWeight, totalWeight, fullSegments), ct);
                     await context.Response.Body.FlushAsync(ct);
                 }
 
@@ -99,7 +132,11 @@ public static class SyncEndpoints
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
 
-                await Task.Delay(5000, ct);
+                // Wait up to 5 s, but wake immediately if the user hits the Sync button
+                using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                delayCts.CancelAfter(5000);
+                try { await syncTrigger.WaitAsync(delayCts.Token); }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { /* normal timeout */ }
             }
             catch (OperationCanceledException)
             {
@@ -112,6 +149,24 @@ public static class SyncEndpoints
                 catch (OperationCanceledException) { break; }
             }
         }
+    }
+
+    private sealed record ProgressSegment(string Provider, string Color, int Completed, int Total);
+
+    private static string BuildProgressEvent(int completed, int total, ProgressSegment[] segments)
+    {
+        if (segments.Length == 0)
+            return $"data: {{\"completed\":{completed},\"total\":{total}}}\n\n";
+
+        var sb = new StringBuilder(FormattableString.Invariant($"data: {{\"completed\":{completed},\"total\":{total},\"providers\":["));
+        for (int i = 0; i < segments.Length; i++)
+        {
+            if (i > 0) sb.Append(',');
+            var s = segments[i];
+            sb.Append(FormattableString.Invariant($"{{\"name\":\"{s.Provider}\",\"color\":\"{s.Color}\",\"completed\":{s.Completed},\"total\":{s.Total}}}"));
+        }
+        sb.Append("]}\n\n");
+        return sb.ToString();
     }
 
     private static SyncResponse MapSyncResult(Core.Models.SyncResult result)

@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -80,10 +81,10 @@ public static class ConfigEndpoints
         IOptionsSnapshot<RedditOptions> reddit,
         IOptionsSnapshot<WatchBackOptions> watchback,
         IOptionsSnapshot<OmdbOptions> omdb,
-        IEnumerable<IWatchStateProvider> watchStateProviders,
-        IEnumerable<IThoughtProvider> thoughtProviders,
-        IEnumerable<IMediaSearchProvider> mediaSearchProviders,
-        IEnumerable<IRatingsProvider> ratingsProviders,
+        [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
+        [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
+        [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+        [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         UserConfigFile configFile,
         CancellationToken ct)
     {
@@ -192,6 +193,7 @@ public static class ConfigEndpoints
                     .ToArray(),
                 searchEngine = w.SearchEngine,
                 customSearchUrl = w.CustomSearchUrl,
+                segmentedProgressBar = w.SegmentedProgressBar,
                 envValues = new Dictionary<string, string>
                 {
                     ["WatchBack__TimeMachineDays"] = EnvVal("WatchBack__TimeMachineDays"),
