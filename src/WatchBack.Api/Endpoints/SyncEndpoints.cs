@@ -95,10 +95,12 @@ public static class SyncEndpoints
                     completed += tick.Weight;
                     providerCompleted[tick.Provider] = providerCompleted.GetValueOrDefault(tick.Provider) + tick.Weight;
 
-                    var segments = providerMeta.Select(kv => new ProgressSegment(
-                        kv.Key, kv.Value.Color,
-                        Math.Min(providerCompleted.GetValueOrDefault(kv.Key), kv.Value.Total),
-                        kv.Value.Total)).ToArray();
+                    var segments = providerMeta
+                        .OrderBy(kv => kv.Value.Total)
+                        .Select(kv => new ProgressSegment(
+                            kv.Key, kv.Value.Color,
+                            Math.Min(providerCompleted.GetValueOrDefault(kv.Key), kv.Value.Total),
+                            kv.Value.Total)).ToArray();
 
                     await context.Response.WriteAsync(
                         BuildProgressEvent(Math.Min(completed, totalWeight), totalWeight, segments), ct);
@@ -108,8 +110,10 @@ public static class SyncEndpoints
                 // Force 100% in case providers reported fewer ticks than expected (e.g. cache hits)
                 if (completed < totalWeight)
                 {
-                    var fullSegments = providerMeta.Select(kv => new ProgressSegment(
-                        kv.Key, kv.Value.Color, kv.Value.Total, kv.Value.Total)).ToArray();
+                    var fullSegments = providerMeta
+                        .OrderBy(kv => kv.Value.Total)
+                        .Select(kv => new ProgressSegment(
+                            kv.Key, kv.Value.Color, kv.Value.Total, kv.Value.Total)).ToArray();
                     await context.Response.WriteAsync(
                         BuildProgressEvent(totalWeight, totalWeight, fullSegments), ct);
                     await context.Response.Body.FlushAsync(ct);
@@ -161,7 +165,7 @@ public static class SyncEndpoints
             var s = segments[i];
             sb.Append(FormattableString.Invariant($"{{\"name\":\"{s.Provider}\",\"color\":\"{s.Color}\",\"completed\":{s.Completed},\"total\":{s.Total}}}"));
         }
-        sb.Append("]}}\n\n");
+        sb.Append("]}\n\n");
         return sb.ToString();
     }
 

@@ -440,15 +440,16 @@ document.addEventListener('alpine:init', () => {
                             // Cached syncs produce ≤4 events (initial 0% + Trakt + Bluesky + force-100%),
                             // so a threshold of 5 means only genuine uncached syncs reveal the bar.
                             if (this._progressTickCount >= 5) this.showSyncBar = true;
+                            // Ignore the force-100% snap event (completed === total): it causes a
+                            // visual flash by jumping the bar to full width all at once.
+                            // The bar holds at its natural fill level until the sync result clears it.
+                            if (data.completed >= data.total) return;
                             this.syncProgress = { completed: data.completed, total: data.total };
                             if (data.providers) this.syncSegments = data.providers;
                             return;
                         }
                         // Only accept real sync responses (must have a status field)
                         if (!data?.status) return;
-                        // Snap to 100% and hold briefly so the bar is visible before it fades out
-                        const total = this.syncProgress?.total ?? 0;
-                        if (total > 0 && this.showSyncBar) this.syncProgress = { completed: total, total };
                         setTimeout(() => {
                             this.syncProgress = null;
                             this.syncSegments = [];

@@ -35,27 +35,28 @@
      x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
      x-transition:leave="transition-opacity duration-300"
      x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-     class="fixed top-0 left-0 right-0 z-[150]" style="height:5px;background:color-mix(in srgb, var(--wb-accent) 20%, transparent)"
+     class="fixed top-0 left-0 right-0 z-[150]" style="height:5px"
+     :style="configData?.preferences?.segmentedProgressBar ? 'height:5px' : 'height:5px;background:color-mix(in srgb, var(--wb-accent) 20%, transparent)'"
      role="progressbar" aria-valuemin="0" aria-label="Sync progress"
      :aria-valuenow="syncProgress?.completed" :aria-valuemax="syncProgress?.total"
      aria-live="polite" aria-atomic="true">
     <!-- Plain bar (default) -->
-    <div x-show="!configData?.preferences?.segmentedProgressBar || syncSegments.length === 0"
-         class="h-full transition-all duration-300 ease-out"
-         :style="`width:${syncProgress && syncProgress.total > 0 ? Math.round(syncProgress.completed / syncProgress.total * 100) : 0}%;background:var(--wb-accent);box-shadow:0 0 8px var(--wb-accent)`">
-    </div>
-    <!-- Segmented bar: one colored slice per provider -->
-    <div x-show="configData?.preferences?.segmentedProgressBar && syncSegments.length > 0"
-         class="h-full flex overflow-hidden">
-        <template x-for="seg in syncSegments" :key="seg.name">
-            <div class="h-full flex-none transition-all duration-300 ease-out"
-                 :style="`width:${syncProgress && syncProgress.total > 0 ? Math.round(seg.total / syncProgress.total * 100) : 0}%;background:color-mix(in srgb, ${seg.color} 25%, transparent)`">
-                <div class="h-full transition-all duration-300 ease-out"
-                     :style="`width:${seg.total > 0 ? Math.round(seg.completed / seg.total * 100) : 0}%;background:${seg.color};box-shadow:0 0 8px ${seg.color}`">
+    <template x-if="!configData?.preferences?.segmentedProgressBar">
+        <div class="wb-segment wb-segments-glow h-full"
+             :style="`width:${syncProgress && syncProgress.total > 0 ? Math.round(syncProgress.completed / syncProgress.total * 100) : 0}%;background:var(--wb-accent);filter:drop-shadow(0 3px 10px var(--wb-accent))`">
+        </div>
+    </template>
+    <!-- Segmented bar: one colored slice per provider, sqrt-weighted so small providers stay visible -->
+    <template x-if="configData?.preferences?.segmentedProgressBar && syncSegments.length > 0">
+        <div class="h-full flex wb-segments-glow"
+             :style="`filter: drop-shadow(0 3px 10px ${syncSegments[syncSegments.length - 1].color})`">
+            <template x-for="seg in syncSegments" :key="seg.name">
+                <div class="wb-segment h-full flex-none"
+                     :style="`width:${seg.total > 0 ? (seg.completed / Math.sqrt(seg.total)) / syncSegments.reduce((s, t) => s + Math.sqrt(t.total), 0) * 100 : 0}%;background:${seg.color}`">
                 </div>
-            </div>
-        </template>
-    </div>
+            </template>
+        </div>
+    </template>
 </div>
 
 <!-- Login -->

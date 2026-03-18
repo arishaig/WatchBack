@@ -1,5 +1,7 @@
 using System.Threading.RateLimiting;
 
+using WatchBack.Api;
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
@@ -25,6 +27,7 @@ var builder = WebApplication.CreateBuilder(args);
 // In-memory log buffer — captures recent log entries for the diagnostics panel
 builder.Services.AddSingleton<InMemoryLogBuffer>();
 builder.Services.AddSingleton<SyncHistoryStore>();
+builder.Services.AddSingleton<SyncTrigger>();
 builder.Services.AddSingleton<ILoggerProvider, InMemoryLoggerProvider>();
 
 // Add services

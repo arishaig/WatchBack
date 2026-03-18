@@ -79,17 +79,17 @@ public class RedditThoughtProvider(
                     {
                         logger.LogWarning("PullPush submission search failed: HTTP {Status} for query '{Query}'",
                             (int)resp.StatusCode, spec.Title);
-                        return (Subs: Array.Empty<PullPushSubmissionDto>(), IsBypass: spec.BypassFilter);
+                        return (Subs: Array.Empty<PullPushSubmissionDto>(), IsBypass: spec.BypassFilter, Ok: false);
                     }
                     var respContent = await resp.Content.ReadAsStringAsync(ct);
                     var listing = JsonSerializer.Deserialize<PullPushSubmissionsResponseDto>(
                         respContent, RedditJsonContext.Default.PullPushSubmissionsResponseDto);
-                    return (Subs: listing?.Data ?? [], IsBypass: spec.BypassFilter);
+                    return (Subs: listing?.Data ?? [], IsBypass: spec.BypassFilter, Ok: true);
                 }
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex, "PullPush submission search exception for query '{Query}'", spec.Title);
-                    return (Subs: Array.Empty<PullPushSubmissionDto>(), IsBypass: spec.BypassFilter);
+                    return (Subs: Array.Empty<PullPushSubmissionDto>(), IsBypass: spec.BypassFilter, Ok: false);
                 }
                 finally
                 {
@@ -97,10 +97,12 @@ public class RedditThoughtProvider(
                 }
             }));
 
+            var anySpecSucceeded = specResults.Any(r => r.Ok);
+
             // Merge deduplicated results from all specs
             var seenIds = new Dictionary<string, PullPushSubmissionDto>();
             var bypassIds = new HashSet<string>();
-            foreach (var (subs, isBypass) in specResults)
+            foreach (var (subs, isBypass, _) in specResults)
             {
                 foreach (var sub in subs)
                 {
@@ -132,7 +134,12 @@ public class RedditThoughtProvider(
 
             if (submissions.Count == 0)
             {
-                return new ThoughtResult(Source: "Reddit", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+                var emptyResult = new ThoughtResult(Source: "Reddit", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+                // Only cache confirmed archive misses (at least one 2xx from PullPush).
+                // Timeout/network failures are transient — don't prevent future retries.
+                if (anySpecSucceeded)
+                    cache.Set(cacheKey, emptyResult, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+                return emptyResult;
             }
 
             // Fetch comments for all selected threads in parallel

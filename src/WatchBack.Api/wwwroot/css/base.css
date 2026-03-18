@@ -3,6 +3,14 @@
     display: none !important;
 }
 
+/* WebKit/Blink inject a native search-icon decoration on the left of
+   input[type="search"] which interferes with border and outline rendering
+   on that side. Remove it globally. */
+input[type="search"] {
+    -webkit-appearance: none;
+    appearance: none;
+}
+
 /* ─── Typography system ─── */
 :root {
     --font-display: 'Montserrat', ui-sans-serif, system-ui, sans-serif;

@@ -33,6 +33,10 @@ public class PrefetchService(
     {
         EvictStaleTargets(current);
 
+        // Already prefetched (or in flight) for this episode — don't re-schedule.
+        if (cache.TryGetValue(StateKey, out PrefetchState? existing) && existing?.TriggerEpisode == current)
+            return;
+
         var targets = BuildTargets(current);
         if (targets.Length == 0)
             return;
