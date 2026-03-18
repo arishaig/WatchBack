@@ -288,7 +288,8 @@
          class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
         <div class="p-4">
             <!-- ─── Tab navigation ─── -->
-            <nav role="tablist" aria-label="Configuration sections" class="flex gap-0 mb-5 border-b wb-border">
+            <div class="flex items-center mb-5 border-b wb-border">
+            <nav role="tablist" aria-label="Configuration sections" class="flex gap-0">
                 <button type="button" role="tab"
                         :aria-selected="configTab === 'settings'"
                         @click="configTab = 'settings'; closeLogStream()"
@@ -308,17 +309,18 @@
                         :style="configTab === 'diagnostics' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'">
                     Diagnostics
                 </button>
+            </nav>
                 <button type="button"
                         @click="showConfig = false"
                         aria-label="Close configuration panel"
-                        class="ml-auto -mb-px px-4 py-2 flex items-center justify-center cursor-pointer 
-                               text-md font-medium transition-all duration-300 ease-out 
+                        class="ml-auto -mb-px px-4 py-2 flex items-center justify-center cursor-pointer
+                               text-md font-medium transition-all duration-300 ease-out
                                transform-gpu
-                               hover:wb-surface-alt hover:scale-110 
+                               hover:wb-surface-alt hover:scale-110
                                active:scale-95">
                     <ion-icon name="close-sharp" class="block pointer-events-none" aria-hidden="true"></ion-icon>
                 </button>
-            </nav>
+            </div>
 
             <!-- ─── Settings tab ─── -->
             <div role="tabpanel" aria-label="Settings" x-show="configTab === 'settings'">
@@ -957,10 +959,13 @@
 
     </div>
 
+    <!-- Main content: always present so the page always has a main landmark -->
+    <main>
+
     <!-- Success state: show comments -->
 
     <template x-if="data?.status === 'Watching'">
-        <main>
+        <div>
             <div class="wb-surface p-4 rounded-xl mb-6 shadow-md wb-border border comment-card">
                 <h2 class="text-xl font-bold mb-1"
                     x-text="data?.metadata?.episodeTitle ? data.title + ' - ' + data.metadata.episodeTitle : data?.title"></h2>
@@ -1250,24 +1255,26 @@
                     </div>
                 </template>
             </div>
-        </main>
+        </div>
     </template>
 
     <!-- Error state -->
     <template x-if="data?.status === 'Error'">
-        <main class="text-center py-20 px-6">
+        <div class="text-center py-20 px-6">
             <p class="wb-error-text text-lg mb-2">An error occurred.</p>
             <p class="text-xs wb-text-faint">Check your configuration and try syncing again.</p>
-        </main>
+        </div>
     </template>
 
     <!-- Idle state -->
     <template x-if="data?.status === 'Idle'">
-        <main class="text-center py-20 px-6">
+        <div class="text-center py-20 px-6">
             <p class="wb-text-muted text-lg mb-2">Nothing playing.</p>
             <p class="text-xs wb-text-faint">The dashboard will update automatically when you start playback.</p>
-        </main>
+        </div>
     </template>
+
+    </main><!-- /main content -->
 
     <!-- Image lightbox overlay -->
     <div x-show="lightboxImg" x-transition.opacity.duration.200ms @click="lightboxImg = null"
