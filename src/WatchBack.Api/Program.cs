@@ -5,11 +5,12 @@ using WatchBack.Api;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.OpenApi;
 
 using WatchBack.Api.Auth;
 using WatchBack.Api.Endpoints;
@@ -101,6 +102,14 @@ builder.Services.AddDataProtection()
 // Add infrastructure providers
 builder.Services.AddWatchBackInfrastructure();
 
+// Add internationalization and localization
+builder.Services.AddLocalization();
+var supportedCultures = new[] { "en", "es" };
+var localizationOptions = new RequestLocalizationOptions()
+    .SetDefaultCulture("en")
+    .AddSupportedCultures(supportedCultures)
+    .AddSupportedUICultures(supportedCultures);
+
 // Add core services
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddSingleton<ITimeMachineFilter, TimeMachineFilter>();
@@ -159,20 +168,7 @@ builder.Services.AddAuthorization(options =>
 
 // Add Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "WatchBack API",
-        Version = "v1",
-        Description = "Watch state detection and thought aggregation API",
-        Contact = new OpenApiContact
-        {
-            Name = "WatchBack",
-            Url = new Uri("https://github.com/watchback/watchback-net")
-        }
-    });
-});
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
@@ -190,6 +186,7 @@ await InitializeAuthAsync(app);
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+app.UseRequestLocalization(localizationOptions);
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
@@ -215,6 +212,7 @@ app.UseSwaggerUI(options =>
 });
 
 // Map endpoints
+app.MapStringsEndpoints(); // public strings endpoint
 app.MapAuthEndpoints(); // public auth endpoints
 var protectedGroup = app.MapGroup("").RequireAuthorization();
 protectedGroup.MapSyncEndpoints();

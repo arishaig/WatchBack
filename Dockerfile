@@ -34,16 +34,19 @@ COPY *.sln .
 COPY src/WatchBack.Api/*.csproj src/WatchBack.Api/
 COPY src/WatchBack.Core/*.csproj src/WatchBack.Core/
 COPY src/WatchBack.Infrastructure/*.csproj src/WatchBack.Infrastructure/
+COPY src/WatchBack.Resources/*.csproj src/WatchBack.Resources/
 
 # Restore dependencies
 RUN dotnet restore src/WatchBack.Api/*.csproj \
     && dotnet restore src/WatchBack.Core/*.csproj \
-    && dotnet restore src/WatchBack.Infrastructure/*.csproj
+    && dotnet restore src/WatchBack.Infrastructure/*.csproj \
+    && dotnet restore src/WatchBack.Resources/*.csproj
 
 # Copy the rest of the source files
 COPY src/WatchBack.Api/ src/WatchBack.Api/
 COPY src/WatchBack.Core/ src/WatchBack.Core/
 COPY src/WatchBack.Infrastructure/ src/WatchBack.Infrastructure/
+COPY src/WatchBack.Resources/ src/WatchBack.Resources/
 
 # Copy Tailwind CSS
 COPY --from=tailwind /app/wwwroot/tailwind.css src/WatchBack.Api/wwwroot/tailwind.css
