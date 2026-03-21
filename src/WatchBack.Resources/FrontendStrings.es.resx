@@ -219,4 +219,40 @@
     <data name="DangerZone_ClearCacheTitle" xml:space="preserve">
         <value>Limpiar caché</value>
     </data>
+    <data name="DangerZone_EnableForwardAuth" xml:space="preserve">
+        <value>Activar forward auth</value>
+    </data>
+    <data name="DangerZone_ForwardAuth" xml:space="preserve">
+        <value>Forward auth</value>
+    </data>
+    <data name="DangerZone_ForwardAuthHelp" xml:space="preserve">
+        <value>Confiar en el encabezado del proxy inverso en lugar de pedir una contraseña.</value>
+    </data>
+    <data name="DangerZone_ForwardAuthWarning" xml:space="preserve">
+        <value>Activar solo detrás de un proxy inverso de confianza que realice la autenticación. Si la aplicación es accesible directamente desde internet, cualquiera podría eludir la autenticación mediante la suplantación de este encabezado.</value>
+    </data>
+    <data name="DangerZone_HeaderName" xml:space="preserve">
+        <value>Yes, Nombre del encabezado</value>
+    </data>
+    <data name="DangerZone_ResetPassword" xml:space="preserve">
+        <value>Cambiar contraseña</value>
+    </data>
+    <data name="DangerZone_ResetPasswordDone" xml:space="preserve">
+        <value>Listo — revisar registros ✓</value>
+    </data>
+    <data name="DangerZone_ResetPasswordHelp" xml:space="preserve">
+        <value>Generar una nueva contraseña aleatoria e imprimirla en los registros del servidor.</value>
+    </data>
+    <data name="DangerZone_ResetPasswordTitle" xml:space="preserve">
+        <value>Cambiar contraseña</value>
+    </data>
+    <data name="DangerZone_Restart" xml:space="preserve">
+        <value>Reiniciar</value>
+    </data>
+    <data name="DangerZone_RestartHelp" xml:space="preserve">
+        <value>Detener el servidor de forma controlada. El host (Docker, systemd) debería reiniciarlo automáticamente.</value>
+    </data>
+    <data name="DangerZone_Title" xml:space="preserve">
+        <value>Zona de peligro</value>
+    </data>
 </root>

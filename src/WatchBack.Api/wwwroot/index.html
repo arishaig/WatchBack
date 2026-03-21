@@ -10,10 +10,6 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="manifest" href="/site.webmanifest">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap"
-          rel="stylesheet">
     <link rel="stylesheet" href="/css/app.bundle.css">
     <script src="/js/reconnecting-eventsource.min.js"></script>
 </head>
@@ -86,7 +82,7 @@
                         class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer
                                wb-btn disabled:opacity-50
                                hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                        style="background-color:var(--wb-accent);"
+                        class="wb-bg-accent"
                         x-text="loginLoading ? t('Auth_SigningIn') : t('Auth_SignIn')"></button>
             </div>
         </form>
@@ -160,7 +156,7 @@
                         class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer
                                wb-btn disabled:opacity-50
                                hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                        style="background-color:var(--wb-accent);"
+                        class="wb-bg-accent"
                         x-text="setupLoading ? t('Common_Saving') : t('Setup_Complete')"></button>
             </div>
         </form>
@@ -213,7 +209,7 @@
                         class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent cursor-pointer
                                wb-btn disabled:opacity-50
                                hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                        style="background-color:var(--wb-accent);"
+                        class="wb-bg-accent"
                         x-text="changePwLoading ? t('Common_Saving') : t('PasswordUpdate_Update')"></button>
             </div>
         </form>
@@ -245,10 +241,10 @@
                 <ion-icon name="settings-sharp" aria-hidden="true"></ion-icon>
             </button>
             <button @click="void sync()"
-                    class="wb-on-accent px-4 py-2 rounded-lg font-medium flex items-center justify-center
+                    class="wb-on-accent wb-bg-accent px-4 py-2 rounded-lg font-medium flex items-center justify-center
                            gap-2 min-w-[7rem] cursor-pointer wb-btn wb-border border
                            hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                    style="background-color: var(--wb-accent);" :disabled="showSyncBar">
+                    :disabled="showSyncBar">
                     <span x-show="!showSyncBar" class="flex items-center gap-2">
                         <ion-icon name="sync-sharp" aria-hidden="true"></ion-icon> <span x-text="t('Nav_Sync')"></span>
                     </span>
@@ -409,10 +405,10 @@
                     <button @click="void saveAllConfig()"
                             :disabled="saveAllStatus === 'saving'"
                             aria-live="polite"
-                            class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                            class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-on-accent wb-bg-accent
                                    cursor-pointer disabled:opacity-50 wb-btn
                                    hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                            :class="saveAllStatus === 'saved' ? 'test-ok' : saveAllStatus === 'error' ? 'test-error' : 'wb-text-muted'"
+                            :class="saveAllStatus === 'saved' ? 'test-ok' : saveAllStatus === 'error' ? 'test-error' : ''"
                             x-text="saveAllStatus === 'saving' ? t('Common_Saving') : saveAllStatus === 'saved' ? t('Common_Saved') : saveAllStatus === 'error' ? t('Common_Error') : t('Common_Save')">
                     </button>
 
@@ -974,7 +970,7 @@
                     <div class="flex gap-2 flex-wrap mt-3">
                         <template x-for="r in data.ratings" :key="r.source">
                                 <span class="inline-flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg wb-surface-alt border wb-text-muted"
-                                      :style="r.brandColor ? `border-color: ${r.brandColor}60` : 'border-color: var(--wb-border)'">
+                                      :style="r.brandColor ? `border-color: color-mix(in srgb, ${r.brandColor} 38%, transparent)` : 'border-color: var(--wb-border)'">
                                     <template x-if="r.logoSvg">
                                         <span class="inline-flex items-center w-5 h-5 shrink-0"
                                               :style="`color: ${r.brandColor}; fill: ${r.brandColor}`"
@@ -993,16 +989,14 @@
                      style="animation-delay:0.05s">
                     <button x-show="showTimeMachine" @click="mode = 'time'"
                             :aria-pressed="mode === 'time'"
-                            :class="mode === 'time' ? 'wb-on-accent shadow' : 'wb-text-muted'"
-                            :style="mode === 'time' ? 'background-color: var(--wb-accent)' : ''"
+                            :class="mode === 'time' ? 'wb-on-accent wb-bg-accent shadow' : 'wb-text-muted'"
                             class="flex gap-1.5 items-center justify-center flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
                         <span class="flex hide-on-mobile" x-text="t('Dashboard_TimeMachine')"></span>
                         <ion-icon class="show-on-mobile" name="hourglass-sharp" aria-hidden="true"></ion-icon>
                         <span x-text="'(' + timeMachineCount + ')'" class="text-xs font-normal"></span>
                     </button>
                     <button @click="mode = 'all'" :aria-pressed="mode === 'all'"
-                            :class="mode === 'all' ? 'wb-on-accent shadow' : 'wb-text-muted'"
-                            :style="mode === 'all' ? 'background-color: var(--wb-accent)' : ''"
+                            :class="mode === 'all' ? 'wb-on-accent wb-bg-accent shadow' : 'wb-text-muted'"
                             class="flex gap-1.5 items-center justify-center flex-1 py-2 rounded-md text-sm font-medium cursor-pointer wb-btn">
                         <span class="flex hide-on-mobile" x-text="t('Dashboard_AllComments')"></span>
                         <ion-icon class="show-on-mobile" name="chatbubbles-sharp" aria-hidden="true"></ion-icon>
@@ -1012,10 +1006,11 @@
             </template>
 
             <!-- Reddit search — always visible when watching an episode -->
-            <div x-show="data?.metadata?.seasonNumber != null" class="mb-4 comment-card" style="animation-delay:0.05s">
+            <div x-show="data?.metadata?.seasonNumber != null" class="mb-4 comment-card" style="animation-delay:0.05s"
+                 :style="`--thread-brand: ${(availableSources.find(s => s.name === 'Reddit') || {}).brandColor || '#FF4500'}`">
                 <a :href="redditSearchUrl(data.title, data.metadata.seasonNumber, data.metadata.episodeNumber)"
                    target="_blank" rel="noopener noreferrer"
-                   class="w-full py-2 rounded-md text-sm font-medium text-center reddit-link cursor-pointer wb-btn flex items-center justify-center gap-1.5">
+                   class="w-full py-2 rounded-md text-sm font-medium text-center source-link cursor-pointer wb-btn flex items-center justify-center gap-1.5">
                     <ion-icon
                             name="logo-reddit" aria-hidden="true"></ion-icon>
                     Reddit
@@ -1035,16 +1030,17 @@
             <!-- Source filter pills (only when thoughts exist) -->
             <div x-show="availableSources.length > 1" class="flex gap-2 mb-4 justify-center comment-card"
                  style="animation-delay:0.1s">
-                <template x-for="src in availableSources" :key="src">
-                    <button x-show="sourceCount(src) > 0" @click="toggleSource(src)"
-                            :aria-pressed="sourceActive(src)"
-                            :aria-label="src + ' (' + sourceCount(src) + ' comments)'"
-                            :class="sourceActive(src) ? 'filter-' + src.toLowerCase() : 'filter-inactive'"
+                <template x-for="src in availableSources" :key="src.name">
+                    <button x-show="sourceCount(src.name) > 0" @click="toggleSource(src.name)"
+                            :aria-pressed="sourceActive(src.name)"
+                            :aria-label="src.name + ' (' + sourceCount(src.name) + ' comments)'"
+                            :class="sourceActive(src.name) ? 'filter-source' : 'filter-inactive'"
+                            :style="sourceActive(src.name) ? `--brand: ${src.brandColor}` : ''"
                             class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase
                                    wb-border border cursor-pointer wb-btn
                                    hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu">
-                        <span x-text="src"></span>
-                        <span x-text="sourceCount(src)"
+                        <span x-text="src.name"></span>
+                        <span x-text="sourceCount(src.name)"
                               class="text-xs font-semibold opacity-70 tabular-nums"></span>
                     </button>
                 </template>
@@ -1054,11 +1050,13 @@
             <div x-show="hasThreadGroups" class="flex justify-center mb-4">
                 <button @click="handleThreadToggle()"
                         :aria-pressed="groupByThread"
-                        :class="groupByThread ? 'filter-reddit' : 'filter-inactive'"
+                        :class="groupByThread ? 'filter-source' : 'filter-inactive'"
+                        :style="groupByThread ? `--brand: ${(availableSources.find(s => s.name === 'Reddit') || {}).brandColor || ''}` : ''"
                         class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase
                                wb-border border cursor-pointer wb-btn
                                hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu">
-                    <span x-text="groupByThread ? '📁 ' + t('Dashboard_GroupedByThread') : '📁 ' + t('Dashboard_GroupByThread')"></span>
+                    <ion-icon name="albums-sharp" aria-hidden="true"></ion-icon>
+                    <span x-text="groupByThread ? t('Dashboard_GroupedByThread') : t('Dashboard_GroupByThread')"></span>
                     <span x-text="threadCount"
                           class="text-xs font-semibold opacity-70 tabular-nums"></span>
                 </button>
@@ -1070,7 +1068,7 @@
                     :aria-label="t('Aria_Comments')">
                     <template x-for="(group, gi) in renderGroups" :key="gi">
                         <li :class="groupByThread && group.title ? 'thread-group' : ''"
-                            :style="groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's' : ''">
+                            :style="(groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's;' : '') + (group.brandColor ? `--thread-brand:${group.brandColor}` : '')">
                             <template x-if="groupByThread && group.title">
                                 <div>
                                     <a :href="group.url" target="_blank" rel="noopener noreferrer"
@@ -1086,7 +1084,7 @@
                                 <template x-for="(thought, ci) in group.thoughts" :key="thought.id">
                                     <li>
                                         <article class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card"
-                                                 :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's'">
+                                                 :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's' + (thought.brandColor ? `;--thread-brand:${thought.brandColor}` : '')">
                                             <div class="flex items-start mb-2 gap-2">
                                                 <div class="flex-1 min-w-0"
                                                      x-show="!groupByThread && thought.postTitle">
@@ -1097,33 +1095,21 @@
                                                 </div>
                                                 <div class="flex gap-1"
                                                      :class="groupByThread || !thought.postTitle ? 'ml-auto' : 'shrink-0'">
-                                                    <a x-show="thought.source === 'Bluesky'" :href="thought.url"
-                                                       target="_blank" rel="noopener noreferrer"
-                                                       class="text-[10px] badge-bluesky px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                                       :aria-label="t('Comments_ViewOn', 'Bluesky')">
-                                                        <svg xmlns="http://www.w3.org/2000/svg"
-                                                             viewBox="0 0 360 320"
-                                                             class="inline-block w-[1em] h-[1em] align-[-0.1em]"
-                                                             aria-hidden="true" fill="currentColor">
-                                                            <path
-                                                                    d="M180 142c-16.3-34.8-60.2-99.7-101.5-127.8C50.8-9.5 23.8.4 12.5 7.2-6.8 18.5 5.4 56.7 22 74c22 23 45.8 32.8 79.3 33.5-31.4 5.8-62.1 22.7-79.8 41.7C6.2 166.6 0 177.5 0 188.6c0 28 39.5 58.1 72.5 48.1C133 218 163.5 159.5 180 130c16.5 29.5 47 88 107.5 106.7 33 10 72.5-20.1 72.5-48.1 0-11.1-6.2-22-21.5-39.4-17.7-19-48.4-35.9-79.8-41.7 33.5-.7 57.3-10.5 79.3-33.5 16.6-17.3 28.8-55.5 9.5-66.8C336.2.4 309.2-9.5 281.5 14.2 240.2 42.3 196.3 107.2 180 142z"/>
-                                                        </svg>
-                                                        <span aria-hidden="true">BlueSky</span>
-                                                        <ion-icon name="open-sharp"
-                                                                  aria-hidden="true"></ion-icon>
-                                                    </a>
-                                                    <a x-show="thought.source === 'Reddit'" :href="thought.url"
-                                                       target="_blank" rel="noopener noreferrer"
-                                                       class="text-[10px] badge-reddit px-1.5 py-0.5 rounded font-bold uppercase transition-colors"
-                                                       :aria-label="t('Comments_ViewOn', 'Reddit')">
-                                                        <ion-icon name="logo-reddit"
-                                                                  aria-hidden="true"></ion-icon>
-                                                        <span aria-hidden="true">Reddit</span>
-                                                        <ion-icon
-                                                                name="open-sharp" aria-hidden="true"></ion-icon>
-                                                    </a>
-                                                    <span x-show="thought.source === 'Trakt'"
-                                                          class="text-[10px] badge-trakt px-1.5 py-0.5 rounded font-bold uppercase">Trakt</span>
+                                                    <template x-if="thought.brandLogoSvg && thought.url">
+                                                        <a :href="thought.url"
+                                                           target="_blank" rel="noopener noreferrer"
+                                                           class="text-xs badge-source px-1.5 py-0.5 rounded font-bold uppercase inline-flex items-center gap-1"
+                                                           :style="`--brand: ${thought.brandColor}`"
+                                                           :aria-label="t('Comments_ViewOn', thought.source)"
+                                                           x-html="sanitizeSvg(thought.brandLogoSvg)">
+                                                        </a>
+                                                    </template>
+                                                    <template x-if="thought.brandLogoSvg && !thought.url">
+                                                        <span class="text-xs badge-source px-1.5 py-0.5 rounded font-bold uppercase inline-flex items-center"
+                                                              :style="`--brand: ${thought.brandColor}`"
+                                                              x-html="sanitizeSvg(thought.brandLogoSvg)">
+                                                        </span>
+                                                    </template>
                                                 </div>
                                             </div>
 
@@ -1258,6 +1244,7 @@
     <!-- Error state -->
     <template x-if="data?.status === 'Error'">
         <div class="text-center py-20 px-6">
+            <ion-icon name="warning-outline" class="text-4xl wb-error-text mb-3" aria-hidden="true"></ion-icon>
             <p class="wb-error-text text-lg mb-2" x-text="t('Dashboard_ErrorOccurred')"></p>
             <p class="text-xs wb-text-faint" x-text="t('Dashboard_ErrorDetail')"></p>
         </div>
@@ -1266,6 +1253,7 @@
     <!-- Idle state -->
     <template x-if="data?.status === 'Idle'">
         <div class="text-center py-20 px-6">
+            <ion-icon name="tv-outline" class="text-4xl wb-text-faint mb-3" aria-hidden="true"></ion-icon>
             <p class="wb-text-muted text-lg mb-2" x-text="t('Dashboard_NothingPlaying')"></p>
             <p class="text-xs wb-text-faint" x-text="t('Dashboard_NothingPlayingDetail')"></p>
         </div>

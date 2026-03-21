@@ -45,32 +45,43 @@
     transform: translateX(16px);
 }
 
-/* ─── Source badges ─── */
-.badge-reddit            { background: var(--wb-reddit-bg);  color: var(--wb-reddit-text); transition: background 0.15s ease; }
-.badge-bluesky           { background: var(--wb-bluesky-bg); color: var(--wb-bluesky-text); transition: background 0.15s ease; }
-.badge-trakt             { background: var(--wb-trakt-bg);   color: var(--wb-trakt-text); }
+/* ─── Source badges (generic — styled via --brand set inline) ─── */
+.badge-source {
+    background: color-mix(in srgb, var(--brand) 18%, var(--wb-surface));
+    color: color-mix(in srgb, var(--brand) 80%, var(--wb-text));
+    transition: background 0.15s ease;
+}
+
+.badge-source svg {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+    flex-shrink: 0;
+}
 
 @media (hover: hover) {
-    .badge-reddit:hover  { background: var(--wb-reddit-hover); }
-    .badge-bluesky:hover { background: var(--wb-bluesky-hover); }
+    .badge-source:hover {
+        background: color-mix(in srgb, var(--brand) 30%, var(--wb-surface));
+    }
 }
 
 /* ─── Source filter pills ─── */
 .filter-inactive { background: var(--wb-filter-inactive-bg); color: var(--wb-filter-inactive-text); }
-.filter-trakt    { background: var(--wb-trakt-bg);           color: var(--wb-trakt-text); }
-.filter-bluesky  { background: var(--wb-bluesky-bg);         color: var(--wb-bluesky-text); }
-.filter-reddit   { background: var(--wb-reddit-bg);          color: var(--wb-reddit-text); }
-
-/* ─── Thread & reply styling ─── */
-.thread-title       { color: var(--wb-reddit-muted); transition: color 0.15s ease; }
-.reddit-link        { color: var(--wb-reddit-text);  transition: color 0.15s ease; }
-
-@media (hover: hover) {
-    .thread-title:hover { color: var(--wb-reddit-text); }
-    .reddit-link:hover  { color: var(--wb-reddit-muted); }
+.filter-source   {
+    background: color-mix(in srgb, var(--brand) 18%, var(--wb-surface));
+    color: color-mix(in srgb, var(--brand) 80%, var(--wb-text));
 }
 
-.reply-border { border-color: var(--wb-reddit-border); }
+/* ─── Thread & reply styling (generic — styled via --thread-brand set inline) ─── */
+.thread-title  { color: var(--thread-brand); opacity: 0.75; transition: opacity 0.15s ease; }
+.source-link   { color: var(--thread-brand); transition: opacity 0.15s ease; }
+
+@media (hover: hover) {
+    .thread-title:hover { opacity: 1; }
+    .source-link:hover  { opacity: 0.75; }
+}
+
+.reply-border { border-color: color-mix(in srgb, var(--thread-brand) 35%, transparent); }
 .reply-bg     { background: var(--wb-reply-bg); }
 
 /* ─── Tailwind utility shims (not in compiled output) ─── */

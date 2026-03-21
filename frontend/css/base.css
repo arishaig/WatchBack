@@ -66,8 +66,9 @@ main h2 {
     color: var(--wb-text-secondary);
 }
 
+/* wb-text-muted is an alias for wb-text-secondary — both resolved to the same token */
 .wb-text-muted {
-    color: var(--wb-text-muted);
+    color: var(--wb-text-secondary);
 }
 
 .wb-text-faint {
@@ -80,6 +81,10 @@ main h2 {
 
 .wb-on-accent {
     color: var(--wb-on-accent);
+}
+
+.wb-bg-accent {
+    background-color: var(--wb-accent);
 }
 
 @media (width <= 475px) {

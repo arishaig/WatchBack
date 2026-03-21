@@ -106,7 +106,7 @@ public static class ConfigEndpoints
         bool IsOverriddenInUserSettings(string section, string key) =>
             userSettings.TryGetValue(section, out var s) && s.ContainsKey(key);
 
-        // Build brand lookup — thought providers take precedence for shared names (e.g. Trakt uses official red)
+        // Build brand lookup — thought providers take precedence for shared names
         var brandByName = new Dictionary<string, BrandData>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in watchStateProviders)
             if (p.Metadata.BrandData != null)

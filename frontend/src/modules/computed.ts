@@ -57,12 +57,15 @@ const _computed = {
         return (this.groupedThoughts as { title: string | null }[]).filter(g => g.title).length;
     },
 
-    get availableSources(this: AppData): string[] {
+    get availableSources(this: AppData): { name: string; brandColor: string; brandLogoSvg: string }[] {
         if (!this.data) return [];
-        const sources = new Set<string>();
-        const list = (this.data['allThoughts'] as { source?: string }[]) ?? [];
-        list.forEach(t => { if (t.source) sources.add(t.source); });
-        return [...sources];
+        const map = new Map<string, { brandColor: string; brandLogoSvg: string }>();
+        const list = (this.data['allThoughts'] as { source?: string; brandColor?: string; brandLogoSvg?: string }[]) ?? [];
+        list.forEach(t => {
+            if (t.source && !map.has(t.source))
+                map.set(t.source, { brandColor: t.brandColor ?? '', brandLogoSvg: t.brandLogoSvg ?? '' });
+        });
+        return [...map.entries()].map(([name, brand]) => ({ name, ...brand }));
     },
 
     get renderGroups(this: AppData): unknown[] {
@@ -73,13 +76,13 @@ const _computed = {
     },
 
     get groupedThoughts(this: AppData): unknown[] {
-        const thoughts = this.activeThoughts as { postTitle?: string; postUrl?: string; postBody?: string; source: string }[];
-        const groups: { title: string | null; url: string | null; body: string | null; thoughts: unknown[] }[] = [];
-        const map = new Map<string, { title: string | null; url: string | null; body: string | null; thoughts: unknown[] }>();
+        const thoughts = this.activeThoughts as { postTitle?: string; postUrl?: string; postBody?: string; source: string; brandColor?: string }[];
+        const groups: { title: string | null; url: string | null; body: string | null; brandColor: string; thoughts: unknown[] }[] = [];
+        const map = new Map<string, { title: string | null; url: string | null; body: string | null; brandColor: string; thoughts: unknown[] }>();
         for (const c of thoughts) {
             const key = c.postTitle || '';
             if (!map.has(key)) {
-                const g = { title: c.postTitle || null, url: c.postUrl || null, body: c.postBody || null, thoughts: [] as unknown[] };
+                const g = { title: c.postTitle || null, url: c.postUrl || null, body: c.postBody || null, brandColor: c.brandColor ?? '', thoughts: [] as unknown[] };
                 map.set(key, g);
                 groups.push(g);
             }

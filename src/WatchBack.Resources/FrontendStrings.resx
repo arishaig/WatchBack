@@ -319,7 +319,7 @@
         <value>Forward auth</value>
     </data>
     <data name="DangerZone_ForwardAuthHelp" xml:space="preserve">
-        <value>Trust a header set by your reverse proxy instead of requiring a password.</value>
+        <value>Authenticate via reverse proxy header instead of a password.</value>
     </data>
     <data name="DangerZone_EnableForwardAuth" xml:space="preserve">
         <value>Enable forward auth</value>
@@ -328,7 +328,7 @@
         <value>Header name</value>
     </data>
     <data name="DangerZone_ForwardAuthWarning" xml:space="preserve">
-        <value>Only safe behind a trusted reverse proxy that sets this header after authenticating the user. If the app is directly reachable from the internet, anyone can bypass auth by sending this header.</value>
+        <value>Only enable this behind a trusted reverse proxy that performs authentication. If this application is directly accessible from the internet, any user can bypass authentication by spoofing this header.</value>
     </data>
     <!-- Time: Relative Time Formatting -->
     <data name="Time_SecondsAgo" xml:space="preserve">

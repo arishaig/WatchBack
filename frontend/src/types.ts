@@ -131,7 +131,7 @@ export interface AppData {
     readonly timeMachineCount: number;
     readonly allThoughtsCount: number;
     readonly threadCount: number;
-    readonly availableSources: string[];
+    readonly availableSources: { name: string; brandColor: string; brandLogoSvg: string }[];
     readonly renderGroups: unknown[];
     readonly groupedThoughts: unknown[];
     readonly showSearchBox: boolean;
@@ -145,6 +145,8 @@ export interface AppData {
     sourceCount(src: string): number;
     toggleSection(key: string): void;
     toggleAlwaysShowSearch(): void;
+    sanitizeSvg(raw: string): string;
+    renderMarkdown(src: string, spoilerLabel?: string): string;
     formatDate(iso: string): string;
     formatScore(n: number | null): string;
     countAllReplies(c: Record<string, unknown>): number;

@@ -10,6 +10,8 @@ import syncMethods from './modules/sync';
 import systemMethods from './modules/system';
 import computedDescriptors from './modules/computed';
 import uiMethods from './modules/ui';
+import { sanitizeSvg } from './utils/svg';
+import { renderMarkdown } from './utils/markdown';
 
 Alpine.data('app', (): AppData => {
     const data = {
@@ -90,6 +92,10 @@ Alpine.data('app', (): AppData => {
             { id: 'solarized-light', label: 'Solarized Light' },
             { id: 'monokai', label: 'Monokai' },
         ],
+
+        // ── Utility functions exposed to Alpine templates ──────────────────
+        sanitizeSvg,
+        renderMarkdown,
 
         // ── Methods from modules ───────────────────────────────────────────
         ...authMethods,

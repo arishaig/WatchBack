@@ -40,10 +40,17 @@ public static class SyncEndpoints
             .Produces(StatusCodes.Status200OK);
     }
 
-    private static async Task<SyncResponse> GetSync(ISyncService syncService, CancellationToken ct)
+    private static async Task<SyncResponse> GetSync(
+        ISyncService syncService,
+        [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
+        CancellationToken ct)
     {
+        var brandBySource = thoughtProviders.ToDictionary(
+            p => p.Metadata.Name,
+            p => p.Metadata.BrandData,
+            StringComparer.OrdinalIgnoreCase);
         var result = await syncService.SyncAsync(null, ct);
-        return MapSyncResult(result);
+        return MapSyncResult(result, brandBySource);
     }
 
     private static async Task GetSyncStream(
@@ -127,7 +134,11 @@ public static class SyncEndpoints
                     .ToList();
                 syncHistory.Record(new SyncSnapshot(DateTimeOffset.UtcNow, result.Status.ToString(), result.Title, sourceRecords));
 
-                var response = MapSyncResult(result);
+                var brandBySource = providerList.ToDictionary(
+                    p => p.Metadata.Name,
+                    p => p.Metadata.BrandData,
+                    StringComparer.OrdinalIgnoreCase);
+                var response = MapSyncResult(result, brandBySource);
                 var json = System.Text.Json.JsonSerializer.Serialize(response, Serialization.WatchBackJsonContext.Default.SyncResponse);
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
@@ -169,16 +180,18 @@ public static class SyncEndpoints
         return sb.ToString();
     }
 
-    private static SyncResponse MapSyncResult(Core.Models.SyncResult result)
+    private static SyncResponse MapSyncResult(
+        Core.Models.SyncResult result,
+        IReadOnlyDictionary<string, Core.Models.BrandData?> brandBySource)
     {
         return new SyncResponse(
             Status: result.Status.ToString(),
             Title: result.Title,
             Metadata: result.Metadata != null ? MapMediaContext(result.Metadata) : null,
-            AllThoughts: result.AllThoughts.Select(MapThought).ToList(),
-            TimeMachineThoughts: result.TimeMachineThoughts.Select(MapThought).ToList(),
+            AllThoughts: result.AllThoughts.Select(t => MapThought(t, brandBySource)).ToList(),
+            TimeMachineThoughts: result.TimeMachineThoughts.Select(t => MapThought(t, brandBySource)).ToList(),
             TimeMachineDays: result.TimeMachineDays,
-            SourceResults: result.SourceResults.Select(MapSourceResult).ToList(),
+            SourceResults: result.SourceResults.Select(r => MapSourceResult(r, brandBySource)).ToList(),
             WatchProvider: result.WatchProvider,
             SuppressedProvider: result.SuppressedProvider,
             SuppressedTitle: result.SuppressedTitle,
@@ -206,8 +219,11 @@ public static class SyncEndpoints
             EpisodeNumber: null);
     }
 
-    private static ThoughtResponse MapThought(Core.Models.Thought thought)
+    private static ThoughtResponse MapThought(
+        Core.Models.Thought thought,
+        IReadOnlyDictionary<string, Core.Models.BrandData?> brandBySource)
     {
+        var brand = brandBySource.GetValueOrDefault(thought.Source);
         return new ThoughtResponse(
             Id: thought.Id,
             ParentId: thought.ParentId,
@@ -219,20 +235,27 @@ public static class SyncEndpoints
             Score: thought.Score,
             CreatedAt: thought.CreatedAt.DateTime,
             Source: thought.Source,
-            Replies: thought.Replies.Select(MapThought).ToList(),
+            Replies: thought.Replies.Select(r => MapThought(r, brandBySource)).ToList(),
             PostTitle: thought.PostTitle,
             PostUrl: thought.PostUrl,
-            PostBody: thought.PostBody);
+            PostBody: thought.PostBody,
+            BrandColor: brand?.Color,
+            BrandLogoSvg: brand?.LogoSvg);
     }
 
-    private static SourceResultResponse MapSourceResult(Core.Models.ThoughtResult result)
+    private static SourceResultResponse MapSourceResult(
+        Core.Models.ThoughtResult result,
+        IReadOnlyDictionary<string, Core.Models.BrandData?> brandBySource)
     {
+        var brand = brandBySource.GetValueOrDefault(result.Source);
         return new SourceResultResponse(
             Source: result.Source,
             PostTitle: result.PostTitle,
             PostUrl: result.PostUrl,
             ImageUrl: result.ImageUrl,
-            Thoughts: result.Thoughts?.Select(MapThought).ToList() ?? [],
-            NextPageToken: result.NextPageToken);
+            Thoughts: result.Thoughts?.Select(r => MapThought(r, brandBySource)).ToList() ?? [],
+            NextPageToken: result.NextPageToken,
+            BrandColor: brand?.Color,
+            BrandLogoSvg: brand?.LogoSvg);
     }
 }

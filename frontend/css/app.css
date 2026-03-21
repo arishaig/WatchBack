@@ -3,6 +3,9 @@
  * All CSS is split into logical modules and imported here.
  */
 
+/* Self-hosted fonts */
+@import "./fonts.css";
+
 /* Themes (custom properties) */
 @import "./themes/dark.css";
 @import "./themes/light.css";
