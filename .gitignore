@@ -47,10 +47,6 @@ frontend/.vite/
 .tmp/
 temp/
 
-# Package lock files (if using npm)
-package-lock.json
-yarn.lock
-
 # Build output
 dist/
 publish/
