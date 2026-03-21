@@ -1,3 +1,6 @@
+export type SaveStatus = 'saving' | 'saved' | 'error' | null;
+export type TestStatus = 'testing' | 'ok' | 'error' | 'warn' | null;
+
 /**
  * Full shape of the Alpine.js application component.
  * Used as the ThisType<AppData> context for all module method objects.
@@ -15,16 +18,16 @@ export interface AppData {
     configData: Record<string, unknown> | null;
     configEdits: Record<string, string>;
     saveStatus: Record<string, string>;
-    saveAllStatus: string | null;
+    saveAllStatus: SaveStatus;
     prefEdits: Record<string, unknown>;
-    prefSaveStatus: string | null;
+    prefSaveStatus: SaveStatus;
     lightboxImg: string | null;
     groupByThread: boolean;
     theme: string;
     collapsedSections: Record<string, boolean>;
     testResults: Record<string, unknown>;
     lastTestResults: Record<string, unknown>;
-    testAllStatus: string | null;
+    testAllStatus: TestStatus;
     authState: string;
     loginUsername: string;
     loginPassword: string;
@@ -46,7 +49,7 @@ export interface AppData {
     showSyncBar: boolean;
     syncSegments: unknown[];
     _progressTickCount: number;
-    clearCacheStatus: string | null;
+    clearCacheStatus: 'loading' | 'ok' | 'error' | null;
     forwardAuthEnabled: boolean;
     forwardAuthHeaderEdit: string;
     forwardAuthSaveStatus: string | null;
@@ -57,7 +60,7 @@ export interface AppData {
     logSse: { close(): void } | null;
     syncHistory: Record<string, unknown> | null;
     appVersion: string | null;
-    copyLogsStatus: string | null;
+    copyLogsStatus: 'copied' | 'error' | null;
     alwaysShowSearch: boolean;
     searchQuery: string;
     searchResults: unknown[];

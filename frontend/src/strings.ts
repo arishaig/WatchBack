@@ -31,6 +31,14 @@ window.loadAllStrings = async function () {
     }
 };
 
+export function interpolate(str: string, args: unknown[]): string {
+    if (args.length === 0) return str;
+    return str.replace(/{(\d+)}/g, (_m, i: string) => {
+        const idx = parseInt(i, 10);
+        return args[idx] !== undefined ? String(args[idx]) : `{${i}}`;
+    });
+}
+
 window.t = function (key: string, ...args: unknown[]): string {
     const bundle = window._allStrings[window._currentLocale] ?? window._allStrings['en'] ?? {};
     const str = bundle[key];
@@ -40,11 +48,7 @@ window.t = function (key: string, ...args: unknown[]): string {
         }
         return key;
     }
-    if (args.length === 0) return str;
-    return str.replace(/{(\d+)}/g, (_m, i: string) => {
-        const idx = parseInt(i, 10);
-        return args[idx] !== undefined ? String(args[idx]) : `{${i}}`;
-    });
+    return interpolate(str, args);
 };
 
 export {};

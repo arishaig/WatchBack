@@ -111,5 +111,16 @@ Alpine.data('app', (): AppData => {
     return data as unknown as AppData;
 });
 
+// Spoiler reveal — delegated from document so it works with dynamically rendered markdown
+document.addEventListener('click', e => {
+    const target = e.target as Element;
+    const spoiler = target.closest('[data-wb-spoiler]');
+    if (spoiler) spoiler.classList.add('revealed');
+});
+document.addEventListener('keydown', e => {
+    const target = e.target as Element;
+    if (e.key === 'Enter' && target.hasAttribute('data-wb-spoiler')) target.classList.add('revealed');
+});
+
 (window as Window & { Alpine: typeof Alpine }).Alpine = Alpine;
 Alpine.start();

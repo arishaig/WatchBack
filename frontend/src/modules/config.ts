@@ -1,9 +1,11 @@
 import type { AppData } from '../types';
+import { buildFieldPayload, postJson } from '../utils/api';
+import type { IntegrationMap } from '../utils/api';
 
 const configMethods: Record<string, unknown> & ThisType<AppData> = {
     _initConfigEdits(configData: Record<string, unknown>) {
         const edits: Record<string, string> = {};
-        const integrations = (configData['integrations'] as Record<string, { fields: { key: string; type: string; value?: string }[] }>) ?? {};
+        const integrations = (configData['integrations'] as IntegrationMap) ?? {};
         for (const integration of Object.values(integrations)) {
             for (const field of integration.fields) {
                 edits[field.key] = field.type === 'password' ? '' : (field.value ?? '');
@@ -21,33 +23,21 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
     },
 
     async saveConfig(integrationKey: string) {
-        const integrations = (this.configData?.['integrations'] as Record<string, { fields: { key: string; type: string }[] }> | undefined);
+        const integrations = (this.configData?.['integrations'] as IntegrationMap | undefined);
         const integration = integrations?.[integrationKey];
         if (!integration) return;
 
-        const payload: Record<string, string> = {};
-        for (const field of integration.fields) {
-            const val = this.configEdits[field.key];
-            if (field.type === 'password') {
-                if (val && val.trim() !== '') payload[field.key] = val;
-            } else {
-                payload[field.key] = val ?? '';
-            }
-        }
+        const payload = buildFieldPayload(integration.fields, this.configEdits);
 
         this.saveStatus = { ...this.saveStatus, [integrationKey]: 'saving' };
         try {
-            const res = await fetch('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
+            const res = await postJson('/api/config', payload);
             if (res.ok) {
                 this.saveStatus = { ...this.saveStatus, [integrationKey]: 'saved' };
                 const cRes = await fetch('/api/config');
                 if (cRes.ok) {
                     this.configData = await cRes.json() as Record<string, unknown>;
-                    const updatedIntegrations = (this.configData['integrations'] as Record<string, { fields: { key: string; type: string; value?: string }[] }> | undefined);
+                    const updatedIntegrations = (this.configData['integrations'] as IntegrationMap | undefined);
                     for (const field of updatedIntegrations?.[integrationKey]?.fields ?? []) {
                         if (field.type !== 'password')
                             this.configEdits[field.key] = field.value ?? '';
@@ -66,25 +56,13 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
     },
 
     async saveAllConfig() {
-        const payload: Record<string, string> = {};
-        const integrations = (this.configData?.['integrations'] as Record<string, { fields: { key: string; type: string }[] }> | undefined) ?? {};
-        for (const integration of Object.values(integrations)) {
-            for (const field of integration.fields) {
-                const val = this.configEdits[field.key];
-                if (field.type === 'password') {
-                    if (val && val.trim() !== '') payload[field.key] = val;
-                } else {
-                    payload[field.key] = val ?? '';
-                }
-            }
-        }
+        const integrations = (this.configData?.['integrations'] as IntegrationMap | undefined) ?? {};
+        const allFields = Object.values(integrations).flatMap(i => i.fields);
+        const payload = buildFieldPayload(allFields, this.configEdits);
+
         this.saveAllStatus = 'saving';
         try {
-            const res = await fetch('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
+            const res = await postJson('/api/config', payload);
             if (res.ok) {
                 this.saveAllStatus = 'saved';
                 const cRes = await fetch('/api/config');
@@ -176,24 +154,16 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
     async testService(service: string) {
         this.testResults = { ...this.testResults, [service]: { status: 'testing' } };
 
-        const integrations = (this.configData?.['integrations'] as Record<string, { fields: { key: string; type: string; hasValue?: boolean }[] }> | undefined);
+        const integrations = (this.configData?.['integrations'] as IntegrationMap | undefined);
         const integration = integrations?.[service];
-        const payload: Record<string, string> = {};
-        for (const field of integration?.fields ?? []) {
-            const val = this.configEdits[field.key];
-            if (field.type === 'password') {
-                payload[field.key] = (val && val.trim()) ? val : (field.hasValue ? '__EXISTING__' : '');
-            } else {
-                payload[field.key] = val ?? '';
-            }
-        }
+        const payload = buildFieldPayload(
+            integration?.fields ?? [],
+            this.configEdits,
+            { includeExistingPlaceholder: true }
+        );
 
         try {
-            const res = await fetch(`/api/test/${service}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
+            const res = await postJson(`/api/test/${service}`, payload);
             const data = await res.json() as Record<string, unknown>;
             const result = { status: data['ok'] ? 'ok' : 'error', message: data['message'] };
             this.testResults = { ...this.testResults, [service]: result };

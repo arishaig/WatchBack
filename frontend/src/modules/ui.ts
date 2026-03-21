@@ -1,4 +1,5 @@
 import type { AppData } from '../types';
+import { interpolate } from '../strings';
 
 const uiMethods: Record<string, unknown> & ThisType<AppData> = {
     t(key: string, ...args: unknown[]): string {
@@ -6,11 +7,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         const bundle = window._allStrings[this.locale] ?? window._allStrings['en'] ?? {};
         const str = bundle[key];
         if (!str) return key;
-        if (args.length === 0) return str;
-        return str.replace(/{(\d+)}/g, (_m: string, i: string) => {
-            const idx = parseInt(i, 10);
-            return args[idx] !== undefined ? String(args[idx]) : `{${i}}`;
-        });
+        return interpolate(str, args);
     },
 
     async init() {

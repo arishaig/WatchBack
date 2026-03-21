@@ -261,15 +261,15 @@ describe('availableSources', () => {
         const ctx = makeState({
             data: {
                 allThoughts: [
-                    { source: 'reddit' },
-                    { source: 'letterboxd' },
-                    { source: 'reddit' },
+                    { source: 'reddit', brandColor: '#ff4500', brandLogoSvg: '<svg/>' },
+                    { source: 'letterboxd', brandColor: '#00c030', brandLogoSvg: '' },
+                    { source: 'reddit', brandColor: '#ff4500', brandLogoSvg: '<svg/>' },
                 ],
             },
         });
-        const result = get('availableSources', ctx) as string[];
-        expect(result).toContain('reddit');
-        expect(result).toContain('letterboxd');
+        const result = get('availableSources', ctx) as { name: string; brandColor: string; brandLogoSvg: string }[];
+        expect(result.map(s => s.name)).toContain('reddit');
+        expect(result.map(s => s.name)).toContain('letterboxd');
         expect(result).toHaveLength(2);
     });
 
@@ -277,8 +277,8 @@ describe('availableSources', () => {
         const ctx = makeState({
             data: { allThoughts: [{ source: 'reddit' }, {}] },
         });
-        const result = get('availableSources', ctx) as string[];
-        expect(result).toEqual(['reddit']);
+        const result = get('availableSources', ctx) as { name: string; brandColor: string; brandLogoSvg: string }[];
+        expect(result).toEqual([{ name: 'reddit', brandColor: '', brandLogoSvg: '' }]);
     });
 });
 
