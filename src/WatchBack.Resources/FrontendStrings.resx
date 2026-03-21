@@ -557,7 +557,4 @@
     <data name="Aria_ConfigSections" xml:space="preserve">
         <value>Configuration sections</value>
     </data>
-    <data name="Aria_RevealSpoiler" xml:space="preserve">
-        <value>Reveal spoiler</value>
-    </data>
 </root>

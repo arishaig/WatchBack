@@ -38,8 +38,10 @@ coverage.xml
 .env.local
 .env.*.local
 
-# Node modules (if frontend exists)
+# Node modules
 node_modules/
+frontend/node_modules/
+frontend/.vite/
 
 # Temporary files
 .tmp/

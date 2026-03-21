@@ -21,4 +21,160 @@
     <data name="Locale_NativeName" xml:space="preserve">
         <value>Español</value>
     </data>
+    <data name="Aria_CloseConfigPanel" xml:space="preserve">
+        <value>Ocultar panel de configuración</value>
+    </data>
+    <data name="Aria_Comments" xml:space="preserve">
+        <value>Comentarios</value>
+    </data>
+    <data name="Aria_ConfigSections" xml:space="preserve">
+        <value>Secciones de configuración</value>
+    </data>
+    <data name="Aria_EnlargedImage" xml:space="preserve">
+        <value>Imagen ampliada</value>
+    </data>
+    <data name="Aria_HideValue" xml:space="preserve">
+        <value>Ocultar contenido</value>
+    </data>
+    <data name="Aria_ImageViewer" xml:space="preserve">
+        <value>Visor de imágenes</value>
+    </data>
+    <data name="Aria_MinimumLogLevel" xml:space="preserve">
+        <value>Nivel mínimo de registros a mostrar</value>
+    </data>
+    <data name="Aria_ShowValue" xml:space="preserve">
+        <value>Mostrar contenido</value>
+    </data>
+    <data name="Aria_SyncProgress" xml:space="preserve">
+        <value>Sincronización en progreso</value>
+    </data>
+    <data name="Auth_ConnectionFailed" xml:space="preserve">
+        <value>Error de conexión</value>
+    </data>
+    <data name="Auth_InitialCredentials" xml:space="preserve">
+        <value>Las credenciales iniciales están en los registros del servidor:</value>
+    </data>
+    <data name="Auth_InvalidCredentials" xml:space="preserve">
+        <value>Credenciales incorrectas</value>
+    </data>
+    <data name="Auth_Password" xml:space="preserve">
+        <value>Contraseña</value>
+    </data>
+    <data name="Auth_PasswordChangeFailed" xml:space="preserve">
+        <value>No se pudo cambiar la contraseña</value>
+    </data>
+    <data name="Auth_PasswordRequired" xml:space="preserve">
+        <value>Se necesita la clave.</value>
+    </data>
+    <data name="Auth_PasswordsDoNotMatch" xml:space="preserve">
+        <value>Las contraseñas no son iguales.</value>
+    </data>
+    <data name="Auth_SetupFailed" xml:space="preserve">
+        <value>Error al configurar</value>
+    </data>
+    <data name="Auth_SignIn" xml:space="preserve">
+        <value>Acceder</value>
+    </data>
+    <data name="Auth_SigningIn" xml:space="preserve">
+        <value>Accediendo...</value>
+    </data>
+    <data name="Auth_SignOut" xml:space="preserve">
+        <value>Salir</value>
+    </data>
+    <data name="Auth_Theme" xml:space="preserve">
+        <value>Tema</value>
+    </data>
+    <data name="Theme_Dark" xml:space="preserve">
+        <value>Oscuro</value>
+    </data>
+    <data name="Theme_Light" xml:space="preserve">
+        <value>Claro</value>
+    </data>
+    <data name="Auth_Username" xml:space="preserve">
+        <value>Nombre de usuario</value>
+    </data>
+    <data name="Comments_By" xml:space="preserve">
+        <value>Por</value>
+    </data>
+    <data name="Comments_ClickToEnlarge" xml:space="preserve">
+        <value>Pulsa para ampliar</value>
+    </data>
+    <data name="Comments_ImageFromPost" xml:space="preserve">
+        <value>Imagen del post</value>
+    </data>
+    <data name="Comments_MoreRepliesInThread" xml:space="preserve">
+        <value>{0} respuestas más en el hilo</value>
+    </data>
+    <data name="Comments_MoreReplyInThread" xml:space="preserve">
+        <value>{0} respuesta más en el hilo</value>
+    </data>
+    <data name="Comments_Score" xml:space="preserve">
+        <value>Puntuación: {0}</value>
+    </data>
+    <data name="Comments_ViewOn" xml:space="preserve">
+        <value>Ver en {0} (se abre en una nueva pestaña)</value>
+    </data>
+    <data name="Common_Clear" xml:space="preserve">
+        <value>Limpio</value>
+    </data>
+    <data name="Common_Cleared" xml:space="preserve">
+        <value>Limpio ✓</value>
+    </data>
+    <data name="Common_Clearing" xml:space="preserve">
+        <value>Vaciado...</value>
+    </data>
+    <data name="Common_Copied" xml:space="preserve">
+        <value>Copiado ✓</value>
+    </data>
+    <data name="Common_Copy" xml:space="preserve">
+        <value>Copiar</value>
+    </data>
+    <data name="Common_Dismiss" xml:space="preserve">
+        <value>Descartar</value>
+    </data>
+    <data name="Common_Error" xml:space="preserve">
+        <value>Error ✗</value>
+    </data>
+    <data name="Common_Resetting" xml:space="preserve">
+        <value>Restableciendo</value>
+    </data>
+    <data name="Common_Save" xml:space="preserve">
+        <value>Guardar</value>
+    </data>
+    <data name="Common_Saved" xml:space="preserve">
+        <value>Guardado</value>
+    </data>
+    <data name="Common_Saving" xml:space="preserve">
+        <value>Guardando...</value>
+    </data>
+    <data name="Common_Testing" xml:space="preserve">
+        <value>Probando...</value>
+    </data>
+    <data name="Config_AllConnected" xml:space="preserve">
+        <value>Todos conectados ✓</value>
+    </data>
+    <data name="Config_AllFailed" xml:space="preserve">
+        <value>Todo falló ✗</value>
+    </data>
+    <data name="Config_ClearOverride" xml:space="preserve">
+        <value>Cancelar la anulación</value>
+    </data>
+    <data name="Config_CommentsFrom" xml:space="preserve">
+        <value>Comentarios de {0}</value>
+    </data>
+    <data name="Config_Configured" xml:space="preserve">
+        <value>configurado</value>
+    </data>
+    <data name="Config_Connected" xml:space="preserve">
+        <value>conectado</value>
+    </data>
+    <data name="Config_ConnectionFailed" xml:space="preserve">
+        <value>error de conexión</value>
+    </data>
+    <data name="Config_From" xml:space="preserve">
+        <value>de</value>
+    </data>
+    <data name="Config_Integrations" xml:space="preserve">
+        <value>Integraciones</value>
+    </data>
 </root>

@@ -27,8 +27,12 @@ docker-compose*
 coverage/
 *.trx
 
-# Node modules (if frontend exists)
-node_modules/
+# Node modules (root and any subdirectory, e.g. frontend/node_modules)
+**/node_modules/
+frontend/.vite/
+
+# Tests are not needed in the Docker build context
+tests/
 
 # Documentation
 *.md
