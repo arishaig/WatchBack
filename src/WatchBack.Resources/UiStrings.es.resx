@@ -11,4 +11,124 @@
     <resheader name="writer">
         <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
     </resheader>
+    <data name="AuthEndpoints_ChangePassword_Password_is_required_" xml:space="preserve">
+        <value>Se requiere contraseña</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Server_URL" xml:space="preserve">
+        <value>URL del servidor</value>
+    </data>
+    <data name="AuthEndpoints_ResetPassword_New_password_generated__Check_server_logs_" xml:space="preserve">
+        <value>Nueva contraseña generada. Revisa los logs del servidor.</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Access_Token__OAuth_" xml:space="preserve">
+        <value>Token de acceso (OAuth)</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_API_Key" xml:space="preserve">
+        <value>Clave de API</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Bluesky_App_Password" xml:space="preserve">
+        <value>Clave de App</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Client_ID" xml:space="preserve">
+        <value>Client ID</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Free_at_omdbapi_com__1_000_req_day_" xml:space="preserve">
+        <value>Gratis en omdbapi.com (1.000 solicitudes/día)</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Handle_Email" xml:space="preserve">
+        <value>Identificador/Correo</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Max_Comments" xml:space="preserve">
+        <value>Límite de comentarios</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Max_Threads" xml:space="preserve">
+        <value>Límite de hilos</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Optional__for_comments_" xml:space="preserve">
+        <value>Opcional (para comentarios)</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Optional__for_private_profile_" xml:space="preserve">
+        <value>Opcional (perfil privado)</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Optional__public_profile_" xml:space="preserve">
+        <value>Opcional (perfil público)</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Username" xml:space="preserve">
+        <value>Usuario</value>
+    </data>
+    <data name="ConfigEndpoints_ResetConfig_No_keys_specified" xml:space="preserve">
+        <value>No se especificaron claves</value>
+    </data>
+    <data name="ConfigEndpoints_SaveConfig_Invalid_request_body" xml:space="preserve">
+        <value>Cuerpo de petición inválido</value>
+    </data>
+    <data name="ConfigEndpoints_TestBluesky_Handle_required" xml:space="preserve">
+        <value>Se requiere identificador</value>
+    </data>
+    <data name="ConfigEndpoints_TestBluesky_Handle_set__no_app_password_to_verify_" xml:space="preserve">
+        <value>Identificador configurado (sin clave de app verificar)</value>
+    </data>
+    <data name="ConfigEndpoints_TestBluesky_Invalid_credentials" xml:space="preserve">
+        <value>Credenciales inválidas</value>
+    </data>
+    <data name="ConfigEndpoints_TestJellyfin_" xml:space="preserve">
+        <value>URL no válida — debe ser http:// o https://</value>
+    </data>
+    <data name="ConfigEndpoints_TestJellyfin_Connected" xml:space="preserve">
+        <value>Conectado</value>
+    </data>
+    <data name="ConfigEndpoints_TestJellyfin_Jellyfin_Version" xml:space="preserve">
+        <value>Jellyfin {0}</value>
+    </data>
+    <data name="ConfigEndpoints_TestJellyfin_Server_URL_and_API_Key_required" xml:space="preserve">
+        <value>Se requiere la URL del servidor y la clave de API</value>
+    </data>
+    <data name="ConfigEndpoints_TestOmdb_No_API_key_configured" xml:space="preserve">
+        <value>No hay clave de API configurada.</value>
+    </data>
+    <data name="ConfigEndpoints_TestService_Unknown_service___0_" xml:space="preserve">
+        <value>Servicio desconocido: {0}</value>
+    </data>
+    <data name="JellyfinWatchStateProvider_Metadata_Jellyfin_watch_state_provider" xml:space="preserve">
+        <value>Proveedor de watch state para Jellyfin</value>
+    </data>
+    <data name="ManualWatchStateProvider_Metadata_Manually_set_watch_state" xml:space="preserve">
+        <value>Sincronizar 'watch state' manualmente</value>
+    </data>
+    <data name="ManualWatchStateProvide_GetServiceHealthAsync_IdleState" xml:space="preserve">
+        <value>Inactivo — sin contexto establecido</value>
+    </data>
+    <data name="ManualWatchStateProvide_GetServiceHealthAsync_MediaContext" xml:space="preserve">
+        <value>Viendo: {0}</value>
+    </data>
+    <data name="OmdbMediaSearchProvider_GetServiceHealthAsync_No_API_key_configured" xml:space="preserve">
+        <value>Sin clave de API configurada.</value>
+    </data>
+    <data name="OmdbMediaSearchProvider_GetServiceHealthAsync_API_key_configured" xml:space="preserve">
+        <value>Clave de API configurada</value>
+    </data>
+    <data name="RedditThoughtProvider_Metadata_Comments_from_Reddit" xml:space="preserve">
+        <value>Comentarios de Reddit</value>
+    </data>
+    <data name="TraktThoughtProvider_GetServiceHealthAsync_No_Client_ID_configured" xml:space="preserve">
+        <value>Sin Client ID configurado</value>
+    </data>
+    <data name="TraktThoughtProvider_GetThoughtsAsync_Unknown" xml:space="preserve">
+        <value>Desconocido</value>
+    </data>
+    <data name="TraktWatchStateProvider_GetServiceHealthAsync_checkaccesstoken" xml:space="preserve">
+        <value>Acceso no autorizado: verifique el token</value>
+    </data>
+    <data name="TraktWatchStateProvider_GetServiceHealthAsync_currently_watching" xml:space="preserve">
+        <value>viendo ahora</value>
+    </data>
+    <data name="TraktWatchStateProvider_GetServiceHealthAsync_idle" xml:space="preserve">
+        <value>en espera</value>
+    </data>
+    <data name="TraktWatchStateProvider_GetServiceHealthAsync_No_username_or_access_token_configured" xml:space="preserve">
+        <value>Sin configuración de usuario o token</value>
+    </data>
+    <data name="TraktWatchStateProvider_GetServiceHealthAsync_Profile_reachable___0__" xml:space="preserve">
+        <value>Perfil accesible ({0})</value>
+    </data>
 </root>

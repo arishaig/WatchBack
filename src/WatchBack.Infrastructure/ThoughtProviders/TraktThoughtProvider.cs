@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
+using WatchBack.Resources;
 
 using static WatchBack.Core.Models.ExternalIdType;
 
@@ -17,40 +18,39 @@ namespace WatchBack.Infrastructure.ThoughtProviders;
 [JsonSerializable(typeof(TraktCommentDto[]))]
 internal sealed partial class TraktThoughtJsonContext : JsonSerializerContext { }
 
-public class TraktThoughtProvider : IThoughtProvider
+public class TraktThoughtProvider(
+    HttpClient httpClient,
+    IOptionsSnapshot<TraktOptions> options,
+    IMemoryCache cache,
+    IReplyTreeBuilder treeBuilder,
+    ILogger<TraktThoughtProvider> logger)
+    : IThoughtProvider
 {
-    private readonly HttpClient _httpClient;
-    private readonly TraktOptions _options;
-    private readonly IMemoryCache _cache;
-    private readonly IReplyTreeBuilder _treeBuilder;
+    private readonly TraktOptions _options = options.Value;
 
-    private readonly ILogger<TraktThoughtProvider> _logger;
-
-    public TraktThoughtProvider(
-        HttpClient httpClient,
-        IOptionsSnapshot<TraktOptions> options,
-        IMemoryCache cache,
-        IReplyTreeBuilder treeBuilder,
-        ILogger<TraktThoughtProvider> logger)
+    public DataProviderMetadata Metadata
     {
-        _httpClient = httpClient;
-        _options = options.Value;
-        _cache = cache;
-        _treeBuilder = treeBuilder;
-        _logger = logger;
-    }
-
-    public DataProviderMetadata Metadata =>
-        new ThoughtProviderMetadata(
-            Name: "Trakt",
-            Description: "Trakt comments provider",
-            BrandData: new BrandData(
+        get
+        {
+            return new ThoughtProviderMetadata(
+                Name: "Trakt",
+                Description: "Trakt comments provider",
+                BrandData: new BrandData(
                     Color: "#E81828",
-                    LogoSvg: "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Trakt</title><path d=\"m15.082 15.107-.73-.73 9.578-9.583a4.499 4.499 0 0 0-.115-.575L13.662 14.382l1.08 1.08-.73.73-1.81-1.81L23.422 3.144c-.075-.15-.155-.3-.25-.44L11.508 14.377l2.154 2.155-.73.73-7.193-7.199.73-.73 4.309 4.31L22.546 1.86A5.618 5.618 0 0 0 18.362 0H5.635A5.637 5.637 0 0 0 0 5.634V18.37A5.632 5.632 0 0 0 5.635 24h12.732C21.477 24 24 21.48 24 18.37V6.19l-8.913 8.918zm-4.314-2.155L6.814 8.988l.73-.73 3.954 3.96zm1.075-1.084-3.954-3.96.73-.73 3.959 3.96zm9.853 5.688a4.141 4.141 0 0 1-4.14 4.14H6.438a4.144 4.144 0 0 1-4.139-4.14V6.438A4.141 4.141 0 0 1 6.44 2.3h10.387v1.04H6.438c-1.71 0-3.099 1.39-3.099 3.1V17.55c0 1.71 1.39 3.105 3.1 3.105h11.117c1.71 0 3.1-1.395 3.1-3.105v-1.754h1.04v1.754z\"/></svg>"
+                    LogoSvg:
+                    "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Trakt</title><path d=\"m15.082 15.107-.73-.73 9.578-9.583a4.499 4.499 0 0 0-.115-.575L13.662 14.382l1.08 1.08-.73.73-1.81-1.81L23.422 3.144c-.075-.15-.155-.3-.25-.44L11.508 14.377l2.154 2.155-.73.73-7.193-7.199.73-.73 4.309 4.31L22.546 1.86A5.618 5.618 0 0 0 18.362 0H5.635A5.637 5.637 0 0 0 0 5.634V18.37A5.632 5.632 0 0 0 5.635 24h12.732C21.477 24 24 21.48 24 18.37V6.19l-8.913 8.918zm-4.314-2.155L6.814 8.988l.73-.73 3.954 3.96zm1.075-1.084-3.954-3.96.73-.73 3.959 3.96zm9.853 5.688a4.141 4.141 0 0 1-4.14 4.14H6.438a4.144 4.144 0 0 1-4.139-4.14V6.438A4.141 4.141 0 0 1 6.44 2.3h10.387v1.04H6.438c-1.71 0-3.099 1.39-3.099 3.1V17.55c0 1.71 1.39 3.105 3.1 3.105h11.117c1.71 0 3.1-1.395 3.1-3.105v-1.754h1.04v1.754z\"/></svg>"
                 )
             );
+        }
+    }
 
-    public int ExpectedWeight => 1;
+    public int ExpectedWeight
+    {
+        get
+        {
+            return 1;
+        }
+    }
 
     public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
     {
@@ -58,7 +58,7 @@ public class TraktThoughtProvider : IThoughtProvider
         {
             if (string.IsNullOrEmpty(_options.ClientId))
             {
-                _logger.LogDebug("Trakt: skipping — no Client ID configured");
+                logger.LogDebug("Trakt: skipping — no Client ID configured");
                 return Empty;
             }
 
@@ -67,14 +67,14 @@ public class TraktThoughtProvider : IThoughtProvider
                 ? $"trakt:thoughts:{mediaContext.Title}:s{episode.SeasonNumber}e{episode.EpisodeNumber}"
                 : $"trakt:thoughts:{mediaContext.Title}";
 
-            if (_cache.TryGetValue(cacheKey, out ThoughtResult? cached))
+            if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
                 return cached;
 
             // Resolve show slug — tries external IDs first (IMDB → TVDB → TMDB), then falls back to title search
             var showId = await ResolveSlugAsync(mediaContext, ct);
             if (showId == null)
             {
-                _logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
+                logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
                 return Empty;
             }
 
@@ -86,10 +86,10 @@ public class TraktThoughtProvider : IThoughtProvider
             var commentsRequest = new HttpRequestMessage(HttpMethod.Get, commentsUrl);
             ConfigureRequestHeaders(commentsRequest);
 
-            var commentsResponse = await _httpClient.SendAsync(commentsRequest, ct);
+            var commentsResponse = await httpClient.SendAsync(commentsRequest, ct);
             if (!commentsResponse.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Trakt comments failed: HTTP {Status} for '{Title}'",
+                logger.LogWarning("Trakt comments failed: HTTP {Status} for '{Title}'",
                     (int)commentsResponse.StatusCode, mediaContext.Title);
                 return Empty;
             }
@@ -98,7 +98,7 @@ public class TraktThoughtProvider : IThoughtProvider
             var comments = JsonSerializer.Deserialize<TraktCommentDto[]>(
                 commentsContent,
                 TraktThoughtJsonContext.Default.TraktCommentDtoArray) ?? [];
-            _logger.LogDebug("Trakt: fetched {Count} comment(s) for '{Title}'", comments.Length, mediaContext.Title);
+            logger.LogDebug("Trakt: fetched {Count} comment(s) for '{Title}'", comments.Length, mediaContext.Title);
 
             var thoughts = comments
                 .Select(c => new Thought(
@@ -108,7 +108,7 @@ public class TraktThoughtProvider : IThoughtProvider
                     Content: c.Comment ?? "",
                     Url: null,
                     Images: [],
-                    Author: c.User?.Username ?? "Unknown",
+                    Author: c.User?.Username ?? UiStrings.TraktThoughtProvider_GetThoughtsAsync_Unknown,
                     Score: c.Rating != null ? (int)c.Rating : null,
                     CreatedAt: c.CreatedAt ?? DateTimeOffset.UtcNow,
                     Source: "Trakt",
@@ -120,15 +120,15 @@ public class TraktThoughtProvider : IThoughtProvider
                 PostTitle: null,
                 PostUrl: null,
                 ImageUrl: null,
-                Thoughts: _treeBuilder.BuildTree(thoughts),
+                Thoughts: treeBuilder.BuildTree(thoughts),
                 NextPageToken: null);
 
-            _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+            cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Trakt thought fetch failed");
+            logger.LogError(ex, "Trakt thought fetch failed");
             return Empty;
         }
         finally
@@ -148,7 +148,7 @@ public class TraktThoughtProvider : IThoughtProvider
             {
                 return new ServiceHealth(
                     IsHealthy: false,
-                    Message: "No Client ID configured",
+                    Message: UiStrings.TraktThoughtProvider_GetServiceHealthAsync_No_Client_ID_configured,
                     CheckedAt: DateTimeOffset.UtcNow);
             }
 
@@ -160,7 +160,7 @@ public class TraktThoughtProvider : IThoughtProvider
             request.Headers.Add("trakt-api-version", "2");
             request.Headers.Add("trakt-api-key", _options.ClientId);
 
-            var response = await _httpClient.SendAsync(request, cts.Token);
+            var response = await httpClient.SendAsync(request, cts.Token);
             if (response.StatusCode == System.Net.HttpStatusCode.OK)
             {
                 return new ServiceHealth(IsHealthy: true, Message: "API key valid", CheckedAt: DateTimeOffset.UtcNow);
@@ -187,7 +187,7 @@ public class TraktThoughtProvider : IThoughtProvider
     private async Task<string?> ResolveSlugAsync(MediaContext mediaContext, CancellationToken ct)
     {
         var slugCacheKey = $"trakt:slug:{mediaContext.Title}";
-        if (_cache.TryGetValue(slugCacheKey, out string? cached) && cached != null)
+        if (cache.TryGetValue(slugCacheKey, out string? cached) && cached != null)
             return cached;
 
         // Build the ordered list of ID lookups to attempt before falling back to text search.
@@ -206,7 +206,7 @@ public class TraktThoughtProvider : IThoughtProvider
             var slug = await TryResolveSlugFromSearchUrlAsync(url, mediaContext.Title, ct);
             if (slug != null)
             {
-                _cache.Set(slugCacheKey, slug, TimeSpan.FromHours(24));
+                cache.Set(slugCacheKey, slug, TimeSpan.FromHours(24));
                 return slug;
             }
         }
@@ -216,7 +216,7 @@ public class TraktThoughtProvider : IThoughtProvider
         var textSlug = await TryResolveSlugFromSearchUrlAsync(textSearchUrl, mediaContext.Title, ct);
         if (textSlug != null)
         {
-            _cache.Set(slugCacheKey, textSlug, TimeSpan.FromHours(24));
+            cache.Set(slugCacheKey, textSlug, TimeSpan.FromHours(24));
             return textSlug;
         }
 
@@ -232,10 +232,10 @@ public class TraktThoughtProvider : IThoughtProvider
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         ConfigureRequestHeaders(request);
 
-        var response = await _httpClient.SendAsync(request, ct);
+        var response = await httpClient.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Trakt search failed: HTTP {Status} for '{Title}'",
+            logger.LogWarning("Trakt search failed: HTTP {Status} for '{Title}'",
                 (int)response.StatusCode, title);
             return null;
         }
@@ -250,7 +250,7 @@ public class TraktThoughtProvider : IThoughtProvider
 
         var slug = Uri.EscapeDataString(show.Ids?.Slug
             ?? show.Ids!.Trakt!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        _logger.LogDebug("Trakt: resolved '{Title}' → slug '{Slug}'", title, slug);
+        logger.LogDebug("Trakt: resolved '{Title}' → slug '{Slug}'", title, slug);
         return slug;
     }
 

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 
 using WatchBack.Api.Auth;
 using WatchBack.Core.Options;
+using WatchBack.Resources;
 
 namespace WatchBack.Api.Endpoints;
 
@@ -178,7 +179,7 @@ public static class AuthEndpoints
         Console.WriteLine("║  Use this password to log in.                ║");
         Console.WriteLine("╚══════════════════════════════════════════════╝");
 
-        return Results.Ok(new { ok = true, message = "New password generated. Check server logs." });
+        return Results.Ok(new { ok = true, message = UiStrings.AuthEndpoints_ResetPassword_New_password_generated__Check_server_logs_ });
     }
 
     private static async Task<IResult> ChangePassword(
@@ -189,7 +190,7 @@ public static class AuthEndpoints
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.NewPassword))
-            return Results.Ok(new { ok = false, message = "Password is required." });
+            return Results.Ok(new { ok = false, message = UiStrings.AuthEndpoints_ChangePassword_Password_is_required_ });
 
         var opts = authOptions.Value;
         var hasher = new PasswordHasher<string>();

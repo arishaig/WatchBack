@@ -14,7 +14,7 @@ namespace WatchBack.Resources {
     [System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "4.0.0.0")]
     [System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    internal class UiStrings {
+    public class UiStrings {
         
         private static System.Resources.ResourceManager resourceMan;
         
@@ -25,7 +25,7 @@ namespace WatchBack.Resources {
         }
         
         [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
-        internal static System.Resources.ResourceManager ResourceManager {
+        public static System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.Equals(null, resourceMan)) {
                     System.Resources.ResourceManager temp = new System.Resources.ResourceManager("WatchBack.Resources.UiStrings", typeof(UiStrings).Assembly);
@@ -36,12 +36,253 @@ namespace WatchBack.Resources {
         }
         
         [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
-        internal static System.Globalization.CultureInfo Culture {
+        public static System.Globalization.CultureInfo Culture {
             get {
                 return resourceCulture;
             }
             set {
                 resourceCulture = value;
+            }
+        }
+        
+        public static string JellyfinWatchStateProvider_Metadata_Jellyfin_watch_state_provider {
+            get {
+                return ResourceManager.GetString("JellyfinWatchStateProvider_Metadata_Jellyfin_watch_state_provider", resourceCulture);
+            }
+        }
+        
+        public static string ManualWatchStateProvider_Metadata_Manually_set_watch_state {
+            get {
+                return ResourceManager.GetString("ManualWatchStateProvider_Metadata_Manually_set_watch_state", resourceCulture);
+            }
+        }
+        
+        public static string ManualWatchStateProvide_GetServiceHealthAsync_MediaContext {
+            get {
+                return ResourceManager.GetString("ManualWatchStateProvide_GetServiceHealthAsync_MediaContext", resourceCulture);
+            }
+        }
+        
+        public static string ManualWatchStateProvide_GetServiceHealthAsync_IdleState {
+            get {
+                return ResourceManager.GetString("ManualWatchStateProvide_GetServiceHealthAsync_IdleState", resourceCulture);
+            }
+        }
+        
+        public static string OmdbMediaSearchProvider_GetServiceHealthAsync_API_key_configured {
+            get {
+                return ResourceManager.GetString("OmdbMediaSearchProvider_GetServiceHealthAsync_API_key_configured", resourceCulture);
+            }
+        }
+        
+        public static string OmdbMediaSearchProvider_GetServiceHealthAsync_No_API_key_configured {
+            get {
+                return ResourceManager.GetString("OmdbMediaSearchProvider_GetServiceHealthAsync_No_API_key_configured", resourceCulture);
+            }
+        }
+        
+        public static string TraktWatchStateProvider_GetServiceHealthAsync_No_username_or_access_token_configured {
+            get {
+                return ResourceManager.GetString("TraktWatchStateProvider_GetServiceHealthAsync_No_username_or_access_token_configu" +
+                        "red", resourceCulture);
+            }
+        }
+        
+        public static string TraktWatchStateProvider_GetServiceHealthAsync_Profile_reachable___0__ {
+            get {
+                return ResourceManager.GetString("TraktWatchStateProvider_GetServiceHealthAsync_Profile_reachable___0__", resourceCulture);
+            }
+        }
+        
+        public static string TraktWatchStateProvider_GetServiceHealthAsync_currently_watching {
+            get {
+                return ResourceManager.GetString("TraktWatchStateProvider_GetServiceHealthAsync_currently_watching", resourceCulture);
+            }
+        }
+        
+        public static string TraktWatchStateProvider_GetServiceHealthAsync_idle {
+            get {
+                return ResourceManager.GetString("TraktWatchStateProvider_GetServiceHealthAsync_idle", resourceCulture);
+            }
+        }
+        
+        public static string TraktWatchStateProvider_GetServiceHealthAsync_checkaccesstoken {
+            get {
+                return ResourceManager.GetString("TraktWatchStateProvider_GetServiceHealthAsync_checkaccesstoken", resourceCulture);
+            }
+        }
+        
+        public static string TraktThoughtProvider_GetThoughtsAsync_Unknown {
+            get {
+                return ResourceManager.GetString("TraktThoughtProvider_GetThoughtsAsync_Unknown", resourceCulture);
+            }
+        }
+        
+        public static string TraktThoughtProvider_GetServiceHealthAsync_No_Client_ID_configured {
+            get {
+                return ResourceManager.GetString("TraktThoughtProvider_GetServiceHealthAsync_No_Client_ID_configured", resourceCulture);
+            }
+        }
+        
+        public static string RedditThoughtProvider_Metadata_Comments_from_Reddit {
+            get {
+                return ResourceManager.GetString("RedditThoughtProvider_Metadata_Comments_from_Reddit", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Server_URL {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Server_URL", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_API_Key {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_API_Key", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Client_ID {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Client_ID", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Access_Token__OAuth_ {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Access_Token__OAuth_", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Username {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Username", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Handle_Email {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Handle_Email", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Bluesky_App_Password {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Bluesky_App_Password", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Max_Threads {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Max_Threads", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Max_Comments {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Max_Comments", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Optional__public_profile_ {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Optional__public_profile_", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Optional__for_private_profile_ {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Optional__for_private_profile_", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Optional__for_comments_ {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Optional__for_comments_", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_GetConfig_Free_at_omdbapi_com__1_000_req_day_ {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Free_at_omdbapi_com__1_000_req_day_", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_TestJellyfin_Server_URL_and_API_Key_required {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_TestJellyfin_Server_URL_and_API_Key_required", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_TestJellyfin_ {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_TestJellyfin_", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_TestJellyfin_Jellyfin_Version {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_TestJellyfin_Jellyfin_Version", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_TestJellyfin_Connected {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_TestJellyfin_Connected", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_TestOmdb_No_API_key_configured {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_TestOmdb_No_API_key_configured", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_TestBluesky_Handle_required {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_TestBluesky_Handle_required", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_TestBluesky_Handle_set__no_app_password_to_verify_ {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_TestBluesky_Handle_set__no_app_password_to_verify_", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_TestBluesky_Invalid_credentials {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_TestBluesky_Invalid_credentials", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_SaveConfig_Invalid_request_body {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_SaveConfig_Invalid_request_body", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_ResetConfig_No_keys_specified {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_ResetConfig_No_keys_specified", resourceCulture);
+            }
+        }
+        
+        public static string ConfigEndpoints_TestService_Unknown_service___0_ {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_TestService_Unknown_service___0_", resourceCulture);
+            }
+        }
+        
+        public static string AuthEndpoints_ResetPassword_New_password_generated__Check_server_logs_ {
+            get {
+                return ResourceManager.GetString("AuthEndpoints_ResetPassword_New_password_generated__Check_server_logs_", resourceCulture);
+            }
+        }
+        
+        public static string AuthEndpoints_ChangePassword_Password_is_required_ {
+            get {
+                return ResourceManager.GetString("AuthEndpoints_ChangePassword_Password_is_required_", resourceCulture);
             }
         }
     }

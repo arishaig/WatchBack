@@ -56,6 +56,10 @@ publish/
 # JetBrains Rider
 .idea/
 *.sln.iml
+*.DotSettings.user
+*.csproj.DotSettings
+*.csproj.DotSettings.user
+*.sln.DotSettings.user
 
 # Visual Studio Code
 .vscode-ctags

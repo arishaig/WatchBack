@@ -4,13 +4,8 @@ using WatchBack.Infrastructure.Persistence.Entities;
 
 namespace WatchBack.Infrastructure.Persistence;
 
-public class WatchBackDbContext : DbContext
+public class WatchBackDbContext(DbContextOptions<WatchBackDbContext> options) : DbContext(options)
 {
-    public WatchBackDbContext(DbContextOptions<WatchBackDbContext> options)
-        : base(options)
-    {
-    }
-
     public DbSet<ProviderConfigEntity> ProviderConfigs { get; set; } = null!;
     public DbSet<UserPreferenceEntity> UserPreferences { get; set; } = null!;
     public DbSet<SyncLogEntity> SyncLogs { get; set; } = null!;

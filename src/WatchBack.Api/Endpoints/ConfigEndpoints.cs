@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Options;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
+using WatchBack.Resources;
 
 namespace WatchBack.Api.Endpoints;
 
@@ -130,8 +132,8 @@ public static class ConfigEndpoints
                     brandColor = brandByName.GetValueOrDefault("Jellyfin")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Jellyfin__BaseUrl", label = "Server URL", type = "text", placeholder = "http://jellyfin:8096", hasValue = !string.IsNullOrEmpty(j.BaseUrl) && j.BaseUrl != "http://jellyfin:8096", value = j.BaseUrl ?? "", envValue = EnvVal("Jellyfin__BaseUrl"), isOverridden = IsOverriddenInUserSettings("Jellyfin", "BaseUrl") },
-                        new { key = "Jellyfin__ApiKey", label = "API Key", type = "password", placeholder = "Required", hasValue = !string.IsNullOrEmpty(j.ApiKey), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Jellyfin", "ApiKey") }
+                        new { key = "Jellyfin__BaseUrl", label = UiStrings.ConfigEndpoints_GetConfig_Server_URL, type = "text", placeholder = "http://jellyfin:8096", hasValue = !string.IsNullOrEmpty(j.BaseUrl) && j.BaseUrl != "http://jellyfin:8096", value = j.BaseUrl ?? "", envValue = EnvVal("Jellyfin__BaseUrl"), isOverridden = IsOverriddenInUserSettings("Jellyfin", "BaseUrl") },
+                        new { key = "Jellyfin__ApiKey", label = UiStrings.ConfigEndpoints_GetConfig_API_Key, type = "password", placeholder = "Required", hasValue = !string.IsNullOrEmpty(j.ApiKey), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Jellyfin", "ApiKey") }
                     },
                     configured = !string.IsNullOrEmpty(j.ApiKey)
                 },
@@ -142,9 +144,9 @@ public static class ConfigEndpoints
                     brandColor = brandByName.GetValueOrDefault("Trakt")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Trakt__ClientId", label = "Client ID", type = "text", placeholder = "Optional (for comments)", hasValue = !string.IsNullOrEmpty(t.ClientId), value = t.ClientId ?? "", envValue = EnvVal("Trakt__ClientId"), isOverridden = IsOverriddenInUserSettings("Trakt", "ClientId") },
-                        new { key = "Trakt__AccessToken", label = "Access Token (OAuth)", type = "password", placeholder = "Optional (for private profile)", hasValue = !string.IsNullOrEmpty(t.AccessToken), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Trakt", "AccessToken") },
-                        new { key = "Trakt__Username", label = "Username", type = "text", placeholder = "Optional (public profile)", hasValue = !string.IsNullOrEmpty(t.Username), value = t.Username ?? "", envValue = EnvVal("Trakt__Username"), isOverridden = IsOverriddenInUserSettings("Trakt", "Username") }
+                        new { key = "Trakt__ClientId", label = UiStrings.ConfigEndpoints_GetConfig_Client_ID, type = "text", placeholder = UiStrings.ConfigEndpoints_GetConfig_Optional__for_comments_, hasValue = !string.IsNullOrEmpty(t.ClientId), value = t.ClientId ?? "", envValue = EnvVal("Trakt__ClientId"), isOverridden = IsOverriddenInUserSettings("Trakt", "ClientId") },
+                        new { key = "Trakt__AccessToken", label = UiStrings.ConfigEndpoints_GetConfig_Access_Token__OAuth_, type = "password", placeholder = UiStrings.ConfigEndpoints_GetConfig_Optional__for_private_profile_, hasValue = !string.IsNullOrEmpty(t.AccessToken), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Trakt", "AccessToken") },
+                        new { key = "Trakt__Username", label = UiStrings.ConfigEndpoints_GetConfig_Username, type = "text", placeholder = UiStrings.ConfigEndpoints_GetConfig_Optional__public_profile_, hasValue = !string.IsNullOrEmpty(t.Username), value = t.Username ?? "", envValue = EnvVal("Trakt__Username"), isOverridden = IsOverriddenInUserSettings("Trakt", "Username") }
                     },
                     configured = !string.IsNullOrEmpty(t.ClientId) || !string.IsNullOrEmpty(t.Username)
                 },
@@ -155,8 +157,8 @@ public static class ConfigEndpoints
                     brandColor = brandByName.GetValueOrDefault("Bluesky")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Bluesky__Handle", label = "Handle/Email", type = "text", placeholder = "you.bsky.social", hasValue = !string.IsNullOrEmpty(b.Handle), value = b.Handle ?? "", envValue = EnvVal("Bluesky__Handle"), isOverridden = IsOverriddenInUserSettings("Bluesky", "Handle") },
-                        new { key = "Bluesky__AppPassword", label = "App Password", type = "password", placeholder = "xxxx-xxxx-xxxx-xxxx", hasValue = !string.IsNullOrEmpty(b.AppPassword), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Bluesky", "AppPassword") }
+                        new { key = "Bluesky__Handle", label = UiStrings.ConfigEndpoints_GetConfig_Handle_Email, type = "text", placeholder = "you.bsky.social", hasValue = !string.IsNullOrEmpty(b.Handle), value = b.Handle ?? "", envValue = EnvVal("Bluesky__Handle"), isOverridden = IsOverriddenInUserSettings("Bluesky", "Handle") },
+                        new { key = "Bluesky__AppPassword", label = UiStrings.ConfigEndpoints_GetConfig_Bluesky_App_Password, type = "password", placeholder = "xxxx-xxxx-xxxx-xxxx", hasValue = !string.IsNullOrEmpty(b.AppPassword), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Bluesky", "AppPassword") }
                     },
                     configured = !string.IsNullOrEmpty(b.Handle) && !string.IsNullOrEmpty(b.AppPassword)
                 },
@@ -167,8 +169,8 @@ public static class ConfigEndpoints
                     brandColor = brandByName.GetValueOrDefault("Reddit")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Reddit__MaxThreads", label = "Max Threads", type = "number", placeholder = "3", hasValue = true, value = r.MaxThreads.ToString(System.Globalization.CultureInfo.InvariantCulture), envValue = EnvVal("Reddit__MaxThreads"), isOverridden = IsOverriddenInUserSettings("Reddit", "MaxThreads") },
-                        new { key = "Reddit__MaxComments", label = "Max Comments", type = "number", placeholder = "250", hasValue = true, value = r.MaxComments.ToString(System.Globalization.CultureInfo.InvariantCulture), envValue = EnvVal("Reddit__MaxComments"), isOverridden = IsOverriddenInUserSettings("Reddit", "MaxComments") }
+                        new { key = "Reddit__MaxThreads", label = UiStrings.ConfigEndpoints_GetConfig_Max_Threads, type = "number", placeholder = "3", hasValue = true, value = r.MaxThreads.ToString(System.Globalization.CultureInfo.InvariantCulture), envValue = EnvVal("Reddit__MaxThreads"), isOverridden = IsOverriddenInUserSettings("Reddit", "MaxThreads") },
+                        new { key = "Reddit__MaxComments", label = UiStrings.ConfigEndpoints_GetConfig_Max_Comments, type = "number", placeholder = "250", hasValue = true, value = r.MaxComments.ToString(System.Globalization.CultureInfo.InvariantCulture), envValue = EnvVal("Reddit__MaxComments"), isOverridden = IsOverriddenInUserSettings("Reddit", "MaxComments") }
                     },
                     configured = true
                 },
@@ -179,7 +181,7 @@ public static class ConfigEndpoints
                     brandColor = brandByName.GetValueOrDefault("OMDb")?.Color ?? "",
                     fields = new[]
                     {
-                        new { key = "Omdb__ApiKey", label = "API Key", type = "password", placeholder = "Free at omdbapi.com (1 000 req/day)", hasValue = !string.IsNullOrEmpty(o.ApiKey), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Omdb", "ApiKey") }
+                        new { key = "Omdb__ApiKey", label = UiStrings.ConfigEndpoints_GetConfig_API_Key, type = "password", placeholder = UiStrings.ConfigEndpoints_GetConfig_Free_at_omdbapi_com__1_000_req_day_, hasValue = !string.IsNullOrEmpty(o.ApiKey), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Omdb", "ApiKey") }
                     },
                     configured = !string.IsNullOrEmpty(o.ApiKey)
                 }
@@ -219,7 +221,7 @@ public static class ConfigEndpoints
     {
         var body = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>(ct);
         if (body == null)
-            return Results.BadRequest("Invalid request body");
+            return Results.BadRequest(UiStrings.ConfigEndpoints_SaveConfig_Invalid_request_body);
 
         await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
         try
@@ -265,7 +267,7 @@ public static class ConfigEndpoints
     {
         var keys = await ctx.Request.ReadFromJsonAsync<string[]>(ct);
         if (keys == null || keys.Length == 0)
-            return Results.BadRequest("No keys specified");
+            return Results.BadRequest(UiStrings.ConfigEndpoints_ResetConfig_No_keys_specified);
 
         await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
         try
@@ -389,10 +391,14 @@ public static class ConfigEndpoints
                 "bluesky" => await TestBluesky(http,
                     Resolve("Bluesky__Handle", blueskyOpts.Value.Handle),
                     Resolve("Bluesky__AppPassword", blueskyOpts.Value.AppPassword), ct),
-                "reddit" => (object)new { ok = true, message = "Connected" },
+                "reddit" => (object)new { ok = true, message = UiStrings.ConfigEndpoints_TestJellyfin_Connected },
                 "omdb" => await TestOmdb(http,
                     Resolve("Omdb__ApiKey", omdbOpts.Value.ApiKey), ct),
-                _ => new { ok = false, message = $"Unknown service: {service}" }
+                _ => new {
+                            ok = false, message = string.Format(
+                            CultureInfo.InvariantCulture,
+                            UiStrings.ConfigEndpoints_TestService_Unknown_service___0_, service) 
+                         }
             };
         }
         catch (Exception ex)
@@ -416,7 +422,7 @@ public static class ConfigEndpoints
         var res = await http.SendAsync(req, cts.Token);
 
         if (res.StatusCode == System.Net.HttpStatusCode.OK)
-            return new { ok = true, message = "Connected" };
+            return new { ok = true, message = UiStrings.ConfigEndpoints_TestJellyfin_Connected };
 
         return new { ok = false, message = $"HTTP {(int)res.StatusCode}" };
     }
@@ -424,11 +430,11 @@ public static class ConfigEndpoints
     private static async Task<object> TestJellyfin(HttpClient http, string baseUrl, string apiKey, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(apiKey))
-            return new { ok = false, message = "Server URL and API Key required" };
+            return new { ok = false, message = UiStrings.ConfigEndpoints_TestJellyfin_Server_URL_and_API_Key_required };
 
         if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var parsed)
             || (parsed.Scheme != "http" && parsed.Scheme != "https"))
-            return new { ok = false, message = "Invalid URL — must be http:// or https://" };
+            return new { ok = false, message = UiStrings.ConfigEndpoints_TestJellyfin_ };
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
@@ -448,19 +454,21 @@ public static class ConfigEndpoints
             var version = doc.RootElement.TryGetProperty("Version", out var v) && v.ValueKind == JsonValueKind.String
                 ? v.GetString()?[..Math.Min(v.GetString()!.Length, 32)]
                 : null;
-            var message = version != null ? $"Jellyfin {version}" : "Connected";
+            var message = version != null ? 
+                string.Format(UiStrings.ConfigEndpoints_TestJellyfin_Jellyfin_Version, version) : 
+                UiStrings.ConfigEndpoints_TestJellyfin_Connected;
             return new { ok = true, message };
         }
         catch
         {
-            return new { ok = true, message = "Connected" };
+            return new { ok = true, message = UiStrings.ConfigEndpoints_TestJellyfin_Connected };
         }
     }
 
     private static async Task<object> TestOmdb(HttpClient http, string apiKey, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(apiKey))
-            return new { ok = false, message = "No API key configured" };
+            return new { ok = false, message = UiStrings.ConfigEndpoints_TestOmdb_No_API_key_configured };
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
@@ -476,16 +484,16 @@ public static class ConfigEndpoints
             && (err.GetString() ?? "").Contains("key", StringComparison.OrdinalIgnoreCase))
             return new { ok = false, message = err.GetString() };
 
-        return new { ok = true, message = "Connected" };
+        return new { ok = true, message = UiStrings.ConfigEndpoints_TestJellyfin_Connected };
     }
 
     private static async Task<object> TestBluesky(HttpClient http, string handle, string appPassword, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(handle))
-            return new { ok = false, message = "Handle required" };
+            return new { ok = false, message = UiStrings.ConfigEndpoints_TestBluesky_Handle_required };
 
         if (string.IsNullOrEmpty(appPassword))
-            return new { ok = true, message = "Handle set (no app password to verify)" };
+            return new { ok = true, message = UiStrings.ConfigEndpoints_TestBluesky_Handle_set__no_app_password_to_verify_ };
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
@@ -494,7 +502,7 @@ public static class ConfigEndpoints
         req.Content = System.Net.Http.Json.JsonContent.Create(new { identifier = handle, password = appPassword });
         var res = await http.SendAsync(req, cts.Token);
         return res.IsSuccessStatusCode
-            ? new { ok = true, message = "Connected" }
-            : new { ok = false, message = res.StatusCode == System.Net.HttpStatusCode.Unauthorized ? "Invalid credentials" : $"HTTP {(int)res.StatusCode}" };
+            ? new { ok = true, message = UiStrings.ConfigEndpoints_TestJellyfin_Connected }
+            : new { ok = false, message = res.StatusCode == System.Net.HttpStatusCode.Unauthorized ? UiStrings.ConfigEndpoints_TestBluesky_Invalid_credentials : $"HTTP {(int)res.StatusCode}" };
     }
 }

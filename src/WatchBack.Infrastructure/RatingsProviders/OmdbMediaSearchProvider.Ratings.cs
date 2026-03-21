@@ -35,7 +35,7 @@ public partial class OmdbMediaSearchProvider
             .Select(r => new MediaRating(r.Source, r.Value, s_sourceBrands.GetValueOrDefault(r.Source)))
             .ToList();
 
-        cache.Set(cacheKey, (IReadOnlyList<MediaRating>)ratings, EpisodeCacheDuration);
+        cache.Set<IReadOnlyList<MediaRating>>(cacheKey, ratings, EpisodeCacheDuration);
         return ratings;
     }
 }

@@ -11,4 +11,13 @@
     <resheader name="writer">
         <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
     </resheader>
+    <data name="ConfigEndpoints_GetConfig_Server_URL" xml:space="preserve">
+        <value>URL del servidor</value>
+    </data>
+    <data name="SearchEndpoints_Search_No_media_search_provider_is_configured_" xml:space="preserve">
+        <value>Sin proveedor de búsqueda configurado</value>
+    </data>
+    <data name="SearchEndpoints_Search_Query_parameter__q__is_required_" xml:space="preserve">
+        <value>Se requiere el query parameter 'q'</value>
+    </data>
 </root>

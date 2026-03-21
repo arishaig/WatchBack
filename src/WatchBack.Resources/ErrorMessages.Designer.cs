@@ -14,7 +14,7 @@ namespace WatchBack.Resources {
     [System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "4.0.0.0")]
     [System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    internal class ErrorMessages {
+    public class ErrorMessages {
         
         private static System.Resources.ResourceManager resourceMan;
         
@@ -25,7 +25,7 @@ namespace WatchBack.Resources {
         }
         
         [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
-        internal static System.Resources.ResourceManager ResourceManager {
+        public static System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.Equals(null, resourceMan)) {
                     System.Resources.ResourceManager temp = new System.Resources.ResourceManager("WatchBack.Resources.ErrorMessages", typeof(ErrorMessages).Assembly);
@@ -36,12 +36,24 @@ namespace WatchBack.Resources {
         }
         
         [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
-        internal static System.Globalization.CultureInfo Culture {
+        public static System.Globalization.CultureInfo Culture {
             get {
                 return resourceCulture;
             }
             set {
                 resourceCulture = value;
+            }
+        }
+        
+        public static string SearchEndpoints_Search_Query_parameter__q__is_required_ {
+            get {
+                return ResourceManager.GetString("SearchEndpoints_Search_Query_parameter__q__is_required_", resourceCulture);
+            }
+        }
+        
+        public static string SearchEndpoints_Search_No_media_search_provider_is_configured_ {
+            get {
+                return ResourceManager.GetString("SearchEndpoints_Search_No_media_search_provider_is_configured_", resourceCulture);
             }
         }
     }
