@@ -1,9 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <root>
     <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
         <xsd:element name="root" msdata:IsDataSet="true">
-            
+            <xsd:complexType>
+                <xsd:choice maxOccurs="unbounded">
+                    <xsd:element name="data">
+                        <xsd:complexType>
+                            <xsd:sequence>
+                                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+                            </xsd:sequence>
+                            <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+                            <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="4" />
+                            <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="5" />
+                            <xsd:attribute ref="xml:space" />
+                        </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="resheader">
+                        <xsd:complexType>
+                            <xsd:sequence>
+                                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                            </xsd:sequence>
+                            <xsd:attribute name="name" type="xsd:string" use="required" />
+                        </xsd:complexType>
+                    </xsd:element>
+                </xsd:choice>
+            </xsd:complexType>
         </xsd:element>
     </xsd:schema>
     <resheader name="resmimetype">
@@ -18,4 +40,524 @@
     <resheader name="writer">
         <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
     </resheader>
+    <!-- Common: Shared Button States and Labels -->
+    <data name="Common_Save" xml:space="preserve">
+        <value>Save</value>
+    </data>
+    <data name="Common_Saving" xml:space="preserve">
+        <value>Saving…</value>
+    </data>
+    <data name="Common_Saved" xml:space="preserve">
+        <value>Saved ✓</value>
+    </data>
+    <data name="Common_Error" xml:space="preserve">
+        <value>Error ✗</value>
+    </data>
+    <data name="Common_Testing" xml:space="preserve">
+        <value>Testing…</value>
+    </data>
+    <data name="Common_Dismiss" xml:space="preserve">
+        <value>Dismiss</value>
+    </data>
+    <data name="Common_Clearing" xml:space="preserve">
+        <value>Clearing…</value>
+    </data>
+    <data name="Common_Cleared" xml:space="preserve">
+        <value>Cleared ✓</value>
+    </data>
+    <data name="Common_Resetting" xml:space="preserve">
+        <value>Resetting…</value>
+    </data>
+    <data name="Common_Copy" xml:space="preserve">
+        <value>Copy</value>
+    </data>
+    <data name="Common_Copied" xml:space="preserve">
+        <value>Copied ✓</value>
+    </data>
+    <data name="Common_Clear" xml:space="preserve">
+        <value>Clear</value>
+    </data>
+    <!-- Auth: Login and Authentication -->
+    <data name="Auth_Username" xml:space="preserve">
+        <value>Username</value>
+    </data>
+    <data name="Auth_Password" xml:space="preserve">
+        <value>Password</value>
+    </data>
+    <data name="Auth_SigningIn" xml:space="preserve">
+        <value>Signing in…</value>
+    </data>
+    <data name="Auth_SignIn" xml:space="preserve">
+        <value>Sign In</value>
+    </data>
+    <data name="Auth_SignOut" xml:space="preserve">
+        <value>Sign out</value>
+    </data>
+    <data name="Auth_Theme" xml:space="preserve">
+        <value>Theme</value>
+    </data>
+    <data name="Theme_Dark" xml:space="preserve">
+        <value>Dark</value>
+    </data>
+    <data name="Theme_Light" xml:space="preserve">
+        <value>Light</value>
+    </data>
+    <data name="Auth_InitialCredentials" xml:space="preserve">
+        <value>Initial credentials are in the server logs:</value>
+    </data>
+    <data name="Auth_InvalidCredentials" xml:space="preserve">
+        <value>Invalid credentials</value>
+    </data>
+    <data name="Auth_ConnectionFailed" xml:space="preserve">
+        <value>Connection failed</value>
+    </data>
+    <data name="Auth_SetupFailed" xml:space="preserve">
+        <value>Setup failed</value>
+    </data>
+    <data name="Auth_PasswordRequired" xml:space="preserve">
+        <value>Password is required.</value>
+    </data>
+    <data name="Auth_PasswordsDoNotMatch" xml:space="preserve">
+        <value>Passwords do not match.</value>
+    </data>
+    <data name="Auth_PasswordChangeFailed" xml:space="preserve">
+        <value>Password change failed</value>
+    </data>
+    <!-- Setup: Account Setup -->
+    <data name="Setup_Title" xml:space="preserve">
+        <value>Set Up Account</value>
+    </data>
+    <data name="Setup_Subtitle" xml:space="preserve">
+        <value>Choose a permanent username and password to continue.</value>
+    </data>
+    <data name="Setup_NewUsername" xml:space="preserve">
+        <value>New Username</value>
+    </data>
+    <data name="Setup_ChooseUsername" xml:space="preserve">
+        <value>Choose a username</value>
+    </data>
+    <data name="Setup_NewPassword" xml:space="preserve">
+        <value>New Password</value>
+    </data>
+    <data name="Setup_ChoosePassword" xml:space="preserve">
+        <value>Choose a strong password</value>
+    </data>
+    <data name="Setup_PasswordWeak" xml:space="preserve">
+        <value>Weak</value>
+    </data>
+    <data name="Setup_PasswordFair" xml:space="preserve">
+        <value>Fair</value>
+    </data>
+    <data name="Setup_PasswordStrong" xml:space="preserve">
+        <value>Strong</value>
+    </data>
+    <data name="Setup_PasswordVeryWeak" xml:space="preserve">
+        <value>Very weak</value>
+    </data>
+    <data name="Setup_PasswordVeryStrong" xml:space="preserve">
+        <value>Very strong</value>
+    </data>
+    <data name="Setup_Complete" xml:space="preserve">
+        <value>Complete Setup</value>
+    </data>
+    <!-- PasswordUpdate: Password Update Dialog -->
+    <data name="PasswordUpdate_Title" xml:space="preserve">
+        <value>Update Password</value>
+    </data>
+    <data name="PasswordUpdate_Message" xml:space="preserve">
+        <value>Your password's security hash has been upgraded. Please set a new password to continue.</value>
+    </data>
+    <data name="PasswordUpdate_ConfirmPassword" xml:space="preserve">
+        <value>Confirm Password</value>
+    </data>
+    <data name="PasswordUpdate_ReEnter" xml:space="preserve">
+        <value>Re-enter password</value>
+    </data>
+    <data name="PasswordUpdate_Update" xml:space="preserve">
+        <value>Update Password</value>
+    </data>
+    <!-- Nav: Navigation -->
+    <data name="Nav_Configuration" xml:space="preserve">
+        <value>Configuration</value>
+    </data>
+    <data name="Nav_Sync" xml:space="preserve">
+        <value>Sync</value>
+    </data>
+    <data name="Nav_Settings" xml:space="preserve">
+        <value>Settings</value>
+    </data>
+    <data name="Nav_Diagnostics" xml:space="preserve">
+        <value>Diagnostics</value>
+    </data>
+    <!-- Config: Integration Configuration -->
+    <data name="Config_Integrations" xml:space="preserve">
+        <value>Integrations</value>
+    </data>
+    <data name="Config_TestConnection" xml:space="preserve">
+        <value>Test Connection</value>
+    </data>
+    <data name="Config_TestAll" xml:space="preserve">
+        <value>Test All Connections</value>
+    </data>
+    <data name="Config_AllConnected" xml:space="preserve">
+        <value>All Connected ✓</value>
+    </data>
+    <data name="Config_AllFailed" xml:space="preserve">
+        <value>All Failed ✗</value>
+    </data>
+    <data name="Config_SomeFailed" xml:space="preserve">
+        <value>Some Failed</value>
+    </data>
+    <data name="Config_Set" xml:space="preserve">
+        <value>set</value>
+    </data>
+    <data name="Config_Unchanged" xml:space="preserve">
+        <value>(unchanged)</value>
+    </data>
+    <data name="Config_ClearOverride" xml:space="preserve">
+        <value>Clear override</value>
+    </data>
+    <data name="Config_ResetTo" xml:space="preserve">
+        <value>Reset to: {0}</value>
+    </data>
+    <data name="Config_WatchData" xml:space="preserve">
+        <value>Watch data</value>
+    </data>
+    <data name="Config_Posts" xml:space="preserve">
+        <value>Posts</value>
+    </data>
+    <data name="Config_From" xml:space="preserve">
+        <value>from</value>
+    </data>
+    <data name="Config_NotConfigured" xml:space="preserve">
+        <value>{0} not configured</value>
+    </data>
+    <data name="Config_CommentsFrom" xml:space="preserve">
+        <value>Comments from {0}</value>
+    </data>
+    <data name="Config_Configured" xml:space="preserve">
+        <value>configured</value>
+    </data>
+    <data name="Config_NotConfiguredStatus" xml:space="preserve">
+        <value>not configured</value>
+    </data>
+    <data name="Config_Connected" xml:space="preserve">
+        <value>connected</value>
+    </data>
+    <data name="Config_ConnectionFailed" xml:space="preserve">
+        <value>connection failed</value>
+    </data>
+    <data name="Config_RequestFailed" xml:space="preserve">
+        <value>Request failed</value>
+    </data>
+    <!-- Preferences: User Preferences -->
+    <data name="Preferences_Title" xml:space="preserve">
+        <value>Preferences</value>
+    </data>
+    <data name="Preferences_WatchProvider" xml:space="preserve">
+        <value>Watch Provider</value>
+    </data>
+    <data name="Preferences_TimeMachineWindow" xml:space="preserve">
+        <value>Time Machine Window</value>
+    </data>
+    <data name="Preferences_RedditSearchEngine" xml:space="preserve">
+        <value>Reddit Search Engine</value>
+    </data>
+    <data name="Preferences_CustomOption" xml:space="preserve">
+        <value>Custom…</value>
+    </data>
+    <data name="Preferences_CustomSearchUrlHelp" xml:space="preserve">
+        <value>Search terms will be appended to this URL.</value>
+    </data>
+    <data name="Preferences_SegmentedProgressBar" xml:space="preserve">
+        <value>Segmented progress bar</value>
+    </data>
+    <data name="Preferences_AlwaysShowSearch" xml:space="preserve">
+        <value>Always show media search</value>
+    </data>
+    <data name="Preferences_SavePreferences" xml:space="preserve">
+        <value>Save Preferences</value>
+    </data>
+    <data name="Preferences_Language" xml:space="preserve">
+        <value>Language</value>
+    </data>
+    <data name="Locale_NativeName" xml:space="preserve">
+        <value>English (US)</value>
+    </data>
+    <!-- DangerZone: Dangerous Operations -->
+    <data name="DangerZone_Title" xml:space="preserve">
+        <value>Danger zone</value>
+    </data>
+    <data name="DangerZone_ResetPassword" xml:space="preserve">
+        <value>Reset Password</value>
+    </data>
+    <data name="DangerZone_ResetPasswordTitle" xml:space="preserve">
+        <value>Reset password</value>
+    </data>
+    <data name="DangerZone_ResetPasswordHelp" xml:space="preserve">
+        <value>Generate a new random password and print it to the server logs.</value>
+    </data>
+    <data name="DangerZone_ResetPasswordDone" xml:space="preserve">
+        <value>Done — check logs ✓</value>
+    </data>
+    <data name="DangerZone_ClearCache" xml:space="preserve">
+        <value>Clear Cache</value>
+    </data>
+    <data name="DangerZone_ClearCacheTitle" xml:space="preserve">
+        <value>Clear cache</value>
+    </data>
+    <data name="DangerZone_ClearCacheHelp" xml:space="preserve">
+        <value>Evict all in-memory thought caches. Useful after changing provider settings.</value>
+    </data>
+    <data name="DangerZone_Restart" xml:space="preserve">
+        <value>Restart</value>
+    </data>
+    <data name="DangerZone_RestartHelp" xml:space="preserve">
+        <value>Gracefully stop the server. Your host (Docker, systemd) should restart it automatically.</value>
+    </data>
+    <data name="DangerZone_ForwardAuth" xml:space="preserve">
+        <value>Forward auth</value>
+    </data>
+    <data name="DangerZone_ForwardAuthHelp" xml:space="preserve">
+        <value>Trust a header set by your reverse proxy instead of requiring a password.</value>
+    </data>
+    <data name="DangerZone_EnableForwardAuth" xml:space="preserve">
+        <value>Enable forward auth</value>
+    </data>
+    <data name="DangerZone_HeaderName" xml:space="preserve">
+        <value>Header name</value>
+    </data>
+    <data name="DangerZone_ForwardAuthWarning" xml:space="preserve">
+        <value>Only safe behind a trusted reverse proxy that sets this header after authenticating the user. If the app is directly reachable from the internet, anyone can bypass auth by sending this header.</value>
+    </data>
+    <!-- Time: Relative Time Formatting -->
+    <data name="Time_SecondsAgo" xml:space="preserve">
+        <value>{0}s ago</value>
+    </data>
+    <data name="Time_MinutesAgo" xml:space="preserve">
+        <value>{0}m ago</value>
+    </data>
+    <data name="Time_HoursAgo" xml:space="preserve">
+        <value>{0}h ago</value>
+    </data>
+    <!-- Diagnostics: Logs and Debug -->
+    <data name="Diagnostics_ApplicationLogs" xml:space="preserve">
+        <value>Application Logs</value>
+    </data>
+    <data name="Diagnostics_LastSync" xml:space="preserve">
+        <value>Last Sync</value>
+    </data>
+    <data name="Diagnostics_NoSyncData" xml:space="preserve">
+        <value>No sync data yet. Waiting for first sync cycle…</value>
+    </data>
+    <data name="Diagnostics_Version" xml:space="preserve">
+        <value>Version</value>
+    </data>
+    <data name="Diagnostics_All" xml:space="preserve">
+        <value>All</value>
+    </data>
+    <data name="Diagnostics_DebugPlus" xml:space="preserve">
+        <value>Debug+</value>
+    </data>
+    <data name="Diagnostics_InfoPlus" xml:space="preserve">
+        <value>Info+</value>
+    </data>
+    <data name="Diagnostics_WarningPlus" xml:space="preserve">
+        <value>Warning+</value>
+    </data>
+    <data name="Diagnostics_ErrorPlus" xml:space="preserve">
+        <value>Error+</value>
+    </data>
+    <data name="Diagnostics_NoLogs" xml:space="preserve">
+        <value>No log entries matching the current filter.</value>
+    </data>
+    <data name="Diagnostics_Found" xml:space="preserve">
+        <value>{0} found</value>
+    </data>
+    <data name="Diagnostics_NoEntriesMatchingFilter" xml:space="preserve">
+        <value>(no entries matching filter)</value>
+    </data>
+    <data name="Diagnostics_DiagnosticLog" xml:space="preserve">
+        <value>Diagnostic Log</value>
+    </data>
+    <data name="Diagnostics_Captured" xml:space="preserve">
+        <value>Captured:</value>
+    </data>
+    <data name="Diagnostics_Browser" xml:space="preserve">
+        <value>Browser:</value>
+    </data>
+    <data name="Diagnostics_Filter" xml:space="preserve">
+        <value>Filter:</value>
+    </data>
+    <data name="Diagnostics_Sync" xml:space="preserve">
+        <value>Sync:</value>
+    </data>
+    <data name="Diagnostics_Providers" xml:space="preserve">
+        <value>Providers:</value>
+    </data>
+    <data name="Diagnostics_Entries" xml:space="preserve">
+        <value>{0} of {1} entries</value>
+    </data>
+    <!-- Dashboard: Main Media Display -->
+    <data name="Dashboard_MediaSearch" xml:space="preserve">
+        <value>Media search</value>
+    </data>
+    <data name="Dashboard_SearchPlaceholder" xml:space="preserve">
+        <value>Search movies &amp; TV shows…</value>
+    </data>
+    <data name="Dashboard_SearchMoviesTVShows" xml:space="preserve">
+        <value>Search movies and TV shows</value>
+    </data>
+    <data name="Dashboard_Searching" xml:space="preserve">
+        <value>Searching…</value>
+    </data>
+    <data name="Dashboard_Search" xml:space="preserve">
+        <value>Search</value>
+    </data>
+    <data name="Dashboard_ManualOverride" xml:space="preserve">
+        <value>Manual override:</value>
+    </data>
+    <data name="Dashboard_ClearManualState" xml:space="preserve">
+        <value>Clear manual watch state</value>
+    </data>
+    <data name="Dashboard_ProviderPlaying" xml:space="preserve">
+        <value>{0} is playing {1} — clear to switch.</value>
+    </data>
+    <data name="Dashboard_BrowseSeasons" xml:space="preserve">
+        <value>Tap to browse seasons →</value>
+    </data>
+    <data name="Dashboard_Back" xml:space="preserve">
+        <value>← Back</value>
+    </data>
+    <data name="Dashboard_SelectSeason" xml:space="preserve">
+        <value>Select a season</value>
+    </data>
+    <data name="Dashboard_LoadingSeasons" xml:space="preserve">
+        <value>Loading seasons…</value>
+    </data>
+    <data name="Dashboard_Season" xml:space="preserve">
+        <value>Season</value>
+    </data>
+    <data name="Dashboard_SeasonTitle" xml:space="preserve">
+        <value>{0} — Season {1}</value>
+    </data>
+    <data name="Dashboard_SeasonsBack" xml:space="preserve">
+        <value>← Seasons</value>
+    </data>
+    <data name="Dashboard_LoadingEpisodes" xml:space="preserve">
+        <value>Loading episodes…</value>
+    </data>
+    <data name="Dashboard_Aired" xml:space="preserve">
+        <value>Aired:</value>
+    </data>
+    <data name="Dashboard_Syncing" xml:space="preserve">
+        <value>Syncing</value>
+    </data>
+    <data name="Dashboard_NothingPlaying" xml:space="preserve">
+        <value>Nothing playing.</value>
+    </data>
+    <data name="Dashboard_NothingPlayingDetail" xml:space="preserve">
+        <value>The dashboard will update automatically when you start playback.</value>
+    </data>
+    <data name="Dashboard_ErrorOccurred" xml:space="preserve">
+        <value>An error occurred.</value>
+    </data>
+    <data name="Dashboard_ErrorDetail" xml:space="preserve">
+        <value>Check your configuration and try syncing again.</value>
+    </data>
+    <data name="Dashboard_NoDiscussions" xml:space="preserve">
+        <value>No discussions found.</value>
+    </data>
+    <data name="Dashboard_NoDiscussionsDetail" xml:space="preserve">
+        <value>Nothing has been posted about this episode yet, or the sources haven't indexed it.</value>
+    </data>
+    <data name="Dashboard_TimeMachine" xml:space="preserve">
+        <value>Time Machine</value>
+    </data>
+    <data name="Dashboard_AllComments" xml:space="preserve">
+        <value>All Comments</value>
+    </data>
+    <data name="Dashboard_NoCommentsMatchFilter" xml:space="preserve">
+        <value>No comments match the current filter.</value>
+    </data>
+    <data name="Dashboard_GroupByThread" xml:space="preserve">
+        <value>Group by thread</value>
+    </data>
+    <data name="Dashboard_GroupedByThread" xml:space="preserve">
+        <value>Grouped by thread</value>
+    </data>
+    <data name="Dashboard_OmdbNotConfigured" xml:space="preserve">
+        <value>OMDb API key not configured.</value>
+    </data>
+    <data name="Dashboard_SearchFailed" xml:space="preserve">
+        <value>Search failed.</value>
+    </data>
+    <data name="Dashboard_ConnectionFailed" xml:space="preserve">
+        <value>Connection failed.</value>
+    </data>
+    <data name="Dashboard_LoadSeasonsFailed" xml:space="preserve">
+        <value>Failed to load seasons.</value>
+    </data>
+    <data name="Dashboard_LoadEpisodesFailed" xml:space="preserve">
+        <value>Failed to load episodes.</value>
+    </data>
+    <data name="Dashboard_SetWatchStateFailed" xml:space="preserve">
+        <value>Failed to set watch state.</value>
+    </data>
+    <data name="Dashboard_ClearWatchStateFailed" xml:space="preserve">
+        <value>Failed to clear manual watch state.</value>
+    </data>
+    <!-- Comments: Comment Display -->
+    <data name="Comments_By" xml:space="preserve">
+        <value>By</value>
+    </data>
+    <data name="Comments_Score" xml:space="preserve">
+        <value>Score: {0}</value>
+    </data>
+    <data name="Comments_ViewOn" xml:space="preserve">
+        <value>View on {0} (opens in new tab)</value>
+    </data>
+    <data name="Comments_MoreReplyInThread" xml:space="preserve">
+        <value>{0} more reply in thread</value>
+    </data>
+    <data name="Comments_MoreRepliesInThread" xml:space="preserve">
+        <value>{0} more replies in thread</value>
+    </data>
+    <data name="Comments_ImageFromPost" xml:space="preserve">
+        <value>Image from post</value>
+    </data>
+    <data name="Comments_ClickToEnlarge" xml:space="preserve">
+        <value>{0} — click to enlarge</value>
+    </data>
+    <!-- Accessibility: Screen Reader and ARIA Labels -->
+    <data name="Aria_SyncProgress" xml:space="preserve">
+        <value>Sync progress</value>
+    </data>
+    <data name="Aria_CloseConfigPanel" xml:space="preserve">
+        <value>Close configuration panel</value>
+    </data>
+    <data name="Aria_MinimumLogLevel" xml:space="preserve">
+        <value>Minimum log level</value>
+    </data>
+    <data name="Aria_ImageViewer" xml:space="preserve">
+        <value>Image viewer</value>
+    </data>
+    <data name="Aria_EnlargedImage" xml:space="preserve">
+        <value>Enlarged image</value>
+    </data>
+    <data name="Aria_ShowValue" xml:space="preserve">
+        <value>Show value</value>
+    </data>
+    <data name="Aria_HideValue" xml:space="preserve">
+        <value>Hide value</value>
+    </data>
+    <data name="Aria_Comments" xml:space="preserve">
+        <value>Comments</value>
+    </data>
+    <data name="Aria_ConfigSections" xml:space="preserve">
+        <value>Configuration sections</value>
+    </data>
+    <data name="Aria_RevealSpoiler" xml:space="preserve">
+        <value>Reveal spoiler</value>
+    </data>
 </root>

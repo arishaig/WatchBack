@@ -104,11 +104,15 @@ builder.Services.AddWatchBackInfrastructure();
 
 // Add internationalization and localization
 builder.Services.AddLocalization();
-var supportedCultures = new[] { "en", "es" };
-var localizationOptions = new RequestLocalizationOptions()
-    .SetDefaultCulture("en")
-    .AddSupportedCultures(supportedCultures)
-    .AddSupportedUICultures(supportedCultures);
+var supportedCultures = new[] { "en-US", "es" };
+builder.Services.Configure<RequestLocalizationOptions>(opts =>
+{
+    opts.SetDefaultCulture("en-US")
+        .AddSupportedCultures(supportedCultures)
+        .AddSupportedUICultures(supportedCultures);
+    opts.FallBackToParentCultures = true;
+    opts.FallBackToParentUICultures = true;
+});
 
 // Add core services
 builder.Services.AddScoped<ISyncService, SyncService>();
@@ -186,7 +190,7 @@ await InitializeAuthAsync(app);
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.UseRequestLocalization(localizationOptions);
+app.UseRequestLocalization();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();

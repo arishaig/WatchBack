@@ -4,7 +4,7 @@
  * code blocks, superscript, headings, spoiler tags, and unordered lists.
  * Output is sanitised — no raw HTML passes through.
  */
-function renderMarkdown(src) {
+function renderMarkdown(src, spoilerLabel) {
     if (!src) return '';
 
     // Escape HTML entities first — prevents XSS while preserving literal &, <, > display
@@ -60,8 +60,9 @@ function renderMarkdown(src) {
     t = t.replace(/\^(\([^)]+\)|\S+)/g, (_, content) =>
         '<sup>' + content.replace(/^\(|\)$/g, '') + '</sup>');
     // Reddit spoiler tags >!text!<
+    const spoilerAriaLabel = spoilerLabel || window.t('Aria_RevealSpoiler');
     t = t.replace(/&gt;!(.+?)!&lt;/g,
-        '<span class="wb-md-spoiler" tabindex="0" role="button" aria-label="Reveal spoiler" onclick="this.classList.add(\'revealed\')" onkeydown="if(event.key===\'Enter\')this.classList.add(\'revealed\')">$1</span>');
+        '<span class="wb-md-spoiler" tabindex="0" role="button" aria-label="' + spoilerAriaLabel.replace(/"/g, '&quot;') + '" onclick="this.classList.add(\'revealed\')" onkeydown="if(event.key===\'Enter\')this.classList.add(\'revealed\')">$1</span>');
     // Links [text](url)
     t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
         '<a href="$2" target="_blank" rel="noopener noreferrer" class="wb-md-link">$1</a>');
@@ -169,6 +170,9 @@ document.addEventListener('alpine:init', () => {
         drilldownSeason: null, // selected SeasonInfo
         drilldownEpisodes: [],
         drilldownLoading: false,
+        locale: localStorage.getItem('wb_locale') || (navigator.language || 'en').split('-')[0] || 'en',
+        supportedLocales: [],
+        _stringsReady: false,
         themes: [
             { id: 'dark', label: 'Dark' },
             { id: 'light', label: 'Light' },
@@ -177,10 +181,36 @@ document.addEventListener('alpine:init', () => {
             { id: 'monokai', label: 'Monokai' },
         ],
 
+        t(key) {
+            void this._stringsReady;
+            var args = Array.prototype.slice.call(arguments, 1);
+            var bundle = window._allStrings[this.locale] || window._allStrings['en'] || {};
+            var str = bundle[key];
+            if (!str) return key;
+            if (args.length === 0) return str;
+            return str.replace(/{(\d+)}/g, function (m, i) {
+                var idx = parseInt(i, 10);
+                return args[idx] !== undefined ? String(args[idx]) : m;
+            });
+        },
+
         async init() {
             console.log("[WatchBack] Initializing");
             this.applyTheme(this.theme);
             this.$watch('showConfig', v => { if (!v) this.closeLogStream(); });
+
+            await window.loadAllStrings();
+            this.supportedLocales = window._supportedLocales;
+            if (!window._allStrings[this.locale]) this.locale = 'en';
+            window._currentLocale = this.locale;
+            this._stringsReady = true;
+
+            this.$watch('locale', (val) => {
+                window._currentLocale = val;
+                localStorage.setItem('wb_locale', val);
+                document.documentElement.lang = val;
+            });
+
             await this.fetchThemes();
             const me = await this.checkAuth();
             if (!me.authenticated) {
@@ -261,10 +291,10 @@ document.addEventListener('alpine:init', () => {
                         await this.initApp();
                     }
                 } else {
-                    this.loginError = data.message || 'Invalid credentials';
+                    this.loginError = data.message || this.t('Auth_InvalidCredentials');
                 }
             } catch {
-                this.loginError = 'Connection failed';
+                this.loginError = this.t('Auth_ConnectionFailed');
             }
             this.loginLoading = false;
         },
@@ -284,10 +314,10 @@ document.addEventListener('alpine:init', () => {
                     this.currentUser = { username: this.setupUsername, authMethod: 'cookie' };
                     await this.initApp();
                 } else {
-                    this.setupError = data.message || 'Setup failed';
+                    this.setupError = data.message || this.t('Auth_SetupFailed');
                 }
             } catch {
-                this.setupError = 'Connection failed';
+                this.setupError = this.t('Auth_ConnectionFailed');
             }
             this.setupLoading = false;
         },
@@ -295,11 +325,11 @@ document.addEventListener('alpine:init', () => {
         async changePassword() {
             if (this.changePwLoading) return;
             if (!this.changePwNew) {
-                this.changePwError = 'Password is required.';
+                this.changePwError = this.t('Auth_PasswordRequired');
                 return;
             }
             if (this.changePwNew !== this.changePwConfirm) {
-                this.changePwError = 'Passwords do not match.';
+                this.changePwError = this.t('Auth_PasswordsDoNotMatch');
                 return;
             }
             this.changePwLoading = true;
@@ -314,10 +344,10 @@ document.addEventListener('alpine:init', () => {
                 if (data.ok) {
                     await this.initApp();
                 } else {
-                    this.changePwError = data.message || 'Password change failed';
+                    this.changePwError = data.message || this.t('Auth_PasswordChangeFailed');
                 }
             } catch {
-                this.changePwError = 'Connection failed';
+                this.changePwError = this.t('Auth_ConnectionFailed');
             }
             this.changePwLoading = false;
         },
@@ -335,7 +365,7 @@ document.addEventListener('alpine:init', () => {
                 });
             }
             const result = zxcvbn(password, [this.loginUsername, this.setupUsername, 'watchback'].filter(Boolean));
-            const labels = ['Very weak', 'Weak', 'Fair', 'Strong', 'Very strong'];
+            const labels = [this.t('Setup_PasswordVeryWeak'), this.t('Setup_PasswordWeak'), this.t('Setup_PasswordFair'), this.t('Setup_PasswordStrong'), this.t('Setup_PasswordVeryStrong')];
             const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#16a34a'];
             this.passwordStrength = {
                 score: result.score,
@@ -532,22 +562,22 @@ document.addEventListener('alpine:init', () => {
 
             const meta = [
                 `Version:   ${this.appVersion ?? 'unknown'}`,
-                `Captured:  ${new Date().toUTCString()}`,
-                `Browser:   ${navigator.userAgent}`,
+                `${this.t('Diagnostics_Captured')} ${new Date().toUTCString()}`,
+                `${this.t('Diagnostics_Browser')} ${navigator.userAgent}`,
                 `Theme:     ${this.theme}`,
-                `Filter:    ${this.logLevel} (${entries.length} of ${this.logEntries.length} entries)`,
+                `${this.t('Diagnostics_Filter')} ${this.logLevel} (${this.t('Diagnostics_Entries', entries.length, this.logEntries.length)})`,
             ];
             if (this.syncHistory) {
-                meta.push(`Sync:      ${this.syncHistory.status}${this.syncHistory.title ? ` — ${this.syncHistory.title}` : ''}`);
+                meta.push(`${this.t('Diagnostics_Sync')} ${this.syncHistory.status}${this.syncHistory.title ? ` — ${this.syncHistory.title}` : ''}`);
                 if ((this.syncHistory.sources || []).length > 0) {
                     const providerSummary = this.syncHistory.sources
                         .map(s => `${s.source} (${s.thoughtCount})`)
                         .join(', ');
-                    meta.push(`Providers: ${providerSummary}`);
+                    meta.push(`${this.t('Diagnostics_Providers')} ${providerSummary}`);
                 }
             }
 
-            const header = `=== WatchBack${ver} Diagnostic Log ===`;
+            const header = `=== WatchBack${ver} ${this.t('Diagnostics_DiagnosticLog')} ===`;
             const separator = '='.repeat(header.length);
             const logLines = entries.map(e => {
                 const time = this.formatLogTime(e.timestamp);
@@ -561,7 +591,7 @@ document.addEventListener('alpine:init', () => {
                 header,
                 meta.join('\n'),
                 separator,
-                ...(logLines.length > 0 ? logLines : ['(no entries matching filter)']),
+                ...(logLines.length > 0 ? logLines : [this.t('Diagnostics_NoEntriesMatchingFilter')]),
             ];
             const text = sections.join('\n');
             try {
@@ -601,10 +631,10 @@ document.addEventListener('alpine:init', () => {
         formatRelativeTime(iso) {
             if (!iso) return '';
             const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-            if (secs < 60) return `${secs}s ago`;
+            if (secs < 60) return this.t('Time_SecondsAgo', secs);
             const mins = Math.floor(secs / 60);
-            if (mins < 60) return `${mins}m ago`;
-            return `${Math.floor(mins / 60)}h ago`;
+            if (mins < 60) return this.t('Time_MinutesAgo', mins);
+            return this.t('Time_HoursAgo', Math.floor(mins / 60));
         },
 
         toggleSection(key) {
@@ -734,7 +764,7 @@ document.addEventListener('alpine:init', () => {
                 await fetch('/api/sync/trigger', { method: 'POST' });
             } catch (e) {
                 console.error("[WatchBack] Trigger failed:", e);
-                this.showError('Connection failed');
+                this.showError(this.t('Auth_ConnectionFailed'));
             }
         },
 
@@ -901,11 +931,11 @@ document.addEventListener('alpine:init', () => {
             const r = this.lastTestResults[service];
             if (!r) {
                 const configured = this.configData?.integrations?.[service]?.configured;
-                if (configured) return { icon: '\u2713', cls: 'wb-accent-text', label: 'configured' };
-                return { icon: '\u2717', cls: 'wb-text-faint', label: 'not configured' };
+                if (configured) return { icon: '\u2713', cls: 'wb-accent-text', label: this.t('Config_Configured') };
+                return { icon: '\u2717', cls: 'wb-text-faint', label: this.t('Config_NotConfiguredStatus') };
             }
-            if (r.status === 'ok') return { icon: '\u2713', cls: 'wb-success-text', label: 'connected' };
-            return { icon: '\u2717', cls: 'wb-error-text', label: 'connection failed' };
+            if (r.status === 'ok') return { icon: '\u2713', cls: 'wb-success-text', label: this.t('Config_Connected') };
+            return { icon: '\u2717', cls: 'wb-error-text', label: this.t('Config_ConnectionFailed') };
         },
 
         async testService(service) {
@@ -937,7 +967,7 @@ document.addEventListener('alpine:init', () => {
                 this.testResults = { ...this.testResults, [service]: result };
                 this.lastTestResults = { ...this.lastTestResults, [service]: result };
             } catch (e) {
-                const result = { status: 'error', message: 'Request failed' };
+                const result = { status: 'error', message: this.t('Config_RequestFailed') };
                 this.testResults = { ...this.testResults, [service]: result };
                 this.lastTestResults = { ...this.lastTestResults, [service]: result };
             }
@@ -991,12 +1021,12 @@ document.addEventListener('alpine:init', () => {
                 if (res.ok) {
                     this.searchResults = await res.json();
                 } else if (res.status === 503) {
-                    this.searchError = 'OMDb API key not configured.';
+                    this.searchError = this.t('Dashboard_OmdbNotConfigured');
                 } else {
-                    this.searchError = 'Search failed.';
+                    this.searchError = this.t('Dashboard_SearchFailed');
                 }
             } catch {
-                this.searchError = 'Connection failed.';
+                this.searchError = this.t('Dashboard_ConnectionFailed');
             }
             this.searchLoading = false;
         },
@@ -1036,7 +1066,7 @@ document.addEventListener('alpine:init', () => {
                 const res = await fetch('/api/search/show/' + encodeURIComponent(result.imdbId) + '/seasons');
                 if (res.ok) this.searchDrilldown.seasons = await res.json();
             } catch {
-                this.searchError = 'Failed to load seasons.';
+                this.searchError = this.t('Dashboard_LoadSeasonsFailed');
             }
             this.drilldownLoading = false;
         },
@@ -1051,7 +1081,7 @@ document.addEventListener('alpine:init', () => {
                     '/season/' + season.seasonNumber + '/episodes');
                 if (res.ok) this.drilldownEpisodes = await res.json();
             } catch {
-                this.searchError = 'Failed to load episodes.';
+                this.searchError = this.t('Dashboard_LoadEpisodesFailed');
             }
             this.drilldownLoading = false;
         },
@@ -1113,10 +1143,10 @@ document.addEventListener('alpine:init', () => {
                     };
                     await this.sync();
                 } else {
-                    this.searchError = 'Failed to set watch state.';
+                    this.searchError = this.t('Dashboard_SetWatchStateFailed');
                 }
             } catch {
-                this.searchError = 'Connection failed.';
+                this.searchError = this.t('Dashboard_ConnectionFailed');
             }
         },
 
@@ -1125,7 +1155,7 @@ document.addEventListener('alpine:init', () => {
                 await fetch('/api/watchstate/manual', { method: 'DELETE' });
                 await this.sync();
             } catch {
-                this.showError('Failed to clear manual watch state.');
+                this.showError(this.t('Dashboard_ClearWatchStateFailed'));
             }
         },
 
