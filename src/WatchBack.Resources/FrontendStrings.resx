@@ -307,7 +307,7 @@
         <value>Clear cache</value>
     </data>
     <data name="DangerZone_ClearCacheHelp" xml:space="preserve">
-        <value>Evict all in-memory thought caches. Useful after changing provider settings.</value>
+        <value>Evict all in-memory caches. Useful after changing provider settings.</value>
     </data>
     <data name="DangerZone_Restart" xml:space="preserve">
         <value>Restart</value>

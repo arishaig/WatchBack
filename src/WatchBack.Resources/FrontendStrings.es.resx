@@ -177,4 +177,46 @@
     <data name="Config_Integrations" xml:space="preserve">
         <value>Integraciones</value>
     </data>
+    <data name="Config_NotConfigured" xml:space="preserve">
+        <value>{0} no configurado</value>
+    </data>
+    <data name="Config_NotConfiguredStatus" xml:space="preserve">
+        <value>no configurado</value>
+    </data>
+    <data name="Config_Posts" xml:space="preserve">
+        <value>Posts</value>
+    </data>
+    <data name="Config_RequestFailed" xml:space="preserve">
+        <value>Hubo un error en la solicitud.</value>
+    </data>
+    <data name="Config_ResetTo" xml:space="preserve">
+        <value>Restablecer a: {0}</value>
+    </data>
+    <data name="Config_Set" xml:space="preserve">
+        <value>establecer</value>
+    </data>
+    <data name="Config_SomeFailed" xml:space="preserve">
+        <value>Algunos Fallaron</value>
+    </data>
+    <data name="Config_TestAll" xml:space="preserve">
+        <value>Probar todas las conexiones</value>
+    </data>
+    <data name="Config_TestConnection" xml:space="preserve">
+        <value>Probar Conexión</value>
+    </data>
+    <data name="Config_Unchanged" xml:space="preserve">
+        <value>sin cambios</value>
+    </data>
+    <data name="Config_WatchData" xml:space="preserve">
+        <value>Actividad de visionado</value>
+    </data>
+    <data name="DangerZone_ClearCache" xml:space="preserve">
+        <value>Limpiar caché</value>
+    </data>
+    <data name="DangerZone_ClearCacheHelp" xml:space="preserve">
+        <value>Purgar todas las cachés en memoria. Recomendado tras modificar los ajustes del proveedor.</value>
+    </data>
+    <data name="DangerZone_ClearCacheTitle" xml:space="preserve">
+        <value>Limpiar caché</value>
+    </data>
 </root>
