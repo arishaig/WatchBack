@@ -14,9 +14,7 @@ html[data-theme="monokai"] {
 
     /* Monokai foreground — ~15:1 on bg */
     --wb-text: #f8f8f2;
-    --wb-text-secondary: #e0ddd0;
-    /* Brightened from #b0ac98 — ~4.8:1 on surface-alt */
-    --wb-text-muted: #c0bcaa;
+    --wb-text-secondary: #c0bcaa;
     /* Brightened from Monokai comment #75715e — ~4.7:1 on surface */
     --wb-text-faint: #adaa9a;
 
@@ -27,22 +25,6 @@ html[data-theme="monokai"] {
     --wb-on-accent: #272822;
 
     --wb-switch-bg: #75715e;
-
-    /* Source: Reddit — Monokai orange, brightened for WCAG AA on surface */
-    --wb-reddit-bg: #644f2e;
-    --wb-reddit-text: #ffb861;
-    --wb-reddit-hover: #8a612a;
-    --wb-reddit-muted: #f0a64a;
-    --wb-reddit-border: #77582c;
-
-    /* Source: Bluesky — Monokai purple; text brightened from #cdb0ff (4.43:1) to meet 4.5:1 */
-    --wb-bluesky-bg: #544b5b;
-    --wb-bluesky-text: #d2b8ff;
-    --wb-bluesky-hover: #6b5884;
-
-    /* Source: Trakt */
-    --wb-trakt-bg: #af0e13;
-    --wb-trakt-text: #f8f8f2;
 
     /* Filter pills */
     --wb-filter-inactive-bg: #3e3d32;

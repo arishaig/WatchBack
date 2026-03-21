@@ -21,6 +21,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WatchBack.Core\WatchBack.Core.csproj" />
+    <ProjectReference Include="..\WatchBack.Resources\WatchBack.Resources.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.Extensions.Localization.Abstractions">
+      <HintPath>..\..\..\..\.nuget\packages\microsoft.aspnetcore.app.ref\10.0.4\ref\net10.0\Microsoft.Extensions.Localization.Abstractions.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

@@ -18,8 +18,6 @@ html[data-theme="solarized-dark"] {
     --wb-text: #a4b3b3;
     /* base1 — 4.85:1 on surface */
     --wb-text-secondary: #93a1a1;
-    /* base1 — must match text to pass 4.5:1 on surface */
-    --wb-text-muted: #93a1a1;
     /* Brightened from base01 — 4.7:1 on surface */
     --wb-text-faint: #8ea0a0;
 
@@ -31,22 +29,6 @@ html[data-theme="solarized-dark"] {
     --wb-on-accent: #ffffff;
 
     --wb-switch-bg: #586e75;
-
-    /* Source: Reddit — orange tones */
-    --wb-reddit-bg: #383b37;
-    --wb-reddit-text: #f4a261;
-    --wb-reddit-hover: #69402c;
-    --wb-reddit-muted: #e0934a;
-    --wb-reddit-border: #4c3d33;
-
-    /* Source: Bluesky — blue tones */
-    --wb-bluesky-bg: #0f4b66;
-    --wb-bluesky-text: #85bfe5;
-    --wb-bluesky-hover: #155c83;
-
-    /* Source: Trakt */
-    --wb-trakt-bg: #9e1215;
-    --wb-trakt-text: #cdd8d8;
 
     /* Filter pills */
     --wb-filter-inactive-bg: #073642;

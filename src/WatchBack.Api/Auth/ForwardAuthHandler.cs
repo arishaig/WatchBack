@@ -11,28 +11,21 @@ namespace WatchBack.Api.Auth;
 
 public class ForwardAuthOptions : AuthenticationSchemeOptions { }
 
-public class ForwardAuthHandler : AuthenticationHandler<ForwardAuthOptions>
+public class ForwardAuthHandler(
+    IOptionsMonitor<ForwardAuthOptions> options,
+    ILoggerFactory logger,
+    UrlEncoder encoder,
+    IOptionsMonitor<AuthOptions> authOptions)
+    : AuthenticationHandler<ForwardAuthOptions>(options, logger, encoder)
 {
-    private readonly IOptionsMonitor<AuthOptions> _authOptions;
-
     // Pin the first IP that successfully presents the forward auth header.
     // Since there's only one reverse proxy, any other source is suspicious.
     private static IPAddress? s_trustedProxyIp;
     private static readonly object s_ipLock = new();
 
-    public ForwardAuthHandler(
-        IOptionsMonitor<ForwardAuthOptions> options,
-        ILoggerFactory logger,
-        UrlEncoder encoder,
-        IOptionsMonitor<AuthOptions> authOptions)
-        : base(options, logger, encoder)
-    {
-        _authOptions = authOptions;
-    }
-
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var opts = _authOptions.CurrentValue;
+        var opts = authOptions.CurrentValue;
         if (string.IsNullOrEmpty(opts.ForwardAuthHeader))
             return Task.FromResult(AuthenticateResult.NoResult());
 

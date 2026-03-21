@@ -5,35 +5,35 @@ namespace WatchBack.Infrastructure.Persistence.Entities;
 /// </summary>
 public class SyncLogEntity
 {
-    public int Id { get; set; }
+    public int Id { get; init; }
 
     /// <summary>
     /// Timestamp when sync was initiated
     /// </summary>
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; init; } = DateTime.UtcNow;
 
     /// <summary>
     /// Sync result status (e.g., "Idle", "Watching", "Error")
     /// </summary>
-    public required string Status { get; set; }
+    public required string Status { get; init; }
 
     /// <summary>
     /// Title of media being watched, if any
     /// </summary>
-    public string? Title { get; set; }
+    public string? Title { get; init; }
 
     /// <summary>
     /// Count of thoughts aggregated in this sync
     /// </summary>
-    public int ThoughtCount { get; set; }
+    public int ThoughtCount { get; init; }
 
     /// <summary>
     /// Error message if sync failed, null if successful
     /// </summary>
-    public string? ErrorMessage { get; set; }
+    public string? ErrorMessage { get; init; }
 
     /// <summary>
     /// Duration of sync operation in milliseconds
     /// </summary>
-    public long? DurationMs { get; set; }
+    public long? DurationMs { get; init; }
 }

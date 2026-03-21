@@ -1,0 +1,23 @@
+{
+  "name": "watchback-frontend",
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@vitest/coverage-v8": "^3.2.4",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.1",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@types/alpinejs": "^3.13.11",
+    "alpinejs": "^3.15.8"
+  }
+}

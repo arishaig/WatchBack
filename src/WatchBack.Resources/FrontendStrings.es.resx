@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<root>
+    <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+        <xsd:element name="root" msdata:IsDataSet="true">
+
+        </xsd:element>
+    </xsd:schema>
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>1.3</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+    </resheader>
+    <data name="Locale_NativeName" xml:space="preserve">
+        <value>Español</value>
+    </data>
+    <data name="Aria_CloseConfigPanel" xml:space="preserve">
+        <value>Ocultar panel de configuración</value>
+    </data>
+    <data name="Aria_Comments" xml:space="preserve">
+        <value>Comentarios</value>
+    </data>
+    <data name="Aria_ConfigSections" xml:space="preserve">
+        <value>Secciones de configuración</value>
+    </data>
+    <data name="Aria_EnlargedImage" xml:space="preserve">
+        <value>Imagen ampliada</value>
+    </data>
+    <data name="Aria_HideValue" xml:space="preserve">
+        <value>Ocultar contenido</value>
+    </data>
+    <data name="Aria_ImageViewer" xml:space="preserve">
+        <value>Visor de imágenes</value>
+    </data>
+    <data name="Aria_MinimumLogLevel" xml:space="preserve">
+        <value>Nivel mínimo de registros a mostrar</value>
+    </data>
+    <data name="Aria_ShowValue" xml:space="preserve">
+        <value>Mostrar contenido</value>
+    </data>
+    <data name="Aria_SyncProgress" xml:space="preserve">
+        <value>Sincronización en progreso</value>
+    </data>
+    <data name="Auth_ConnectionFailed" xml:space="preserve">
+        <value>Error de conexión</value>
+    </data>
+    <data name="Auth_InitialCredentials" xml:space="preserve">
+        <value>Las credenciales iniciales están en los registros del servidor:</value>
+    </data>
+    <data name="Auth_InvalidCredentials" xml:space="preserve">
+        <value>Credenciales incorrectas</value>
+    </data>
+    <data name="Auth_Password" xml:space="preserve">
+        <value>Contraseña</value>
+    </data>
+    <data name="Auth_PasswordChangeFailed" xml:space="preserve">
+        <value>No se pudo cambiar la contraseña</value>
+    </data>
+    <data name="Auth_PasswordRequired" xml:space="preserve">
+        <value>Se necesita la clave.</value>
+    </data>
+    <data name="Auth_PasswordsDoNotMatch" xml:space="preserve">
+        <value>Las contraseñas no son iguales.</value>
+    </data>
+    <data name="Auth_SetupFailed" xml:space="preserve">
+        <value>Error al configurar</value>
+    </data>
+    <data name="Auth_SignIn" xml:space="preserve">
+        <value>Acceder</value>
+    </data>
+    <data name="Auth_SigningIn" xml:space="preserve">
+        <value>Accediendo...</value>
+    </data>
+    <data name="Auth_SignOut" xml:space="preserve">
+        <value>Salir</value>
+    </data>
+    <data name="Auth_Theme" xml:space="preserve">
+        <value>Tema</value>
+    </data>
+    <data name="Theme_Dark" xml:space="preserve">
+        <value>Oscuro</value>
+    </data>
+    <data name="Theme_Light" xml:space="preserve">
+        <value>Claro</value>
+    </data>
+    <data name="Auth_Username" xml:space="preserve">
+        <value>Nombre de usuario</value>
+    </data>
+    <data name="Comments_By" xml:space="preserve">
+        <value>Por</value>
+    </data>
+    <data name="Comments_ClickToEnlarge" xml:space="preserve">
+        <value>Pulsa para ampliar</value>
+    </data>
+    <data name="Comments_ImageFromPost" xml:space="preserve">
+        <value>Imagen del post</value>
+    </data>
+    <data name="Comments_MoreRepliesInThread" xml:space="preserve">
+        <value>{0} respuestas más en el hilo</value>
+    </data>
+    <data name="Comments_MoreReplyInThread" xml:space="preserve">
+        <value>{0} respuesta más en el hilo</value>
+    </data>
+    <data name="Comments_Score" xml:space="preserve">
+        <value>Puntuación: {0}</value>
+    </data>
+    <data name="Comments_ViewOn" xml:space="preserve">
+        <value>Ver en {0} (se abre en una nueva pestaña)</value>
+    </data>
+    <data name="Common_Clear" xml:space="preserve">
+        <value>Limpio</value>
+    </data>
+    <data name="Common_Cleared" xml:space="preserve">
+        <value>Limpio ✓</value>
+    </data>
+    <data name="Common_Clearing" xml:space="preserve">
+        <value>Vaciado...</value>
+    </data>
+    <data name="Common_Copied" xml:space="preserve">
+        <value>Copiado ✓</value>
+    </data>
+    <data name="Common_Copy" xml:space="preserve">
+        <value>Copiar</value>
+    </data>
+    <data name="Common_Dismiss" xml:space="preserve">
+        <value>Descartar</value>
+    </data>
+    <data name="Common_Error" xml:space="preserve">
+        <value>Error ✗</value>
+    </data>
+    <data name="Common_Resetting" xml:space="preserve">
+        <value>Restableciendo</value>
+    </data>
+    <data name="Common_Save" xml:space="preserve">
+        <value>Guardar</value>
+    </data>
+    <data name="Common_Saved" xml:space="preserve">
+        <value>Guardado</value>
+    </data>
+    <data name="Common_Saving" xml:space="preserve">
+        <value>Guardando...</value>
+    </data>
+    <data name="Common_Testing" xml:space="preserve">
+        <value>Probando...</value>
+    </data>
+    <data name="Config_AllConnected" xml:space="preserve">
+        <value>Todos conectados ✓</value>
+    </data>
+    <data name="Config_AllFailed" xml:space="preserve">
+        <value>Todo falló ✗</value>
+    </data>
+    <data name="Config_ClearOverride" xml:space="preserve">
+        <value>Cancelar la anulación</value>
+    </data>
+    <data name="Config_CommentsFrom" xml:space="preserve">
+        <value>Comentarios de {0}</value>
+    </data>
+    <data name="Config_Configured" xml:space="preserve">
+        <value>configurado</value>
+    </data>
+    <data name="Config_Connected" xml:space="preserve">
+        <value>conectado</value>
+    </data>
+    <data name="Config_ConnectionFailed" xml:space="preserve">
+        <value>error de conexión</value>
+    </data>
+    <data name="Config_From" xml:space="preserve">
+        <value>de</value>
+    </data>
+    <data name="Config_Integrations" xml:space="preserve">
+        <value>Integraciones</value>
+    </data>
+    <data name="Config_NotConfigured" xml:space="preserve">
+        <value>{0} no configurado</value>
+    </data>
+    <data name="Config_NotConfiguredStatus" xml:space="preserve">
+        <value>no configurado</value>
+    </data>
+    <data name="Config_Posts" xml:space="preserve">
+        <value>Posts</value>
+    </data>
+    <data name="Config_RequestFailed" xml:space="preserve">
+        <value>Hubo un error en la solicitud.</value>
+    </data>
+    <data name="Config_ResetTo" xml:space="preserve">
+        <value>Restablecer a: {0}</value>
+    </data>
+    <data name="Config_Set" xml:space="preserve">
+        <value>establecer</value>
+    </data>
+    <data name="Config_SomeFailed" xml:space="preserve">
+        <value>Algunos Fallaron</value>
+    </data>
+    <data name="Config_TestAll" xml:space="preserve">
+        <value>Probar todas las conexiones</value>
+    </data>
+    <data name="Config_TestConnection" xml:space="preserve">
+        <value>Probar Conexión</value>
+    </data>
+    <data name="Config_Unchanged" xml:space="preserve">
+        <value>sin cambios</value>
+    </data>
+    <data name="Config_WatchData" xml:space="preserve">
+        <value>Actividad de visionado</value>
+    </data>
+    <data name="DangerZone_ClearCache" xml:space="preserve">
+        <value>Limpiar caché</value>
+    </data>
+    <data name="DangerZone_ClearCacheHelp" xml:space="preserve">
+        <value>Purgar todas las cachés en memoria. Recomendado tras modificar los ajustes del proveedor.</value>
+    </data>
+    <data name="DangerZone_ClearCacheTitle" xml:space="preserve">
+        <value>Limpiar caché</value>
+    </data>
+    <data name="DangerZone_EnableForwardAuth" xml:space="preserve">
+        <value>Activar forward auth</value>
+    </data>
+    <data name="DangerZone_ForwardAuth" xml:space="preserve">
+        <value>Forward auth</value>
+    </data>
+    <data name="DangerZone_ForwardAuthHelp" xml:space="preserve">
+        <value>Confiar en el encabezado del proxy inverso en lugar de pedir una contraseña.</value>
+    </data>
+    <data name="DangerZone_ForwardAuthWarning" xml:space="preserve">
+        <value>Activar solo detrás de un proxy inverso de confianza que realice la autenticación. Si la aplicación es accesible directamente desde internet, cualquiera podría eludir la autenticación mediante la suplantación de este encabezado.</value>
+    </data>
+    <data name="DangerZone_HeaderName" xml:space="preserve">
+        <value>Yes, Nombre del encabezado</value>
+    </data>
+    <data name="DangerZone_ResetPassword" xml:space="preserve">
+        <value>Cambiar contraseña</value>
+    </data>
+    <data name="DangerZone_ResetPasswordDone" xml:space="preserve">
+        <value>Listo — revisar registros ✓</value>
+    </data>
+    <data name="DangerZone_ResetPasswordHelp" xml:space="preserve">
+        <value>Generar una nueva contraseña aleatoria e imprimirla en los registros del servidor.</value>
+    </data>
+    <data name="DangerZone_ResetPasswordTitle" xml:space="preserve">
+        <value>Cambiar contraseña</value>
+    </data>
+    <data name="DangerZone_Restart" xml:space="preserve">
+        <value>Reiniciar</value>
+    </data>
+    <data name="DangerZone_RestartHelp" xml:space="preserve">
+        <value>Detener el servidor de forma controlada. El host (Docker, systemd) debería reiniciarlo automáticamente.</value>
+    </data>
+    <data name="DangerZone_Title" xml:space="preserve">
+        <value>Zona de peligro</value>
+    </data>
+</root>

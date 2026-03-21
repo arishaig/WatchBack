@@ -75,7 +75,9 @@ public record ThoughtResponse(
     IReadOnlyList<ThoughtResponse> Replies,
     string? PostTitle = null,
     string? PostUrl = null,
-    string? PostBody = null);
+    string? PostBody = null,
+    string? BrandColor = null,
+    string? BrandLogoSvg = null);
 
 /// <summary>
 /// An image associated with a thought
@@ -101,7 +103,9 @@ public record SourceResultResponse(
     string? PostUrl,
     string? ImageUrl,
     IReadOnlyList<ThoughtResponse> Thoughts,
-    string? NextPageToken);
+    string? NextPageToken,
+    string? BrandColor = null,
+    string? BrandLogoSvg = null);
 
 /// <summary>
 /// A single rating from a review aggregator or publication.

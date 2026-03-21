@@ -38,16 +38,14 @@ coverage.xml
 .env.local
 .env.*.local
 
-# Node modules (if frontend exists)
+# Node modules
 node_modules/
+frontend/node_modules/
+frontend/.vite/
 
 # Temporary files
 .tmp/
 temp/
-
-# Package lock files (if using npm)
-package-lock.json
-yarn.lock
 
 # Build output
 dist/
@@ -56,6 +54,10 @@ publish/
 # JetBrains Rider
 .idea/
 *.sln.iml
+*.DotSettings.user
+*.csproj.DotSettings
+*.csproj.DotSettings.user
+*.sln.DotSettings.user
 
 # Visual Studio Code
 .vscode-ctags

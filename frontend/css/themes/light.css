@@ -10,8 +10,7 @@ html[data-theme="light"] {
     --wb-border-light: #d1d5db;
 
     --wb-text: #1f2937;
-    --wb-text-secondary: #374151;
-    --wb-text-muted: #616774;
+    --wb-text-secondary: #4b5563;
     --wb-text-faint: #6a6f78;
 
     --wb-accent: #2563eb;
@@ -20,19 +19,6 @@ html[data-theme="light"] {
     --wb-on-accent: #ffffff;
 
     --wb-switch-bg: #d1d5db;
-
-    --wb-reddit-bg: #fff1dd;
-    --wb-reddit-text: #9a3409;
-    --wb-reddit-hover: #ffe4c4;
-    --wb-reddit-muted: #b5430a;
-    --wb-reddit-border: #fdd3b1;
-
-    --wb-bluesky-bg: #e2eefe;
-    --wb-bluesky-text: #1d4ed8;
-    --wb-bluesky-hover: #bfdbfe;
-
-    --wb-trakt-bg: #e5e7eb;
-    --wb-trakt-text: #616774;
 
     --wb-filter-inactive-bg: #ffffff;
     --wb-filter-inactive-text: #6a6f78;

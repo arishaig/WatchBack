@@ -5,25 +5,25 @@ namespace WatchBack.Infrastructure.Persistence.Entities;
 /// </summary>
 public class UserPreferenceEntity
 {
-    public int Id { get; set; }
+    public int Id { get; init; }
 
     /// <summary>
     /// Preference key (e.g., "TimeMachineDays", "DefaultProvider")
     /// </summary>
-    public required string Key { get; set; }
+    public required string Key { get; init; }
 
     /// <summary>
     /// Preference value as string (parsed by consuming code as needed)
     /// </summary>
-    public required string Value { get; set; }
+    public required string Value { get; init; }
 
     /// <summary>
     /// When this preference was last updated
     /// </summary>
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; init; } = DateTime.UtcNow;
 
     /// <summary>
     /// Optional description for admin reference
     /// </summary>
-    public string? Description { get; set; }
+    public string? Description { get; init; }
 }

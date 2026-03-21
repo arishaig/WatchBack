@@ -91,18 +91,22 @@ public sealed class ResilientHttpHandler(
         return window > MaxRateLimitWindow ? MaxRateLimitWindow : window;
     }
 
-    private static bool IsTransientStatus(HttpStatusCode status) =>
-        status is HttpStatusCode.InternalServerError
-               or HttpStatusCode.BadGateway
-               or HttpStatusCode.ServiceUnavailable
-               or HttpStatusCode.GatewayTimeout;
+    private static bool IsTransientStatus(HttpStatusCode status)
+    {
+        return status is HttpStatusCode.InternalServerError
+            or HttpStatusCode.BadGateway
+            or HttpStatusCode.ServiceUnavailable
+            or HttpStatusCode.GatewayTimeout;
+    }
 
-    private static bool IsTransientException(Exception ex, CancellationToken ct) =>
+    private static bool IsTransientException(Exception ex, CancellationToken ct)
+    {
         // Timeouts (HttpClient.Timeout elapsed → inner TimeoutException) are not retried:
         // they indicate a misconfigured or unreachable host, not a transient blip.
-        ex.InnerException is not TimeoutException
-        && (ex is HttpRequestException
-            || (ex is TaskCanceledException or OperationCanceledException && !ct.IsCancellationRequested));
+        return ex.InnerException is not TimeoutException
+               && (ex is HttpRequestException
+                   || (ex is TaskCanceledException or OperationCanceledException && !ct.IsCancellationRequested));
+    }
 
     /// <summary>~1 s → ~2 s → ~4 s with ±25 % jitter, capped at MaxBackoffDelay.</summary>
     private static TimeSpan ExponentialDelay(int attempt)

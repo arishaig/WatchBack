@@ -20,10 +20,16 @@ public partial class OmdbMediaSearchProvider
     [GeneratedRegex(@"season\s+(\d+)\s+episode\s+(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex SeasonEpisodePattern();
 
-    public MediaSearchProviderMetadata Metadata => new(
-        Name: "OMDb",
-        Description: "Open Movie Database — free tier (1 000 req/day)",
-        BrandData: OmdbBrandData);
+    public MediaSearchProviderMetadata Metadata
+    {
+        get
+        {
+            return new(
+                Name: "OMDb",
+                Description: "Open Movie Database",
+                BrandData: OmdbBrandData);
+        }
+    }
 
     public async Task<IReadOnlyList<MediaSearchResult>> SearchAsync(string query, CancellationToken ct = default)
     {
@@ -68,7 +74,7 @@ public partial class OmdbMediaSearchProvider
                 PosterUrl: NullIfNa(r.Poster)))
             .ToList();
 
-        cache.Set(cacheKey, (IReadOnlyList<MediaSearchResult>)results, SearchCacheDuration);
+        cache.Set<IReadOnlyList<MediaSearchResult>>(cacheKey, results, SearchCacheDuration);
         return results;
     }
 
@@ -94,7 +100,7 @@ public partial class OmdbMediaSearchProvider
                 EpisodeCount: n == 1 ? response.Episodes?.Length ?? 0 : 0))
             .ToList();
 
-        cache.Set(cacheKey, (IReadOnlyList<SeasonInfo>)seasons, EpisodeCacheDuration);
+        cache.Set<IReadOnlyList<SeasonInfo>>(cacheKey, seasons, EpisodeCacheDuration);
         return seasons;
     }
 
@@ -122,7 +128,7 @@ public partial class OmdbMediaSearchProvider
                 AirDate: ParseOmdbDate(e.Released)))
             .ToList();
 
-        cache.Set(cacheKey, (IReadOnlyList<EpisodeInfo>)episodes, EpisodeCacheDuration);
+        cache.Set<IReadOnlyList<EpisodeInfo>>(cacheKey, episodes, EpisodeCacheDuration);
         return episodes;
     }
 

@@ -6,35 +6,35 @@ namespace WatchBack.Infrastructure.Persistence.Entities;
 /// </summary>
 public class ProviderConfigEntity
 {
-    public int Id { get; set; }
+    public int Id { get; init; }
 
     /// <summary>
     /// Provider name (e.g., "Jellyfin", "Trakt", "Bluesky", "Reddit")
     /// </summary>
-    public required string ProviderName { get; set; }
+    public required string ProviderName { get; init; }
 
     /// <summary>
     /// Configuration key (e.g., "ApiKey", "AccessToken", "Handle")
     /// </summary>
-    public required string ConfigKey { get; set; }
+    public required string ConfigKey { get; init; }
 
     /// <summary>
     /// Configuration value (encrypted in production)
     /// </summary>
-    public required string ConfigValue { get; set; }
+    public required string ConfigValue { get; init; }
 
     /// <summary>
     /// Whether this value is encrypted
     /// </summary>
-    public bool IsEncrypted { get; set; }
+    public bool IsEncrypted { get; init; }
 
     /// <summary>
     /// When this configuration was last updated
     /// </summary>
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; init; } = DateTime.UtcNow;
 
     /// <summary>
     /// Optional description for admin reference
     /// </summary>
-    public string? Description { get; set; }
+    public string? Description { get; init; }
 }
