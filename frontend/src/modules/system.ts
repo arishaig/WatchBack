@@ -2,7 +2,7 @@ import type { AppData } from '../types';
 
 const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     setupSSE() {
-        const es = new (window as Window & { ReconnectingEventSource: new (url: string, opts: Record<string, unknown>) => EventSource }).ReconnectingEventSource(
+        const es = new (window as unknown as Window & { ReconnectingEventSource: new (url: string, opts: Record<string, unknown>) => EventSource }).ReconnectingEventSource(
             '/api/sync/stream', { max_retry_time: 60000 }
         );
         es.onmessage = (e: MessageEvent) => {
@@ -104,7 +104,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
 
     openLogStream() {
         this.closeLogStream();
-        const es = new (window as Window & { ReconnectingEventSource: new (url: string, opts: Record<string, unknown>) => EventSource }).ReconnectingEventSource(
+        const es = new (window as unknown as Window & { ReconnectingEventSource: new (url: string, opts: Record<string, unknown>) => EventSource }).ReconnectingEventSource(
             '/api/diagnostics/logs/stream', { max_retry_time: 60000 }
         );
         es.onmessage = (e: MessageEvent) => {

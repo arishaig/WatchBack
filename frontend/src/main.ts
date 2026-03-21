@@ -122,5 +122,5 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && target.hasAttribute('data-wb-spoiler')) target.classList.add('revealed');
 });
 
-(window as Window & { Alpine: typeof Alpine }).Alpine = Alpine;
+(window as unknown as Window & { Alpine: typeof Alpine }).Alpine = Alpine;
 Alpine.start();
