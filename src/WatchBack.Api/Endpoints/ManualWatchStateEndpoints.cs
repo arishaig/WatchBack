@@ -1,5 +1,6 @@
 using WatchBack.Core.Models;
 using WatchBack.Infrastructure.WatchStateProviders;
+using WatchBack.Resources;
 
 namespace WatchBack.Api.Endpoints;
 
@@ -29,7 +30,7 @@ public static class ManualWatchStateEndpoints
         ManualWatchStateProvider provider)
     {
         if (string.IsNullOrWhiteSpace(request.Title))
-            return Results.BadRequest("Title is required.");
+            return Results.BadRequest(UiStrings.ManualWatchStateEndpoints_SetManualWatchState_Title_is_required_);
 
         MediaContext context;
         if (request.EpisodeTitle != null && request.SeasonNumber.HasValue && request.EpisodeNumber.HasValue)

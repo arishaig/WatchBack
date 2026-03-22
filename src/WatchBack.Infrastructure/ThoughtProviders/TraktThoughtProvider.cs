@@ -28,28 +28,24 @@ public class TraktThoughtProvider(
 {
     private readonly TraktOptions _options = options.Value;
 
-    public DataProviderMetadata Metadata
-    {
-        get
-        {
-            return new ThoughtProviderMetadata(
-                Name: "Trakt",
-                Description: "Trakt comments provider",
-                BrandData: new BrandData(
-                    Color: "#9F42C6",
-                    LogoSvg:
-                    "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Trakt</title><path d=\"m15.082 15.107-.73-.73 9.578-9.583a4.499 4.499 0 0 0-.115-.575L13.662 14.382l1.08 1.08-.73.73-1.81-1.81L23.422 3.144c-.075-.15-.155-.3-.25-.44L11.508 14.377l2.154 2.155-.73.73-7.193-7.199.73-.73 4.309 4.31L22.546 1.86A5.618 5.618 0 0 0 18.362 0H5.635A5.637 5.637 0 0 0 0 5.634V18.37A5.632 5.632 0 0 0 5.635 24h12.732C21.477 24 24 21.48 24 18.37V6.19l-8.913 8.918zm-4.314-2.155L6.814 8.988l.73-.73 3.954 3.96zm1.075-1.084-3.954-3.96.73-.73 3.959 3.96zm9.853 5.688a4.141 4.141 0 0 1-4.14 4.14H6.438a4.144 4.144 0 0 1-4.139-4.14V6.438A4.141 4.141 0 0 1 6.44 2.3h10.387v1.04H6.438c-1.71 0-3.099 1.39-3.099 3.1V17.55c0 1.71 1.39 3.105 3.1 3.105h11.117c1.71 0 3.1-1.395 3.1-3.105v-1.754h1.04v1.754z\"/></svg>"
-                )
-            );
-        }
-    }
+    public DataProviderMetadata Metadata => new ThoughtProviderMetadata(
+        Name: "Trakt",
+        Description: UiStrings.TraktThoughtProvider_Metadata_Trakt_comments_provider,
+        BrandData: new BrandData(
+            Color: "#9F42C6",
+            LogoSvg:
+            "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Trakt</title><path d=\"m15.082 15.107-.73-.73 9.578-9.583a4.499 4.499 0 0 0-.115-.575L13.662 14.382l1.08 1.08-.73.73-1.81-1.81L23.422 3.144c-.075-.15-.155-.3-.25-.44L11.508 14.377l2.154 2.155-.73.73-7.193-7.199.73-.73 4.309 4.31L22.546 1.86A5.618 5.618 0 0 0 18.362 0H5.635A5.637 5.637 0 0 0 0 5.634V18.37A5.632 5.632 0 0 0 5.635 24h12.732C21.477 24 24 21.48 24 18.37V6.19l-8.913 8.918zm-4.314-2.155L6.814 8.988l.73-.73 3.954 3.96zm1.075-1.084-3.954-3.96.73-.73 3.959 3.96zm9.853 5.688a4.141 4.141 0 0 1-4.14 4.14H6.438a4.144 4.144 0 0 1-4.139-4.14V6.438A4.141 4.141 0 0 1 6.44 2.3h10.387v1.04H6.438c-1.71 0-3.099 1.39-3.099 3.1V17.55c0 1.71 1.39 3.105 3.1 3.105h11.117c1.71 0 3.1-1.395 3.1-3.105v-1.754h1.04v1.754z\"/></svg>"
+        )
+    );
 
-    public int ExpectedWeight
+    public int ExpectedWeight => 1;
+
+    public string GetCacheKey(MediaContext mediaContext)
     {
-        get
-        {
-            return 1;
-        }
+        var episode = mediaContext as EpisodeContext;
+        return episode != null
+            ? $"trakt:thoughts:{mediaContext.Title}:s{episode.SeasonNumber}e{episode.EpisodeNumber}"
+            : $"trakt:thoughts:{mediaContext.Title}";
     }
 
     public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
@@ -63,9 +59,7 @@ public class TraktThoughtProvider(
             }
 
             var episode = mediaContext as EpisodeContext;
-            var cacheKey = episode != null
-                ? $"trakt:thoughts:{mediaContext.Title}:s{episode.SeasonNumber}e{episode.EpisodeNumber}"
-                : $"trakt:thoughts:{mediaContext.Title}";
+            var cacheKey = GetCacheKey(mediaContext);
 
             if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
                 return cached;
@@ -84,7 +78,7 @@ public class TraktThoughtProvider(
                 : $"https://api.trakt.tv/shows/{showId}/comments/newest";
 
             var commentsRequest = new HttpRequestMessage(HttpMethod.Get, commentsUrl);
-            ConfigureRequestHeaders(commentsRequest);
+            ConfigureRequest(commentsRequest);
 
             var commentsResponse = await httpClient.SendAsync(commentsRequest, ct);
             if (!commentsResponse.IsSuccessStatusCode)
@@ -161,14 +155,10 @@ public class TraktThoughtProvider(
             request.Headers.Add("trakt-api-key", _options.ClientId);
 
             var response = await httpClient.SendAsync(request, cts.Token);
-            if (response.StatusCode == System.Net.HttpStatusCode.OK)
-            {
-                return new ServiceHealth(IsHealthy: true, Message: "API key valid", CheckedAt: DateTimeOffset.UtcNow);
-            }
 
             return new ServiceHealth(
-                IsHealthy: false,
-                Message: $"HTTP {(int)response.StatusCode}",
+                IsHealthy: response.IsSuccessStatusCode,
+                Message: response.IsSuccessStatusCode ? "OK" : $"HTTP {(int)response.StatusCode}",
                 CheckedAt: DateTimeOffset.UtcNow);
         }
         catch (Exception ex)
@@ -230,7 +220,7 @@ public class TraktThoughtProvider(
     private async Task<string?> TryResolveSlugFromSearchUrlAsync(string url, string title, CancellationToken ct)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        ConfigureRequestHeaders(request);
+        ConfigureRequest(request);
 
         var response = await httpClient.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
@@ -245,7 +235,7 @@ public class TraktThoughtProvider(
             content, TraktThoughtJsonContext.Default.TraktShowSearchItemDtoArray);
 
         var show = results?.FirstOrDefault()?.Show;
-        if (show?.Ids?.Slug == null && show?.Ids?.Trakt == null)
+        if (show?.Ids?.Slug is null && show?.Ids?.Trakt is null)
             return null;
 
         var slug = Uri.EscapeDataString(show.Ids?.Slug
@@ -254,9 +244,9 @@ public class TraktThoughtProvider(
         return slug;
     }
 
-    private void ConfigureRequestHeaders(HttpRequestMessage request)
+    public void ConfigureRequest(HttpRequestMessage request)
     {
-        request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
+        IDataProvider.ApplyDefaultHeaders(request);
         request.Headers.Add("trakt-api-version", "2");
         request.Headers.Add("trakt-api-key", _options.ClientId);
     }

@@ -28,6 +28,22 @@ public interface IDataProvider
     DataProviderMetadata Metadata { get; }
 
     /// <summary>
+    /// Configures HTTP request headers for outgoing requests. The default implementation
+    /// sets the WatchBack User-Agent. Override to add provider-specific headers (e.g. API keys),
+    /// calling <see cref="ApplyDefaultHeaders"/> to preserve the base behaviour.
+    /// </summary>
+    void ConfigureRequest(HttpRequestMessage request) => ApplyDefaultHeaders(request);
+
+    /// <summary>
+    /// Applies the default WatchBack headers (User-Agent). Call this from
+    /// <see cref="ConfigureRequest"/> overrides to replicate base-class behaviour.
+    /// </summary>
+    static void ApplyDefaultHeaders(HttpRequestMessage request)
+    {
+        request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
+    }
+
+    /// <summary>
     /// Checks whether the provider's external service is reachable and
     /// correctly configured, without fetching any real data.
     /// </summary>

@@ -108,18 +108,15 @@ public static class ConfigEndpoints
 
         // Build brand lookup — thought providers take precedence for shared names
         var brandByName = new Dictionary<string, BrandData>(StringComparer.OrdinalIgnoreCase);
-        foreach (var p in watchStateProviders)
+        foreach (var p in watchStateProviders.Cast<IDataProvider>()
+            .Concat(thoughtProviders.Cast<IDataProvider>())
+            .Concat(mediaSearchProviders.Cast<IDataProvider>())
+            .Concat(ratingsProviders.Cast<IDataProvider>()))
             if (p.Metadata.BrandData != null)
                 brandByName[p.Metadata.Name] = p.Metadata.BrandData;
-        foreach (var p in thoughtProviders)
-            if (p.Metadata.BrandData != null)
-                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
-        foreach (var p in mediaSearchProviders)
-            if (p.Metadata.BrandData != null)
-                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
-        foreach (var p in ratingsProviders)
-            if (p.Metadata.BrandData != null)
-                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
+
+        string BrandLogo(string name) => brandByName.GetValueOrDefault(name)?.LogoSvg ?? "";
+        string BrandColor(string name) => brandByName.GetValueOrDefault(name)?.Color ?? "";
 
         return new
         {
@@ -128,8 +125,8 @@ public static class ConfigEndpoints
                 ["jellyfin"] = new
                 {
                     name = "Jellyfin",
-                    logoSvg = brandByName.GetValueOrDefault("Jellyfin")?.LogoSvg ?? "",
-                    brandColor = brandByName.GetValueOrDefault("Jellyfin")?.Color ?? "",
+                    logoSvg = BrandLogo("Jellyfin"),
+                    brandColor = BrandColor("Jellyfin"),
                     fields = new[]
                     {
                         new { key = "Jellyfin__BaseUrl", label = UiStrings.ConfigEndpoints_GetConfig_Server_URL, type = "text", placeholder = "http://jellyfin:8096", hasValue = !string.IsNullOrEmpty(j.BaseUrl) && j.BaseUrl != "http://jellyfin:8096", value = j.BaseUrl ?? "", envValue = EnvVal("Jellyfin__BaseUrl"), isOverridden = IsOverriddenInUserSettings("Jellyfin", "BaseUrl") },
@@ -140,8 +137,8 @@ public static class ConfigEndpoints
                 ["trakt"] = new
                 {
                     name = "Trakt.tv",
-                    logoSvg = brandByName.GetValueOrDefault("Trakt")?.LogoSvg ?? "",
-                    brandColor = brandByName.GetValueOrDefault("Trakt")?.Color ?? "",
+                    logoSvg = BrandLogo("Trakt"),
+                    brandColor = BrandColor("Trakt"),
                     fields = new[]
                     {
                         new { key = "Trakt__ClientId", label = UiStrings.ConfigEndpoints_GetConfig_Client_ID, type = "text", placeholder = UiStrings.ConfigEndpoints_GetConfig_Optional__for_comments_, hasValue = !string.IsNullOrEmpty(t.ClientId), value = t.ClientId ?? "", envValue = EnvVal("Trakt__ClientId"), isOverridden = IsOverriddenInUserSettings("Trakt", "ClientId") },
@@ -153,8 +150,8 @@ public static class ConfigEndpoints
                 ["bluesky"] = new
                 {
                     name = "Bluesky",
-                    logoSvg = brandByName.GetValueOrDefault("Bluesky")?.LogoSvg ?? "",
-                    brandColor = brandByName.GetValueOrDefault("Bluesky")?.Color ?? "",
+                    logoSvg = BrandLogo("Bluesky"),
+                    brandColor = BrandColor("Bluesky"),
                     fields = new[]
                     {
                         new { key = "Bluesky__Handle", label = UiStrings.ConfigEndpoints_GetConfig_Handle_Email, type = "text", placeholder = "you.bsky.social", hasValue = !string.IsNullOrEmpty(b.Handle), value = b.Handle ?? "", envValue = EnvVal("Bluesky__Handle"), isOverridden = IsOverriddenInUserSettings("Bluesky", "Handle") },
@@ -165,8 +162,8 @@ public static class ConfigEndpoints
                 ["reddit"] = new
                 {
                     name = "Reddit",
-                    logoSvg = brandByName.GetValueOrDefault("Reddit")?.LogoSvg ?? "",
-                    brandColor = brandByName.GetValueOrDefault("Reddit")?.Color ?? "",
+                    logoSvg = BrandLogo("Reddit"),
+                    brandColor = BrandColor("Reddit"),
                     fields = new[]
                     {
                         new { key = "Reddit__MaxThreads", label = UiStrings.ConfigEndpoints_GetConfig_Max_Threads, type = "number", placeholder = "3", hasValue = true, value = r.MaxThreads.ToString(System.Globalization.CultureInfo.InvariantCulture), envValue = EnvVal("Reddit__MaxThreads"), isOverridden = IsOverriddenInUserSettings("Reddit", "MaxThreads") },
@@ -177,8 +174,8 @@ public static class ConfigEndpoints
                 ["omdb"] = new
                 {
                     name = "OMDb (Media Search)",
-                    logoSvg = brandByName.GetValueOrDefault("OMDb")?.LogoSvg ?? "",
-                    brandColor = brandByName.GetValueOrDefault("OMDb")?.Color ?? "",
+                    logoSvg = BrandLogo("OMDb"),
+                    brandColor = BrandColor("OMDb"),
                     fields = new[]
                     {
                         new { key = "Omdb__ApiKey", label = UiStrings.ConfigEndpoints_GetConfig_API_Key, type = "password", placeholder = UiStrings.ConfigEndpoints_GetConfig_Free_at_omdbapi_com__1_000_req_day_, hasValue = !string.IsNullOrEmpty(o.ApiKey), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Omdb", "ApiKey") }
@@ -220,7 +217,7 @@ public static class ConfigEndpoints
         CancellationToken ct)
     {
         var body = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>(ct);
-        if (body == null)
+        if (body is null)
             return Results.BadRequest(UiStrings.ConfigEndpoints_SaveConfig_Invalid_request_body);
 
         await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
@@ -395,11 +392,18 @@ public static class ConfigEndpoints
                 "omdb" => await TestOmdb(http,
                     Resolve("Omdb__ApiKey", omdbOpts.Value.ApiKey), ct),
                 _ => new {
-                            ok = false, message = string.Format(
+                            ok = false, message =
+#pragma warning disable CA1863
+                            string.Format(
                             CultureInfo.InvariantCulture,
-                            UiStrings.ConfigEndpoints_TestService_Unknown_service___0_, service) 
+                            UiStrings.ConfigEndpoints_TestService_Unknown_service___0_, service)
+#pragma warning restore CA1863
                          }
             };
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -410,7 +414,7 @@ public static class ConfigEndpoints
     private static async Task<object> TestTrakt(HttpClient http, string clientId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(clientId))
-            return new { ok = false, message = "No Client ID configured" };
+            return new { ok = false, message = UiStrings.TraktThoughtProvider_GetServiceHealthAsync_No_Client_ID_configured };
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
@@ -454,8 +458,10 @@ public static class ConfigEndpoints
             var version = doc.RootElement.TryGetProperty("Version", out var v) && v.ValueKind == JsonValueKind.String
                 ? v.GetString()?[..Math.Min(v.GetString()!.Length, 32)]
                 : null;
-            var message = version != null ? 
-                string.Format(UiStrings.ConfigEndpoints_TestJellyfin_Jellyfin_Version, version) : 
+            var message = version != null ?
+#pragma warning disable CA1863
+                string.Format(CultureInfo.CurrentCulture, UiStrings.ConfigEndpoints_TestJellyfin_Jellyfin_Version, version) :
+#pragma warning restore CA1863
                 UiStrings.ConfigEndpoints_TestJellyfin_Connected;
             return new { ok = true, message };
         }

@@ -43,8 +43,8 @@ public class ConfigurationRepository(WatchBackDbContext dbContext) : IConfigurat
 
     public async Task DeleteAsync(int id, CancellationToken ct = default)
     {
-        var config = await dbContext.ProviderConfigs.FindAsync(new object[] { id }, cancellationToken: ct);
-        if (config != null)
+        var config = await dbContext.ProviderConfigs.FindAsync([id], ct);
+        if (config is not null)
         {
             dbContext.ProviderConfigs.Remove(config);
             await dbContext.SaveChangesAsync(ct);
@@ -53,15 +53,8 @@ public class ConfigurationRepository(WatchBackDbContext dbContext) : IConfigurat
 
     public async Task DeleteByProviderAsync(string providerName, CancellationToken ct = default)
     {
-        var configs = await dbContext.ProviderConfigs
+        await dbContext.ProviderConfigs
             .Where(p => p.ProviderName == providerName)
-            .ToListAsync(ct);
-
-        foreach (var config in configs)
-        {
-            dbContext.ProviderConfigs.Remove(config);
-        }
-
-        await dbContext.SaveChangesAsync(ct);
+            .ExecuteDeleteAsync(ct);
     }
 }

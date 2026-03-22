@@ -285,5 +285,29 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("AuthEndpoints_ChangePassword_Password_is_required_", resourceCulture);
             }
         }
+
+        public static string TraktWatchStateProvider_Metadata_Trakt_watch_state_provider {
+            get {
+                return ResourceManager.GetString("TraktWatchStateProvider_Metadata_Trakt_watch_state_provider", resourceCulture);
+            }
+        }
+
+        public static string TraktThoughtProvider_Metadata_Trakt_comments_provider {
+            get {
+                return ResourceManager.GetString("TraktThoughtProvider_Metadata_Trakt_comments_provider", resourceCulture);
+            }
+        }
+
+        public static string BlueskyThoughtProvider_Metadata_Bluesky_skeets {
+            get {
+                return ResourceManager.GetString("BlueskyThoughtProvider_Metadata_Bluesky_skeets", resourceCulture);
+            }
+        }
+
+        public static string ManualWatchStateEndpoints_SetManualWatchState_Title_is_required_ {
+            get {
+                return ResourceManager.GetString("ManualWatchStateEndpoints_SetManualWatchState_Title_is_required_", resourceCulture);
+            }
+        }
     }
 }

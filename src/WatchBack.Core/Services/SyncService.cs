@@ -45,11 +45,11 @@ public class SyncService(
                     : Task.FromResult<MediaContext?>(null);
 
                 var manualContext = await manual.GetCurrentMediaContextAsync(ct);
-                if (manualContext != null)
+                if (manualContext is not null)
                 {
                     watchStateProvider = manual;
                     var configuredContext = await configuredTask;
-                    if (configuredContext != null)
+                    if (configuredContext is not null)
                     {
                         suppressedProvider = configuredProvider;
                         suppressedContext = configuredContext;
@@ -58,10 +58,10 @@ public class SyncService(
                 }
             }
 
-            if (watchStateProvider == null)
+            if (watchStateProvider is null)
                 watchStateProvider = configuredProvider;
 
-            if (watchStateProvider == null)
+            if (watchStateProvider is null)
             {
                 logger.LogError("No watch state providers registered");
                 return new SyncResult(
@@ -77,7 +77,7 @@ public class SyncService(
             // Get current watch state
             var mediaContext = await watchStateProvider.GetCurrentMediaContextAsync(ct);
 
-            if (mediaContext == null)
+            if (mediaContext is null)
             {
                 return new SyncResult(
                     Status: SyncStatus.Idle,

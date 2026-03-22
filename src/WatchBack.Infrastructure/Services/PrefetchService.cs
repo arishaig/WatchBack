@@ -2,11 +2,8 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
-using WatchBack.Core.Options;
 
 namespace WatchBack.Infrastructure.Services;
 
@@ -14,11 +11,9 @@ public class PrefetchService(
     IServiceScopeFactory scopeFactory,
     IMemoryCache cache,
     ILogger<PrefetchService> logger,
-    IHostApplicationLifetime lifetime,
-    IOptionsMonitor<RedditOptions> redditOptions)
+    IHostApplicationLifetime lifetime)
     : IPrefetchService
 {
-    private readonly IOptionsMonitor<RedditOptions> _redditOptions = redditOptions;
     // Sentinel stored in IMemoryCache so the prefetch state survives the request scope.
     private const string StateKey = "watchback:prefetch:state";
 
@@ -69,10 +64,11 @@ public class PrefetchService(
         if (state.TriggerEpisode == current)
             return;
 
+        EpisodeContext[] stale;
         if (!string.Equals(state.TriggerEpisode.Title, current.Title, StringComparison.Ordinal))
         {
             // Different show: all prefetch targets are stale.
-            EvictAll(state.Targets);
+            stale = state.Targets;
         }
         else
         {
@@ -82,22 +78,23 @@ public class PrefetchService(
                 state.Targets,
                 t => t.SeasonNumber == current.SeasonNumber && t.EpisodeNumber == current.EpisodeNumber);
 
-            var stale = hit >= 0
+            stale = hit >= 0
                 ? state.Targets.Where((_, i) => i != hit).ToArray()
                 : state.Targets;
-
-            EvictAll(stale);
         }
 
+        using var scope = scopeFactory.CreateScope();
+        var providers = scope.ServiceProvider.GetServices<IThoughtProvider>().ToList();
+        EvictAll(stale, providers);
         cache.Remove(StateKey);
     }
 
-    private void EvictAll(IEnumerable<EpisodeContext> targets)
+    private void EvictAll(IEnumerable<EpisodeContext> targets, IReadOnlyList<IThoughtProvider> providers)
     {
         foreach (var target in targets)
         {
-            foreach (var key in ThoughtCacheKeys(target))
-                cache.Remove(key);
+            foreach (var provider in providers)
+                cache.Remove(provider.GetCacheKey(target));
 
             logger.LogDebug("Prefetch: evicted stale cache for {Title} S{Season}E{Episode}",
                 target.Title, target.SeasonNumber, target.EpisodeNumber);
@@ -174,20 +171,4 @@ public class PrefetchService(
         return targets.ToArray();
     }
 
-    /// <summary>
-    /// Cache keys used by each thought provider for a given episode.
-    /// Must stay in sync with the key formats in the individual providers.
-    /// </summary>
-    private IEnumerable<string> ThoughtCacheKeys(EpisodeContext ep)
-    {
-        // RedditThoughtProvider: reddit:thoughts:{Title}:S{S:D2}E{E:D2}:t{MaxThreads}
-        var maxThreads = _redditOptions.CurrentValue.MaxThreads;
-        yield return $"reddit:thoughts:{ep.Title}:S{ep.SeasonNumber:D2}E{ep.EpisodeNumber:D2}:t{maxThreads}";
-
-        // TraktThoughtProvider: trakt:thoughts:{Title}:s{S}e{E}  (unpadded)
-        yield return $"trakt:thoughts:{ep.Title}:s{ep.SeasonNumber}e{ep.EpisodeNumber}";
-
-        // BlueskyThoughtProvider: bluesky:thoughts:{Title}:S{S:D2}E{E:D2}
-        yield return $"bluesky:thoughts:{ep.Title}:S{ep.SeasonNumber:D2}E{ep.EpisodeNumber:D2}";
-    }
 }

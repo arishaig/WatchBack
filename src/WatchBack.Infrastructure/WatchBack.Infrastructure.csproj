@@ -25,9 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="Microsoft.Extensions.Localization.Abstractions">
-      <HintPath>..\..\..\..\.nuget\packages\microsoft.aspnetcore.app.ref\10.0.4\ref\net10.0\Microsoft.Extensions.Localization.Abstractions.dll</HintPath>
-    </Reference>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>
