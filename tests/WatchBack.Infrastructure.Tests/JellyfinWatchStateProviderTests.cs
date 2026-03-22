@@ -342,6 +342,147 @@ public class JellyfinWatchStateProviderTests : IDisposable
         // Assert
         health.IsHealthy.Should().BeFalse();
     }
+
+    // ---- Provider self-description ----
+
+    [Fact]
+    public void ConfigSection_IsJellyfin()
+    {
+        var provider = new JellyfinWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        provider.ConfigSection.Should().Be("Jellyfin");
+    }
+
+    [Fact]
+    public void IsConfigured_WhenApiKeySet_IsTrue()
+    {
+        var opts = new JellyfinOptions { BaseUrl = _options.BaseUrl, ApiKey = "my-key", CacheTtlSeconds = _options.CacheTtlSeconds };
+        var provider = new JellyfinWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<JellyfinOptions>(opts), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        provider.IsConfigured.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsConfigured_WhenApiKeyEmpty_IsFalse()
+    {
+        var opts = new JellyfinOptions { BaseUrl = _options.BaseUrl, ApiKey = "", CacheTtlSeconds = _options.CacheTtlSeconds };
+        var provider = new JellyfinWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<JellyfinOptions>(opts), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        provider.IsConfigured.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetConfigSchema_ReturnsBothFields()
+    {
+        var provider = new JellyfinWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        var fields = provider.GetConfigSchema(_ => "", (_, _) => false);
+
+        fields.Should().HaveCount(2);
+        fields.Select(f => f.Key).Should().BeEquivalentTo(["Jellyfin__BaseUrl", "Jellyfin__ApiKey"]);
+    }
+
+    [Fact]
+    public void GetConfigSchema_ApiKeyField_IsPasswordType()
+    {
+        var provider = new JellyfinWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        var apiKeyField = provider.GetConfigSchema(_ => "", (_, _) => false)
+            .First(f => f.Key == "Jellyfin__ApiKey");
+
+        apiKeyField.Type.Should().Be("password");
+        apiKeyField.Value.Should().BeEmpty("password fields must never expose their stored value");
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_WithValidServer_ReturnsHealthy()
+    {
+        var infoJson = """{"Version":"10.9.11","ServerName":"My Jellyfin"}""";
+        var handler = new MockHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(infoJson) });
+        var client = new HttpClient(handler);
+        var provider = new JellyfinWatchStateProvider(
+            client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        var health = await provider.TestConnectionAsync(new Dictionary<string, string>
+        {
+            ["Jellyfin__BaseUrl"] = _options.BaseUrl,
+            ["Jellyfin__ApiKey"] = _options.ApiKey,
+        });
+
+        health.IsHealthy.Should().BeTrue();
+        health.Message.Should().Contain("10.9.11");
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_WithMissingCredentials_ReturnsUnhealthy()
+    {
+        var provider = new JellyfinWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        var health = await provider.TestConnectionAsync(new Dictionary<string, string>
+        {
+            ["Jellyfin__BaseUrl"] = "",
+            ["Jellyfin__ApiKey"] = "",
+        });
+
+        health.IsHealthy.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_ExistingPlaceholder_ResolvesToStoredApiKey()
+    {
+        // Arrange: server responds with 200 OK when the stored key is used
+        var requestsSeen = new List<HttpRequestMessage>();
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            requestsSeen.Add(req);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"Version":"10.9.0"}"""),
+            };
+        });
+        var client = new HttpClient(handler);
+        var provider = new JellyfinWatchStateProvider(
+            client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        // Act: form sends "__EXISTING__" for the password field
+        var health = await provider.TestConnectionAsync(new Dictionary<string, string>
+        {
+            ["Jellyfin__BaseUrl"] = _options.BaseUrl,
+            ["Jellyfin__ApiKey"] = "__EXISTING__",
+        });
+
+        // Assert: the stored key was used (request was made, server returned OK)
+        health.IsHealthy.Should().BeTrue();
+        requestsSeen.Should().ContainSingle();
+        requestsSeen[0].Headers.GetValues("X-Emby-Authorization").First()
+            .Should().Contain(_options.ApiKey);
+    }
+
+    [Fact]
+    public void RevealSecret_ApiKey_ReturnsStoredValue()
+    {
+        var provider = new JellyfinWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        provider.RevealSecret("Jellyfin__ApiKey").Should().Be(_options.ApiKey);
+    }
+
+    [Fact]
+    public void RevealSecret_UnknownKey_ReturnsNull()
+    {
+        var provider = new JellyfinWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<JellyfinOptions>(_options), _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        provider.RevealSecret("Jellyfin__BaseUrl").Should().BeNull();
+        provider.RevealSecret("SomeOther__Key").Should().BeNull();
+    }
 }
 
 internal sealed class MockHttpMessageHandler : HttpMessageHandler

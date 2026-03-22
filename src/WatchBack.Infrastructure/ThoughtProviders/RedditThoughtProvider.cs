@@ -250,6 +250,33 @@ public class RedditThoughtProvider(
         }
     }
 
+    public string? ConfigSection => "Reddit";
+
+    // Reddit requires no credentials — always operationally configured.
+    public bool IsConfigured => true;
+
+    public IReadOnlyList<ProviderConfigField> GetConfigSchema(
+        Func<string, string> envVal,
+        Func<string, string, bool> isOverridden) =>
+    [
+        new(Key: "Reddit__MaxThreads",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Max_Threads,
+            Type: "number",
+            Placeholder: "3",
+            HasValue: true,
+            Value: _options.MaxThreads.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            EnvValue: envVal("Reddit__MaxThreads"),
+            IsOverridden: isOverridden("Reddit", "MaxThreads")),
+        new(Key: "Reddit__MaxComments",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Max_Comments,
+            Type: "number",
+            Placeholder: "250",
+            HasValue: true,
+            Value: _options.MaxComments.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            EnvValue: envVal("Reddit__MaxComments"),
+            IsOverridden: isOverridden("Reddit", "MaxComments")),
+    ];
+
     private static Thought MapCommentToThought(PullPushCommentDto data, string? postTitle, string? postUrl, string? postBody)
     {
         var parentId = StripRedditPrefix(data.ParentId);

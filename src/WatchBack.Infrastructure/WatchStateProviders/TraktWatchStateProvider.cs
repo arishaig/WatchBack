@@ -31,6 +31,7 @@ public class TraktWatchStateProvider(
     public DataProviderMetadata Metadata => new WatchStateDataProviderMetadata(
         Name: "Trakt",
         Description: UiStrings.TraktWatchStateProvider_Metadata_Trakt_watch_state_provider,
+        OverrideDisplayName: "Trakt.tv",
         BrandData: new BrandData(
             Color: "#9F42C6",
             LogoSvg:
@@ -164,6 +165,72 @@ public class TraktWatchStateProvider(
                 CheckedAt: DateTimeOffset.UtcNow);
         }
     }
+
+    public string? ConfigSection => "Trakt";
+
+    public bool IsConfigured =>
+        !string.IsNullOrEmpty(_options.ClientId) || !string.IsNullOrEmpty(_options.Username);
+
+    public IReadOnlyList<ProviderConfigField> GetConfigSchema(
+        Func<string, string> envVal,
+        Func<string, string, bool> isOverridden) =>
+    [
+        new(Key: "Trakt__ClientId",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Client_ID,
+            Type: "text",
+            Placeholder: UiStrings.ConfigEndpoints_GetConfig_Optional__for_comments_,
+            HasValue: !string.IsNullOrEmpty(_options.ClientId),
+            Value: _options.ClientId ?? "",
+            EnvValue: envVal("Trakt__ClientId"),
+            IsOverridden: isOverridden("Trakt", "ClientId")),
+        new(Key: "Trakt__AccessToken",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Access_Token__OAuth_,
+            Type: "password",
+            Placeholder: UiStrings.ConfigEndpoints_GetConfig_Optional__for_private_profile_,
+            HasValue: !string.IsNullOrEmpty(_options.AccessToken),
+            Value: "",
+            EnvValue: "",
+            IsOverridden: isOverridden("Trakt", "AccessToken")),
+        new(Key: "Trakt__Username",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Username,
+            Type: "text",
+            Placeholder: UiStrings.ConfigEndpoints_GetConfig_Optional__public_profile_,
+            HasValue: !string.IsNullOrEmpty(_options.Username),
+            Value: _options.Username ?? "",
+            EnvValue: envVal("Trakt__Username"),
+            IsOverridden: isOverridden("Trakt", "Username")),
+    ];
+
+    public async Task<ServiceHealth> TestConnectionAsync(
+        IReadOnlyDictionary<string, string> formValues,
+        CancellationToken ct = default)
+    {
+        static string Resolve(IReadOnlyDictionary<string, string> form, string key, string? fallback)
+        {
+            var v = form.GetValueOrDefault(key) ?? string.Empty;
+            return v == "__EXISTING__" ? (fallback ?? string.Empty) : v;
+        }
+
+        var clientId = Resolve(formValues, "Trakt__ClientId", _options.ClientId);
+        if (string.IsNullOrEmpty(clientId))
+            return new ServiceHealth(false, UiStrings.TraktThoughtProvider_GetServiceHealthAsync_No_Client_ID_configured, DateTimeOffset.UtcNow);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        var req = new HttpRequestMessage(HttpMethod.Get, "https://api.trakt.tv/shows/trending?limit=1");
+        IDataProvider.ApplyDefaultHeaders(req);
+        req.Headers.Add("trakt-api-version", "2");
+        req.Headers.Add("trakt-api-key", clientId);
+        var res = await httpClient.SendAsync(req, cts.Token);
+
+        return res.StatusCode == System.Net.HttpStatusCode.OK
+            ? new ServiceHealth(true, UiStrings.ConfigEndpoints_TestJellyfin_Connected, DateTimeOffset.UtcNow)
+            : new ServiceHealth(false, $"HTTP {(int)res.StatusCode}", DateTimeOffset.UtcNow);
+    }
+
+    public string? RevealSecret(string key) =>
+        key == "Trakt__AccessToken" ? _options.AccessToken : null;
 }
 
 internal sealed record TraktIdsDto(

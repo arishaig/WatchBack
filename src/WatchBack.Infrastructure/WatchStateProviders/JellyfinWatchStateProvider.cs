@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -118,6 +119,84 @@ public class JellyfinWatchStateProvider(
                 CheckedAt: DateTimeOffset.UtcNow);
         }
     }
+
+    public string? ConfigSection => "Jellyfin";
+
+    public bool IsConfigured => !string.IsNullOrEmpty(_options.ApiKey);
+
+    public IReadOnlyList<ProviderConfigField> GetConfigSchema(
+        Func<string, string> envVal,
+        Func<string, string, bool> isOverridden) =>
+    [
+        new(Key: "Jellyfin__BaseUrl",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Server_URL,
+            Type: "text",
+            Placeholder: "http://jellyfin:8096",
+            HasValue: !string.IsNullOrEmpty(_options.BaseUrl) && _options.BaseUrl != "http://jellyfin:8096",
+            Value: _options.BaseUrl ?? "",
+            EnvValue: envVal("Jellyfin__BaseUrl"),
+            IsOverridden: isOverridden("Jellyfin", "BaseUrl")),
+        new(Key: "Jellyfin__ApiKey",
+            Label: UiStrings.ConfigEndpoints_GetConfig_API_Key,
+            Type: "password",
+            Placeholder: UiStrings.ConfigEndpoints_GetConfig_Required,
+            HasValue: !string.IsNullOrEmpty(_options.ApiKey),
+            Value: "",
+            EnvValue: "",
+            IsOverridden: isOverridden("Jellyfin", "ApiKey")),
+    ];
+
+    public async Task<ServiceHealth> TestConnectionAsync(
+        IReadOnlyDictionary<string, string> formValues,
+        CancellationToken ct = default)
+    {
+        static string Resolve(IReadOnlyDictionary<string, string> form, string key, string? fallback)
+        {
+            var v = form.GetValueOrDefault(key) ?? string.Empty;
+            return v == "__EXISTING__" ? (fallback ?? string.Empty) : v;
+        }
+
+        var baseUrl = Resolve(formValues, "Jellyfin__BaseUrl", _options.BaseUrl);
+        var apiKey = Resolve(formValues, "Jellyfin__ApiKey", _options.ApiKey);
+
+        if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(apiKey))
+            return new ServiceHealth(false, UiStrings.ConfigEndpoints_TestJellyfin_Server_URL_and_API_Key_required, DateTimeOffset.UtcNow);
+
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var parsed)
+            || (parsed.Scheme != "http" && parsed.Scheme != "https"))
+            return new ServiceHealth(false, UiStrings.ConfigEndpoints_TestJellyfin_, DateTimeOffset.UtcNow);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        var req = new HttpRequestMessage(HttpMethod.Get, baseUrl.TrimEnd('/') + "/System/Info");
+        req.Headers.Add("X-Emby-Authorization", $"MediaBrowser Token=\"{apiKey}\"");
+        var res = await httpClient.SendAsync(req, cts.Token);
+
+        if (!res.IsSuccessStatusCode)
+            return new ServiceHealth(false, $"HTTP {(int)res.StatusCode}", DateTimeOffset.UtcNow);
+
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(cts.Token), cancellationToken: cts.Token);
+            var version = doc.RootElement.TryGetProperty("Version", out var v) && v.ValueKind == JsonValueKind.String
+                ? v.GetString()?[..Math.Min(v.GetString()!.Length, 32)]
+                : null;
+            var message = version is not null
+#pragma warning disable CA1863
+                ? string.Format(CultureInfo.CurrentCulture, UiStrings.ConfigEndpoints_TestJellyfin_Jellyfin_Version, version)
+#pragma warning restore CA1863
+                : UiStrings.ConfigEndpoints_TestJellyfin_Connected;
+            return new ServiceHealth(true, message, DateTimeOffset.UtcNow);
+        }
+        catch
+        {
+            return new ServiceHealth(true, UiStrings.ConfigEndpoints_TestJellyfin_Connected, DateTimeOffset.UtcNow);
+        }
+    }
+
+    public string? RevealSecret(string key) =>
+        key == "Jellyfin__ApiKey" ? _options.ApiKey : null;
 }
 
 internal sealed record JellyfinSessionDto(

@@ -409,6 +409,59 @@ public class TraktThoughtProviderTests : IDisposable
         await act.Should().NotThrowAsync();
     }
 
+    // ---- Provider self-description ----
+
+    [Fact]
+    public void ConfigSection_IsTrakt()
+    {
+        var provider = new TraktThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        // Shares ConfigSection with TraktWatchStateProvider — same key, one merged card in the UI
+        provider.ConfigSection.Should().Be("Trakt");
+    }
+
+    [Fact]
+    public void IsConfigured_WhenClientIdSet_IsTrue()
+    {
+        var opts = new TraktOptions { ClientId = "some-client-id", Username = _options.Username, AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
+        var provider = new TraktThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        ((IDataProvider)provider).IsConfigured.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsConfigured_WhenClientIdEmpty_IsFalse()
+    {
+        var opts = new TraktOptions { ClientId = "", Username = _options.Username, AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
+        var provider = new TraktThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        ((IDataProvider)provider).IsConfigured.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetConfigSchema_ReturnsEmpty_SchemaOwnedByWatchStateProvider()
+    {
+        // TraktThoughtProvider defers schema ownership to TraktWatchStateProvider.
+        // Both share the same ConfigSection; the endpoint picks fields from the first
+        // provider that returns a non-empty schema.
+        var provider = new TraktThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+
+        var fields = ((IDataProvider)provider).GetConfigSchema(_ => "", (_, _) => false);
+        fields.Should().BeEmpty();
+    }
+
     private sealed class CapturingProgress(System.Collections.Concurrent.ConcurrentBag<SyncProgressTick> bag)
         : IProgress<SyncProgressTick>
     {

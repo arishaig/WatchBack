@@ -35,6 +35,57 @@ public partial class OmdbMediaSearchProvider(
     // IDataProvider.Metadata requires DataProviderMetadata; delegate to the typed Metadata above.
     DataProviderMetadata IDataProvider.Metadata => Metadata;
 
+    string? IDataProvider.ConfigSection => "Omdb";
+
+    bool IDataProvider.IsConfigured => !string.IsNullOrWhiteSpace(options.CurrentValue.ApiKey);
+
+    IReadOnlyList<ProviderConfigField> IDataProvider.GetConfigSchema(
+        Func<string, string> envVal,
+        Func<string, string, bool> isOverridden) =>
+    [
+        new(Key: "Omdb__ApiKey",
+            Label: UiStrings.ConfigEndpoints_GetConfig_API_Key,
+            Type: "password",
+            Placeholder: UiStrings.ConfigEndpoints_GetConfig_Free_at_omdbapi_com__1_000_req_day_,
+            HasValue: !string.IsNullOrWhiteSpace(options.CurrentValue.ApiKey),
+            Value: "",
+            EnvValue: "",
+            IsOverridden: isOverridden("Omdb", "ApiKey")),
+    ];
+
+    async Task<ServiceHealth> IDataProvider.TestConnectionAsync(
+        IReadOnlyDictionary<string, string> formValues,
+        CancellationToken ct)
+    {
+        static string Resolve(IReadOnlyDictionary<string, string> form, string key, string? fallback)
+        {
+            var v = form.GetValueOrDefault(key) ?? string.Empty;
+            return v == "__EXISTING__" ? (fallback ?? string.Empty) : v;
+        }
+
+        var apiKey = Resolve(formValues, "Omdb__ApiKey", options.CurrentValue.ApiKey);
+        if (string.IsNullOrEmpty(apiKey))
+            return new ServiceHealth(false, UiStrings.ConfigEndpoints_TestOmdb_No_API_key_configured, DateTimeOffset.UtcNow);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        var res = await httpClient.GetAsync($"https://www.omdbapi.com/?apikey={Uri.EscapeDataString(apiKey)}&t=test", cts.Token);
+        if (!res.IsSuccessStatusCode)
+            return new ServiceHealth(false, $"HTTP {(int)res.StatusCode}", DateTimeOffset.UtcNow);
+
+        using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(cts.Token), cancellationToken: cts.Token);
+        if (doc.RootElement.TryGetProperty("Error", out var err)
+            && err.ValueKind == JsonValueKind.String
+            && (err.GetString() ?? "").Contains("key", StringComparison.OrdinalIgnoreCase))
+            return new ServiceHealth(false, err.GetString(), DateTimeOffset.UtcNow);
+
+        return new ServiceHealth(true, UiStrings.ConfigEndpoints_TestJellyfin_Connected, DateTimeOffset.UtcNow);
+    }
+
+    string? IDataProvider.RevealSecret(string key) =>
+        key == "Omdb__ApiKey" ? options.CurrentValue.ApiKey : null;
+
     public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
     {
         var configured = !string.IsNullOrWhiteSpace(options.CurrentValue.ApiKey);

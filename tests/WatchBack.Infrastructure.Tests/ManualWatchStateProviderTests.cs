@@ -121,4 +121,28 @@ public class ManualWatchStateProviderTests
         meta.SupportedExternalIds.Should().BeEquivalentTo(
             [ExternalIdType.Imdb, ExternalIdType.Tmdb, ExternalIdType.Tvdb]);
     }
+
+    [Fact]
+    public void ConfigSection_IsNull()
+    {
+        var provider = CreateProvider();
+        // Manual provider has no config panel — ConfigSection must be null
+        ((IDataProvider)provider).ConfigSection.Should().BeNull();
+    }
+
+    [Fact]
+    public void Metadata_RequiresManualInput_IsTrue()
+    {
+        var provider = CreateProvider();
+        var meta = provider.Metadata.Should().BeOfType<WatchStateDataProviderMetadata>().Subject;
+        meta.RequiresManualInput.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetConfigSchema_ReturnsEmpty()
+    {
+        var provider = CreateProvider();
+        var fields = ((IDataProvider)provider).GetConfigSchema(_ => "", (_, _) => false);
+        fields.Should().BeEmpty();
+    }
 }

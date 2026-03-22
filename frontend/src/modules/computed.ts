@@ -92,11 +92,14 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
     },
 
     get showSearchBox(): boolean {
-        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean }> | undefined);
-        if (!integrations?.['omdb']?.configured) return false;
+        const prefs = this.configData?.['preferences'] as Record<string, unknown> | undefined;
+        if (!prefs?.['searchConfigured']) return false;
         if (this.alwaysShowSearch) return true;
         if (!this.data || this.data['status'] !== 'Watching') return true;
-        return this.data['watchProvider'] === 'Manual';
+        // Show search when the active watch provider requires manual input (user picks their own media)
+        const watchProvider = this.data['watchProvider'] as string | undefined;
+        const providers = (prefs['watchProviders'] as { value: string; requiresManualInput?: boolean }[]) ?? [];
+        return providers.find(p => p.value === watchProvider)?.requiresManualInput === true;
     },
 };
 

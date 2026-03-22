@@ -141,7 +141,13 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("ConfigEndpoints_GetConfig_API_Key", resourceCulture);
             }
         }
-        
+
+        public static string ConfigEndpoints_GetConfig_Required {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Required", resourceCulture);
+            }
+        }
+
         public static string ConfigEndpoints_GetConfig_Client_ID {
             get {
                 return ResourceManager.GetString("ConfigEndpoints_GetConfig_Client_ID", resourceCulture);

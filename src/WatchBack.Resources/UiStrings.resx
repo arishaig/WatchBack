@@ -66,6 +66,9 @@
     <data name="ConfigEndpoints_GetConfig_API_Key" xml:space="preserve">
         <value>API Key</value>
     </data>
+    <data name="ConfigEndpoints_GetConfig_Required" xml:space="preserve">
+        <value>Required</value>
+    </data>
     <data name="ConfigEndpoints_GetConfig_Client_ID" xml:space="preserve">
         <value>Client ID</value>
     </data>

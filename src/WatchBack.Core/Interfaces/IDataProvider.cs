@@ -48,4 +48,38 @@ public interface IDataProvider
     /// correctly configured, without fetching any real data.
     /// </summary>
     Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// The appsettings configuration section this provider is bound to (e.g. "Jellyfin"),
+    /// used as the integration key in the config UI. Null means no config panel.
+    /// </summary>
+    string? ConfigSection => null;
+
+    /// <summary>Whether this provider has enough configuration to operate.</summary>
+    bool IsConfigured => true;
+
+    /// <summary>
+    /// Returns the field definitions for this provider's settings panel.
+    /// <paramref name="envVal"/> reads a flat key from environment variables only (before user-settings overlay).
+    /// <paramref name="isOverridden"/> returns true when the (section, key) pair exists in user-settings.json.
+    /// </summary>
+    IReadOnlyList<ProviderConfigField> GetConfigSchema(
+        Func<string, string> envVal,
+        Func<string, string, bool> isOverridden) => [];
+
+    /// <summary>
+    /// Tests connectivity using form-submitted values that may not yet be persisted.
+    /// Password fields that were not changed by the user arrive as "__EXISTING__";
+    /// implementations should fall back to their stored option value in that case.
+    /// Default delegates to <see cref="GetServiceHealthAsync"/>.
+    /// </summary>
+    Task<ServiceHealth> TestConnectionAsync(
+        IReadOnlyDictionary<string, string> formValues,
+        CancellationToken ct = default) => GetServiceHealthAsync(ct);
+
+    /// <summary>
+    /// Returns the plaintext value of a secret config field owned by this provider
+    /// (e.g. an API key stored as a password field), or null if the key is not owned here.
+    /// </summary>
+    string? RevealSecret(string key) => null;
 }

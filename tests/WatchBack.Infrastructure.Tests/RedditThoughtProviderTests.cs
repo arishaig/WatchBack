@@ -623,6 +623,64 @@ public class RedditThoughtProviderTests : IDisposable
         await act.Should().NotThrowAsync();
     }
 
+    // ---- Provider self-description ----
+
+    [Fact]
+    public void ConfigSection_IsReddit()
+    {
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        var provider = new RedditThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
+
+        provider.ConfigSection.Should().Be("Reddit");
+    }
+
+    [Fact]
+    public void IsConfigured_IsAlwaysTrue()
+    {
+        // Reddit needs no credentials — always considered configured
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        var provider = new RedditThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
+
+        provider.IsConfigured.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetConfigSchema_ReturnsTwoNumericFields()
+    {
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        var provider = new RedditThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
+
+        var fields = provider.GetConfigSchema(_ => "", (_, _) => false);
+
+        fields.Should().HaveCount(2);
+        fields.Select(f => f.Key).Should().BeEquivalentTo(["Reddit__MaxThreads", "Reddit__MaxComments"]);
+        fields.Should().AllSatisfy(f => f.Type.Should().Be("number"));
+    }
+
+    [Fact]
+    public void RevealSecret_ReturnsNull_NoSecretsToReveal()
+    {
+        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        var provider = new RedditThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
+
+        // Reddit stores no secrets, so RevealSecret should return null for any key
+        // (uses default IDataProvider.RevealSecret DIM — cast to interface to invoke)
+        ((IDataProvider)provider).RevealSecret("Reddit__MaxThreads").Should().BeNull();
+        ((IDataProvider)provider).RevealSecret("Reddit__MaxComments").Should().BeNull();
+    }
+
     private sealed class CapturingProgress(System.Collections.Concurrent.ConcurrentBag<SyncProgressTick> bag)
         : IProgress<SyncProgressTick>
     {

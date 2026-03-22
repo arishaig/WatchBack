@@ -315,4 +315,145 @@ public class TraktWatchStateProviderTests : IDisposable
         // Assert
         health.IsHealthy.Should().BeFalse();
     }
+
+    // ---- Provider self-description ----
+
+    [Fact]
+    public void ConfigSection_IsTrakt()
+    {
+        var provider = new TraktWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        provider.ConfigSection.Should().Be("Trakt");
+    }
+
+    [Fact]
+    public void IsConfigured_WhenClientIdSet_IsTrue()
+    {
+        var opts = new TraktOptions { ClientId = "abc", Username = "", AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
+        var provider = new TraktWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        provider.IsConfigured.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsConfigured_WhenUsernameSet_IsTrue()
+    {
+        var opts = new TraktOptions { ClientId = "", Username = "myuser", AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
+        var provider = new TraktWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        provider.IsConfigured.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsConfigured_WhenBothEmpty_IsFalse()
+    {
+        var opts = new TraktOptions { ClientId = "", Username = "", AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
+        var provider = new TraktWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        provider.IsConfigured.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetConfigSchema_ReturnsThreeFields()
+    {
+        var provider = new TraktWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        var fields = provider.GetConfigSchema(_ => "", (_, _) => false);
+
+        fields.Should().HaveCount(3);
+        fields.Select(f => f.Key).Should().BeEquivalentTo(
+            ["Trakt__ClientId", "Trakt__AccessToken", "Trakt__Username"]);
+    }
+
+    [Fact]
+    public void GetConfigSchema_AccessTokenField_IsPasswordType()
+    {
+        var provider = new TraktWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        var tokenField = provider.GetConfigSchema(_ => "", (_, _) => false)
+            .First(f => f.Key == "Trakt__AccessToken");
+
+        tokenField.Type.Should().Be("password");
+        tokenField.Value.Should().BeEmpty("password fields must never expose their stored value");
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_WithValidClientId_ReturnsHealthy()
+    {
+        var handler = new MockHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]") });
+        var client = new HttpClient(handler);
+        var provider = new TraktWatchStateProvider(
+            client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        var health = await provider.TestConnectionAsync(new Dictionary<string, string>
+        {
+            ["Trakt__ClientId"] = _options.ClientId,
+        });
+
+        health.IsHealthy.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_MissingClientId_ReturnsUnhealthy()
+    {
+        var opts = new TraktOptions { ClientId = "", Username = _options.Username, AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
+        var provider = new TraktWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        var health = await provider.TestConnectionAsync(new Dictionary<string, string>());
+
+        health.IsHealthy.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_ExistingPlaceholder_ResolvesToStoredAccessToken()
+    {
+        var requestsSeen = new List<HttpRequestMessage>();
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            requestsSeen.Add(req);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]") };
+        });
+        var client = new HttpClient(handler);
+        var provider = new TraktWatchStateProvider(
+            client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        var health = await provider.TestConnectionAsync(new Dictionary<string, string>
+        {
+            ["Trakt__ClientId"] = _options.ClientId,
+            ["Trakt__AccessToken"] = "__EXISTING__",
+        });
+
+        health.IsHealthy.Should().BeTrue();
+        requestsSeen.Should().ContainSingle();
+        // ClientId should be sent as trakt-api-key header
+        requestsSeen[0].Headers.GetValues("trakt-api-key").First()
+            .Should().Be(_options.ClientId);
+    }
+
+    [Fact]
+    public void RevealSecret_AccessToken_ReturnsStoredValue()
+    {
+        var provider = new TraktWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        provider.RevealSecret("Trakt__AccessToken").Should().Be(_options.AccessToken);
+    }
+
+    [Fact]
+    public void RevealSecret_OtherKey_ReturnsNull()
+    {
+        var provider = new TraktWatchStateProvider(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+
+        provider.RevealSecret("Trakt__ClientId").Should().BeNull();
+        provider.RevealSecret("Trakt__Username").Should().BeNull();
+    }
 }

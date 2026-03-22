@@ -21,3 +21,14 @@ public record ServiceHealth(
 public record BrandData(
     string Color,
     string LogoSvg);
+
+/// <summary>Describes a single configuration field shown in a provider's settings panel.</summary>
+public record ProviderConfigField(
+    string Key,
+    string Label,
+    string Type,
+    string Placeholder,
+    bool HasValue,
+    string Value,
+    string EnvValue,
+    bool IsOverridden);

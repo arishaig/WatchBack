@@ -40,6 +40,10 @@ public class TraktThoughtProvider(
 
     public int ExpectedWeight => 1;
 
+    public string? ConfigSection => "Trakt";
+
+    public bool IsConfigured => !string.IsNullOrEmpty(_options.ClientId);
+
     public string GetCacheKey(MediaContext mediaContext)
     {
         var episode = mediaContext as EpisodeContext;

@@ -251,6 +251,73 @@ public class BlueskyThoughtProvider(
     {
         return text.ToLowerInvariant().Trim();
     }
+
+    public string? ConfigSection => "Bluesky";
+
+    public bool IsConfigured =>
+        !string.IsNullOrEmpty(_options.Handle) && !string.IsNullOrEmpty(_options.AppPassword);
+
+    public IReadOnlyList<ProviderConfigField> GetConfigSchema(
+        Func<string, string> envVal,
+        Func<string, string, bool> isOverridden) =>
+    [
+        new(Key: "Bluesky__Handle",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Handle_Email,
+            Type: "text",
+            Placeholder: "you.bsky.social",
+            HasValue: !string.IsNullOrEmpty(_options.Handle),
+            Value: _options.Handle ?? "",
+            EnvValue: envVal("Bluesky__Handle"),
+            IsOverridden: isOverridden("Bluesky", "Handle")),
+        new(Key: "Bluesky__AppPassword",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Bluesky_App_Password,
+            Type: "password",
+            Placeholder: "xxxx-xxxx-xxxx-xxxx",
+            HasValue: !string.IsNullOrEmpty(_options.AppPassword),
+            Value: "",
+            EnvValue: "",
+            IsOverridden: isOverridden("Bluesky", "AppPassword")),
+    ];
+
+    public async Task<ServiceHealth> TestConnectionAsync(
+        IReadOnlyDictionary<string, string> formValues,
+        CancellationToken ct = default)
+    {
+        static string Resolve(IReadOnlyDictionary<string, string> form, string key, string? fallback)
+        {
+            var v = form.GetValueOrDefault(key) ?? string.Empty;
+            return v == "__EXISTING__" ? (fallback ?? string.Empty) : v;
+        }
+
+        var handle = Resolve(formValues, "Bluesky__Handle", _options.Handle);
+        var password = Resolve(formValues, "Bluesky__AppPassword", _options.AppPassword);
+
+        if (string.IsNullOrEmpty(handle))
+            return new ServiceHealth(false, UiStrings.ConfigEndpoints_TestBluesky_Handle_required, DateTimeOffset.UtcNow);
+
+        if (string.IsNullOrEmpty(password))
+            return new ServiceHealth(true, UiStrings.ConfigEndpoints_TestBluesky_Handle_set__no_app_password_to_verify_, DateTimeOffset.UtcNow);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        var req = new HttpRequestMessage(HttpMethod.Post, "https://bsky.social/xrpc/com.atproto.server.createSession");
+        req.Content = new StringContent(
+            JsonSerializer.Serialize(new { identifier = handle, password }),
+            Encoding.UTF8, "application/json");
+        var res = await httpClient.SendAsync(req, cts.Token);
+
+        return res.IsSuccessStatusCode
+            ? new ServiceHealth(true, UiStrings.ConfigEndpoints_TestJellyfin_Connected, DateTimeOffset.UtcNow)
+            : new ServiceHealth(false,
+                res.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                    ? UiStrings.ConfigEndpoints_TestBluesky_Invalid_credentials
+                    : $"HTTP {(int)res.StatusCode}",
+                DateTimeOffset.UtcNow);
+    }
+
+    public string? RevealSecret(string key) =>
+        key == "Bluesky__AppPassword" ? _options.AppPassword : null;
 }
 
 internal sealed record BlueskyAuthResponseDto(
