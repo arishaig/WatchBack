@@ -15,7 +15,7 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
         const prefs = (configData['preferences'] as Record<string, unknown>) ?? {};
         this.prefEdits = {
             timeMachineDays: prefs['timeMachineDays'] ?? 14,
-            watchProvider: prefs['watchProvider'] ?? (prefs['watchProviders'] as { value: string }[] | undefined)?.[0]?.value ?? '',
+            watchProvider: prefs['watchProvider'] ?? (prefs['watchProviders'] as { value: string }[] | undefined)?.[0]?.value ?? 'jellyfin',
             searchEngine: prefs['searchEngine'] ?? 'google',
             customSearchUrl: prefs['customSearchUrl'] ?? '',
             segmentedProgressBar: prefs['segmentedProgressBar'] ?? false,
