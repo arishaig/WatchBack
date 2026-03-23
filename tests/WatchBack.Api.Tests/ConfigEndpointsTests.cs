@@ -150,6 +150,9 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     private const string TestUsername = "testadmin";
     private const string TestPassword = "TestPass1!@#456";
 
+    private static readonly string[] _resetWatchUrlKeys = ["TestWatch__Url"];
+    private static readonly string[] _resetConnectionStringKeys = ["ConnectionStrings__Default"];
+
     private WebApplicationFactory<Program> _factory = null!;
     private HttpClient _client = null!;
     private string _tempConfigPath = null!;
@@ -441,7 +444,7 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         // Then reset it
         var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/config")
         {
-            Content = JsonContent.Create(new[] { "TestWatch__Url" }),
+            Content = JsonContent.Create(_resetWatchUrlKeys),
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -455,7 +458,7 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         // Attempting to reset a key not in allowed sections — should not crash, just ignore
         var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/config")
         {
-            Content = JsonContent.Create(new[] { "ConnectionStrings__Default" }),
+            Content = JsonContent.Create(_resetConnectionStringKeys),
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
