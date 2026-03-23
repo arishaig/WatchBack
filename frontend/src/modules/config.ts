@@ -15,7 +15,7 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
         const prefs = (configData['preferences'] as Record<string, unknown>) ?? {};
         this.prefEdits = {
             timeMachineDays: prefs['timeMachineDays'] ?? 14,
-            watchProvider: prefs['watchProvider'] ?? 'jellyfin',
+            watchProvider: prefs['watchProvider'] ?? (prefs['watchProviders'] as { value: string }[] | undefined)?.[0]?.value ?? 'jellyfin',
             searchEngine: prefs['searchEngine'] ?? 'google',
             customSearchUrl: prefs['customSearchUrl'] ?? '',
             segmentedProgressBar: prefs['segmentedProgressBar'] ?? false,
@@ -182,7 +182,7 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
     async testAll() {
         this.testAllStatus = 'testing';
         const integrations = (this.configData?.['integrations'] as Record<string, unknown> | undefined) ?? {};
-        const services = Object.keys(integrations).concat('reddit');
+        const services = Object.keys(integrations);
         await Promise.all(services.map((s) => this.testService(s)));
         const results = services.map(s => this.lastTestResults[s] as Record<string, unknown> | undefined);
         const anyResult = results.some(r => r);

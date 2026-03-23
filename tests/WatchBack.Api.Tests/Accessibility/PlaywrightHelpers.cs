@@ -271,10 +271,10 @@ internal static class PlaywrightHelpers
     {
         ["integrations"] = new Dictionary<string, object>
         {
-            ["jellyfin"] = MakeIntegration("Jellyfin", false),
-            ["trakt"] = MakeIntegration("Trakt.tv", false),
-            ["bluesky"] = MakeIntegration("Bluesky", false),
-            ["reddit"] = MakeIntegration("Reddit", true),
+            ["jellyfin"] = MakeIntegration("Jellyfin", false, ["watchState"]),
+            ["trakt"] = MakeIntegration("Trakt.tv", false, ["watchState", "thought"]),
+            ["bluesky"] = MakeIntegration("Bluesky", false, ["thought"]),
+            ["reddit"] = MakeIntegration("Reddit", true, ["thought"]),
         },
         ["preferences"] = new Dictionary<string, object>
         {
@@ -282,8 +282,9 @@ internal static class PlaywrightHelpers
             ["watchProvider"] = "jellyfin",
             ["watchProviders"] = new[]
             {
-                new { value = "jellyfin", label = "Jellyfin" },
+                new { value = "jellyfin", label = "Jellyfin", requiresManualInput = false },
             },
+            ["searchConfigured"] = false,
         },
     };
 
@@ -291,14 +292,14 @@ internal static class PlaywrightHelpers
     {
         ["integrations"] = new Dictionary<string, object>
         {
-            ["jellyfin"] = MakeIntegration("Jellyfin", true,
+            ["jellyfin"] = MakeIntegration("Jellyfin", true, ["watchState"],
                 ("Jellyfin__BaseUrl", "Server URL", "text", "http://192.168.1.100:8096"),
                 ("Jellyfin__ApiKey", "API Key", "password", "")),
-            ["trakt"] = MakeIntegration("Trakt.tv", true,
+            ["trakt"] = MakeIntegration("Trakt.tv", true, ["watchState", "thought"],
                 ("Trakt__ClientId", "Client ID", "text", "traktclient123"),
                 ("Trakt__Username", "Username", "text", "myuser")),
-            ["bluesky"] = MakeIntegration("Bluesky", false),
-            ["reddit"] = MakeIntegration("Reddit", true),
+            ["bluesky"] = MakeIntegration("Bluesky", false, ["thought"]),
+            ["reddit"] = MakeIntegration("Reddit", true, ["thought"]),
         },
         ["preferences"] = new Dictionary<string, object>
         {
@@ -306,18 +307,31 @@ internal static class PlaywrightHelpers
             ["watchProvider"] = "jellyfin",
             ["watchProviders"] = new[]
             {
-                new { value = "jellyfin", label = "Jellyfin" },
+                new { value = "jellyfin", label = "Jellyfin", requiresManualInput = false },
             },
+            ["searchConfigured"] = true,
         },
     };
 
-    private static object MakeIntegration(string name, bool configured, params (string Key, string Label, string Type, string Value)[] fields)
+    private static object MakeIntegration(
+        string name,
+        bool configured,
+        string[]? providerTypes = null,
+        params (string Key, string Label, string Type, string Value)[] fields)
     {
         var fieldList = fields.Length > 0
             ? fields.Select(f => new { key = f.Key, label = f.Label, type = f.Type, placeholder = "", hasValue = !string.IsNullOrEmpty(f.Value), value = f.Value }).ToArray()
             : Array.Empty<object>();
 
-        return new { name, logoSvg = "", brandColor = "", fields = fieldList, configured };
+        return new
+        {
+            name,
+            logoSvg = "",
+            brandColor = "",
+            fields = fieldList,
+            configured,
+            providerTypes = providerTypes ?? Array.Empty<string>(),
+        };
     }
 
     // -----------------------------------------------------------------------

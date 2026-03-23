@@ -22,6 +22,12 @@ public record WatchStateDataProviderMetadata(
     /// An empty set means the provider does not populate <see cref="MediaContext.ExternalIds"/>.
     /// </summary>
     public IReadOnlySet<string> SupportedExternalIds { get; init; } = new HashSet<string>();
+
+    /// <summary>
+    /// True if this provider requires the user to manually specify the current media.
+    /// When true, the search box is always shown while the provider is active.
+    /// </summary>
+    public bool RequiresManualInput { get; init; }
 }
 
 /// <summary>

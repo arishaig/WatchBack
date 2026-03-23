@@ -20,20 +20,12 @@ public partial class OmdbMediaSearchProvider
     [GeneratedRegex(@"season\s+(\d+)\s+episode\s+(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex SeasonEpisodePattern();
 
-    public MediaSearchProviderMetadata Metadata
-    {
-        get
-        {
-            return new(
-                Name: "OMDb",
-                Description: "Open Movie Database",
-                BrandData: OmdbBrandData);
-        }
-    }
+    public MediaSearchProviderMetadata Metadata =>
+        new(Name: "OMDb", Description: "Open Movie Database", BrandData: OmdbBrandData);
 
     public async Task<IReadOnlyList<MediaSearchResult>> SearchAsync(string query, CancellationToken ct = default)
     {
-        var apiKey = options.Value.ApiKey;
+        var apiKey = options.CurrentValue.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return [];
 
@@ -80,7 +72,7 @@ public partial class OmdbMediaSearchProvider
 
     public async Task<IReadOnlyList<SeasonInfo>> GetSeasonsAsync(string externalId, CancellationToken ct = default)
     {
-        var apiKey = options.Value.ApiKey;
+        var apiKey = options.CurrentValue.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return [];
 
@@ -106,7 +98,7 @@ public partial class OmdbMediaSearchProvider
 
     public async Task<IReadOnlyList<EpisodeInfo>> GetEpisodesAsync(string externalId, int seasonNumber, CancellationToken ct = default)
     {
-        var apiKey = options.Value.ApiKey;
+        var apiKey = options.CurrentValue.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return [];
 

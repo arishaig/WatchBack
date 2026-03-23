@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace WatchBack.Api.Endpoints;
 
-public static class StringsEndpoints
+public static partial class StringsEndpoints
 {
     private static readonly ResourceManager s_uiStringsManager = new("WatchBack.Resources.UiStrings", typeof(WatchBack.Resources.UiStrings).Assembly);
     private static readonly ResourceManager s_frontendStringsManager = new("WatchBack.Resources.FrontendStrings", typeof(WatchBack.Resources.UiStrings).Assembly);
@@ -33,7 +33,7 @@ public static class StringsEndpoints
             .AllowAnonymous();
     }
 
-    private static object GetStrings([FromServices] ILogger<object> logger)
+    private static Dictionary<string, string> GetStrings([FromServices] ILogger<object> logger)
     {
         var culture = CultureInfo.CurrentUICulture;
         var strings = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -45,7 +45,7 @@ public static class StringsEndpoints
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error loading localized strings for culture {Culture}", culture.Name);
+            LogCultureLoadError(logger, culture.Name, ex);
             throw;
         }
 
@@ -75,7 +75,7 @@ public static class StringsEndpoints
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error loading localized strings for culture {Culture}", culture.Name);
+                LogCultureLoadError(logger, culture.Name, ex);
             }
             allStrings[locale] = strings;
         }
@@ -103,7 +103,13 @@ public static class StringsEndpoints
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error loading {ResourceName} strings for culture {Culture}", resourceName, culture.Name);
+            LogResourceLoadError(logger, resourceName, culture.Name, ex);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Error loading localized strings for culture {Culture}")]
+    private static partial void LogCultureLoadError(ILogger logger, string culture, Exception ex);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Error loading {ResourceName} strings for culture {Culture}")]
+    private static partial void LogResourceLoadError(ILogger logger, string resourceName, string culture, Exception ex);
 }

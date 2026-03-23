@@ -20,7 +20,7 @@ public class UserPreferenceEntity
     /// <summary>
     /// When this preference was last updated
     /// </summary>
-    public DateTime UpdatedAt { get; init; } = DateTime.UtcNow;
+    public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Optional description for admin reference

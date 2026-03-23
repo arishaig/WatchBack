@@ -66,6 +66,9 @@
     <data name="ConfigEndpoints_GetConfig_API_Key" xml:space="preserve">
         <value>API Key</value>
     </data>
+    <data name="ConfigEndpoints_GetConfig_Required" xml:space="preserve">
+        <value>Required</value>
+    </data>
     <data name="ConfigEndpoints_GetConfig_Client_ID" xml:space="preserve">
         <value>Client ID</value>
     </data>
@@ -137,5 +140,17 @@
     </data>
     <data name="AuthEndpoints_ChangePassword_Password_is_required_" xml:space="preserve">
         <value>Password is required.</value>
+    </data>
+    <data name="TraktWatchStateProvider_Metadata_Trakt_watch_state_provider" xml:space="preserve">
+        <value>Trakt watch state provider</value>
+    </data>
+    <data name="TraktThoughtProvider_Metadata_Trakt_comments_provider" xml:space="preserve">
+        <value>Trakt comments provider</value>
+    </data>
+    <data name="BlueskyThoughtProvider_Metadata_Bluesky_skeets" xml:space="preserve">
+        <value>Bluesky skeets</value>
+    </data>
+    <data name="ManualWatchStateEndpoints_SetManualWatchState_Title_is_required_" xml:space="preserve">
+        <value>Title is required.</value>
     </data>
 </root>

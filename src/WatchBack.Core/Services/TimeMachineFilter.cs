@@ -10,7 +10,7 @@ public class TimeMachineFilter : ITimeMachineFilter
         DateTimeOffset? airDate,
         int windowDays)
     {
-        if (airDate == null)
+        if (airDate is null)
         {
             return thoughts.ToList();
         }

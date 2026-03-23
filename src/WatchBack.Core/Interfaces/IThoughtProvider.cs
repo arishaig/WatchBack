@@ -29,6 +29,12 @@ public interface IThoughtProvider : IDataProvider
     int ExpectedWeight { get; }
 
     /// <summary>
+    /// Returns the cache key this provider uses for the given media context.
+    /// Used by PrefetchService to evict stale entries without duplicating key formats.
+    /// </summary>
+    string GetCacheKey(MediaContext mediaContext);
+
+    /// <summary>
     /// Fetches Thoughts for the given media context. Providers should report progress
     /// via <paramref name="progress"/> as work completes so the UI can update the progress bar.
     /// Returns null if no relevant content was found.

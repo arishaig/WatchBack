@@ -296,6 +296,106 @@ public class BlueskyThoughtProviderTests : IDisposable
         await act.Should().NotThrowAsync();
     }
 
+    // ---- Provider self-description ----
+
+    [Fact]
+    public void ConfigSection_IsBluesky()
+    {
+        var provider = new BlueskyThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        provider.ConfigSection.Should().Be("Bluesky");
+    }
+
+    [Fact]
+    public void IsConfigured_WhenBothSet_IsTrue()
+    {
+        var provider = new BlueskyThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        provider.IsConfigured.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsConfigured_WhenHandleMissing_IsFalse()
+    {
+        var opts = new BlueskyOptions { Handle = "", AppPassword = _options.AppPassword, TokenCacheTtlSeconds = _options.TokenCacheTtlSeconds, CacheTtlSeconds = _options.CacheTtlSeconds };
+        var provider = new BlueskyThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(opts), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        provider.IsConfigured.Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsConfigured_WhenPasswordMissing_IsFalse()
+    {
+        var opts = new BlueskyOptions { Handle = _options.Handle, AppPassword = "", TokenCacheTtlSeconds = _options.TokenCacheTtlSeconds, CacheTtlSeconds = _options.CacheTtlSeconds };
+        var provider = new BlueskyThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(opts), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        provider.IsConfigured.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetConfigSchema_ReturnsTwoFields()
+    {
+        var provider = new BlueskyThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        var fields = provider.GetConfigSchema(_ => "", (_, _) => false);
+
+        fields.Should().HaveCount(2);
+        fields.Select(f => f.Key).Should().BeEquivalentTo(["Bluesky__Handle", "Bluesky__AppPassword"]);
+    }
+
+    [Fact]
+    public void GetConfigSchema_AppPasswordField_IsPasswordType()
+    {
+        var provider = new BlueskyThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        var pwField = provider.GetConfigSchema(_ => "", (_, _) => false)
+            .First(f => f.Key == "Bluesky__AppPassword");
+
+        pwField.Type.Should().Be("password");
+        pwField.Value.Should().BeEmpty("password fields must never expose their stored value");
+    }
+
+    [Fact]
+    public void RevealSecret_AppPassword_ReturnsStoredValue()
+    {
+        var provider = new BlueskyThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        provider.RevealSecret("Bluesky__AppPassword").Should().Be(_options.AppPassword);
+    }
+
+    [Fact]
+    public void RevealSecret_UnknownKey_ReturnsNull()
+    {
+        var provider = new BlueskyThoughtProvider(
+            new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+
+        provider.RevealSecret("Bluesky__Handle").Should().BeNull();
+        provider.RevealSecret("Other__Key").Should().BeNull();
+    }
+
     private sealed class CapturingProgress(System.Collections.Concurrent.ConcurrentBag<SyncProgressTick> bag)
         : IProgress<SyncProgressTick>
     {

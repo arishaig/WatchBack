@@ -425,7 +425,7 @@
                                     <span>
                                         <template x-if="integration.configured">
                                             <span>
-                                                <span x-text="key === 'jellyfin' || key === 'trakt' ? t('Config_WatchData') : t('Config_Posts')"></span>
+                                                <span x-text="integration.providerTypes && integration.providerTypes.includes('watchState') ? t('Config_WatchData') : t('Config_Posts')"></span>
                                                 <span x-text="t('Config_From')"></span> <strong class="wb-text-secondary"
                                                              x-text="integration.name"></strong>
                                             </span>
@@ -437,12 +437,6 @@
                                     </span>
                                 </li>
                             </template>
-                            <li class="flex items-start gap-2">
-                                <span :class="testIcon('reddit').cls" class="mt-0.5"
-                                      :aria-label="'Reddit: ' + testIcon('reddit').label" role="img"
-                                      x-text="testIcon('reddit').icon"></span>
-                                <span x-text="t('Config_CommentsFrom', 'Reddit')"></span>
-                            </li>
                             <li class="pt-1">
                                 <button @click="void testAll()"
                                         :disabled="testAllStatus === 'testing'"

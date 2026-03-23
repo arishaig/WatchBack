@@ -18,7 +18,7 @@ public partial class OmdbMediaSearchProvider
 
     public async Task<IReadOnlyList<MediaRating>> GetRatingsAsync(string imdbId, CancellationToken ct = default)
     {
-        var apiKey = options.Value.ApiKey;
+        var apiKey = options.CurrentValue.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return [];
 

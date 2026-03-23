@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -16,13 +15,6 @@ public record UserConfigFile(string Path);
 
 public static class ConfigEndpoints
 {
-    private static readonly JsonSerializerOptions s_jsonOptions = new() { WriteIndented = true };
-
-    private static readonly HashSet<string> s_allowedConfigSections = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Jellyfin", "Trakt", "Bluesky", "Reddit", "WatchBack", "Omdb"
-    };
-
     public static void MapConfigEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api")
@@ -31,7 +23,7 @@ public static class ConfigEndpoints
         group.MapGet("/config", GetConfig)
             .WithName("GetConfig")
             .WithSummary("Get configuration schema and current values")
-            .WithDescription("Returns the configuration schema for all integrations (Jellyfin, Trakt, Bluesky, Reddit) with current values and branding information")
+            .WithDescription("Returns the configuration schema for all registered integrations with current values and branding information")
             .Produces(StatusCodes.Status200OK);
 
         group.MapPost("/config", SaveConfig)
@@ -51,7 +43,7 @@ public static class ConfigEndpoints
         group.MapPost("/config/reveal/{key}", RevealConfigValue)
             .WithName("RevealConfigValue")
             .WithSummary("Reveal a stored secret value")
-            .WithDescription("Returns the plaintext value of a password-type config field. Only whitelisted keys are accessible.")
+            .WithDescription("Returns the plaintext value of a password-type config field owned by a registered provider.")
             .Produces(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound);
 
@@ -64,7 +56,7 @@ public static class ConfigEndpoints
         group.MapPost("/test/{service}", TestService)
             .WithName("TestService")
             .WithSummary("Test service connection")
-            .WithDescription("Tests the connection to a specified thought provider (reddit, trakt, bluesky) and returns the result")
+            .WithDescription("Tests the connection for a registered integration using the submitted form values and returns the result")
             .Accepts<Dictionary<string, string>>("application/json")
             .Produces(StatusCodes.Status200OK);
 
@@ -77,25 +69,15 @@ public static class ConfigEndpoints
     }
 
     private static async Task<object> GetConfig(
-        IOptionsSnapshot<JellyfinOptions> jellyfin,
-        IOptionsSnapshot<TraktOptions> trakt,
-        IOptionsSnapshot<BlueskyOptions> bluesky,
-        IOptionsSnapshot<RedditOptions> reddit,
-        IOptionsSnapshot<WatchBackOptions> watchback,
-        IOptionsSnapshot<OmdbOptions> omdb,
         [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
+        IOptionsSnapshot<WatchBackOptions> watchback,
         UserConfigFile configFile,
         CancellationToken ct)
     {
-        var j = jellyfin.Value;
-        var t = trakt.Value;
-        var b = bluesky.Value;
-        var r = reddit.Value;
         var w = watchback.Value;
-        var o = omdb.Value;
 
         // Env-only config: baseline values before user-settings.json overrides
         var envCfg = new ConfigurationBuilder().AddEnvironmentVariables().Build();
@@ -103,96 +85,57 @@ public static class ConfigEndpoints
 
         // Read user-settings.json to determine which keys have been overridden via the UI
         var userSettings = await AuthEndpoints.ReadConfigFile(configFile.Path, ct);
-        bool IsOverriddenInUserSettings(string section, string key) =>
+        bool IsOverridden(string section, string key) =>
             userSettings.TryGetValue(section, out var s) && s.ContainsKey(key);
 
-        // Build brand lookup — thought providers take precedence for shared names
-        var brandByName = new Dictionary<string, BrandData>(StringComparer.OrdinalIgnoreCase);
-        foreach (var p in watchStateProviders)
-            if (p.Metadata.BrandData != null)
-                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
-        foreach (var p in thoughtProviders)
-            if (p.Metadata.BrandData != null)
-                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
-        foreach (var p in mediaSearchProviders)
-            if (p.Metadata.BrandData != null)
-                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
-        foreach (var p in ratingsProviders)
-            if (p.Metadata.BrandData != null)
-                brandByName[p.Metadata.Name] = p.Metadata.BrandData;
+        // Tag every provider with its interface role, then group by config section.
+        // Providers sharing a section (e.g. Trakt as both watch-state and thought) merge into one card.
+        var tagged = watchStateProviders.Select(p => ((IDataProvider)p, "watchState"))
+            .Concat(thoughtProviders.Select(p => ((IDataProvider)p, "thought")))
+            .Concat(ratingsProviders.Select(p => ((IDataProvider)p, "ratings")))
+            .Concat(mediaSearchProviders.OfType<IDataProvider>().Select(p => (p, "search")));
+
+        var integrations = tagged
+            .Where(t => t.Item1.ConfigSection is not null)
+            .GroupBy(t => t.Item1.ConfigSection!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key.ToLowerInvariant(),
+                g =>
+                {
+                    var providers = g.Select(t => t.Item1).ToList();
+                    var primary = providers[0];
+                    var providerTypes = g.Select(t => t.Item2).Distinct().ToArray();
+                    // Use fields from the first provider that declares any
+                    var fields = providers
+                        .Select(p => p.GetConfigSchema(EnvVal, IsOverridden))
+                        .FirstOrDefault(f => f is { Count: > 0 }) ?? (IReadOnlyList<ProviderConfigField>)[];
+                    return (object)new
+                    {
+                        name = primary.Metadata.DisplayName,
+                        logoSvg = primary.Metadata.BrandData?.LogoSvg ?? "",
+                        brandColor = primary.Metadata.BrandData?.Color ?? "",
+                        fields,
+                        configured = providers.Any(p => p.IsConfigured),
+                        providerTypes,
+                    };
+                });
 
         return new
         {
-            integrations = new Dictionary<string, object>
-            {
-                ["jellyfin"] = new
-                {
-                    name = "Jellyfin",
-                    logoSvg = brandByName.GetValueOrDefault("Jellyfin")?.LogoSvg ?? "",
-                    brandColor = brandByName.GetValueOrDefault("Jellyfin")?.Color ?? "",
-                    fields = new[]
-                    {
-                        new { key = "Jellyfin__BaseUrl", label = UiStrings.ConfigEndpoints_GetConfig_Server_URL, type = "text", placeholder = "http://jellyfin:8096", hasValue = !string.IsNullOrEmpty(j.BaseUrl) && j.BaseUrl != "http://jellyfin:8096", value = j.BaseUrl ?? "", envValue = EnvVal("Jellyfin__BaseUrl"), isOverridden = IsOverriddenInUserSettings("Jellyfin", "BaseUrl") },
-                        new { key = "Jellyfin__ApiKey", label = UiStrings.ConfigEndpoints_GetConfig_API_Key, type = "password", placeholder = "Required", hasValue = !string.IsNullOrEmpty(j.ApiKey), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Jellyfin", "ApiKey") }
-                    },
-                    configured = !string.IsNullOrEmpty(j.ApiKey)
-                },
-                ["trakt"] = new
-                {
-                    name = "Trakt.tv",
-                    logoSvg = brandByName.GetValueOrDefault("Trakt")?.LogoSvg ?? "",
-                    brandColor = brandByName.GetValueOrDefault("Trakt")?.Color ?? "",
-                    fields = new[]
-                    {
-                        new { key = "Trakt__ClientId", label = UiStrings.ConfigEndpoints_GetConfig_Client_ID, type = "text", placeholder = UiStrings.ConfigEndpoints_GetConfig_Optional__for_comments_, hasValue = !string.IsNullOrEmpty(t.ClientId), value = t.ClientId ?? "", envValue = EnvVal("Trakt__ClientId"), isOverridden = IsOverriddenInUserSettings("Trakt", "ClientId") },
-                        new { key = "Trakt__AccessToken", label = UiStrings.ConfigEndpoints_GetConfig_Access_Token__OAuth_, type = "password", placeholder = UiStrings.ConfigEndpoints_GetConfig_Optional__for_private_profile_, hasValue = !string.IsNullOrEmpty(t.AccessToken), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Trakt", "AccessToken") },
-                        new { key = "Trakt__Username", label = UiStrings.ConfigEndpoints_GetConfig_Username, type = "text", placeholder = UiStrings.ConfigEndpoints_GetConfig_Optional__public_profile_, hasValue = !string.IsNullOrEmpty(t.Username), value = t.Username ?? "", envValue = EnvVal("Trakt__Username"), isOverridden = IsOverriddenInUserSettings("Trakt", "Username") }
-                    },
-                    configured = !string.IsNullOrEmpty(t.ClientId) || !string.IsNullOrEmpty(t.Username)
-                },
-                ["bluesky"] = new
-                {
-                    name = "Bluesky",
-                    logoSvg = brandByName.GetValueOrDefault("Bluesky")?.LogoSvg ?? "",
-                    brandColor = brandByName.GetValueOrDefault("Bluesky")?.Color ?? "",
-                    fields = new[]
-                    {
-                        new { key = "Bluesky__Handle", label = UiStrings.ConfigEndpoints_GetConfig_Handle_Email, type = "text", placeholder = "you.bsky.social", hasValue = !string.IsNullOrEmpty(b.Handle), value = b.Handle ?? "", envValue = EnvVal("Bluesky__Handle"), isOverridden = IsOverriddenInUserSettings("Bluesky", "Handle") },
-                        new { key = "Bluesky__AppPassword", label = UiStrings.ConfigEndpoints_GetConfig_Bluesky_App_Password, type = "password", placeholder = "xxxx-xxxx-xxxx-xxxx", hasValue = !string.IsNullOrEmpty(b.AppPassword), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Bluesky", "AppPassword") }
-                    },
-                    configured = !string.IsNullOrEmpty(b.Handle) && !string.IsNullOrEmpty(b.AppPassword)
-                },
-                ["reddit"] = new
-                {
-                    name = "Reddit",
-                    logoSvg = brandByName.GetValueOrDefault("Reddit")?.LogoSvg ?? "",
-                    brandColor = brandByName.GetValueOrDefault("Reddit")?.Color ?? "",
-                    fields = new[]
-                    {
-                        new { key = "Reddit__MaxThreads", label = UiStrings.ConfigEndpoints_GetConfig_Max_Threads, type = "number", placeholder = "3", hasValue = true, value = r.MaxThreads.ToString(System.Globalization.CultureInfo.InvariantCulture), envValue = EnvVal("Reddit__MaxThreads"), isOverridden = IsOverriddenInUserSettings("Reddit", "MaxThreads") },
-                        new { key = "Reddit__MaxComments", label = UiStrings.ConfigEndpoints_GetConfig_Max_Comments, type = "number", placeholder = "250", hasValue = true, value = r.MaxComments.ToString(System.Globalization.CultureInfo.InvariantCulture), envValue = EnvVal("Reddit__MaxComments"), isOverridden = IsOverriddenInUserSettings("Reddit", "MaxComments") }
-                    },
-                    configured = true
-                },
-                ["omdb"] = new
-                {
-                    name = "OMDb (Media Search)",
-                    logoSvg = brandByName.GetValueOrDefault("OMDb")?.LogoSvg ?? "",
-                    brandColor = brandByName.GetValueOrDefault("OMDb")?.Color ?? "",
-                    fields = new[]
-                    {
-                        new { key = "Omdb__ApiKey", label = UiStrings.ConfigEndpoints_GetConfig_API_Key, type = "password", placeholder = UiStrings.ConfigEndpoints_GetConfig_Free_at_omdbapi_com__1_000_req_day_, hasValue = !string.IsNullOrEmpty(o.ApiKey), value = "", envValue = "", isOverridden = IsOverriddenInUserSettings("Omdb", "ApiKey") }
-                    },
-                    configured = !string.IsNullOrEmpty(o.ApiKey)
-                }
-            },
+            integrations,
             preferences = new
             {
                 timeMachineDays = w.TimeMachineDays,
                 watchProvider = w.WatchProvider,
                 watchProviders = watchStateProviders
-                    .Select(p => new { value = p.Metadata.Name.ToLowerInvariant(), label = p.Metadata.Name })
+                    .Select(p => new
+                    {
+                        value = p.Metadata.Name.ToLowerInvariant(),
+                        label = p.Metadata.Name,
+                        requiresManualInput = (p.Metadata as WatchStateDataProviderMetadata)?.RequiresManualInput ?? false,
+                    })
                     .ToArray(),
+                searchConfigured = ratingsProviders.Cast<IDataProvider>().Any(p => p.IsConfigured),
                 searchEngine = w.SearchEngine,
                 customSearchUrl = w.CustomSearchUrl,
                 segmentedProgressBar = w.SegmentedProgressBar,
@@ -205,23 +148,49 @@ public static class ConfigEndpoints
                 },
                 overrides = new Dictionary<string, bool>
                 {
-                    ["WatchBack__TimeMachineDays"] = IsOverriddenInUserSettings("WatchBack", "TimeMachineDays"),
-                    ["WatchBack__WatchProvider"] = IsOverriddenInUserSettings("WatchBack", "WatchProvider"),
-                    ["WatchBack__SearchEngine"] = IsOverriddenInUserSettings("WatchBack", "SearchEngine"),
-                    ["WatchBack__CustomSearchUrl"] = IsOverriddenInUserSettings("WatchBack", "CustomSearchUrl"),
+                    ["WatchBack__TimeMachineDays"] = IsOverridden("WatchBack", "TimeMachineDays"),
+                    ["WatchBack__WatchProvider"] = IsOverridden("WatchBack", "WatchProvider"),
+                    ["WatchBack__SearchEngine"] = IsOverridden("WatchBack", "SearchEngine"),
+                    ["WatchBack__CustomSearchUrl"] = IsOverridden("WatchBack", "CustomSearchUrl"),
                 },
             }
         };
     }
 
+    /// <summary>Flattens all provider collections into a single IDataProvider sequence.</summary>
+    private static IEnumerable<IDataProvider> GetAllDataProviders(
+        IEnumerable<IWatchStateProvider> watchStateProviders,
+        IEnumerable<IThoughtProvider> thoughtProviders,
+        IEnumerable<IRatingsProvider> ratingsProviders) =>
+        watchStateProviders.Cast<IDataProvider>()
+            .Concat(thoughtProviders.Cast<IDataProvider>())
+            .Concat(ratingsProviders.Cast<IDataProvider>());
+
+    /// <summary>Derives the set of allowable config sections from registered providers plus WatchBack itself.</summary>
+    private static HashSet<string> GetAllowedSections(IEnumerable<IDataProvider> providers)
+    {
+        var sections = providers
+            .Select(p => p.ConfigSection)
+            .Where(s => s is not null)
+            .Select(s => s!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        sections.Add("WatchBack");
+        return sections;
+    }
+
     private static async Task<IResult> SaveConfig(
         HttpContext ctx,
+        [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
+        [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
+        [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         UserConfigFile configFile,
         CancellationToken ct)
     {
         var body = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>(ct);
-        if (body == null)
+        if (body is null)
             return Results.BadRequest(UiStrings.ConfigEndpoints_SaveConfig_Invalid_request_body);
+
+        var allowedSections = GetAllowedSections(GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders));
 
         await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
         try
@@ -241,7 +210,7 @@ public static class ConfigEndpoints
                 var section = flatKey[..sep];
                 var key = flatKey[(sep + 2)..];
 
-                if (!s_allowedConfigSections.Contains(section))
+                if (!allowedSections.Contains(section))
                     continue; // reject unknown sections
 
                 if (!existing.ContainsKey(section))
@@ -262,12 +231,17 @@ public static class ConfigEndpoints
 
     private static async Task<IResult> ResetConfig(
         HttpContext ctx,
+        [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
+        [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
+        [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         UserConfigFile configFile,
         CancellationToken ct)
     {
         var keys = await ctx.Request.ReadFromJsonAsync<string[]>(ct);
         if (keys == null || keys.Length == 0)
             return Results.BadRequest(UiStrings.ConfigEndpoints_ResetConfig_No_keys_specified);
+
+        var allowedSections = GetAllowedSections(GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders));
 
         await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
         try
@@ -282,7 +256,7 @@ public static class ConfigEndpoints
                 var section = flatKey[..sep];
                 var key = flatKey[(sep + 2)..];
 
-                if (!s_allowedConfigSections.Contains(section)) continue;
+                if (!allowedSections.Contains(section)) continue;
 
                 if (existing.TryGetValue(section, out var sect))
                     sect.Remove(key);
@@ -300,19 +274,13 @@ public static class ConfigEndpoints
 
     private static IResult RevealConfigValue(
         string key,
-        IOptionsSnapshot<JellyfinOptions> jellyfin,
-        IOptionsSnapshot<TraktOptions> trakt,
-        IOptionsSnapshot<BlueskyOptions> bluesky,
-        IOptionsSnapshot<OmdbOptions> omdb)
+        [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
+        [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
+        [FromServices] IEnumerable<IRatingsProvider> ratingsProviders)
     {
-        var value = key switch
-        {
-            "Jellyfin__ApiKey"      => jellyfin.Value.ApiKey,
-            "Trakt__AccessToken"    => trakt.Value.AccessToken,
-            "Bluesky__AppPassword"  => bluesky.Value.AppPassword,
-            "Omdb__ApiKey"          => omdb.Value.ApiKey,
-            _                       => null
-        };
+        var value = GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders)
+            .Select(p => p.RevealSecret(key))
+            .FirstOrDefault(v => v is not null);
 
         return value is not null
             ? Results.Ok(new { value })
@@ -358,151 +326,44 @@ public static class ConfigEndpoints
     private static async Task<object> TestService(
         string service,
         HttpContext ctx,
-        IHttpClientFactory httpClientFactory,
-        IOptionsSnapshot<TraktOptions> traktOpts,
-        IOptionsSnapshot<JellyfinOptions> jellyfinOpts,
-        IOptionsSnapshot<BlueskyOptions> blueskyOpts,
-        IOptionsSnapshot<OmdbOptions> omdbOpts,
+        [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
+        [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
+        [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         CancellationToken ct)
     {
-        // Read credentials directly from the request body — bypasses IOptionsSnapshot timing
-        // issues so we test what's in the form right now. Password fields that weren't changed
-        // are sent as "__EXISTING__"; we fall back to the stored option value for those.
-        var body = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>(ct)
+        var formValues = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>(ct)
             ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        string Resolve(string key, string? fallback)
+        var provider = GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders)
+            .FirstOrDefault(p => string.Equals(p.ConfigSection, service, StringComparison.OrdinalIgnoreCase));
+
+        if (provider is null)
         {
-            var v = body.GetValueOrDefault(key) ?? string.Empty;
-            return v == "__EXISTING__" ? (fallback ?? string.Empty) : v;
+            return new
+            {
+                ok = false,
+                message =
+#pragma warning disable CA1863
+                    string.Format(
+                        CultureInfo.InvariantCulture,
+                        UiStrings.ConfigEndpoints_TestService_Unknown_service___0_,
+                        service)
+#pragma warning restore CA1863
+            };
         }
 
         try
         {
-            using var http = httpClientFactory.CreateClient();
-
-            return service.ToLowerInvariant() switch
-            {
-                "trakt" => await TestTrakt(http,
-                    Resolve("Trakt__ClientId", traktOpts.Value.ClientId), ct),
-                "jellyfin" => await TestJellyfin(http,
-                    Resolve("Jellyfin__BaseUrl", jellyfinOpts.Value.BaseUrl),
-                    Resolve("Jellyfin__ApiKey", jellyfinOpts.Value.ApiKey), ct),
-                "bluesky" => await TestBluesky(http,
-                    Resolve("Bluesky__Handle", blueskyOpts.Value.Handle),
-                    Resolve("Bluesky__AppPassword", blueskyOpts.Value.AppPassword), ct),
-                "reddit" => (object)new { ok = true, message = UiStrings.ConfigEndpoints_TestJellyfin_Connected },
-                "omdb" => await TestOmdb(http,
-                    Resolve("Omdb__ApiKey", omdbOpts.Value.ApiKey), ct),
-                _ => new {
-                            ok = false, message = string.Format(
-                            CultureInfo.InvariantCulture,
-                            UiStrings.ConfigEndpoints_TestService_Unknown_service___0_, service) 
-                         }
-            };
+            var health = await provider.TestConnectionAsync(formValues, ct);
+            return new { ok = health.IsHealthy, message = health.Message };
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             return new { ok = false, message = ex.Message };
         }
-    }
-
-    private static async Task<object> TestTrakt(HttpClient http, string clientId, CancellationToken ct)
-    {
-        if (string.IsNullOrEmpty(clientId))
-            return new { ok = false, message = "No Client ID configured" };
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(5));
-
-        var req = new HttpRequestMessage(HttpMethod.Get, "https://api.trakt.tv/shows/trending?limit=1");
-        req.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
-        req.Headers.Add("trakt-api-version", "2");
-        req.Headers.Add("trakt-api-key", clientId);
-        var res = await http.SendAsync(req, cts.Token);
-
-        if (res.StatusCode == System.Net.HttpStatusCode.OK)
-            return new { ok = true, message = UiStrings.ConfigEndpoints_TestJellyfin_Connected };
-
-        return new { ok = false, message = $"HTTP {(int)res.StatusCode}" };
-    }
-
-    private static async Task<object> TestJellyfin(HttpClient http, string baseUrl, string apiKey, CancellationToken ct)
-    {
-        if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(apiKey))
-            return new { ok = false, message = UiStrings.ConfigEndpoints_TestJellyfin_Server_URL_and_API_Key_required };
-
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var parsed)
-            || (parsed.Scheme != "http" && parsed.Scheme != "https"))
-            return new { ok = false, message = UiStrings.ConfigEndpoints_TestJellyfin_ };
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(5));
-
-        var url = baseUrl.TrimEnd('/') + "/System/Info";
-        var req = new HttpRequestMessage(HttpMethod.Get, url);
-        req.Headers.Add("X-Emby-Authorization", $"MediaBrowser Token=\"{apiKey}\"");
-        var res = await http.SendAsync(req, cts.Token);
-
-        if (!res.IsSuccessStatusCode)
-            return new { ok = false, message = $"HTTP {(int)res.StatusCode}" };
-
-        try
-        {
-            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(cts.Token), cancellationToken: cts.Token);
-            // Only extract the Version string — ignore everything else
-            var version = doc.RootElement.TryGetProperty("Version", out var v) && v.ValueKind == JsonValueKind.String
-                ? v.GetString()?[..Math.Min(v.GetString()!.Length, 32)]
-                : null;
-            var message = version != null ? 
-                string.Format(UiStrings.ConfigEndpoints_TestJellyfin_Jellyfin_Version, version) : 
-                UiStrings.ConfigEndpoints_TestJellyfin_Connected;
-            return new { ok = true, message };
-        }
-        catch
-        {
-            return new { ok = true, message = UiStrings.ConfigEndpoints_TestJellyfin_Connected };
-        }
-    }
-
-    private static async Task<object> TestOmdb(HttpClient http, string apiKey, CancellationToken ct)
-    {
-        if (string.IsNullOrEmpty(apiKey))
-            return new { ok = false, message = UiStrings.ConfigEndpoints_TestOmdb_No_API_key_configured };
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(5));
-
-        var res = await http.GetAsync($"https://www.omdbapi.com/?apikey={Uri.EscapeDataString(apiKey)}&t=test", cts.Token);
-        if (!res.IsSuccessStatusCode)
-            return new { ok = false, message = $"HTTP {(int)res.StatusCode}" };
-
-        using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(cts.Token), cancellationToken: cts.Token);
-        // OMDb returns { "Response": "False", "Error": "Invalid API key!" } for bad keys
-        if (doc.RootElement.TryGetProperty("Error", out var err)
-            && err.ValueKind == JsonValueKind.String
-            && (err.GetString() ?? "").Contains("key", StringComparison.OrdinalIgnoreCase))
-            return new { ok = false, message = err.GetString() };
-
-        return new { ok = true, message = UiStrings.ConfigEndpoints_TestJellyfin_Connected };
-    }
-
-    private static async Task<object> TestBluesky(HttpClient http, string handle, string appPassword, CancellationToken ct)
-    {
-        if (string.IsNullOrEmpty(handle))
-            return new { ok = false, message = UiStrings.ConfigEndpoints_TestBluesky_Handle_required };
-
-        if (string.IsNullOrEmpty(appPassword))
-            return new { ok = true, message = UiStrings.ConfigEndpoints_TestBluesky_Handle_set__no_app_password_to_verify_ };
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(5));
-
-        var req = new HttpRequestMessage(HttpMethod.Post, "https://bsky.social/xrpc/com.atproto.server.createSession");
-        req.Content = System.Net.Http.Json.JsonContent.Create(new { identifier = handle, password = appPassword });
-        var res = await http.SendAsync(req, cts.Token);
-        return res.IsSuccessStatusCode
-            ? new { ok = true, message = UiStrings.ConfigEndpoints_TestJellyfin_Connected }
-            : new { ok = false, message = res.StatusCode == System.Net.HttpStatusCode.Unauthorized ? UiStrings.ConfigEndpoints_TestBluesky_Invalid_credentials : $"HTTP {(int)res.StatusCode}" };
     }
 }

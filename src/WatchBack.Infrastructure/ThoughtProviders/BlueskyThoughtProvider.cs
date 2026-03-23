@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
+using WatchBack.Resources;
 
 namespace WatchBack.Infrastructure.ThoughtProviders;
 
@@ -24,30 +25,28 @@ public class BlueskyThoughtProvider(
     ILogger<BlueskyThoughtProvider> logger)
     : IThoughtProvider
 {
+    private static readonly ThoughtResult Empty = new(Source: "Bluesky", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+
     private readonly BlueskyOptions _options = options.Value;
 
-    public DataProviderMetadata Metadata
-    {
-        get
-        {
-            return new ThoughtProviderMetadata(
-                Name: "Bluesky",
-                Description: "Bluesky skeets",
-                BrandData: new BrandData(
-                    Color: "#1185FE",
-                    LogoSvg:
-                    "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Bluesky</title><path d=\"M5.202 2.857C7.954 4.922 10.913 9.11 12 11.358c1.087-2.247 4.046-6.436 6.798-8.501C20.783 1.366 24 .213 24 3.883c0 .732-.42 6.156-.667 7.037-.856 3.061-3.978 3.842-6.755 3.37 4.854.826 6.089 3.562 3.422 6.299-5.065 5.196-7.28-1.304-7.847-2.97-.104-.305-.152-.448-.153-.327 0-.121-.05.022-.153.327-.568 1.666-2.782 8.166-7.847 2.97-2.667-2.737-1.432-5.473 3.422-6.3-2.777.473-5.899-.308-6.755-3.369C.42 10.04 0 4.615 0 3.883c0-3.67 3.217-2.517 5.202-1.026\"/></svg>"
-                )
-            );
-        }
-    }
+    public DataProviderMetadata Metadata => new ThoughtProviderMetadata(
+        Name: "Bluesky",
+        Description: UiStrings.BlueskyThoughtProvider_Metadata_Bluesky_skeets,
+        BrandData: new BrandData(
+            Color: "#1185FE",
+            LogoSvg:
+            "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Bluesky</title><path d=\"M5.202 2.857C7.954 4.922 10.913 9.11 12 11.358c1.087-2.247 4.046-6.436 6.798-8.501C20.783 1.366 24 .213 24 3.883c0 .732-.42 6.156-.667 7.037-.856 3.061-3.978 3.842-6.755 3.37 4.854.826 6.089 3.562 3.422 6.299-5.065 5.196-7.28-1.304-7.847-2.97-.104-.305-.152-.448-.153-.327 0-.121-.05.022-.153.327-.568 1.666-2.782 8.166-7.847 2.97-2.667-2.737-1.432-5.473 3.422-6.3-2.777.473-5.899-.308-6.755-3.369C.42 10.04 0 4.615 0 3.883c0-3.67 3.217-2.517 5.202-1.026\"/></svg>"
+        )
+    );
 
-    public int ExpectedWeight
+    public int ExpectedWeight => 1;
+
+    public string GetCacheKey(MediaContext mediaContext)
     {
-        get
-        {
-            return 1;
-        }
+        var episode = mediaContext as EpisodeContext;
+        return episode != null
+            ? $"bluesky:thoughts:{mediaContext.Title}:S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}"
+            : $"bluesky:thoughts:{mediaContext.Title}";
     }
 
     public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
@@ -56,10 +55,10 @@ public class BlueskyThoughtProvider(
         {
             if (mediaContext is not EpisodeContext episode)
             {
-                return new ThoughtResult(Source: "Bluesky", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+                return Empty;
             }
 
-            var cacheKey = $"bluesky:thoughts:{mediaContext.Title}:S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
+            var cacheKey = GetCacheKey(mediaContext);
             if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
             {
                 return cached;
@@ -80,7 +79,7 @@ public class BlueskyThoughtProvider(
             var response = await httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
-                return new ThoughtResult(Source: "Bluesky", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+                return Empty;
             }
 
             var content = await response.Content.ReadAsStringAsync(ct);
@@ -134,7 +133,7 @@ public class BlueskyThoughtProvider(
         catch (Exception ex)
         {
             logger.LogError(ex, "Bluesky thought fetch failed");
-            return new ThoughtResult(Source: "Bluesky", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+            return Empty;
         }
         finally
         {
@@ -252,6 +251,73 @@ public class BlueskyThoughtProvider(
     {
         return text.ToLowerInvariant().Trim();
     }
+
+    public string? ConfigSection => "Bluesky";
+
+    public bool IsConfigured =>
+        !string.IsNullOrEmpty(_options.Handle) && !string.IsNullOrEmpty(_options.AppPassword);
+
+    public IReadOnlyList<ProviderConfigField> GetConfigSchema(
+        Func<string, string> envVal,
+        Func<string, string, bool> isOverridden) =>
+    [
+        new(Key: "Bluesky__Handle",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Handle_Email,
+            Type: "text",
+            Placeholder: "you.bsky.social",
+            HasValue: !string.IsNullOrEmpty(_options.Handle),
+            Value: _options.Handle ?? "",
+            EnvValue: envVal("Bluesky__Handle"),
+            IsOverridden: isOverridden("Bluesky", "Handle")),
+        new(Key: "Bluesky__AppPassword",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Bluesky_App_Password,
+            Type: "password",
+            Placeholder: "xxxx-xxxx-xxxx-xxxx",
+            HasValue: !string.IsNullOrEmpty(_options.AppPassword),
+            Value: "",
+            EnvValue: "",
+            IsOverridden: isOverridden("Bluesky", "AppPassword")),
+    ];
+
+    public async Task<ServiceHealth> TestConnectionAsync(
+        IReadOnlyDictionary<string, string> formValues,
+        CancellationToken ct = default)
+    {
+        static string Resolve(IReadOnlyDictionary<string, string> form, string key, string? fallback)
+        {
+            var v = form.GetValueOrDefault(key) ?? string.Empty;
+            return v == "__EXISTING__" ? (fallback ?? string.Empty) : v;
+        }
+
+        var handle = Resolve(formValues, "Bluesky__Handle", _options.Handle);
+        var password = Resolve(formValues, "Bluesky__AppPassword", _options.AppPassword);
+
+        if (string.IsNullOrEmpty(handle))
+            return new ServiceHealth(false, UiStrings.ConfigEndpoints_TestBluesky_Handle_required, DateTimeOffset.UtcNow);
+
+        if (string.IsNullOrEmpty(password))
+            return new ServiceHealth(true, UiStrings.ConfigEndpoints_TestBluesky_Handle_set__no_app_password_to_verify_, DateTimeOffset.UtcNow);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        var req = new HttpRequestMessage(HttpMethod.Post, "https://bsky.social/xrpc/com.atproto.server.createSession");
+        req.Content = new StringContent(
+            JsonSerializer.Serialize(new { identifier = handle, password }),
+            Encoding.UTF8, "application/json");
+        var res = await httpClient.SendAsync(req, cts.Token);
+
+        return res.IsSuccessStatusCode
+            ? new ServiceHealth(true, UiStrings.ConfigEndpoints_TestJellyfin_Connected, DateTimeOffset.UtcNow)
+            : new ServiceHealth(false,
+                res.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                    ? UiStrings.ConfigEndpoints_TestBluesky_Invalid_credentials
+                    : $"HTTP {(int)res.StatusCode}",
+                DateTimeOffset.UtcNow);
+    }
+
+    public string? RevealSecret(string key) =>
+        key == "Bluesky__AppPassword" ? _options.AppPassword : null;
 }
 
 internal sealed record BlueskyAuthResponseDto(

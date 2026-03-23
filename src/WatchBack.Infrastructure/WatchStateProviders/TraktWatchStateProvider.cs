@@ -28,20 +28,24 @@ public class TraktWatchStateProvider(
 {
     private readonly TraktOptions _options = options.Value;
 
-    public DataProviderMetadata Metadata
+    public DataProviderMetadata Metadata => new WatchStateDataProviderMetadata(
+        Name: "Trakt",
+        Description: UiStrings.TraktWatchStateProvider_Metadata_Trakt_watch_state_provider,
+        OverrideDisplayName: "Trakt.tv",
+        BrandData: new BrandData(
+            Color: "#9F42C6",
+            LogoSvg:
+            "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Trakt</title><path d=\"m15.082 15.107-.73-.73 9.578-9.583a4.499 4.499 0 0 0-.115-.575L13.662 14.382l1.08 1.08-.73.73-1.81-1.81L23.422 3.144c-.075-.15-.155-.3-.25-.44L11.508 14.377l2.154 2.155-.73.73-7.193-7.199.73-.73 4.309 4.31L22.546 1.86A5.618 5.618 0 0 0 18.362 0H5.635A5.637 5.637 0 0 0 0 5.634V18.37A5.632 5.632 0 0 0 5.635 24h12.732C21.477 24 24 21.48 24 18.37V6.19l-8.913 8.918zm-4.314-2.155L6.814 8.988l.73-.73 3.954 3.96zm1.075-1.084-3.954-3.96.73-.73 3.959 3.96zm9.853 5.688a4.141 4.141 0 0 1-4.14 4.14H6.438a4.144 4.144 0 0 1-4.139-4.14V6.438A4.141 4.141 0 0 1 6.44 2.3h10.387v1.04H6.438c-1.71 0-3.099 1.39-3.099 3.1V17.55c0 1.71 1.39 3.105 3.1 3.105h11.117c1.71 0 3.1-1.395 3.1-3.105v-1.754h1.04v1.754z\"/></svg>"
+        )
+    ) { SupportedExternalIds = new HashSet<string> { Imdb, Tmdb, Tvdb } };
+
+    public void ConfigureRequest(HttpRequestMessage request)
     {
-        get
-        {
-            return new WatchStateDataProviderMetadata(
-                Name: "Trakt",
-                Description: "Trakt",
-                BrandData: new BrandData(
-                    Color: "#9F42C6",
-                    LogoSvg:
-                    "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Trakt</title><path d=\"m15.082 15.107-.73-.73 9.578-9.583a4.499 4.499 0 0 0-.115-.575L13.662 14.382l1.08 1.08-.73.73-1.81-1.81L23.422 3.144c-.075-.15-.155-.3-.25-.44L11.508 14.377l2.154 2.155-.73.73-7.193-7.199.73-.73 4.309 4.31L22.546 1.86A5.618 5.618 0 0 0 18.362 0H5.635A5.637 5.637 0 0 0 0 5.634V18.37A5.632 5.632 0 0 0 5.635 24h12.732C21.477 24 24 21.48 24 18.37V6.19l-8.913 8.918zm-4.314-2.155L6.814 8.988l.73-.73 3.954 3.96zm1.075-1.084-3.954-3.96.73-.73 3.959 3.96zm9.853 5.688a4.141 4.141 0 0 1-4.14 4.14H6.438a4.144 4.144 0 0 1-4.139-4.14V6.438A4.141 4.141 0 0 1 6.44 2.3h10.387v1.04H6.438c-1.71 0-3.099 1.39-3.099 3.1V17.55c0 1.71 1.39 3.105 3.1 3.105h11.117c1.71 0 3.1-1.395 3.1-3.105v-1.754h1.04v1.754z\"/></svg>"
-                )
-            ) { SupportedExternalIds = new HashSet<string> { Imdb, Tmdb, Tvdb } };
-        }
+        IDataProvider.ApplyDefaultHeaders(request);
+        request.Headers.Add("trakt-api-version", "2");
+        request.Headers.Add("trakt-api-key", _options.ClientId);
+        if (!string.IsNullOrEmpty(_options.AccessToken))
+            request.Headers.Add("Authorization", $"Bearer {_options.AccessToken}");
     }
 
     public async Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default)
@@ -56,11 +60,7 @@ public class TraktWatchStateProvider(
 
             var username = !string.IsNullOrEmpty(_options.Username) ? _options.Username : "me";
             var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.trakt.tv/users/{Uri.EscapeDataString(username)}/watching");
-            request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
-            request.Headers.Add("trakt-api-version", "2");
-            request.Headers.Add("trakt-api-key", _options.ClientId);
-            if (!string.IsNullOrEmpty(_options.AccessToken))
-                request.Headers.Add("Authorization", $"Bearer {_options.AccessToken}");
+            ConfigureRequest(request);
 
             var response = await httpClient.SendAsync(request, ct);
 
@@ -126,11 +126,7 @@ public class TraktWatchStateProvider(
             cts.CancelAfter(TimeSpan.FromSeconds(5));
 
             var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.trakt.tv/users/{Uri.EscapeDataString(username)}/watching");
-            request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
-            request.Headers.Add("trakt-api-version", "2");
-            request.Headers.Add("trakt-api-key", _options.ClientId);
-            if (!string.IsNullOrEmpty(_options.AccessToken))
-                request.Headers.Add("Authorization", $"Bearer {_options.AccessToken}");
+            ConfigureRequest(request);
 
             var response = await httpClient.SendAsync(request, cts.Token);
 
@@ -141,10 +137,12 @@ public class TraktWatchStateProvider(
                         var watching = response.StatusCode == System.Net.HttpStatusCode.OK ? UiStrings.TraktWatchStateProvider_GetServiceHealthAsync_currently_watching : UiStrings.TraktWatchStateProvider_GetServiceHealthAsync_idle;
                         return new ServiceHealth(
                             IsHealthy: true,
-                            Message: 
+                            Message:
+#pragma warning disable CA1863
                                 string.Format(
                                     CultureInfo.CurrentCulture,
                                     UiStrings.TraktWatchStateProvider_GetServiceHealthAsync_Profile_reachable___0__, watching),
+#pragma warning restore CA1863
                                         CheckedAt: DateTimeOffset.UtcNow);
                     }
                 case System.Net.HttpStatusCode.Unauthorized:
@@ -167,6 +165,72 @@ public class TraktWatchStateProvider(
                 CheckedAt: DateTimeOffset.UtcNow);
         }
     }
+
+    public string? ConfigSection => "Trakt";
+
+    public bool IsConfigured =>
+        !string.IsNullOrEmpty(_options.ClientId) || !string.IsNullOrEmpty(_options.Username);
+
+    public IReadOnlyList<ProviderConfigField> GetConfigSchema(
+        Func<string, string> envVal,
+        Func<string, string, bool> isOverridden) =>
+    [
+        new(Key: "Trakt__ClientId",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Client_ID,
+            Type: "text",
+            Placeholder: UiStrings.ConfigEndpoints_GetConfig_Optional__for_comments_,
+            HasValue: !string.IsNullOrEmpty(_options.ClientId),
+            Value: _options.ClientId ?? "",
+            EnvValue: envVal("Trakt__ClientId"),
+            IsOverridden: isOverridden("Trakt", "ClientId")),
+        new(Key: "Trakt__AccessToken",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Access_Token__OAuth_,
+            Type: "password",
+            Placeholder: UiStrings.ConfigEndpoints_GetConfig_Optional__for_private_profile_,
+            HasValue: !string.IsNullOrEmpty(_options.AccessToken),
+            Value: "",
+            EnvValue: "",
+            IsOverridden: isOverridden("Trakt", "AccessToken")),
+        new(Key: "Trakt__Username",
+            Label: UiStrings.ConfigEndpoints_GetConfig_Username,
+            Type: "text",
+            Placeholder: UiStrings.ConfigEndpoints_GetConfig_Optional__public_profile_,
+            HasValue: !string.IsNullOrEmpty(_options.Username),
+            Value: _options.Username ?? "",
+            EnvValue: envVal("Trakt__Username"),
+            IsOverridden: isOverridden("Trakt", "Username")),
+    ];
+
+    public async Task<ServiceHealth> TestConnectionAsync(
+        IReadOnlyDictionary<string, string> formValues,
+        CancellationToken ct = default)
+    {
+        static string Resolve(IReadOnlyDictionary<string, string> form, string key, string? fallback)
+        {
+            var v = form.GetValueOrDefault(key) ?? string.Empty;
+            return v == "__EXISTING__" ? (fallback ?? string.Empty) : v;
+        }
+
+        var clientId = Resolve(formValues, "Trakt__ClientId", _options.ClientId);
+        if (string.IsNullOrEmpty(clientId))
+            return new ServiceHealth(false, UiStrings.TraktThoughtProvider_GetServiceHealthAsync_No_Client_ID_configured, DateTimeOffset.UtcNow);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        var req = new HttpRequestMessage(HttpMethod.Get, "https://api.trakt.tv/shows/trending?limit=1");
+        IDataProvider.ApplyDefaultHeaders(req);
+        req.Headers.Add("trakt-api-version", "2");
+        req.Headers.Add("trakt-api-key", clientId);
+        var res = await httpClient.SendAsync(req, cts.Token);
+
+        return res.StatusCode == System.Net.HttpStatusCode.OK
+            ? new ServiceHealth(true, UiStrings.ConfigEndpoints_TestJellyfin_Connected, DateTimeOffset.UtcNow)
+            : new ServiceHealth(false, $"HTTP {(int)res.StatusCode}", DateTimeOffset.UtcNow);
+    }
+
+    public string? RevealSecret(string key) =>
+        key == "Trakt__AccessToken" ? _options.AccessToken : null;
 }
 
 internal sealed record TraktIdsDto(

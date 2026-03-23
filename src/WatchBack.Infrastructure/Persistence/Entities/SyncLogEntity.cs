@@ -10,7 +10,7 @@ public class SyncLogEntity
     /// <summary>
     /// Timestamp when sync was initiated
     /// </summary>
-    public DateTime Timestamp { get; init; } = DateTime.UtcNow;
+    public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Sync result status (e.g., "Idle", "Watching", "Error")
