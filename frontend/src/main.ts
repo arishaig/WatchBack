@@ -8,6 +8,7 @@ import authMethods from './modules/auth';
 import configMethods from './modules/config';
 import syncMethods from './modules/sync';
 import systemMethods from './modules/system';
+import wizardMethods from './modules/wizard';
 import computedDescriptors from './modules/computed';
 import uiMethods from './modules/ui';
 import { sanitizeSvg } from './utils/svg';
@@ -74,6 +75,13 @@ Alpine.data('app', (): AppData => {
         appVersion: null,
         copyLogsStatus: null,
         alwaysShowSearch: localStorage.getItem('wb_alwaysShowSearch') === 'true',
+        wizardStep: 0,
+        wizardActive: false,
+        wizardSelectedWatch: null,
+        wizardSelectedComments: new Set<string>(),
+        wizardSaving: false,
+        checklistDismissed: false,
+        checklistAutoComplete: false,
         searchQuery: '',
         searchResults: [],
         searchLoading: false,
@@ -102,6 +110,7 @@ Alpine.data('app', (): AppData => {
         ...configMethods,
         ...syncMethods,
         ...systemMethods,
+        ...wizardMethods,
         ...uiMethods,
     };
 

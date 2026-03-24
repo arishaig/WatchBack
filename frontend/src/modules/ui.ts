@@ -27,6 +27,17 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
             document.documentElement.lang = val as string;
         });
 
+        // Auto-dismiss checklist when all items complete
+        this.$watch('checklistAllComplete', (v: unknown) => {
+            if (v && this.authState === 'app' && !localStorage.getItem('wb_checklistCompleted')) {
+                this.checklistAutoComplete = true;
+                setTimeout(() => {
+                    this.checklistAutoComplete = false;
+                    localStorage.setItem('wb_checklistCompleted', 'true');
+                }, 2500);
+            }
+        });
+
         await this.fetchThemes();
         const me = await this.checkAuth();
         if (!me['authenticated']) {
@@ -84,6 +95,11 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         this.initialized = true;
         this.setupSSE();
         void this.sync();
+
+        // Launch wizard for first-time users
+        if (!localStorage.getItem('wb_wizardCompleted') && !localStorage.getItem('wb_checklistCompleted')) {
+            this.wizardActive = true;
+        }
     },
 
     showError(msg: string) {

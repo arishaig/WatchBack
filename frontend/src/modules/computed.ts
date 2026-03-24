@@ -91,6 +91,35 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
         return groups;
     },
 
+    get hasWatchProvider(): boolean {
+        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean; providerTypes?: string[] }> | undefined) ?? {};
+        return Object.values(integrations).some(i => i.providerTypes?.includes('watchState') && i.configured);
+    },
+
+    get hasCommentSource(): boolean {
+        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean; providerTypes?: string[] }> | undefined) ?? {};
+        return Object.values(integrations).some(i => i.providerTypes?.includes('thought') && i.configured);
+    },
+
+    get hasCompletedSync(): boolean {
+        const status = this.data?.['status'] as string | undefined;
+        return status === 'Watching' || status === 'Idle';
+    },
+
+    get checklistAllComplete(): boolean {
+        return this.hasWatchProvider && this.hasCommentSource && this.hasCompletedSync;
+    },
+
+    get showChecklist(): boolean {
+        if (this.authState !== 'app') return false;
+        if (this.wizardActive) return false;
+        if (this.checklistAutoComplete) return true;
+        if (this.checklistAllComplete) return false;
+        if (this.checklistDismissed) return false;
+        if (localStorage.getItem('wb_checklistCompleted') === 'true') return false;
+        return true;
+    },
+
     get showSearchBox(): boolean {
         const integrations = this.configData?.['integrations'] as Record<string, { configured: boolean }> | undefined;
         if (!integrations?.['omdb']?.configured) return false;

@@ -216,6 +216,224 @@
     </div>
 </div>
 
+<!-- ─── Onboarding wizard ─── -->
+<div x-show="wizardActive && configData" x-cloak
+     @keydown.escape.window="wizardSkip()"
+     role="dialog" aria-modal="true" :aria-label="t('Wizard_Welcome')"
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto"
+     style="background-color: var(--wb-bg);">
+    <div class="wb-surface wb-border border rounded-xl p-6 sm:p-8 w-full shadow-2xl" style="max-width:32rem">
+
+        <!-- Step indicator -->
+        <div class="flex items-center justify-between mb-6">
+            <span class="text-xs wb-text-faint" x-text="t('Wizard_StepOf', wizardStep + 1, 4)"></span>
+            <div class="flex gap-1.5">
+                <template x-for="i in 4" :key="i">
+                    <div class="h-1 rounded-full transition-all duration-300"
+                         :class="i - 1 <= wizardStep ? 'wb-bg-accent' : ''"
+                         :style="'width:' + (i - 1 <= wizardStep ? '1.5rem' : '0.5rem') + ';' + (i - 1 > wizardStep ? 'background-color:var(--wb-border)' : '')"></div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Step 0: Welcome -->
+        <div x-show="wizardStep === 0" class="wizard-step-enter">
+            <div class="flex items-center justify-center gap-3 mb-4">
+                <img src="/watchback.png" alt="WatchBack Logo" class="w-10 h-10 object-contain wb-logo">
+                <h1 class="text-xl font-bold wb-accent-text" x-text="t('Wizard_Welcome')"></h1>
+            </div>
+            <p class="text-sm wb-text-secondary text-center mb-8 leading-relaxed" x-text="t('Wizard_WelcomeBody')"></p>
+            <button @click="wizardNext()"
+                    class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent wb-bg-accent cursor-pointer
+                           wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                    x-text="t('Wizard_GetStarted')"></button>
+            <button @click="wizardSkip()"
+                    class="w-full mt-3 py-2 text-xs wb-text-faint cursor-pointer hover:wb-text-secondary transition-colors"
+                    x-text="t('Wizard_SkipSetup')"></button>
+        </div>
+
+        <!-- Step 1: Watch Provider -->
+        <div x-show="wizardStep === 1" class="wizard-step-enter">
+            <h2 class="text-lg font-bold wb-text mb-1" x-text="t('Wizard_PickWatchProvider')"></h2>
+            <p class="text-xs wb-text-faint mb-5" x-text="t('Wizard_PickWatchProviderHint')"></p>
+
+            <div class="space-y-3">
+                <template x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([_, i]) => i.providerTypes?.includes('watchState'))" :key="'wz-w-' + key">
+                    <div class="wizard-provider-card wb-surface"
+                         :style="'--card-accent: ' + integration.brandColor"
+                         :class="{ 'selected': wizardSelectedWatch === key }"
+                         @click="wizardSelectWatch(key)">
+                        <!-- Card header -->
+                        <div class="flex items-center gap-3">
+                            <span class="integration-logo" :style="'color: ' + integration.brandColor"
+                                  x-html="sanitizeSvg(integration.logoSvg)"></span>
+                            <span class="text-sm font-semibold wb-text-secondary" x-text="integration.name"></span>
+                            <span x-show="wizardSelectedWatch === key"
+                                  class="ml-auto text-xs wb-accent-text font-medium">&#10003;</span>
+                        </div>
+                        <!-- Expanded config fields (when selected) -->
+                        <div x-show="wizardSelectedWatch === key" @click.stop class="mt-4 space-y-3">
+                            <template x-if="integration.fields.length === 0">
+                                <p class="text-xs wb-text-faint" x-text="t('Wizard_NoConfigNeeded')"></p>
+                            </template>
+                            <template x-for="field in integration.fields" :key="'wz-' + field.key">
+                                <div x-data="{ showSecret: false }">
+                                    <label :for="'wz-' + field.key" class="text-xs font-medium wb-text-faint block mb-1"
+                                           x-text="field.label"></label>
+                                    <div class="relative">
+                                        <input :id="'wz-' + field.key"
+                                               :type="field.type"
+                                               :placeholder="field.type === 'password' && field.hasValue ? t('Config_Unchanged') : field.placeholder"
+                                               x-model="configEdits[field.key]"
+                                               x-ref="inp"
+                                               autocomplete="off"
+                                               :class="field.type === 'password' ? 'pr-9' : ''"
+                                               class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                        <button x-show="field.type === 'password'" type="button"
+                                                @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
+                                                :aria-label="showSecret ? t('Aria_HideValue') : t('Aria_ShowValue')"
+                                                class="wb-eye-btn">
+                                            <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'" aria-hidden="true"></ion-icon>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                            <!-- Test button -->
+                            <button @click.stop="void testService(key)"
+                                    :disabled="testResults[key]?.status === 'testing'"
+                                    class="w-full py-2 rounded-lg text-xs font-medium wb-border border wb-surface
+                                           wb-text-secondary cursor-pointer disabled:opacity-50 wb-btn
+                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
+                                    x-text="testResults[key]?.status === 'testing' ? t('Common_Testing') : testResults[key]?.message || t('Config_TestConnection')">
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex gap-3 mt-6">
+                <button @click="wizardBack()"
+                        class="flex-1 py-2.5 rounded-lg text-sm font-medium wb-border border wb-surface wb-text-secondary
+                               cursor-pointer wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                        x-text="t('Wizard_Back')"></button>
+                <button @click="wizardSaveAndContinue()"
+                        :disabled="!wizardSelectedWatch || wizardSaving"
+                        class="flex-1 py-2.5 rounded-lg text-sm font-semibold wb-on-accent wb-bg-accent cursor-pointer
+                               disabled:opacity-50 wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                        x-text="wizardSaving ? t('Common_Saving') : t('Wizard_SaveAndContinue')"></button>
+            </div>
+            <button @click="wizardNext()"
+                    class="w-full mt-2 py-2 text-xs wb-text-faint cursor-pointer hover:wb-text-secondary transition-colors"
+                    x-text="t('Wizard_SkipThisStep')"></button>
+        </div>
+
+        <!-- Step 2: Comment Sources -->
+        <div x-show="wizardStep === 2" class="wizard-step-enter">
+            <h2 class="text-lg font-bold wb-text mb-1" x-text="t('Wizard_PickCommentSources')"></h2>
+            <p class="text-xs wb-text-faint mb-5" x-text="t('Wizard_PickCommentSourcesHint')"></p>
+
+            <div class="space-y-3">
+                <template x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([_, i]) => i.providerTypes?.includes('thought'))" :key="'wz-c-' + key">
+                    <div class="wizard-provider-card wb-surface"
+                         :style="'--card-accent: ' + integration.brandColor"
+                         :class="{ 'selected': wizardSelectedComments.has(key) }"
+                         @click="wizardToggleComment(key)">
+                        <!-- Card header -->
+                        <div class="flex items-center gap-3">
+                            <span class="integration-logo" :style="'color: ' + integration.brandColor"
+                                  x-html="sanitizeSvg(integration.logoSvg)"></span>
+                            <span class="text-sm font-semibold wb-text-secondary" x-text="integration.name"></span>
+                            <span x-show="wizardSelectedComments.has(key)"
+                                  class="ml-auto text-xs wb-accent-text font-medium">&#10003;</span>
+                        </div>
+                        <!-- Expanded config fields (when selected) -->
+                        <div x-show="wizardSelectedComments.has(key)" @click.stop class="mt-4 space-y-3">
+                            <template x-if="integration.fields.length === 0">
+                                <p class="text-xs wb-text-faint" x-text="t('Wizard_NoConfigNeeded')"></p>
+                            </template>
+                            <template x-for="field in integration.fields" :key="'wz-' + field.key">
+                                <div x-data="{ showSecret: false }">
+                                    <label :for="'wz-' + field.key" class="text-xs font-medium wb-text-faint block mb-1"
+                                           x-text="field.label"></label>
+                                    <div class="relative">
+                                        <input :id="'wz-' + field.key"
+                                               :type="field.type"
+                                               :placeholder="field.type === 'password' && field.hasValue ? t('Config_Unchanged') : field.placeholder"
+                                               x-model="configEdits[field.key]"
+                                               x-ref="inp"
+                                               autocomplete="off"
+                                               :class="field.type === 'password' ? 'pr-9' : ''"
+                                               class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                        <button x-show="field.type === 'password'" type="button"
+                                                @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
+                                                :aria-label="showSecret ? t('Aria_HideValue') : t('Aria_ShowValue')"
+                                                class="wb-eye-btn">
+                                            <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'" aria-hidden="true"></ion-icon>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                            <!-- Test button -->
+                            <button @click.stop="void testService(key)"
+                                    :disabled="testResults[key]?.status === 'testing'"
+                                    class="w-full py-2 rounded-lg text-xs font-medium wb-border border wb-surface
+                                           wb-text-secondary cursor-pointer disabled:opacity-50 wb-btn
+                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
+                                    x-text="testResults[key]?.status === 'testing' ? t('Common_Testing') : testResults[key]?.message || t('Config_TestConnection')">
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex gap-3 mt-6">
+                <button @click="wizardBack()"
+                        class="flex-1 py-2.5 rounded-lg text-sm font-medium wb-border border wb-surface wb-text-secondary
+                               cursor-pointer wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                        x-text="t('Wizard_Back')"></button>
+                <button @click="wizardSaveAndContinue()"
+                        :disabled="wizardSelectedComments.size === 0 || wizardSaving"
+                        class="flex-1 py-2.5 rounded-lg text-sm font-semibold wb-on-accent wb-bg-accent cursor-pointer
+                               disabled:opacity-50 wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                        x-text="wizardSaving ? t('Common_Saving') : t('Wizard_SaveAndContinue')"></button>
+            </div>
+            <button @click="wizardNext()"
+                    class="w-full mt-2 py-2 text-xs wb-text-faint cursor-pointer hover:wb-text-secondary transition-colors"
+                    x-text="t('Wizard_SkipThisStep')"></button>
+        </div>
+
+        <!-- Step 3: Done -->
+        <div x-show="wizardStep === 3" class="wizard-step-enter">
+            <div class="flex items-center justify-center mb-4">
+                <div class="restart-check">&#10003;</div>
+            </div>
+            <h2 class="text-lg font-bold wb-text text-center mb-1" x-text="t('Wizard_AllSet')"></h2>
+            <p class="text-xs wb-text-faint text-center mb-6" x-text="t('Wizard_AllSetBody')"></p>
+
+            <!-- Summary -->
+            <ul class="space-y-2 mb-6">
+                <template x-for="[key, integration] in Object.entries(configData?.integrations || {})" :key="'wz-sum-' + key">
+                    <li class="flex items-center gap-2 text-sm">
+                        <span :class="integration.configured ? 'wb-success-text' : 'wb-text-faint'"
+                              x-text="integration.configured ? '&#10003;' : '&#10007;'"></span>
+                        <span :class="integration.configured ? 'wb-text-secondary' : 'wb-text-faint'"
+                              x-text="integration.name"></span>
+                    </li>
+                </template>
+            </ul>
+
+            <button @click="wizardComplete()"
+                    class="w-full py-2.5 rounded-lg text-sm font-semibold wb-on-accent wb-bg-accent cursor-pointer
+                           wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                    x-text="t('Wizard_GoToDashboard')"></button>
+        </div>
+    </div>
+</div>
+
 <!-- Main app -->
 <div x-show="initialized" x-cloak class="wb-app mx-auto overflow-x-hidden pb-8">
 
@@ -1254,6 +1472,41 @@
     </template>
 
     </main><!-- /main content -->
+
+    <!-- Floating setup checklist -->
+    <div x-show="showChecklist" x-cloak
+         x-transition:enter="checklist-in" x-transition:leave="checklist-out"
+         :class="{ 'checklist-complete': checklistAutoComplete }"
+         class="checklist-float wb-surface wb-border border rounded-xl shadow-lg overflow-hidden"
+         role="status" :aria-label="t('Checklist_Title')">
+        <div class="flex items-center justify-between px-4 pt-3 pb-2">
+            <span class="text-xs font-semibold wb-text-secondary" x-text="checklistAutoComplete ? t('Checklist_AllDone') : t('Checklist_Title')"></span>
+            <button @click="dismissChecklist()" :aria-label="t('Common_Close')"
+                    class="wb-text-faint hover:wb-text-secondary cursor-pointer p-1 -mr-1">
+                <ion-icon name="close-sharp" aria-hidden="true"></ion-icon>
+            </button>
+        </div>
+        <ul class="px-3 pb-3 space-y-0.5">
+            <li class="checklist-item" @click="openConfigForItem('watchState')">
+                <span :class="hasWatchProvider ? 'wb-success-text' : 'wb-text-faint'" class="text-sm"
+                      x-text="hasWatchProvider ? '&#10003;' : '&#10007;'"></span>
+                <span class="text-xs" :class="hasWatchProvider ? 'wb-text-secondary' : 'wb-text-faint'"
+                      x-text="t('Checklist_WatchProvider')"></span>
+            </li>
+            <li class="checklist-item" @click="openConfigForItem('thought')">
+                <span :class="hasCommentSource ? 'wb-success-text' : 'wb-text-faint'" class="text-sm"
+                      x-text="hasCommentSource ? '&#10003;' : '&#10007;'"></span>
+                <span class="text-xs" :class="hasCommentSource ? 'wb-text-secondary' : 'wb-text-faint'"
+                      x-text="t('Checklist_CommentSource')"></span>
+            </li>
+            <li class="checklist-item" @click="if (hasWatchProvider || hasCommentSource) void sync()">
+                <span :class="hasCompletedSync ? 'wb-success-text' : 'wb-text-faint'" class="text-sm"
+                      x-text="hasCompletedSync ? '&#10003;' : '&#10007;'"></span>
+                <span class="text-xs" :class="hasCompletedSync ? 'wb-text-secondary' : 'wb-text-faint'"
+                      x-text="t('Checklist_FirstSync')"></span>
+            </li>
+        </ul>
+    </div>
 
     <!-- Image lightbox overlay -->
     <div x-show="lightboxImg" x-transition.opacity.duration.200ms @click="lightboxImg = null"

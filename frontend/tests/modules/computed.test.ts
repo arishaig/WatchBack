@@ -20,9 +20,18 @@ function makeState(overrides: Record<string, unknown> = {}): Record<string, unkn
         groupByThread: false,
         alwaysShowSearch: false,
         configData: null,
+        // Wizard/checklist state
+        authState: 'app',
+        wizardActive: false,
+        checklistDismissed: false,
+        checklistAutoComplete: false,
         // computed getters that other getters depend on — supplied as plain values
         activeThoughts: [],
         groupedThoughts: [],
+        hasWatchProvider: false,
+        hasCommentSource: false,
+        hasCompletedSync: false,
+        checklistAllComplete: false,
         ...overrides,
     };
 }
@@ -398,5 +407,183 @@ describe('showSearchBox', () => {
             data: null,
         });
         expect(get('showSearchBox', ctx)).toBe(true);
+    });
+});
+
+// ── hasWatchProvider ──────────────────────────────────────────────────────────
+
+describe('hasWatchProvider', () => {
+    it('returns false when configData is null', () => {
+        expect(get('hasWatchProvider', makeState())).toBe(false);
+    });
+
+    it('returns false when no watchState provider is configured', () => {
+        const ctx = makeState({
+            configData: {
+                integrations: {
+                    jellyfin: { configured: false, providerTypes: ['watchState'] },
+                    reddit: { configured: true, providerTypes: ['thought'] },
+                },
+            },
+        });
+        expect(get('hasWatchProvider', ctx)).toBe(false);
+    });
+
+    it('returns true when a watchState provider is configured', () => {
+        const ctx = makeState({
+            configData: {
+                integrations: {
+                    jellyfin: { configured: true, providerTypes: ['watchState'] },
+                },
+            },
+        });
+        expect(get('hasWatchProvider', ctx)).toBe(true);
+    });
+
+    it('returns true when a dual-role provider with watchState is configured', () => {
+        const ctx = makeState({
+            configData: {
+                integrations: {
+                    trakt: { configured: true, providerTypes: ['watchState', 'thought'] },
+                },
+            },
+        });
+        expect(get('hasWatchProvider', ctx)).toBe(true);
+    });
+});
+
+// ── hasCommentSource ─────────────────────────────────────────────────────────
+
+describe('hasCommentSource', () => {
+    it('returns false when configData is null', () => {
+        expect(get('hasCommentSource', makeState())).toBe(false);
+    });
+
+    it('returns false when no thought provider is configured', () => {
+        const ctx = makeState({
+            configData: {
+                integrations: {
+                    reddit: { configured: false, providerTypes: ['thought'] },
+                    jellyfin: { configured: true, providerTypes: ['watchState'] },
+                },
+            },
+        });
+        expect(get('hasCommentSource', ctx)).toBe(false);
+    });
+
+    it('returns true when a thought provider is configured', () => {
+        const ctx = makeState({
+            configData: {
+                integrations: {
+                    reddit: { configured: true, providerTypes: ['thought'] },
+                },
+            },
+        });
+        expect(get('hasCommentSource', ctx)).toBe(true);
+    });
+});
+
+// ── hasCompletedSync ─────────────────────────────────────────────────────────
+
+describe('hasCompletedSync', () => {
+    it('returns false when data is null', () => {
+        expect(get('hasCompletedSync', makeState())).toBe(false);
+    });
+
+    it('returns false when status is Error', () => {
+        const ctx = makeState({ data: { status: 'Error' } });
+        expect(get('hasCompletedSync', ctx)).toBe(false);
+    });
+
+    it('returns true when status is Watching', () => {
+        const ctx = makeState({ data: { status: 'Watching' } });
+        expect(get('hasCompletedSync', ctx)).toBe(true);
+    });
+
+    it('returns true when status is Idle', () => {
+        const ctx = makeState({ data: { status: 'Idle' } });
+        expect(get('hasCompletedSync', ctx)).toBe(true);
+    });
+});
+
+// ── checklistAllComplete ─────────────────────────────────────────────────────
+
+describe('checklistAllComplete', () => {
+    it('returns false when nothing is complete', () => {
+        const ctx = makeState({
+            hasWatchProvider: false,
+            hasCommentSource: false,
+            hasCompletedSync: false,
+        });
+        expect(get('checklistAllComplete', ctx)).toBe(false);
+    });
+
+    it('returns false when only some items are complete', () => {
+        const ctx = makeState({
+            hasWatchProvider: true,
+            hasCommentSource: true,
+            hasCompletedSync: false,
+        });
+        expect(get('checklistAllComplete', ctx)).toBe(false);
+    });
+
+    it('returns true when all items are complete', () => {
+        const ctx = makeState({
+            hasWatchProvider: true,
+            hasCommentSource: true,
+            hasCompletedSync: true,
+        });
+        expect(get('checklistAllComplete', ctx)).toBe(true);
+    });
+});
+
+// ── showChecklist ────────────────────────────────────────────────────────────
+
+describe('showChecklist', () => {
+    it('returns false when authState is not app', () => {
+        const ctx = makeState({ authState: 'login' });
+        expect(get('showChecklist', ctx)).toBe(false);
+    });
+
+    it('returns false when wizard is active', () => {
+        const ctx = makeState({ authState: 'app', wizardActive: true });
+        expect(get('showChecklist', ctx)).toBe(false);
+    });
+
+    it('returns false when all checklist items are complete', () => {
+        const ctx = makeState({
+            authState: 'app',
+            checklistAllComplete: true,
+        });
+        expect(get('showChecklist', ctx)).toBe(false);
+    });
+
+    it('returns false when checklist is dismissed', () => {
+        const ctx = makeState({
+            authState: 'app',
+            checklistDismissed: true,
+        });
+        expect(get('showChecklist', ctx)).toBe(false);
+    });
+
+    it('returns true when checklist is auto-completing (all done animation)', () => {
+        const ctx = makeState({
+            authState: 'app',
+            checklistAutoComplete: true,
+            checklistAllComplete: true,
+        });
+        expect(get('showChecklist', ctx)).toBe(true);
+    });
+
+    it('returns true when app state and incomplete setup', () => {
+        const ctx = makeState({ authState: 'app' });
+        expect(get('showChecklist', ctx)).toBe(true);
+    });
+
+    it('returns false when wb_checklistCompleted is set in localStorage', () => {
+        localStorage.setItem('wb_checklistCompleted', 'true');
+        const ctx = makeState({ authState: 'app' });
+        expect(get('showChecklist', ctx)).toBe(false);
+        localStorage.removeItem('wb_checklistCompleted');
     });
 });
