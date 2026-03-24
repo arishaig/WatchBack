@@ -159,7 +159,7 @@ Alpine.directive('providerfields', (el, { expression }, { evaluate, effect, clea
     });
 
     el.append(clone);
-    children.forEach(child => Alpine.initTree(child));
+    children.forEach(child => Alpine.initTree(child as HTMLElement));
 
     cleanup(() => { children.forEach(c => c.remove()); });
 });
