@@ -452,6 +452,12 @@ internal static class PlaywrightHelpers
             diagnosticsLogs: diagnosticsLogs, diagnosticsStatus: diagnosticsStatus,
             needsOnboarding: needsOnboarding);
         await page.GotoAsync(url);
+
+        // Mark wizard/checklist as completed so the overlay doesn't block non-wizard tests
+        await page.EvaluateAsync("localStorage.setItem('wb_wizardCompleted', 'true')");
+        await page.EvaluateAsync("localStorage.setItem('wb_checklistCompleted', 'true')");
+        await page.ReloadAsync();
+
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15_000 });
         await page.WaitForTimeoutAsync(500); // allow Alpine init
         await ApplyTheme(page, theme);
