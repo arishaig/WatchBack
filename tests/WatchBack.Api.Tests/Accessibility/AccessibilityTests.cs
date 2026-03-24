@@ -337,6 +337,102 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Wizard tests — each step rendered once per theme
+    // -----------------------------------------------------------------------
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task WizardWelcome(string theme)
+    {
+        var page = await _browser.NewPageAsync();
+        try
+        {
+            await LoadPageWithWizard(page, _baseUrl, theme, config: ConfigEmpty);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task WizardWatchProvider(string theme)
+    {
+        var page = await _browser.NewPageAsync();
+        try
+        {
+            await LoadPageWithWizard(page, _baseUrl, theme, config: ConfigEmpty);
+            await AdvanceWizardToStep(page, 1);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task WizardCommentSources(string theme)
+    {
+        var page = await _browser.NewPageAsync();
+        try
+        {
+            await LoadPageWithWizard(page, _baseUrl, theme, config: ConfigEmpty);
+            await AdvanceWizardToStep(page, 2);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task WizardDone(string theme)
+    {
+        var page = await _browser.NewPageAsync();
+        try
+        {
+            await LoadPageWithWizard(page, _baseUrl, theme, config: ConfigEmpty);
+            await AdvanceWizardToStep(page, 3);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task ChecklistVisible(string theme)
+    {
+        var page = await _browser.NewPageAsync();
+        try
+        {
+            // Load with wizard flags cleared, then skip wizard so checklist appears
+            await LoadPageWithWizard(page, _baseUrl, theme, config: ConfigEmpty);
+            // Skip the wizard — click the skip link
+            var skip = page.Locator("button:visible:has-text('Skip'), button:visible:has-text('Omitir')").First;
+            await skip.ClickAsync();
+            await page.WaitForTimeoutAsync(400); // allow checklist entrance animation
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Diagnostics tests
+    // -----------------------------------------------------------------------
+
     [Theory]
     [MemberData(nameof(ThemeData))]
     public async Task DiagnosticsTabWithData(string theme)

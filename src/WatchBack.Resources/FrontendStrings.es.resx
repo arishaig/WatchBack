@@ -255,4 +255,70 @@
     <data name="DangerZone_Title" xml:space="preserve">
         <value>Zona de peligro</value>
     </data>
+    <data name="Wizard_Welcome" xml:space="preserve">
+        <value>Bienvenido a WatchBack</value>
+    </data>
+    <data name="Wizard_WelcomeBody" xml:space="preserve">
+        <value>WatchBack recopila discusiones de TV y películas de múltiples fuentes según lo que estás viendo actualmente. Vamos a configurarlo.</value>
+    </data>
+    <data name="Wizard_GetStarted" xml:space="preserve">
+        <value>Comenzar</value>
+    </data>
+    <data name="Wizard_SkipSetup" xml:space="preserve">
+        <value>Omitir, lo configuraré después</value>
+    </data>
+    <data name="Wizard_PickWatchProvider" xml:space="preserve">
+        <value>¿Cómo registras lo que estás viendo?</value>
+    </data>
+    <data name="Wizard_PickWatchProviderHint" xml:space="preserve">
+        <value>Elige un proveedor para detectar tu contenido actual.</value>
+    </data>
+    <data name="Wizard_PickCommentSources" xml:space="preserve">
+        <value>¿De dónde deben venir las discusiones?</value>
+    </data>
+    <data name="Wizard_PickCommentSourcesHint" xml:space="preserve">
+        <value>Selecciona al menos una fuente. Puedes agregar más después.</value>
+    </data>
+    <data name="Wizard_AllSet" xml:space="preserve">
+        <value>¡Todo listo!</value>
+    </data>
+    <data name="Wizard_AllSetBody" xml:space="preserve">
+        <value>Esto es lo que has configurado:</value>
+    </data>
+    <data name="Wizard_GoToDashboard" xml:space="preserve">
+        <value>Ir al panel</value>
+    </data>
+    <data name="Wizard_Next" xml:space="preserve">
+        <value>Continuar</value>
+    </data>
+    <data name="Wizard_Back" xml:space="preserve">
+        <value>Volver</value>
+    </data>
+    <data name="Wizard_SaveAndContinue" xml:space="preserve">
+        <value>Guardar y continuar</value>
+    </data>
+    <data name="Wizard_SkipThisStep" xml:space="preserve">
+        <value>Omitir este paso</value>
+    </data>
+    <data name="Wizard_StepOf" xml:space="preserve">
+        <value>Paso {0} de {1}</value>
+    </data>
+    <data name="Wizard_NoConfigNeeded" xml:space="preserve">
+        <value>No se necesita configuración — solo selecciona y continúa.</value>
+    </data>
+    <data name="Checklist_Title" xml:space="preserve">
+        <value>Lista de configuración</value>
+    </data>
+    <data name="Checklist_WatchProvider" xml:space="preserve">
+        <value>Proveedor de seguimiento configurado</value>
+    </data>
+    <data name="Checklist_CommentSource" xml:space="preserve">
+        <value>Al menos una fuente de comentarios</value>
+    </data>
+    <data name="Checklist_FirstSync" xml:space="preserve">
+        <value>Primera sincronización completada</value>
+    </data>
+    <data name="Checklist_AllDone" xml:space="preserve">
+        <value>¡Todo listo!</value>
+    </data>
 </root>

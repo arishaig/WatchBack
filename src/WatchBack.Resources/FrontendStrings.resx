@@ -557,4 +557,70 @@
     <data name="Aria_ConfigSections" xml:space="preserve">
         <value>Configuration sections</value>
     </data>
+    <data name="Wizard_Welcome" xml:space="preserve">
+        <value>Welcome to WatchBack</value>
+    </data>
+    <data name="Wizard_WelcomeBody" xml:space="preserve">
+        <value>WatchBack aggregates TV and movie discussions from multiple sources based on what you're currently watching. Let's get you set up.</value>
+    </data>
+    <data name="Wizard_GetStarted" xml:space="preserve">
+        <value>Get Started</value>
+    </data>
+    <data name="Wizard_SkipSetup" xml:space="preserve">
+        <value>Skip, I'll set this up later</value>
+    </data>
+    <data name="Wizard_PickWatchProvider" xml:space="preserve">
+        <value>How do you track what you're watching?</value>
+    </data>
+    <data name="Wizard_PickWatchProviderHint" xml:space="preserve">
+        <value>Choose one provider to detect your current media.</value>
+    </data>
+    <data name="Wizard_PickCommentSources" xml:space="preserve">
+        <value>Where should discussions come from?</value>
+    </data>
+    <data name="Wizard_PickCommentSourcesHint" xml:space="preserve">
+        <value>Select at least one source. You can add more later.</value>
+    </data>
+    <data name="Wizard_AllSet" xml:space="preserve">
+        <value>You're all set!</value>
+    </data>
+    <data name="Wizard_AllSetBody" xml:space="preserve">
+        <value>Here's what you've configured:</value>
+    </data>
+    <data name="Wizard_GoToDashboard" xml:space="preserve">
+        <value>Go to Dashboard</value>
+    </data>
+    <data name="Wizard_Next" xml:space="preserve">
+        <value>Continue</value>
+    </data>
+    <data name="Wizard_Back" xml:space="preserve">
+        <value>Back</value>
+    </data>
+    <data name="Wizard_SaveAndContinue" xml:space="preserve">
+        <value>Save &amp; Continue</value>
+    </data>
+    <data name="Wizard_SkipThisStep" xml:space="preserve">
+        <value>Skip this step</value>
+    </data>
+    <data name="Wizard_StepOf" xml:space="preserve">
+        <value>Step {0} of {1}</value>
+    </data>
+    <data name="Wizard_NoConfigNeeded" xml:space="preserve">
+        <value>No configuration needed — just select and continue.</value>
+    </data>
+    <data name="Checklist_Title" xml:space="preserve">
+        <value>Setup Checklist</value>
+    </data>
+    <data name="Checklist_WatchProvider" xml:space="preserve">
+        <value>Watch provider configured</value>
+    </data>
+    <data name="Checklist_CommentSource" xml:space="preserve">
+        <value>At least one comment source</value>
+    </data>
+    <data name="Checklist_FirstSync" xml:space="preserve">
+        <value>First sync completed</value>
+    </data>
+    <data name="Checklist_AllDone" xml:space="preserve">
+        <value>All done!</value>
+    </data>
 </root>

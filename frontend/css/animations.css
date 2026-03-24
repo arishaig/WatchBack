@@ -115,6 +115,49 @@
     animation: wb-progress-glow-pulse 2s ease-in-out infinite;
 }
 
+/* ─── Desktop: config panel slides from right instead of top ─── */
+@media (width >= 1024px) {
+    @keyframes config-slide-in {
+        from { opacity: 0; transform: translateX(100%); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes config-slide-out {
+        from { opacity: 1; transform: translateX(0); }
+        to   { opacity: 0; transform: translateX(100%); }
+    }
+}
+
+/* ─── Wizard step transition ─── */
+@keyframes wizard-step-in {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+.wizard-step-enter {
+    animation: wizard-step-in 0.25s ease-out both;
+}
+
+/* ─── Floating checklist entrance/exit ─── */
+@keyframes checklist-enter {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes checklist-leave {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(16px); }
+}
+.checklist-in  { animation: checklist-enter 0.3s ease-out both; }
+.checklist-out { animation: checklist-leave 0.2s ease-in both; }
+
+/* ─── Checklist completion pulse ─── */
+@keyframes checklist-complete-pulse {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--wb-success-text) 40%, transparent); }
+    70%  { box-shadow: 0 0 0 8px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+}
+.checklist-complete {
+    animation: checklist-complete-pulse 0.6s ease-out;
+}
+
 /* ─── Respect reduced motion ─── */
 @media (prefers-reduced-motion: reduce) {
     .comment-card,
@@ -122,7 +165,11 @@
     .config-enter,
     .config-leave,
     .wb-segment::after,
-    .wb-segments-glow {
+    .wb-segments-glow,
+    .wizard-step-enter,
+    .checklist-in,
+    .checklist-out,
+    .checklist-complete {
         animation: none !important;
     }
 }

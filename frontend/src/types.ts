@@ -62,6 +62,14 @@ export interface AppData {
     appVersion: string | null;
     copyLogsStatus: 'copied' | 'error' | null;
     alwaysShowSearch: boolean;
+    // Wizard & checklist
+    wizardStep: number;
+    wizardActive: boolean;
+    wizardSelectedWatch: string | null;
+    wizardSelectedComments: Set<string>;
+    wizardSaving: boolean;
+    checklistDismissed: boolean;
+    checklistAutoComplete: boolean;
     searchQuery: string;
     searchResults: unknown[];
     searchLoading: boolean;
@@ -126,7 +134,23 @@ export interface AppData {
     clearLogs(): Promise<void>;
     copyLogs(): Promise<void>;
 
+    // Wizard
+    wizardNext(): Promise<void>;
+    wizardBack(): void;
+    wizardSkip(): void;
+    wizardComplete(): void;
+    wizardSelectWatch(key: string): void;
+    wizardToggleComment(key: string): void;
+    wizardSaveAndContinue(): Promise<void>;
+    dismissChecklist(): void;
+    openConfigForItem(type: string): void;
+
     // Computed (getters)
+    readonly hasWatchProvider: boolean;
+    readonly hasCommentSource: boolean;
+    readonly hasCompletedSync: boolean;
+    readonly checklistAllComplete: boolean;
+    readonly showChecklist: boolean;
     readonly filteredLogs: unknown[];
     readonly showTimeMachine: boolean;
     readonly activeThoughts: unknown[];

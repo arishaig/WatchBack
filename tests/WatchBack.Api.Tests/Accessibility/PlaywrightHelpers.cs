@@ -348,15 +348,20 @@ internal static class PlaywrightHelpers
         Dictionary<string, object?>? sync = null,
         Dictionary<string, object?>? config = null,
         object[]? diagnosticsLogs = null,
-        object? diagnosticsStatus = null)
+        object? diagnosticsStatus = null,
+        bool needsOnboarding = false)
     {
+        var authBody = needsOnboarding
+            ? """{"authenticated":true,"username":"test","needsOnboarding":true,"authMethod":"cookie","forwardAuthHeader":""}"""
+            : """{"authenticated":true,"username":"test","needsOnboarding":false,"authMethod":"cookie","forwardAuthHeader":""}""";
+
         // Intercept auth check so the app skips the login form and renders content
         await page.RouteAsync("**/api/auth/me", route =>
             route.FulfillAsync(new RouteFulfillOptions
             {
                 Status = 200,
                 ContentType = "application/json",
-                Body = """{"authenticated":true,"username":"test","needsOnboarding":false,"authMethod":"cookie","forwardAuthHeader":""}""",
+                Body = authBody,
             }));
 
         // Block SSE so networkidle can settle
@@ -440,14 +445,65 @@ internal static class PlaywrightHelpers
         Dictionary<string, object?>? sync = null,
         Dictionary<string, object?>? config = null,
         object[]? diagnosticsLogs = null,
-        object? diagnosticsStatus = null)
+        object? diagnosticsStatus = null,
+        bool needsOnboarding = false)
     {
         await SetupApiRoutes(page, sync: sync, config: config,
-            diagnosticsLogs: diagnosticsLogs, diagnosticsStatus: diagnosticsStatus);
+            diagnosticsLogs: diagnosticsLogs, diagnosticsStatus: diagnosticsStatus,
+            needsOnboarding: needsOnboarding);
         await page.GotoAsync(url);
+
+        // Mark wizard/checklist as completed so the overlay doesn't block non-wizard tests
+        await page.EvaluateAsync("localStorage.setItem('wb_wizardCompleted', 'true')");
+        await page.EvaluateAsync("localStorage.setItem('wb_checklistCompleted', 'true')");
+        await page.ReloadAsync();
+
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15_000 });
         await page.WaitForTimeoutAsync(500); // allow Alpine init
         await ApplyTheme(page, theme);
+    }
+
+    /// <summary>
+    /// Load a page with the wizard active (simulates first-time user after account setup).
+    /// Clears wizard-related localStorage flags so the wizard auto-launches.
+    /// </summary>
+    public static async Task LoadPageWithWizard(
+        IPage page,
+        string url,
+        string theme,
+        Dictionary<string, object?>? config = null)
+    {
+        await SetupApiRoutes(page, sync: SyncIdle, config: config ?? ConfigEmpty);
+
+        // Clear wizard flags before navigation so the wizard auto-launches
+        await page.GotoAsync(url);
+        await page.EvaluateAsync("localStorage.removeItem('wb_wizardCompleted')");
+        await page.EvaluateAsync("localStorage.removeItem('wb_checklistCompleted')");
+        await page.ReloadAsync();
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15_000 });
+        await page.WaitForTimeoutAsync(500); // allow Alpine init
+        await ApplyTheme(page, theme);
+    }
+
+    public static async Task AdvanceWizardToStep(IPage page, int targetStep)
+    {
+        for (var i = 0; i < targetStep; i++)
+        {
+            // Each step has a different primary button — find the visible one
+            if (i == 0)
+            {
+                // Step 0: "Get Started" button
+                var btn = page.Locator("button:visible:has-text('Get Started'), button:visible:has-text('Comenzar')");
+                await btn.ClickAsync();
+            }
+            else
+            {
+                // Steps 1+: "Skip this step" link (fastest path to advance)
+                var skip = page.Locator("button:visible:has-text('Skip this step'), button:visible:has-text('Omitir este paso')");
+                await skip.ClickAsync();
+            }
+            await page.WaitForTimeoutAsync(300); // allow transition
+        }
     }
 
     public static async Task OpenConfigModal(IPage page)

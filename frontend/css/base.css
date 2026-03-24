@@ -108,6 +108,23 @@ main h2 {
     max-width: 700px;
 }
 
+/* ─── Desktop layout: config panel as right-side drawer ─── */
+@media (width >= 1024px) {
+    .wb-app > aside {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 400px;
+        max-width: 90vw;
+        z-index: 40;
+        margin-bottom: 0;
+        border-radius: 0;
+        overflow-y: auto;
+        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+    }
+}
+
 /* Logo */
 img.wb-logo {
     filter: var(--wb-logo-filter);
