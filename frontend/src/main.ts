@@ -131,5 +131,38 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && target.hasAttribute('data-wb-spoiler')) target.classList.add('revealed');
 });
 
+// ── Reusable provider-fields directive ────────────────────────────────────────
+// Clones the <template id="provider-fields"> fragment and initialises Alpine
+// directives on the clone so the same field+test-button markup can be used in
+// the config panel and both wizard steps.
+Alpine.directive('providerfields', (el, { expression }, { evaluate, effect, cleanup }) => {
+    const opts = evaluate(expression) as { mode: string; prefix: string };
+    const tpl = document.getElementById('provider-fields') as HTMLTemplateElement | null;
+    if (!tpl) return;
+
+    const clone = tpl.content.cloneNode(true) as DocumentFragment;
+    const children = Array.from(clone.children);
+
+    Alpine.addScopeToNode(el, {
+        _pfMode: opts.mode,
+        _pfPrefix: opts.prefix,
+        get _pfTestDisabled() {
+            const app = (Alpine as any).$data(el);
+            const key = app.key;
+            if (app.testResults[key]?.status === 'testing') return true;
+            if (opts.mode === 'config') {
+                return !app.integration.configured &&
+                    !app.integration.fields.some((f: { key: string }) => app.configEdits[f.key]);
+            }
+            return false;
+        },
+    });
+
+    el.append(clone);
+    children.forEach(child => Alpine.initTree(child));
+
+    cleanup(() => { children.forEach(c => c.remove()); });
+});
+
 (window as unknown as Window & { Alpine: typeof Alpine }).Alpine = Alpine;
 Alpine.start();

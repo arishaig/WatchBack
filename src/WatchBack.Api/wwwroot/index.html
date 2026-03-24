@@ -17,6 +17,62 @@
 <!-- suppress HtmlUnknownTag, JSUnresolvedVariable, JSUnresolvedFunction, JSUnusedLocalSymbols, JSIgnoredPromiseFromCall, JSCommaOperator, JSUnreachableCode, SpellCheckingInspection, HtmlFormInputWithoutLabel, RequiredAttributes -->
 <body class="antialiased font-sans p-4" x-data="app()">
 
+<!-- ─── Shared provider-fields template (cloned by x-providerfields directive) ─── -->
+<template id="provider-fields">
+    <div class="space-y-3">
+        <template x-if="integration.fields.length === 0 && _pfMode !== 'config'">
+            <p class="text-xs wb-text-faint" x-text="t('Wizard_NoConfigNeeded')"></p>
+        </template>
+        <template x-for="field in integration.fields" :key="_pfPrefix + field.key">
+            <div x-data="{ showSecret: false }">
+                <div class="flex justify-between mb-1">
+                    <label :for="_pfPrefix + field.key"
+                           class="text-xs font-medium"
+                           :class="_pfMode === 'config' ? 'wb-text-muted' : 'wb-text-faint'"
+                           x-text="field.label"></label>
+                    <span x-show="_pfMode === 'config'" class="flex items-center gap-2">
+                        <span x-show="field.type === 'password' && field.hasValue && !configEdits[field.key]"
+                              class="text-xs wb-text-faint" x-text="t('Config_Set')"></span>
+                        <button x-show="field.isOverridden" type="button"
+                                @click="void resetConfigKeys([field.key])"
+                                :title="field.envValue ? t('Config_ResetTo', field.envValue) : t('Config_ClearOverride')"
+                                class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
+                    </span>
+                </div>
+                <div class="relative">
+                    <input :id="_pfPrefix + field.key"
+                           :type="field.type"
+                           :placeholder="field.type === 'password' && field.hasValue ? t('Config_Unchanged') : field.placeholder"
+                           x-model="configEdits[field.key]"
+                           x-ref="inp"
+                           autocomplete="off"
+                           :class="[field.type === 'password' ? 'pr-9' : '', _pfMode === 'config' ? 'wb-surface transition-colors' : 'wb-surface-alt']"
+                           class="w-full wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                    <button x-show="field.type === 'password'" type="button"
+                            @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
+                            :aria-label="showSecret ? t('Aria_HideValue') : t('Aria_ShowValue')"
+                            :aria-pressed="_pfMode === 'config' ? showSecret : undefined"
+                            class="wb-eye-btn">
+                        <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'" aria-hidden="true"></ion-icon>
+                    </button>
+                </div>
+            </div>
+        </template>
+        <button @click="void testService(key)"
+                :disabled="_pfTestDisabled"
+                aria-live="polite"
+                class="w-full rounded-lg text-xs font-medium wb-border border wb-surface
+                       cursor-pointer disabled:opacity-50 wb-btn
+                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                :class="[
+                    testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : '',
+                    _pfMode === 'config' ? 'wb-text-muted py-2.5' : 'wb-text-secondary py-2'
+                ]"
+                x-text="testResults[key]?.status === 'testing' ? t('Common_Testing') : testResults[key]?.message || t('Config_TestConnection')">
+        </button>
+    </div>
+</template>
+
 <!-- Loading state (full-screen, shown during initial load) -->
 <div x-show="!initialized && authState === 'checking'" class="wb-overlay"
      style="background-color:var(--wb-bg,#1a1a2e);z-index:100;">
@@ -272,41 +328,8 @@
                                   class="ml-auto text-xs wb-accent-text font-medium">&#10003;</span>
                         </div>
                         <!-- Expanded config fields (when selected) -->
-                        <div x-show="wizardSelectedWatch === key" @click.stop class="mt-4 space-y-3">
-                            <template x-if="integration.fields.length === 0">
-                                <p class="text-xs wb-text-faint" x-text="t('Wizard_NoConfigNeeded')"></p>
-                            </template>
-                            <template x-for="field in integration.fields" :key="'wz-' + field.key">
-                                <div x-data="{ showSecret: false }">
-                                    <label :for="'wz-' + field.key" class="text-xs font-medium wb-text-faint block mb-1"
-                                           x-text="field.label"></label>
-                                    <div class="relative">
-                                        <input :id="'wz-' + field.key"
-                                               :type="field.type"
-                                               :placeholder="field.type === 'password' && field.hasValue ? t('Config_Unchanged') : field.placeholder"
-                                               x-model="configEdits[field.key]"
-                                               x-ref="inp"
-                                               autocomplete="off"
-                                               :class="field.type === 'password' ? 'pr-9' : ''"
-                                               class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
-                                        <button x-show="field.type === 'password'" type="button"
-                                                @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
-                                                :aria-label="showSecret ? t('Aria_HideValue') : t('Aria_ShowValue')"
-                                                class="wb-eye-btn">
-                                            <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'" aria-hidden="true"></ion-icon>
-                                        </button>
-                                    </div>
-                                </div>
-                            </template>
-                            <!-- Test button -->
-                            <button @click.stop="void testService(key)"
-                                    :disabled="testResults[key]?.status === 'testing'"
-                                    class="w-full py-2 rounded-lg text-xs font-medium wb-border border wb-surface
-                                           wb-text-secondary cursor-pointer disabled:opacity-50 wb-btn
-                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                    :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
-                                    x-text="testResults[key]?.status === 'testing' ? t('Common_Testing') : testResults[key]?.message || t('Config_TestConnection')">
-                            </button>
+                        <div x-show="wizardSelectedWatch === key" @click.stop class="mt-4"
+                             x-providerfields="{ mode: 'wizard', prefix: 'wz-' }">
                         </div>
                     </div>
                 </template>
@@ -349,41 +372,9 @@
                                   class="ml-auto text-xs wb-accent-text font-medium">&#10003;</span>
                         </div>
                         <!-- Expanded config fields (when selected) -->
-                        <div x-show="wizardSelectedComments.has(key)" @click.stop class="mt-4 space-y-3">
-                            <template x-if="integration.fields.length === 0">
-                                <p class="text-xs wb-text-faint" x-text="t('Wizard_NoConfigNeeded')"></p>
-                            </template>
-                            <template x-for="field in integration.fields" :key="'wz-' + field.key">
-                                <div x-data="{ showSecret: false }">
-                                    <label :for="'wz-' + field.key" class="text-xs font-medium wb-text-faint block mb-1"
-                                           x-text="field.label"></label>
-                                    <div class="relative">
-                                        <input :id="'wz-' + field.key"
-                                               :type="field.type"
-                                               :placeholder="field.type === 'password' && field.hasValue ? t('Config_Unchanged') : field.placeholder"
-                                               x-model="configEdits[field.key]"
-                                               x-ref="inp"
-                                               autocomplete="off"
-                                               :class="field.type === 'password' ? 'pr-9' : ''"
-                                               class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
-                                        <button x-show="field.type === 'password'" type="button"
-                                                @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
-                                                :aria-label="showSecret ? t('Aria_HideValue') : t('Aria_ShowValue')"
-                                                class="wb-eye-btn">
-                                            <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'" aria-hidden="true"></ion-icon>
-                                        </button>
-                                    </div>
-                                </div>
-                            </template>
-                            <!-- Test button -->
-                            <button @click.stop="void testService(key)"
-                                    :disabled="testResults[key]?.status === 'testing'"
-                                    class="w-full py-2 rounded-lg text-xs font-medium wb-border border wb-surface
-                                           wb-text-secondary cursor-pointer disabled:opacity-50 wb-btn
-                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                    :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
-                                    x-text="testResults[key]?.status === 'testing' ? t('Common_Testing') : testResults[key]?.message || t('Config_TestConnection')">
-                            </button>
+                        <!-- Expanded config fields (when selected) -->
+                        <div x-show="wizardSelectedComments.has(key)" @click.stop class="mt-4"
+                             x-providerfields="{ mode: 'wizard', prefix: 'wz-' }">
                         </div>
                     </div>
                 </template>
@@ -565,54 +556,8 @@
                                  x-transition:leave="transition ease-in duration-100"
                                  x-transition:leave-start="opacity-100"
                                  x-transition:leave-end="opacity-0"
-                                 class="px-4 pb-4 space-y-3">
-                                <template x-for="field in integration.fields" :key="field.key">
-                                    <div x-data="{ showSecret: false }">
-                                        <div class="flex justify-between mb-1">
-                                            <label :for="'field-' + field.key"
-                                                   class="text-xs font-medium wb-text-muted"
-                                                   x-text="field.label"></label>
-                                            <span class="flex items-center gap-2">
-                                                <span x-show="field.type === 'password' && field.hasValue && !configEdits[field.key]"
-                                                      class="text-xs wb-text-faint" x-text="t('Config_Set')"></span>
-                                                <button x-show="field.isOverridden" type="button"
-                                                        @click="void resetConfigKeys([field.key])"
-                                                        :title="field.envValue ? t('Config_ResetTo', field.envValue) : t('Config_ClearOverride')"
-                                                        class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none">↺</button>
-                                            </span>
-                                        </div>
-                                        <!--suppress HtmlFormInputWithoutLabel -->
-                                        <div class="relative">
-                                            <input :id="'field-' + field.key"
-                                                   :type="field.type"
-                                                   :placeholder="field.type === 'password' && field.hasValue ? t('Config_Unchanged') : field.placeholder"
-                                                   x-model="configEdits[field.key]"
-                                                   x-ref="inp"
-                                                   autocomplete="off"
-                                                   :class="field.type === 'password' ? 'pr-9' : ''"
-                                                   class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm transition-colors border">
-                                            <button x-show="field.type === 'password'"
-                                                    type="button"
-                                                    @click="showSecret = !showSecret; $refs.inp.type = showSecret ? 'text' : 'password'; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
-                                                    :aria-label="showSecret ? t('Aria_HideValue') : t('Aria_ShowValue')"
-                                                    :aria-pressed="showSecret"
-                                                    class="wb-eye-btn">
-                                                <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'"
-                                                          aria-hidden="true"></ion-icon>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </template>
-                                <!-- Test button -->
-                                <button @click="void testService(key)"
-                                        :disabled="testResults[key]?.status === 'testing' || (!integration.configured && !integration.fields.some(f => configEdits[f.key]))"
-                                        aria-live="polite"
-                                        class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface
-                                               wb-text-muted cursor-pointer disabled:opacity-50 wb-btn
-                                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                        :class="testResults[key]?.status === 'ok' ? 'test-ok' : testResults[key]?.status === 'error' ? 'test-error' : ''"
-                                        x-text="testResults[key]?.status === 'testing' ? t('Common_Testing') : testResults[key]?.message || t('Config_TestConnection')">
-                                </button>
+                                 class="px-4 pb-4"
+                                 x-providerfields="{ mode: 'config', prefix: 'field-' }">
                             </div>
                         </div>
                     </template>
