@@ -118,7 +118,7 @@ input[type="number"] {
 }
 
 @media (hover: hover) {
-    .wb-eye-btn:hover { color: var(--wb-text-muted); }
+    .wb-eye-btn:hover { color: var(--wb-text-secondary); }
 }
 
 /* ─── Skeuomorphic button ─── */
@@ -255,8 +255,8 @@ input[type="number"] {
     top: 50%;
     width: 0.4rem;
     height: 0.4rem;
-    border-right: 1.5px solid var(--wb-text-muted);
-    border-bottom: 1.5px solid var(--wb-text-muted);
+    border-right: 1.5px solid var(--wb-text-secondary);
+    border-bottom: 1.5px solid var(--wb-text-secondary);
     transform: translateY(-75%) rotate(45deg);
     pointer-events: none;
 }
@@ -323,7 +323,7 @@ input[type="number"] {
     border-left: 3px solid var(--wb-accent, #6366f1);
     padding: 0.25rem 0.75rem;
     margin: 0.35rem 0;
-    color: var(--wb-text-muted);
+    color: var(--wb-text-secondary);
     white-space: pre-wrap;
 }
 
