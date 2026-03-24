@@ -273,7 +273,7 @@
     </div>
 
     <!-- Config panel -->
-    <aside x-show="showConfig" x-cloak role="region" :aria-label="t('Nav_Configuration')" @keydown.escape="showConfig = false"
+    <aside x-show="showConfig" x-cloak role="region" :aria-label="t('Nav_Configuration')" @keydown.escape.window="showConfig = false"
          x-transition:enter="config-enter" x-transition:leave="config-leave"
          class="wb-surface wb-border rounded-xl mb-6 overflow-hidden border">
         <div class="p-4">
@@ -405,8 +405,8 @@
                     <button @click="void saveAllConfig()"
                             :disabled="saveAllStatus === 'saving'"
                             aria-live="polite"
-                            class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-on-accent wb-bg-accent
-                                   cursor-pointer disabled:opacity-50 wb-btn
+                            class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                                   wb-text-muted cursor-pointer disabled:opacity-50 wb-btn
                                    hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                             :class="saveAllStatus === 'saved' ? 'test-ok' : saveAllStatus === 'error' ? 'test-error' : ''"
                             x-text="saveAllStatus === 'saving' ? t('Common_Saving') : saveAllStatus === 'saved' ? t('Common_Saved') : saveAllStatus === 'error' ? t('Common_Error') : t('Common_Save')">
