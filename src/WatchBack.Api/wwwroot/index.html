@@ -426,7 +426,7 @@
 </div>
 
 <!-- Main app -->
-<div x-show="initialized" x-cloak class="wb-app mx-auto overflow-x-hidden pb-8">
+<div x-show="initialized" x-cloak class="wb-app mx-auto overflow-x-hidden pb-8" :class="showConfig ? 'drawer-open' : ''">
 
     <header class="flex justify-between items-center mb-6 mt-2">
         <div class="flex items-center gap-3">
@@ -859,6 +859,14 @@
                                         <input id="forward-auth-header" type="text" x-model="forwardAuthHeaderEdit"
                                                placeholder="X-Remote-User"
                                                class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                    </div>
+                                    <div>
+                                        <label for="forward-auth-trusted-host"
+                                               class="text-xs font-medium wb-text-muted block mb-1" x-text="t('DangerZone_TrustedHost')"></label>
+                                        <input id="forward-auth-trusted-host" type="text" x-model="forwardAuthTrustedHostEdit"
+                                               placeholder="192.168.1.1"
+                                               class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                        <p class="text-xs wb-text-faint mt-1" x-text="t('DangerZone_TrustedHostHelp')"></p>
                                     </div>
                                     <div class="rounded-lg px-3 py-2 text-xs leading-relaxed"
                                          style="background:var(--wb-error-bg);color:var(--wb-error-text);border:1px solid var(--wb-error-border)">

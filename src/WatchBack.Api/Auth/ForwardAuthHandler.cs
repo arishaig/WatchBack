@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Options;
@@ -15,9 +16,12 @@ public class ForwardAuthHandler(
     IOptionsMonitor<ForwardAuthOptions> options,
     ILoggerFactory logger,
     UrlEncoder encoder,
-    IOptionsMonitor<AuthOptions> authOptions)
+    IOptionsMonitor<AuthOptions> authOptions,
+    IMemoryCache cache)
     : AuthenticationHandler<ForwardAuthOptions>(options, logger, encoder)
 {
+    private static readonly TimeSpan DnsCacheDuration = TimeSpan.FromSeconds(60);
+
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var opts = authOptions.CurrentValue;
@@ -33,7 +37,7 @@ public class ForwardAuthHandler(
         if (!string.IsNullOrEmpty(opts.ForwardAuthTrustedHost))
         {
             var remoteIp = Context.Connection.RemoteIpAddress;
-            if (remoteIp != null && !await IsFromTrustedHostAsync(remoteIp, opts.ForwardAuthTrustedHost))
+            if (remoteIp == null || !await IsFromTrustedHostAsync(remoteIp, opts.ForwardAuthTrustedHost))
             {
 #pragma warning disable CA1848
                 Logger.LogWarning(
@@ -52,23 +56,29 @@ public class ForwardAuthHandler(
 
     /// <summary>
     /// Checks whether the remote IP matches the configured trusted host.
-    /// Accepts an IP address directly or resolves a hostname via DNS.
+    /// Accepts an IP address directly or resolves a hostname via DNS (cached for 60 s).
     /// </summary>
-    private static async Task<bool> IsFromTrustedHostAsync(IPAddress remoteIp, string trustedHost)
+    private async Task<bool> IsFromTrustedHostAsync(IPAddress remoteIp, string trustedHost)
     {
-        // Try parsing as an IP address first
+        // Try parsing as an IP address first — no DNS needed
         if (IPAddress.TryParse(trustedHost, out var trustedIp))
             return remoteIp.Equals(trustedIp);
 
-        // Resolve hostname to IP addresses
-        try
+        // Resolve hostname to IP addresses, caching to avoid DNS per-request
+        var cacheKey = $"forwardauth:dns:{trustedHost}";
+        if (!cache.TryGetValue(cacheKey, out IPAddress[]? addresses))
         {
-            var addresses = await Dns.GetHostAddressesAsync(trustedHost);
-            return addresses.Any(a => a.Equals(remoteIp));
+            try
+            {
+                addresses = await Dns.GetHostAddressesAsync(trustedHost);
+                cache.Set(cacheKey, addresses, DnsCacheDuration);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return false;
+            }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            return false;
-        }
+
+        return addresses is not null && addresses.Any(a => a.Equals(remoteIp));
     }
 }

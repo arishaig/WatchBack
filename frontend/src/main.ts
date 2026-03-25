@@ -65,6 +65,7 @@ Alpine.data('app', (): AppData => {
         clearCacheStatus: null,
         forwardAuthEnabled: false,
         forwardAuthHeaderEdit: '',
+        forwardAuthTrustedHostEdit: '',
         forwardAuthSaveStatus: null,
         needsOnboarding: false,
         configTab: 'settings',

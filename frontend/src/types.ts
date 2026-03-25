@@ -52,6 +52,7 @@ export interface AppData {
     clearCacheStatus: 'loading' | 'ok' | 'error' | null;
     forwardAuthEnabled: boolean;
     forwardAuthHeaderEdit: string;
+    forwardAuthTrustedHostEdit: string;
     forwardAuthSaveStatus: string | null;
     needsOnboarding: boolean;
     configTab: string;

@@ -31,41 +31,38 @@ public class SyncService(
                 ?? watchStateProviders.FirstOrDefault();
 
             // Manual provider takes priority when it has an active context.
-            // While checking, also kick off the configured provider's check in parallel
-            // so we can report if it's also active (suppressed by the manual override).
+            // Kick off the configured provider's check early so it runs concurrently
+            // with the manual check — avoids a wasted round-trip on the fallback path.
             IWatchStateProvider? watchStateProvider = null;
             MediaContext? mediaContext = null;
             IWatchStateProvider? suppressedProvider = null;
             MediaContext? suppressedContext = null;
 
-            foreach (var manual in manualWatchStateProviders)
-            {
-                // Run both checks concurrently when there is a non-manual configured provider
-                Task<MediaContext?> configuredTask = configuredProvider != null && configuredProvider != (IWatchStateProvider)manual
-                    ? configuredProvider.GetCurrentMediaContextAsync(ct)
-                    : Task.FromResult<MediaContext?>(null);
+            var manual = manualWatchStateProviders.FirstOrDefault();
+            var configuredIsManual = manual != null && configuredProvider == (IWatchStateProvider)manual;
 
-                var manualContext = await manual.GetCurrentMediaContextAsync(ct);
-                if (manualContext is not null)
+            // Start the configured provider fetch concurrently (unless it IS the manual provider)
+            var configuredTask = configuredProvider != null && !configuredIsManual
+                ? configuredProvider.GetCurrentMediaContextAsync(ct)
+                : Task.FromResult<MediaContext?>(null);
+
+            var manualContext = manual != null ? await manual.GetCurrentMediaContextAsync(ct) : null;
+            if (manualContext is not null)
+            {
+                watchStateProvider = manual;
+                mediaContext = manualContext;
+                var configuredContext = await configuredTask;
+                if (configuredContext is not null)
                 {
-                    watchStateProvider = manual;
-                    mediaContext = manualContext;
-                    var configuredContext = await configuredTask;
-                    if (configuredContext is not null)
-                    {
-                        suppressedProvider = configuredProvider;
-                        suppressedContext = configuredContext;
-                    }
-                    break;
+                    suppressedProvider = configuredProvider;
+                    suppressedContext = configuredContext;
                 }
             }
-
-            // Fall back to the configured provider if no manual override is active
-            if (watchStateProvider is null)
+            else
             {
+                // No manual override — use the already-started configured provider result
                 watchStateProvider = configuredProvider;
-                if (watchStateProvider is not null)
-                    mediaContext = await watchStateProvider.GetCurrentMediaContextAsync(ct);
+                mediaContext = await configuredTask;
             }
 
             if (watchStateProvider is null)

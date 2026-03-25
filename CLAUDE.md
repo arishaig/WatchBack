@@ -119,8 +119,8 @@ dotnet ef migrations add <Name> --project src/WatchBack.Infrastructure --startup
 
 - **Watch state providers**: Scoped (except `ManualWatchStateProvider` which is singleton)
 - **Thought providers**: Scoped
-- **Media search / ratings providers**: OMDb is singleton (uses `IOptionsMonitor`)
-- Scoped providers capture `IOptionsSnapshot<T>.Value` at construction; singleton providers use `IOptionsMonitor<T>.CurrentValue` inline
+- **Media search / ratings providers**: Scoped (OMDb typed HTTP client via `AddHttpClient<T>`, uses `IOptionsSnapshot`)
+- Scoped providers use `IOptionsSnapshot<T>.Value`; the singleton `ManualWatchStateProvider` uses `Interlocked` for thread-safe state
 
 ## Testing
 
