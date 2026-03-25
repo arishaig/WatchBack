@@ -37,10 +37,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<RedditThoughtProvider>());
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<BlueskyThoughtProvider>());
 
-        // Register media search and ratings providers — OMDb implements both interfaces
+        // Register media search and ratings providers — OMDb implements both interfaces.
+        // AddHttpClient registers the typed client as transient; the scoped forwarding
+        // registrations ensure the HttpClient handler pipeline rotates correctly.
         services.AddHttpClient<OmdbMediaSearchProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
-        services.AddSingleton<IMediaSearchProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
-        services.AddSingleton<IRatingsProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
+        services.AddScoped<IMediaSearchProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
+        services.AddScoped<IRatingsProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
 
         return services;
 

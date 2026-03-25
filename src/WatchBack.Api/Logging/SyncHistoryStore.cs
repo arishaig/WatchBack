@@ -47,7 +47,9 @@ public sealed class SyncHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
             };
 
             db.SyncLogs.Add(entity);
-            await db.SaveChangesAsync();
+            // CancellationToken.None: fire-and-forget persist should not be tied to the
+            // request lifetime. Worst case on shutdown the write is abandoned by the runtime.
+            await db.SaveChangesAsync(CancellationToken.None);
         }
         catch (Exception ex)
         {

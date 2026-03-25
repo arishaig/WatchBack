@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
@@ -17,13 +18,13 @@ namespace WatchBack.Infrastructure.Omdb;
 /// OMDb provider implementing both media search and ratings lookup.
 /// Shared infrastructure lives here; see the .Search and .Ratings partial files
 /// for the per-interface implementations.
-/// Registered as a singleton — uses <see cref="IOptionsMonitor{TOptions}"/> (not IOptionsSnapshot)
-/// so config reloads are picked up via <c>options.CurrentValue</c>.
+/// Registered as a scoped typed HTTP client via <c>AddHttpClient&lt;T&gt;</c>, which ensures
+/// the <see cref="HttpClient"/> handler pipeline rotates correctly under IHttpClientFactory.
 /// </summary>
 public partial class OmdbMediaSearchProvider(
     HttpClient httpClient,
     IMemoryCache cache,
-    IOptionsMonitor<OmdbOptions> options)
+    IOptionsSnapshot<OmdbOptions> options)
     : IMediaSearchProvider, IRatingsProvider
 {
     private static readonly TimeSpan SearchCacheDuration = TimeSpan.FromMinutes(10);
@@ -39,7 +40,7 @@ public partial class OmdbMediaSearchProvider(
 
     string? IDataProvider.ConfigSection => "Omdb";
 
-    bool IDataProvider.IsConfigured => !string.IsNullOrWhiteSpace(options.CurrentValue.ApiKey);
+    bool IDataProvider.IsConfigured => !string.IsNullOrWhiteSpace(options.Value.ApiKey);
 
     IReadOnlyList<ProviderConfigField> IDataProvider.GetConfigSchema(
         Func<string, string> envVal,
@@ -49,7 +50,7 @@ public partial class OmdbMediaSearchProvider(
             Label: UiStrings.ConfigEndpoints_GetConfig_API_Key,
             Type: "password",
             Placeholder: UiStrings.ConfigEndpoints_GetConfig_Free_at_omdbapi_com__1_000_req_day_,
-            HasValue: !string.IsNullOrWhiteSpace(options.CurrentValue.ApiKey),
+            HasValue: !string.IsNullOrWhiteSpace(options.Value.ApiKey),
             Value: "",
             EnvValue: "",
             IsOverridden: isOverridden("Omdb", "ApiKey")),
@@ -65,7 +66,7 @@ public partial class OmdbMediaSearchProvider(
             return v == "__EXISTING__" ? (fallback ?? string.Empty) : v;
         }
 
-        var apiKey = Resolve(formValues, "Omdb__ApiKey", options.CurrentValue.ApiKey);
+        var apiKey = Resolve(formValues, "Omdb__ApiKey", options.Value.ApiKey);
         if (string.IsNullOrEmpty(apiKey))
             return new ServiceHealth(false, UiStrings.ConfigEndpoints_TestOmdb_No_API_key_configured, DateTimeOffset.UtcNow);
 
@@ -86,11 +87,11 @@ public partial class OmdbMediaSearchProvider(
     }
 
     string? IDataProvider.RevealSecret(string key) =>
-        key == "Omdb__ApiKey" ? options.CurrentValue.ApiKey : null;
+        key == "Omdb__ApiKey" ? options.Value.ApiKey : null;
 
     public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
     {
-        var configured = !string.IsNullOrWhiteSpace(options.CurrentValue.ApiKey);
+        var configured = !string.IsNullOrWhiteSpace(options.Value.ApiKey);
         return Task.FromResult(new ServiceHealth(
             IsHealthy: configured,
             Message: configured ? 

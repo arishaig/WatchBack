@@ -13,9 +13,9 @@ public class ReplyTreeBuilder : IReplyTreeBuilder
 
         var byId = flatList.ToDictionary(t => t.Id);
 
-        // Group children by parent ID in a single pass
+        // Group children by parent ID in a single pass, excluding self-referential entries
         var byParent = flatList
-            .Where(t => t.ParentId != null)
+            .Where(t => t.ParentId != null && t.ParentId != t.Id)
             .GroupBy(t => t.ParentId!)
             .ToDictionary(g => g.Key, g => g.ToList());
 

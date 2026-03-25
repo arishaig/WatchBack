@@ -66,7 +66,7 @@ public class ForwardAuthHandler(
             var addresses = await Dns.GetHostAddressesAsync(trustedHost);
             return addresses.Any(a => a.Equals(remoteIp));
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return false;
         }

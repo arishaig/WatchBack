@@ -1,7 +1,6 @@
 using System.Globalization;
 
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Interfaces;
@@ -15,9 +14,6 @@ public record UserConfigFile(string Path);
 
 public static class ConfigEndpoints
 {
-    private static readonly Lazy<IConfigurationRoot> s_envConfig = new(
-        () => new ConfigurationBuilder().AddEnvironmentVariables().Build());
-
     public static void MapConfigEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api")
@@ -77,14 +73,14 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         IOptionsSnapshot<WatchBackOptions> watchback,
+        IConfiguration configuration,
         UserConfigFile configFile,
         CancellationToken ct)
     {
         var w = watchback.Value;
 
-        // Env-only config: baseline values before user-settings.json overrides
-        var envCfg = s_envConfig.Value;
-        string EnvVal(string flatKey) => envCfg[flatKey.Replace("__", ":")] ?? "";
+        // Resolve env values from the live IConfiguration root (includes env vars, appsettings, etc.)
+        string EnvVal(string flatKey) => configuration[flatKey.Replace("__", ":")] ?? "";
 
         // Read user-settings.json to determine which keys have been overridden via the UI
         var userSettings = await AuthEndpoints.ReadConfigFile(configFile.Path, ct);

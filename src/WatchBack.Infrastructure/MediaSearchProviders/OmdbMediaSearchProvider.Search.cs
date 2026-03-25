@@ -25,7 +25,7 @@ public partial class OmdbMediaSearchProvider
 
     public async Task<IReadOnlyList<MediaSearchResult>> SearchAsync(string query, CancellationToken ct = default)
     {
-        var apiKey = options.CurrentValue.ApiKey;
+        var apiKey = options.Value.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return [];
 
@@ -72,7 +72,7 @@ public partial class OmdbMediaSearchProvider
 
     public async Task<IReadOnlyList<SeasonInfo>> GetSeasonsAsync(string externalId, CancellationToken ct = default)
     {
-        var apiKey = options.CurrentValue.ApiKey;
+        var apiKey = options.Value.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return [];
 
@@ -98,7 +98,7 @@ public partial class OmdbMediaSearchProvider
 
     public async Task<IReadOnlyList<EpisodeInfo>> GetEpisodesAsync(string externalId, int seasonNumber, CancellationToken ct = default)
     {
-        var apiKey = options.CurrentValue.ApiKey;
+        var apiKey = options.Value.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return [];
 
