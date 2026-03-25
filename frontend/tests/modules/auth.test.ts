@@ -23,6 +23,7 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
         resetPasswordStatus: null,
         forwardAuthEnabled: false,
         forwardAuthHeaderEdit: 'X-Remote-User',
+        forwardAuthTrustedHostEdit: '',
         forwardAuthSaveStatus: null,
         data: null,
         configData: null,
