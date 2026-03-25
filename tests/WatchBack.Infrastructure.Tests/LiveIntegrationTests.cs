@@ -18,7 +18,7 @@ namespace WatchBack.Infrastructure.Tests;
 /// <summary>
 /// Live integration tests against real APIs.
 /// These tests are marked with [Trait("Category", "Integration")] and should be run separately.
-/// They require valid .env configuration (see /home/isaac/Projects/WatchBack/.env).
+/// They require valid .env configuration (see .env at the solution root).
 /// Run with: dotnet test --filter "Category=Integration"
 /// </summary>
 [Trait("Category", "Integration")]

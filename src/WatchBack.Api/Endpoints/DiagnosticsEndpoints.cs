@@ -1,7 +1,10 @@
 using System.Text.Json;
 
+using Microsoft.EntityFrameworkCore;
+
 using WatchBack.Api.Logging;
 using WatchBack.Api.Serialization;
+using WatchBack.Infrastructure.Persistence;
 
 namespace WatchBack.Api.Endpoints;
 
@@ -27,6 +30,14 @@ public static class DiagnosticsEndpoints
         group.MapDelete("/logs", ClearLogs)
             .WithName("ClearLogs")
             .WithSummary("Clear the in-memory log buffer");
+
+        group.MapGet("/sync-history", GetSyncHistory)
+            .WithName("GetSyncHistory")
+            .WithSummary("Get historical sync log entries from the database");
+
+        group.MapDelete("/sync-history", ClearSyncHistory)
+            .WithName("ClearSyncHistory")
+            .WithSummary("Clear all persisted sync log entries");
     }
 
     private static IResult GetLogs(InMemoryLogBuffer buffer, string? level = null, int limit = 200)
@@ -63,6 +74,35 @@ public static class DiagnosticsEndpoints
     private static IResult ClearLogs(InMemoryLogBuffer buffer)
     {
         buffer.Clear();
+        return Results.Ok(new { ok = true });
+    }
+
+    private static async Task<IResult> GetSyncHistory(
+        WatchBackDbContext db,
+        int limit = 50,
+        CancellationToken ct = default)
+    {
+        var entries = await db.SyncLogs
+            .OrderByDescending(e => e.Timestamp)
+            .Take(Math.Clamp(limit, 1, 500))
+            .Select(e => new
+            {
+                e.Timestamp,
+                e.Status,
+                e.Title,
+                e.ThoughtCount,
+                e.ErrorMessage,
+                e.DurationMs
+            })
+            .ToListAsync(ct);
+        return Results.Ok(entries);
+    }
+
+    private static async Task<IResult> ClearSyncHistory(
+        WatchBackDbContext db,
+        CancellationToken ct = default)
+    {
+        await db.SyncLogs.ExecuteDeleteAsync(ct);
         return Results.Ok(new { ok = true });
     }
 }

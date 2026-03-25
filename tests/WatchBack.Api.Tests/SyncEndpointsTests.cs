@@ -38,7 +38,7 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
             .Returns(new EpisodeContext("Test Show", null, "Pilot", 1, 1));
 
         var mockThoughtProvider = Substitute.For<IThoughtProvider>();
-        mockThoughtProvider.Metadata.Returns(new ThoughtProviderMetadata("Test", "Test", new BrandData("", "")));
+        mockThoughtProvider.Metadata.Returns(new ThoughtProviderMetadata("Test", "Test", BrandData: new BrandData("", "")));
         mockThoughtProvider.ExpectedWeight.Returns(1);
         mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(ci =>

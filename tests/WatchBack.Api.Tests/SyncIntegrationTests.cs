@@ -36,7 +36,7 @@ public class SyncIntegrationTests : IAsyncLifetime
         _mockWatchProvider = Substitute.For<IWatchStateProvider>();
         _mockWatchProvider.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
         _mockThoughtProvider = Substitute.For<IThoughtProvider>();
-        _mockThoughtProvider.Metadata.Returns(new ThoughtProviderMetadata("Test", "Test", new BrandData("", "")));
+        _mockThoughtProvider.Metadata.Returns(new ThoughtProviderMetadata("Test", "Test", BrandData: new BrandData("", "")));
 
         var hasher = new PasswordHasher<string>();
         var hash = hasher.HashPassword("", TestPassword);

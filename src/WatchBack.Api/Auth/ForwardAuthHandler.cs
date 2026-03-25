@@ -18,57 +18,57 @@ public class ForwardAuthHandler(
     IOptionsMonitor<AuthOptions> authOptions)
     : AuthenticationHandler<ForwardAuthOptions>(options, logger, encoder)
 {
-    // Pin the first IP that successfully presents the forward auth header.
-    // Since there's only one reverse proxy, any other source is suspicious.
-    private static IPAddress? s_trustedProxyIp;
-    private static readonly object s_ipLock = new();
-
-    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var opts = authOptions.CurrentValue;
         if (string.IsNullOrEmpty(opts.ForwardAuthHeader))
-            return Task.FromResult(AuthenticateResult.NoResult());
+            return AuthenticateResult.NoResult();
 
         var headerValue = Request.Headers[opts.ForwardAuthHeader].FirstOrDefault();
         if (string.IsNullOrEmpty(headerValue))
-            return Task.FromResult(AuthenticateResult.NoResult());
+            return AuthenticateResult.NoResult();
 
-        // IP pinning: trust only the first IP that presents the header
-        var remoteIp = Context.Connection.RemoteIpAddress;
-        if (remoteIp != null)
+        // If a trusted host is configured, validate the remote IP against it.
+        // When blank, any host presenting the header is trusted.
+        if (!string.IsNullOrEmpty(opts.ForwardAuthTrustedHost))
         {
-            lock (s_ipLock)
+            var remoteIp = Context.Connection.RemoteIpAddress;
+            if (remoteIp != null && !await IsFromTrustedHostAsync(remoteIp, opts.ForwardAuthTrustedHost))
             {
-                if (s_trustedProxyIp == null)
-                {
-                    s_trustedProxyIp = remoteIp;
-#pragma warning disable CA1848, CA1873
-                    Logger.LogInformation("ForwardAuth: pinned trusted proxy IP to {IP}", remoteIp);
-#pragma warning restore CA1848, CA1873
-                }
-                else if (!s_trustedProxyIp.Equals(remoteIp))
-                {
 #pragma warning disable CA1848
-                    Logger.LogWarning(
-                        "ForwardAuth: IP {IP} does not match trusted proxy {TrustedIP}, falling back to cookie auth",
-                        remoteIp, s_trustedProxyIp);
+                Logger.LogWarning(
+                    "ForwardAuth: remote IP {IP} does not match trusted host '{TrustedHost}', falling back to cookie auth",
+                    remoteIp, opts.ForwardAuthTrustedHost);
 #pragma warning restore CA1848
-                    return Task.FromResult(AuthenticateResult.NoResult());
-                }
+                return AuthenticateResult.NoResult();
             }
         }
 
         var claims = new[] { new Claim(ClaimTypes.Name, headerValue) };
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name);
-        return Task.FromResult(AuthenticateResult.Success(ticket));
+        return AuthenticateResult.Success(ticket);
     }
 
     /// <summary>
-    /// Clears the pinned proxy IP (e.g., when ForwardAuth settings change).
+    /// Checks whether the remote IP matches the configured trusted host.
+    /// Accepts an IP address directly or resolves a hostname via DNS.
     /// </summary>
-    internal static void ResetTrustedProxy()
+    private static async Task<bool> IsFromTrustedHostAsync(IPAddress remoteIp, string trustedHost)
     {
-        lock (s_ipLock) { s_trustedProxyIp = null; }
+        // Try parsing as an IP address first
+        if (IPAddress.TryParse(trustedHost, out var trustedIp))
+            return remoteIp.Equals(trustedIp);
+
+        // Resolve hostname to IP addresses
+        try
+        {
+            var addresses = await Dns.GetHostAddressesAsync(trustedHost);
+            return addresses.Any(a => a.Equals(remoteIp));
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

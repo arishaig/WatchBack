@@ -15,6 +15,9 @@ public record UserConfigFile(string Path);
 
 public static class ConfigEndpoints
 {
+    private static readonly Lazy<IConfigurationRoot> s_envConfig = new(
+        () => new ConfigurationBuilder().AddEnvironmentVariables().Build());
+
     public static void MapConfigEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api")
@@ -80,7 +83,7 @@ public static class ConfigEndpoints
         var w = watchback.Value;
 
         // Env-only config: baseline values before user-settings.json overrides
-        var envCfg = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+        var envCfg = s_envConfig.Value;
         string EnvVal(string flatKey) => envCfg[flatKey.Replace("__", ":")] ?? "";
 
         // Read user-settings.json to determine which keys have been overridden via the UI
@@ -300,8 +303,7 @@ public static class ConfigEndpoints
             .Select(name => new
             {
                 id = name,
-                label = string.Join(' ', name!.Split('-')
-                    .Select(w => w.Length > 0 ? char.ToUpperInvariant(w[0]) + w[1..] : w))
+                label = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name!.Replace('-', ' '))
             })
             .ToArray();
 

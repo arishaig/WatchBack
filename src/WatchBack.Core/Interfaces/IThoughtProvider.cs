@@ -12,8 +12,8 @@ namespace WatchBack.Core.Interfaces;
 public record ThoughtProviderMetadata(
     string Name,
     string Description,
-    BrandData BrandData,
-    string? OverrideDisplayName = null
+    string? OverrideDisplayName = null,
+    BrandData? BrandData = null
 ) : DataProviderMetadata(Name, Description, OverrideDisplayName, BrandData);
 
 /// <summary>

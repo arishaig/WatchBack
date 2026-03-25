@@ -69,7 +69,7 @@ file sealed class NullSectionWatchProvider : IWatchStateProvider
 file sealed class TestThoughtProvider(string configSection = "TestThought") : IThoughtProvider
 {
     public DataProviderMetadata Metadata =>
-        new ThoughtProviderMetadata(configSection, "Test thought provider", new BrandData("", ""));
+        new ThoughtProviderMetadata(configSection, "Test thought provider", BrandData: new BrandData("", ""));
 
     public string? ConfigSection => configSection;
     public bool IsConfigured => false;

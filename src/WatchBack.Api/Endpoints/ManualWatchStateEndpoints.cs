@@ -1,5 +1,5 @@
+using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
-using WatchBack.Infrastructure.WatchStateProviders;
 using WatchBack.Resources;
 
 namespace WatchBack.Api.Endpoints;
@@ -27,7 +27,7 @@ public static class ManualWatchStateEndpoints
 
     private static IResult SetManualWatchState(
         SetManualWatchStateRequest request,
-        ManualWatchStateProvider provider)
+        IManualWatchStateProvider provider)
     {
         if (string.IsNullOrWhiteSpace(request.Title))
             return Results.BadRequest(UiStrings.ManualWatchStateEndpoints_SetManualWatchState_Title_is_required_);
@@ -55,7 +55,7 @@ public static class ManualWatchStateEndpoints
         return Results.NoContent();
     }
 
-    private static IResult ClearManualWatchState(ManualWatchStateProvider provider)
+    private static IResult ClearManualWatchState(IManualWatchStateProvider provider)
     {
         provider.SetCurrentContext(null);
         return Results.NoContent();

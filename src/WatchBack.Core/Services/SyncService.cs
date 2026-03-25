@@ -34,6 +34,7 @@ public class SyncService(
             // While checking, also kick off the configured provider's check in parallel
             // so we can report if it's also active (suppressed by the manual override).
             IWatchStateProvider? watchStateProvider = null;
+            MediaContext? mediaContext = null;
             IWatchStateProvider? suppressedProvider = null;
             MediaContext? suppressedContext = null;
 
@@ -48,6 +49,7 @@ public class SyncService(
                 if (manualContext is not null)
                 {
                     watchStateProvider = manual;
+                    mediaContext = manualContext;
                     var configuredContext = await configuredTask;
                     if (configuredContext is not null)
                     {
@@ -58,8 +60,13 @@ public class SyncService(
                 }
             }
 
+            // Fall back to the configured provider if no manual override is active
             if (watchStateProvider is null)
+            {
                 watchStateProvider = configuredProvider;
+                if (watchStateProvider is not null)
+                    mediaContext = await watchStateProvider.GetCurrentMediaContextAsync(ct);
+            }
 
             if (watchStateProvider is null)
             {
@@ -73,9 +80,6 @@ public class SyncService(
                     TimeMachineDays: options.Value.TimeMachineDays,
                     SourceResults: []);
             }
-
-            // Get current watch state
-            var mediaContext = await watchStateProvider.GetCurrentMediaContextAsync(ct);
 
             if (mediaContext is null)
             {

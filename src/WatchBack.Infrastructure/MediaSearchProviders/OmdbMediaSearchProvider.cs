@@ -17,6 +17,8 @@ namespace WatchBack.Infrastructure.Omdb;
 /// OMDb provider implementing both media search and ratings lookup.
 /// Shared infrastructure lives here; see the .Search and .Ratings partial files
 /// for the per-interface implementations.
+/// Registered as a singleton — uses <see cref="IOptionsMonitor{TOptions}"/> (not IOptionsSnapshot)
+/// so config reloads are picked up via <c>options.CurrentValue</c>.
 /// </summary>
 public partial class OmdbMediaSearchProvider(
     HttpClient httpClient,
