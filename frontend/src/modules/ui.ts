@@ -74,6 +74,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
             if (me['authenticated']) {
                 this.forwardAuthEnabled = !!(me['forwardAuthHeader'] as string | undefined);
                 this.forwardAuthHeaderEdit = (me['forwardAuthHeader'] as string | undefined) || 'X-Remote-User';
+                this.forwardAuthTrustedHostEdit = (me['forwardAuthTrustedHost'] as string | undefined) || '';
             }
             return me;
         } catch {

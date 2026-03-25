@@ -1,6 +1,5 @@
 using FluentAssertions;
 
-using WatchBack.Api.Auth;
 using WatchBack.Api.Endpoints;
 
 using Xunit;
@@ -63,11 +62,4 @@ public class AuthTests
         passwords.Distinct().Count().Should().BeGreaterThan(1);
     }
 
-    [Fact]
-    public void ResetTrustedProxy_CanBeCalledRepeatedly()
-    {
-        // ResetTrustedProxy clears the pinned IP static state. Verifies it doesn't throw.
-        ForwardAuthHandler.ResetTrustedProxy();
-        ForwardAuthHandler.ResetTrustedProxy();
-    }
 }

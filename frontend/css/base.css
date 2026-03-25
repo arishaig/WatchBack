@@ -110,12 +110,26 @@ main h2 {
 
 /* ─── Desktop layout: config panel as right-side drawer ─── */
 @media (width >= 1024px) {
+    .wb-app {
+        transition: margin-right 0.25s ease-out;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .wb-app {
+            transition: none;
+        }
+    }
+
+    .wb-app.drawer-open {
+        margin-right: 640px;
+    }
+
     .wb-app > aside {
         position: fixed;
         top: 0;
         right: 0;
         bottom: 0;
-        width: 400px;
+        width: 640px;
         max-width: 90vw;
         z-index: 40;
         margin-bottom: 0;

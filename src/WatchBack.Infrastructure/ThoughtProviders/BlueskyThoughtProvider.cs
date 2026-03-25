@@ -209,7 +209,7 @@ public class BlueskyThoughtProvider(
 
             return token;
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return null;
         }

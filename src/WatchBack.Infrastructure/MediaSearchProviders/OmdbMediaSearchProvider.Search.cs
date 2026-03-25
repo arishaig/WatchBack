@@ -25,7 +25,7 @@ public partial class OmdbMediaSearchProvider
 
     public async Task<IReadOnlyList<MediaSearchResult>> SearchAsync(string query, CancellationToken ct = default)
     {
-        var apiKey = options.CurrentValue.ApiKey;
+        var apiKey = options.Value.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return [];
 
@@ -72,7 +72,7 @@ public partial class OmdbMediaSearchProvider
 
     public async Task<IReadOnlyList<SeasonInfo>> GetSeasonsAsync(string externalId, CancellationToken ct = default)
     {
-        var apiKey = options.CurrentValue.ApiKey;
+        var apiKey = options.Value.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return [];
 
@@ -86,10 +86,11 @@ public partial class OmdbMediaSearchProvider
         if (response?.TotalSeasons == null || !int.TryParse(response.TotalSeasons, out var total))
             return [];
 
+        // OMDb only returns episode details for the requested season, so we only
+        // have an accurate count for season 1. Rather than report 0 for the rest,
+        // leave EpisodeCount as 0 for all — the UI fetches episodes on demand.
         var seasons = Enumerable.Range(1, total)
-            .Select(n => new SeasonInfo(
-                SeasonNumber: n,
-                EpisodeCount: n == 1 ? response.Episodes?.Length ?? 0 : 0))
+            .Select(n => new SeasonInfo(SeasonNumber: n, EpisodeCount: 0))
             .ToList();
 
         cache.Set<IReadOnlyList<SeasonInfo>>(cacheKey, seasons, EpisodeCacheDuration);
@@ -98,7 +99,7 @@ public partial class OmdbMediaSearchProvider
 
     public async Task<IReadOnlyList<EpisodeInfo>> GetEpisodesAsync(string externalId, int seasonNumber, CancellationToken ct = default)
     {
-        var apiKey = options.CurrentValue.ApiKey;
+        var apiKey = options.Value.ApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return [];
 

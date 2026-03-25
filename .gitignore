@@ -38,6 +38,12 @@ coverage.xml
 .env.local
 .env.*.local
 
+# Python artifacts
+.venv/
+.pytest_cache/
+htmlcov/
+__pycache__/
+
 # Node modules
 node_modules/
 frontend/node_modules/

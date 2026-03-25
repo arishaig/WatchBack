@@ -54,7 +54,7 @@ public sealed class ResilientHttpHandler(
                     return response;
                 }
 
-                if (IsTransientStatus(response.StatusCode) && attempt < MaxRetries)
+                if (IsTransientStatus(response.StatusCode) && attempt < MaxRetries && IsIdempotent(request.Method))
                 {
                     var delay = ExponentialDelay(attempt);
                     logger.LogWarning(
@@ -68,7 +68,7 @@ public sealed class ResilientHttpHandler(
 
                 return response;
             }
-            catch (Exception ex) when (IsTransientException(ex, cancellationToken) && attempt < MaxRetries)
+            catch (Exception ex) when (IsTransientException(ex, cancellationToken) && attempt < MaxRetries && IsIdempotent(request.Method))
             {
                 response?.Dispose();
                 var delay = ExponentialDelay(attempt);
@@ -115,6 +115,11 @@ public sealed class ResilientHttpHandler(
         var jitter = (Random.Shared.NextDouble() - 0.5) * 0.5 * baseMs;
         return TimeSpan.FromMilliseconds(Math.Min(baseMs + jitter, MaxBackoffDelay.TotalMilliseconds));
     }
+
+    /// <summary>Only idempotent methods are safe to retry — POST/PATCH bodies cannot be reliably cloned.</summary>
+    private static bool IsIdempotent(HttpMethod method) =>
+        method == HttpMethod.Get || method == HttpMethod.Head ||
+        method == HttpMethod.Options || method == HttpMethod.Delete;
 
     /// <summary>Clones a request for retry — HttpRequestMessage is single-use after SendAsync.</summary>
     private static HttpRequestMessage CloneRequest(HttpRequestMessage original)

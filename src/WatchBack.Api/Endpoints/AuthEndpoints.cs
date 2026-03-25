@@ -79,6 +79,7 @@ public static class AuthEndpoints
             needsOnboarding,
             authMethod,
             forwardAuthHeader = opts.ForwardAuthHeader ?? "",
+            forwardAuthTrustedHost = opts.ForwardAuthTrustedHost ?? "",
         });
     }
 
@@ -219,11 +220,9 @@ public static class AuthEndpoints
                 existing["Auth"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             existing["Auth"]["ForwardAuthHeader"] = body.Header?.Trim() ?? "";
+            existing["Auth"]["ForwardAuthTrustedHost"] = body.TrustedHost?.Trim() ?? "";
 
             await WriteConfigFile(configFile.Path, existing, ct);
-
-            // Reset pinned proxy IP so the new header takes effect from any source
-            ForwardAuthHandler.ResetTrustedProxy();
         }
         finally
         {
@@ -344,5 +343,5 @@ public static class AuthEndpoints
     private sealed record LoginRequest(string Username, string Password);
     private sealed record SetupRequest(string NewUsername, string NewPassword);
     private sealed record ChangePasswordRequest(string NewPassword);
-    private sealed record ForwardAuthSettingsRequest(string? Header);
+    private sealed record ForwardAuthSettingsRequest(string? Header, string? TrustedHost);
 }

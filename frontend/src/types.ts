@@ -52,6 +52,7 @@ export interface AppData {
     clearCacheStatus: 'loading' | 'ok' | 'error' | null;
     forwardAuthEnabled: boolean;
     forwardAuthHeaderEdit: string;
+    forwardAuthTrustedHostEdit: string;
     forwardAuthSaveStatus: string | null;
     needsOnboarding: boolean;
     configTab: string;
@@ -59,6 +60,7 @@ export interface AppData {
     logLevel: string;
     logSse: { close(): void } | null;
     syncHistory: Record<string, unknown> | null;
+    syncHistoryEntries: unknown[];
     appVersion: string | null;
     copyLogsStatus: 'copied' | 'error' | null;
     alwaysShowSearch: boolean;
@@ -133,6 +135,8 @@ export interface AppData {
     closeLogStream(): void;
     clearLogs(): Promise<void>;
     copyLogs(): Promise<void>;
+    loadSyncHistory(): Promise<void>;
+    clearSyncHistory(): Promise<void>;
 
     // Wizard
     wizardNext(): Promise<void>;

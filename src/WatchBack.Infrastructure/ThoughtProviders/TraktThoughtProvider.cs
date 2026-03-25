@@ -26,6 +26,9 @@ public class TraktThoughtProvider(
     ILogger<TraktThoughtProvider> logger)
     : IThoughtProvider
 {
+    private static readonly ThoughtResult Empty =
+        new(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+
     private readonly TraktOptions _options = options.Value;
 
     public DataProviderMetadata Metadata => new ThoughtProviderMetadata(
@@ -134,9 +137,6 @@ public class TraktThoughtProvider(
             progress?.Report(new SyncProgressTick(1, "Trakt"));
         }
     }
-
-    private static readonly ThoughtResult Empty =
-        new(Source: "Trakt", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
 
     public async Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
     {

@@ -1,7 +1,6 @@
 using System.Globalization;
 
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Interfaces;
@@ -74,14 +73,14 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         IOptionsSnapshot<WatchBackOptions> watchback,
+        IConfiguration configuration,
         UserConfigFile configFile,
         CancellationToken ct)
     {
         var w = watchback.Value;
 
-        // Env-only config: baseline values before user-settings.json overrides
-        var envCfg = new ConfigurationBuilder().AddEnvironmentVariables().Build();
-        string EnvVal(string flatKey) => envCfg[flatKey.Replace("__", ":")] ?? "";
+        // Resolve env values from the live IConfiguration root (includes env vars, appsettings, etc.)
+        string EnvVal(string flatKey) => configuration[flatKey.Replace("__", ":")] ?? "";
 
         // Read user-settings.json to determine which keys have been overridden via the UI
         var userSettings = await AuthEndpoints.ReadConfigFile(configFile.Path, ct);
@@ -300,8 +299,7 @@ public static class ConfigEndpoints
             .Select(name => new
             {
                 id = name,
-                label = string.Join(' ', name!.Split('-')
-                    .Select(w => w.Length > 0 ? char.ToUpperInvariant(w[0]) + w[1..] : w))
+                label = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name!.Replace('-', ' '))
             })
             .ToArray();
 

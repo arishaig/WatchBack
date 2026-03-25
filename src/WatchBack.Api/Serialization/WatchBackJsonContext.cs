@@ -24,5 +24,8 @@ namespace WatchBack.Api.Serialization;
 [JsonSerializable(typeof(IReadOnlyList<EpisodeInfo>))]
 [JsonSerializable(typeof(IReadOnlyList<MediaRatingResponse>))]
 [JsonSerializable(typeof(MediaRatingResponse))]
+[JsonSerializable(typeof(Endpoints.SyncEndpoints.ProgressEvent))]
+[JsonSerializable(typeof(Endpoints.SyncEndpoints.ProgressSegment))]
+[JsonSerializable(typeof(Endpoints.SyncEndpoints.ProgressSegment[]))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal sealed partial class WatchBackJsonContext : JsonSerializerContext { }

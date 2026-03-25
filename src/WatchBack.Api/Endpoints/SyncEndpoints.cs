@@ -1,4 +1,3 @@
-using System.Text;
 using System.Threading.Channels;
 
 using Microsoft.AspNetCore.Mvc;
@@ -40,17 +39,19 @@ public static class SyncEndpoints
             .Produces(StatusCodes.Status200OK);
     }
 
+    private static Dictionary<string, BrandData?> BuildBrandLookup(IEnumerable<IThoughtProvider> providers) =>
+        providers.ToDictionary(
+            p => p.Metadata.Name,
+            p => p.Metadata.BrandData,
+            StringComparer.OrdinalIgnoreCase);
+
     private static async Task<SyncResponse> GetSync(
         ISyncService syncService,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         CancellationToken ct)
     {
-        var brandBySource = thoughtProviders.ToDictionary(
-            p => p.Metadata.Name,
-            p => p.Metadata.BrandData,
-            StringComparer.OrdinalIgnoreCase);
         var result = await syncService.SyncAsync(null, ct);
-        return MapSyncResult(result, brandBySource);
+        return MapSyncResult(result, BuildBrandLookup(thoughtProviders));
     }
 
     private static async Task GetSyncStream(
@@ -89,6 +90,7 @@ public static class SyncEndpoints
                 await context.Response.Body.FlushAsync(ct);
 
                 // Start sync; complete the channel when it finishes so ReadAllAsync terminates
+                var syncStopwatch = System.Diagnostics.Stopwatch.StartNew();
                 var syncTask = syncService.SyncAsync(progress, ct);
                 _ = syncTask.ContinueWith(
                     t => channel.Writer.Complete(t.IsFaulted ? t.Exception : null),
@@ -127,18 +129,17 @@ public static class SyncEndpoints
                 }
 
                 var result = await syncTask;
+                syncStopwatch.Stop();
 
-                // Record sync history for the diagnostics panel
+                // Record sync history for the diagnostics panel and persist to database
                 var sourceRecords = result.SourceResults
                     .Select(sr => new ProviderSyncRecord(sr.Source, sr.Thoughts?.Count ?? 0))
                     .ToList();
-                syncHistory.Record(new SyncSnapshot(DateTimeOffset.UtcNow, result.Status.ToString(), result.Title, sourceRecords));
+                syncHistory.Record(
+                    new SyncSnapshot(DateTimeOffset.UtcNow, result.Status.ToString(), result.Title, sourceRecords),
+                    syncStopwatch.ElapsedMilliseconds);
 
-                var brandBySource = providerList.ToDictionary(
-                    p => p.Metadata.Name,
-                    p => p.Metadata.BrandData,
-                    StringComparer.OrdinalIgnoreCase);
-                var response = MapSyncResult(result, brandBySource);
+                var response = MapSyncResult(result, BuildBrandLookup(providerList));
                 var json = System.Text.Json.JsonSerializer.Serialize(response, Serialization.WatchBackJsonContext.Default.SyncResponse);
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
@@ -162,22 +163,14 @@ public static class SyncEndpoints
         }
     }
 
-    private sealed record ProgressSegment(string Provider, string Color, int Completed, int Total);
+    internal sealed record ProgressSegment(string Provider, string Color, int Completed, int Total);
+    internal sealed record ProgressEvent(int Completed, int Total, ProgressSegment[]? Providers);
 
     private static string BuildProgressEvent(int completed, int total, ProgressSegment[] segments)
     {
-        if (segments.Length == 0)
-            return $"data: {{\"completed\":{completed},\"total\":{total}}}\n\n";
-
-        var sb = new StringBuilder(FormattableString.Invariant($"data: {{\"completed\":{completed},\"total\":{total},\"providers\":["));
-        for (int i = 0; i < segments.Length; i++)
-        {
-            if (i > 0) sb.Append(',');
-            var s = segments[i];
-            sb.Append(FormattableString.Invariant($"{{\"name\":\"{s.Provider}\",\"color\":\"{s.Color}\",\"completed\":{s.Completed},\"total\":{s.Total}}}"));
-        }
-        sb.Append("]}\n\n");
-        return sb.ToString();
+        var evt = new ProgressEvent(completed, total, segments.Length > 0 ? segments : null);
+        var json = System.Text.Json.JsonSerializer.Serialize(evt, Serialization.WatchBackJsonContext.Default.ProgressEvent);
+        return $"data: {json}\n\n";
     }
 
     private static SyncResponse MapSyncResult(

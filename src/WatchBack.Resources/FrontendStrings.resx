@@ -327,6 +327,12 @@
     <data name="DangerZone_HeaderName" xml:space="preserve">
         <value>Header name</value>
     </data>
+    <data name="DangerZone_TrustedHost" xml:space="preserve">
+        <value>Trusted host (optional)</value>
+    </data>
+    <data name="DangerZone_TrustedHostHelp" xml:space="preserve">
+        <value>IP address or hostname of your reverse proxy. When set, only requests from this host are accepted. Leave blank to trust any source.</value>
+    </data>
     <data name="DangerZone_ForwardAuthWarning" xml:space="preserve">
         <value>Only enable this behind a trusted reverse proxy that performs authentication. If this application is directly accessible from the internet, any user can bypass authentication by spoofing this header.</value>
     </data>
@@ -397,6 +403,15 @@
     </data>
     <data name="Diagnostics_Entries" xml:space="preserve">
         <value>{0} of {1} entries</value>
+    </data>
+    <data name="Diagnostics_SyncHistory" xml:space="preserve">
+        <value>Sync History</value>
+    </data>
+    <data name="Diagnostics_NoSyncHistory" xml:space="preserve">
+        <value>No sync history recorded yet.</value>
+    </data>
+    <data name="Diagnostics_Thoughts" xml:space="preserve">
+        <value>{0} thoughts</value>
     </data>
     <!-- Dashboard: Main Media Display -->
     <data name="Dashboard_MediaSearch" xml:space="preserve">

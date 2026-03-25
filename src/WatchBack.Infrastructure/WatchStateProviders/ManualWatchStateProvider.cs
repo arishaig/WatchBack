@@ -15,7 +15,7 @@ namespace WatchBack.Infrastructure.WatchStateProviders;
 /// </summary>
 public class ManualWatchStateProvider : IManualWatchStateProvider
 {
-    private volatile MediaContext? _context;
+    private MediaContext? _context;
 
     public DataProviderMetadata Metadata => new WatchStateDataProviderMetadata(
         Name: "Manual",
@@ -32,11 +32,11 @@ public class ManualWatchStateProvider : IManualWatchStateProvider
     /// </summary>
     public void SetCurrentContext(MediaContext? context)
     {
-        _context = context;
+        Interlocked.Exchange(ref _context, context);
     }
 
     public Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default) =>
-        Task.FromResult(_context);
+        Task.FromResult(Interlocked.CompareExchange(ref _context, null, null));
 
     public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
     {

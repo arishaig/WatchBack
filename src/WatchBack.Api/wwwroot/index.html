@@ -426,7 +426,7 @@
 </div>
 
 <!-- Main app -->
-<div x-show="initialized" x-cloak class="wb-app mx-auto overflow-x-hidden pb-8">
+<div x-show="initialized" x-cloak class="wb-app mx-auto overflow-x-hidden pb-8" :class="showConfig ? 'drawer-open' : ''">
 
     <header class="flex justify-between items-center mb-6 mt-2">
         <div class="flex items-center gap-3">
@@ -860,6 +860,14 @@
                                                placeholder="X-Remote-User"
                                                class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
                                     </div>
+                                    <div>
+                                        <label for="forward-auth-trusted-host"
+                                               class="text-xs font-medium wb-text-muted block mb-1" x-text="t('DangerZone_TrustedHost')"></label>
+                                        <input id="forward-auth-trusted-host" type="text" x-model="forwardAuthTrustedHostEdit"
+                                               placeholder="192.168.1.1"
+                                               class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                        <p class="text-xs wb-text-faint mt-1" x-text="t('DangerZone_TrustedHostHelp')"></p>
+                                    </div>
                                     <div class="rounded-lg px-3 py-2 text-xs leading-relaxed"
                                          style="background:var(--wb-error-bg);color:var(--wb-error-text);border:1px solid var(--wb-error-border)">
                                         <span x-text="t('DangerZone_ForwardAuthWarning')"></span>
@@ -924,6 +932,60 @@
                 <p x-show="appVersion" class="text-xs wb-text-muted mb-5">
                     <span x-text="t('Diagnostics_Version')"></span> <span x-text="appVersion" class="font-mono"></span>
                 </p>
+
+                <!-- Sync history -->
+                <div class="mb-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-semibold wb-text-secondary" x-text="t('Diagnostics_SyncHistory')"></h2>
+                        <button x-show="syncHistoryEntries.length > 0" type="button" @click="void clearSyncHistory()"
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                                       wb-text-muted cursor-pointer wb-btn
+                                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                x-text="t('Common_Clear')">
+                        </button>
+                    </div>
+                    <template x-if="syncHistoryEntries.length === 0">
+                        <p class="text-xs wb-text-muted" x-text="t('Diagnostics_NoSyncHistory')"></p>
+                    </template>
+                    <template x-if="syncHistoryEntries.length > 0">
+                        <div class="wb-surface wb-border border rounded-xl overflow-hidden">
+                            <div class="overflow-y-auto" style="max-height:16rem;">
+                                <table class="w-full text-xs">
+                                    <thead class="wb-surface-alt sticky top-0">
+                                        <tr class="border-b wb-border">
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium">Time</th>
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium">Status</th>
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium">Title</th>
+                                            <th class="text-right px-3 py-2 wb-text-muted font-medium">Thoughts</th>
+                                            <th class="text-right px-3 py-2 wb-text-muted font-medium">Duration</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="(entry, i) in syncHistoryEntries" :key="i">
+                                            <tr class="border-b wb-border last:border-b-0">
+                                                <td class="px-3 py-2 wb-text-muted whitespace-nowrap"
+                                                    x-text="formatRelativeTime(entry.timestamp)"></td>
+                                                <td class="px-3 py-2 whitespace-nowrap">
+                                                    <span class="flex items-center gap-1.5">
+                                                        <span class="inline-block w-1.5 h-1.5 rounded-full shrink-0" aria-hidden="true"
+                                                              :style="entry.status === 'Watching' ? 'background:var(--wb-success-text)' : entry.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint)'"></span>
+                                                        <span class="wb-text-secondary" x-text="entry.status"></span>
+                                                    </span>
+                                                </td>
+                                                <td class="px-3 py-2 wb-text-secondary truncate" style="max-width:12rem;"
+                                                    x-text="entry.title || '—'"></td>
+                                                <td class="px-3 py-2 wb-text-muted text-right tabular-nums"
+                                                    x-text="entry.thoughtCount"></td>
+                                                <td class="px-3 py-2 wb-text-muted text-right tabular-nums whitespace-nowrap"
+                                                    x-text="entry.durationMs != null ? (entry.durationMs / 1000).toFixed(1) + 's' : '—'"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+                </div>
 
                 <!-- Log viewer -->
                 <div>

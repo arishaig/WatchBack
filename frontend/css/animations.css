@@ -20,6 +20,7 @@
 }
 
 /* ─── Config panel slide/fade ─── */
+/* Mobile: slide down from top */
 .config-enter {
     animation: config-slide-in 0.25s ease-out both;
 }
@@ -33,6 +34,17 @@
 @keyframes config-slide-out {
     from { opacity: 1; transform: translateY(0); }
     to   { opacity: 0; transform: translateY(-8px); }
+}
+/* Desktop: slide in from right edge */
+@media (width >= 1024px) {
+    @keyframes config-slide-in {
+        from { opacity: 0; transform: translateX(100%); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes config-slide-out {
+        from { opacity: 1; transform: translateX(0); }
+        to   { opacity: 0; transform: translateX(100%); }
+    }
 }
 
 /* ─── Comment card cascade ─── */

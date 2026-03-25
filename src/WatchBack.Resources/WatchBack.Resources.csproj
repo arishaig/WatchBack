@@ -1,52 +1,52 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <GenerateSatelliteAssemblies>true</GenerateSatelliteAssemblies>
-    </PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateSatelliteAssemblies>true</GenerateSatelliteAssemblies>
+  </PropertyGroup>
 
-    <ItemGroup>
-      <EmbeddedResource Update="ErrorMessages.resx">
-        <Generator>PublicResXFileCodeGenerator</Generator>
-        <LastGenOutput>ErrorMessages.Designer.cs</LastGenOutput>
-      </EmbeddedResource>
-      <EmbeddedResource Update="ErrorMessages.es.resx">
-        <DependentUpon>ErrorMessages.resx</DependentUpon>
-      </EmbeddedResource>
-      <EmbeddedResource Update="UiStrings.resx">
-        <Generator>PublicResXFileCodeGenerator</Generator>
-        <LastGenOutput>UiStrings.Designer.cs</LastGenOutput>
-      </EmbeddedResource>
-      <EmbeddedResource Update="UiStrings.es.resx">
-        <DependentUpon>UiStrings.resx</DependentUpon>
-      </EmbeddedResource>
-      <EmbeddedResource Update="FrontendStrings.resx">
-        <Generator>PublicResXFileCodeGenerator</Generator>
-        <LastGenOutput>FrontendStrings.Designer.cs</LastGenOutput>
-      </EmbeddedResource>
-      <EmbeddedResource Update="FrontendStrings.es.resx">
-        <DependentUpon>FrontendStrings.resx</DependentUpon>
-      </EmbeddedResource>
-    </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="ErrorMessages.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>ErrorMessages.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Update="ErrorMessages.es.resx">
+      <DependentUpon>ErrorMessages.resx</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="UiStrings.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>UiStrings.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Update="UiStrings.es.resx">
+      <DependentUpon>UiStrings.resx</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="FrontendStrings.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>FrontendStrings.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Update="FrontendStrings.es.resx">
+      <DependentUpon>FrontendStrings.resx</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
 
-    <ItemGroup>
-      <Compile Update="ErrorMessages.Designer.cs">
-        <DesignTime>True</DesignTime>
-        <AutoGen>True</AutoGen>
-        <DependentUpon>ErrorMessages.resx</DependentUpon>
-      </Compile>
-      <Compile Update="UiStrings.Designer.cs">
-        <DesignTime>True</DesignTime>
-        <AutoGen>True</AutoGen>
-        <DependentUpon>UiStrings.resx</DependentUpon>
-      </Compile>
-      <Compile Update="FrontendStrings.Designer.cs">
-        <DesignTime>True</DesignTime>
-        <AutoGen>True</AutoGen>
-        <DependentUpon>FrontendStrings.resx</DependentUpon>
-      </Compile>
-    </ItemGroup>
+  <ItemGroup>
+    <Compile Update="ErrorMessages.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ErrorMessages.resx</DependentUpon>
+    </Compile>
+    <Compile Update="UiStrings.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>UiStrings.resx</DependentUpon>
+    </Compile>
+    <Compile Update="FrontendStrings.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>FrontendStrings.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
 
 </Project>

@@ -137,10 +137,11 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
         this.forwardAuthSaveStatus = 'saving';
         try {
             const header = this.forwardAuthEnabled ? (this.forwardAuthHeaderEdit.trim() || 'X-Remote-User') : '';
+            const trustedHost = this.forwardAuthEnabled ? this.forwardAuthTrustedHostEdit.trim() : '';
             const res = await fetch('/api/auth/forward-auth', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ header }),
+                body: JSON.stringify({ header, trustedHost }),
             });
             const data = await res.json() as Record<string, unknown>;
             this.forwardAuthSaveStatus = data['ok'] ? 'saved' : 'error';
