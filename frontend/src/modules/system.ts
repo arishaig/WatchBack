@@ -100,6 +100,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
             }
         } catch { /* ignore */ }
         this.openLogStream();
+        void this.loadSyncHistory();
     },
 
     openLogStream() {
@@ -132,6 +133,18 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     async clearLogs() {
         await fetch('/api/diagnostics/logs', { method: 'DELETE' });
         this.logEntries = [];
+    },
+
+    async loadSyncHistory() {
+        try {
+            const res = await fetch('/api/diagnostics/sync-history?limit=100');
+            if (res.ok) this.syncHistoryEntries = await res.json() as unknown[];
+        } catch { /* ignore */ }
+    },
+
+    async clearSyncHistory() {
+        await fetch('/api/diagnostics/sync-history', { method: 'DELETE' });
+        this.syncHistoryEntries = [];
     },
 
     async copyLogs() {

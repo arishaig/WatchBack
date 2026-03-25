@@ -72,6 +72,7 @@ Alpine.data('app', (): AppData => {
         logLevel: 'Information',
         logSse: null,
         syncHistory: null,
+        syncHistoryEntries: [],
         appVersion: null,
         copyLogsStatus: null,
         alwaysShowSearch: localStorage.getItem('wb_alwaysShowSearch') === 'true',

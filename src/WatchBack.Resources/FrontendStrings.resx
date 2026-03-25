@@ -398,6 +398,15 @@
     <data name="Diagnostics_Entries" xml:space="preserve">
         <value>{0} of {1} entries</value>
     </data>
+    <data name="Diagnostics_SyncHistory" xml:space="preserve">
+        <value>Sync History</value>
+    </data>
+    <data name="Diagnostics_NoSyncHistory" xml:space="preserve">
+        <value>No sync history recorded yet.</value>
+    </data>
+    <data name="Diagnostics_Thoughts" xml:space="preserve">
+        <value>{0} thoughts</value>
+    </data>
     <!-- Dashboard: Main Media Display -->
     <data name="Dashboard_MediaSearch" xml:space="preserve">
         <value>Media search</value>
