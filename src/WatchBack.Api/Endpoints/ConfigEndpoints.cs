@@ -92,7 +92,7 @@ public static class ConfigEndpoints
         var tagged = watchStateProviders.Select(p => ((IDataProvider)p, "watchState"))
             .Concat(thoughtProviders.Select(p => ((IDataProvider)p, "thought")))
             .Concat(ratingsProviders.Select(p => ((IDataProvider)p, "ratings")))
-            .Concat(mediaSearchProviders.OfType<IDataProvider>().Select(p => (p, "search")));
+            .Concat(mediaSearchProviders.Select(p => ((IDataProvider)p, "search")));
 
         var integrations = tagged
             .Where(t => t.Item1.ConfigSection is not null)
@@ -160,10 +160,12 @@ public static class ConfigEndpoints
     private static IEnumerable<IDataProvider> GetAllDataProviders(
         IEnumerable<IWatchStateProvider> watchStateProviders,
         IEnumerable<IThoughtProvider> thoughtProviders,
-        IEnumerable<IRatingsProvider> ratingsProviders) =>
+        IEnumerable<IRatingsProvider> ratingsProviders,
+        IEnumerable<IMediaSearchProvider> mediaSearchProviders) =>
         watchStateProviders.Cast<IDataProvider>()
             .Concat(thoughtProviders.Cast<IDataProvider>())
-            .Concat(ratingsProviders.Cast<IDataProvider>());
+            .Concat(ratingsProviders.Cast<IDataProvider>())
+            .Concat(mediaSearchProviders.Cast<IDataProvider>());
 
     /// <summary>Derives the set of allowable config sections from registered providers plus WatchBack itself.</summary>
     private static HashSet<string> GetAllowedSections(IEnumerable<IDataProvider> providers)
@@ -182,6 +184,7 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
+        [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
         UserConfigFile configFile,
         CancellationToken ct)
     {
@@ -189,7 +192,7 @@ public static class ConfigEndpoints
         if (body is null)
             return Results.BadRequest(UiStrings.ConfigEndpoints_SaveConfig_Invalid_request_body);
 
-        var allowedSections = GetAllowedSections(GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders));
+        var allowedSections = GetAllowedSections(GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders));
 
         await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
         try
@@ -233,6 +236,7 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
+        [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
         UserConfigFile configFile,
         CancellationToken ct)
     {
@@ -240,7 +244,7 @@ public static class ConfigEndpoints
         if (keys == null || keys.Length == 0)
             return Results.BadRequest(UiStrings.ConfigEndpoints_ResetConfig_No_keys_specified);
 
-        var allowedSections = GetAllowedSections(GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders));
+        var allowedSections = GetAllowedSections(GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders));
 
         await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
         try
@@ -275,9 +279,10 @@ public static class ConfigEndpoints
         string key,
         [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
-        [FromServices] IEnumerable<IRatingsProvider> ratingsProviders)
+        [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
+        [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders)
     {
-        var value = GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders)
+        var value = GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders)
             .Select(p => p.RevealSecret(key))
             .FirstOrDefault(v => v is not null);
 
@@ -327,12 +332,13 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
+        [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
         CancellationToken ct)
     {
         var formValues = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>(ct)
             ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        var provider = GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders)
+        var provider = GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders)
             .FirstOrDefault(p => string.Equals(p.ConfigSection, service, StringComparison.OrdinalIgnoreCase));
 
         if (provider is null)

@@ -23,7 +23,16 @@ public record MediaContext(
         ReleaseDate == other.ReleaseDate &&
         ExternalIdsEqual(ExternalIds, other.ExternalIds);
 
-    public override int GetHashCode() => HashCode.Combine(EqualityContract, Title, ReleaseDate);
+    public override int GetHashCode()
+    {
+        var hash = HashCode.Combine(EqualityContract, Title, ReleaseDate);
+        if (ExternalIds is not null)
+        {
+            foreach (var (k, v) in ExternalIds.OrderBy(kvp => kvp.Key, StringComparer.Ordinal))
+                hash = HashCode.Combine(hash, k, v);
+        }
+        return hash;
+    }
 
     protected static bool ExternalIdsEqual(
         IReadOnlyDictionary<string, string>? a,
@@ -63,8 +72,9 @@ public record EpisodeContext(
 ) : MediaContext(Title, ReleaseDate, ExternalIds)
 {
     public virtual bool Equals(EpisodeContext? other) =>
+        other is not null &&
         base.Equals(other) &&
-        EpisodeTitle == other!.EpisodeTitle &&
+        EpisodeTitle == other.EpisodeTitle &&
         SeasonNumber == other.SeasonNumber &&
         EpisodeNumber == other.EpisodeNumber;
 

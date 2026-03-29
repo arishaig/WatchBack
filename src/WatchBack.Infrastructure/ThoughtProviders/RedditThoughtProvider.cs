@@ -17,7 +17,7 @@ namespace WatchBack.Infrastructure.ThoughtProviders;
 [JsonSerializable(typeof(PullPushCommentsResponseDto))]
 internal sealed partial class RedditJsonContext : JsonSerializerContext { }
 
-public class RedditThoughtProvider(
+public sealed class RedditThoughtProvider(
     HttpClient httpClient,
     IOptionsSnapshot<RedditOptions> options,
     IMemoryCache cache,
@@ -29,7 +29,7 @@ public class RedditThoughtProvider(
 
     private readonly RedditOptions _options = options.Value;
 
-    public DataProviderMetadata Metadata => new ThoughtProviderMetadata(
+    public DataProviderMetadata Metadata => new(
         Name: "Reddit",
         Description: UiStrings.RedditThoughtProvider_Metadata_Comments_from_Reddit,
         BrandData: new BrandData(

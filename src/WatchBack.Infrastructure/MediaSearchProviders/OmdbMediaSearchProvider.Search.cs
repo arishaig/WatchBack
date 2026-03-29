@@ -10,7 +10,7 @@ using WatchBack.Core.Models;
 // ReSharper disable once CheckNamespace
 namespace WatchBack.Infrastructure.Omdb;
 
-public partial class OmdbMediaSearchProvider
+public sealed partial class OmdbMediaSearchProvider
 {
     // Matches S01E05 or S1E5 (case-insensitive)
     [GeneratedRegex(@"[Ss](\d{1,2})[Ee](\d{1,2})", RegexOptions.Compiled)]
@@ -19,9 +19,6 @@ public partial class OmdbMediaSearchProvider
     // Matches "season N episode N" (case-insensitive)
     [GeneratedRegex(@"season\s+(\d+)\s+episode\s+(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex SeasonEpisodePattern();
-
-    public MediaSearchProviderMetadata Metadata =>
-        new(Name: "OMDb", Description: "Open Movie Database", BrandData: OmdbBrandData);
 
     public async Task<IReadOnlyList<MediaSearchResult>> SearchAsync(string query, CancellationToken ct = default)
     {

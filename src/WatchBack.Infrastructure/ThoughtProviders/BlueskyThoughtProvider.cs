@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
+using WatchBack.Infrastructure.Extensions;
 using WatchBack.Resources;
 
 namespace WatchBack.Infrastructure.ThoughtProviders;
@@ -17,7 +18,7 @@ namespace WatchBack.Infrastructure.ThoughtProviders;
 [JsonSerializable(typeof(BlueskySearchResponseDto))]
 internal sealed partial class BlueskyJsonContext : JsonSerializerContext { }
 
-public class BlueskyThoughtProvider(
+public sealed class BlueskyThoughtProvider(
     HttpClient httpClient,
     IOptionsSnapshot<BlueskyOptions> options,
     IMemoryCache cache,
@@ -29,7 +30,7 @@ public class BlueskyThoughtProvider(
 
     private readonly BlueskyOptions _options = options.Value;
 
-    public DataProviderMetadata Metadata => new ThoughtProviderMetadata(
+    public DataProviderMetadata Metadata => new(
         Name: "Bluesky",
         Description: UiStrings.BlueskyThoughtProvider_Metadata_Bluesky_skeets,
         BrandData: new BrandData(
@@ -283,14 +284,8 @@ public class BlueskyThoughtProvider(
         IReadOnlyDictionary<string, string> formValues,
         CancellationToken ct = default)
     {
-        static string Resolve(IReadOnlyDictionary<string, string> form, string key, string? fallback)
-        {
-            var v = form.GetValueOrDefault(key) ?? string.Empty;
-            return v == "__EXISTING__" ? (fallback ?? string.Empty) : v;
-        }
-
-        var handle = Resolve(formValues, "Bluesky__Handle", _options.Handle);
-        var password = Resolve(formValues, "Bluesky__AppPassword", _options.AppPassword);
+        var handle = formValues.ResolveFormValue("Bluesky__Handle", _options.Handle);
+        var password = formValues.ResolveFormValue("Bluesky__AppPassword", _options.AppPassword);
 
         if (string.IsNullOrEmpty(handle))
             return new ServiceHealth(false, UiStrings.ConfigEndpoints_TestBluesky_Handle_required, DateTimeOffset.UtcNow);

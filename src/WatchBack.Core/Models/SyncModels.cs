@@ -48,4 +48,11 @@ public record SyncResult(
     string? SuppressedProvider = null,
     string? SuppressedTitle = null,
     IReadOnlyList<MediaRating>? Ratings = null,
-    string? RatingsProvider = null);
+    string? RatingsProvider = null)
+{
+    public static SyncResult Idle(int timeMachineDays) => new(
+        SyncStatus.Idle, null, null, [], [], timeMachineDays, []);
+
+    public static SyncResult Error(int timeMachineDays) => new(
+        SyncStatus.Error, null, null, [], [], timeMachineDays, []);
+}

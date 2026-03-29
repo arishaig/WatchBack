@@ -33,8 +33,9 @@ public static partial class StringsEndpoints
             .AllowAnonymous();
     }
 
-    private static Dictionary<string, string> GetStrings([FromServices] ILogger<object> logger)
+    private static Dictionary<string, string> GetStrings([FromServices] ILoggerFactory loggerFactory)
     {
+        var logger = loggerFactory.CreateLogger(nameof(StringsEndpoints));
         var culture = CultureInfo.CurrentUICulture;
         var strings = new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -54,8 +55,9 @@ public static partial class StringsEndpoints
 
     private static object GetAllStrings(
         [FromServices] IOptions<RequestLocalizationOptions> locOptions,
-        [FromServices] ILogger<object> logger)
+        [FromServices] ILoggerFactory loggerFactory)
     {
+        var logger = loggerFactory.CreateLogger(nameof(StringsEndpoints));
         var cultures = locOptions.Value.SupportedUICultures ?? [new CultureInfo("en")];
         var supportedLocales = new List<string>();
         var allStrings = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);

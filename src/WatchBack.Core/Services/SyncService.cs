@@ -68,26 +68,12 @@ public class SyncService(
             if (watchStateProvider is null)
             {
                 logger.LogError("No watch state providers registered");
-                return new SyncResult(
-                    Status: SyncStatus.Error,
-                    Title: null,
-                    Metadata: null,
-                    AllThoughts: [],
-                    TimeMachineThoughts: [],
-                    TimeMachineDays: options.Value.TimeMachineDays,
-                    SourceResults: []);
+                return SyncResult.Error(options.Value.TimeMachineDays);
             }
 
             if (mediaContext is null)
             {
-                return new SyncResult(
-                    Status: SyncStatus.Idle,
-                    Title: null,
-                    Metadata: null,
-                    AllThoughts: [],
-                    TimeMachineThoughts: [],
-                    TimeMachineDays: options.Value.TimeMachineDays,
-                    SourceResults: []);
+                return SyncResult.Idle(options.Value.TimeMachineDays);
             }
 
             // Get thoughts and ratings from all providers in parallel
@@ -151,14 +137,7 @@ public class SyncService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Sync failed");
-            return new SyncResult(
-                Status: SyncStatus.Error,
-                Title: null,
-                Metadata: null,
-                AllThoughts: [],
-                TimeMachineThoughts: [],
-                TimeMachineDays: options.Value.TimeMachineDays,
-                SourceResults: []);
+            return SyncResult.Error(options.Value.TimeMachineDays);
         }
     }
 

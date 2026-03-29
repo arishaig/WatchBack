@@ -1,7 +1,5 @@
 using System.Threading.RateLimiting;
 
-using WatchBack.Api;
-
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
@@ -12,6 +10,7 @@ using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using WatchBack.Api;
 using WatchBack.Api.Auth;
 using WatchBack.Api.Endpoints;
 using WatchBack.Api.Logging;
@@ -25,7 +24,6 @@ using WatchBack.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// In-memory log buffer — captures recent log entries for the diagnostics panel
 builder.Services.AddSingleton<InMemoryLogBuffer>();
 builder.Services.AddSingleton<SyncHistoryStore>();
 builder.Services.AddSingleton<SyncTrigger>();
@@ -212,7 +210,7 @@ app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
     options.SwaggerEndpoint("/swagger/v1/swagger.json", "WatchBack API v1");
-    options.RoutePrefix = "swagger"; // Available at /swagger
+    options.RoutePrefix = "swagger";
 });
 
 // Map endpoints

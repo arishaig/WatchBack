@@ -2,12 +2,13 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 
 namespace WatchBack.Infrastructure.Services;
 
-public class PrefetchService(
+public sealed class PrefetchService(
     IServiceScopeFactory scopeFactory,
     IMemoryCache cache,
     ILogger<PrefetchService> logger,

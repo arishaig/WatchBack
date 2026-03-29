@@ -6,10 +6,8 @@ namespace WatchBack.Core.Interfaces;
 /// Provides media search capabilities for finding movies and TV shows.
 /// Implementations supply a specific data source (e.g. OMDb, TVDB).
 /// </summary>
-public interface IMediaSearchProvider
+public interface IMediaSearchProvider : IDataProvider
 {
-    /// <summary>Metadata describing this search provider.</summary>
-    MediaSearchProviderMetadata Metadata { get; }
 
     /// <summary>
     /// Searches for movies and TV shows matching the given query.
@@ -29,10 +27,3 @@ public interface IMediaSearchProvider
     Task<IReadOnlyList<EpisodeInfo>> GetEpisodesAsync(string externalId, int seasonNumber, CancellationToken ct = default);
 }
 
-/// <summary>Metadata describing a media search provider.</summary>
-public record MediaSearchProviderMetadata(
-    string Name,
-    string Description,
-    string? OverrideDisplayName = null,
-    BrandData? BrandData = null)
-    : DataProviderMetadata(Name, Description, OverrideDisplayName, BrandData);

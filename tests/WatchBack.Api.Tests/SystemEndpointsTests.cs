@@ -59,11 +59,11 @@ public class SystemEndpointsTests : IAsyncLifetime, IDisposable
         await LoginAsync();
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
         _client?.Dispose();
         _factory?.Dispose();
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public void Dispose()

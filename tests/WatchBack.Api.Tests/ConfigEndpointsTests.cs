@@ -29,7 +29,8 @@ file sealed class TestWatchProvider(
     bool requiresManualInput = false) : IWatchStateProvider
 {
     public DataProviderMetadata Metadata => new WatchStateDataProviderMetadata(
-        configSection, "Test watch provider") { RequiresManualInput = requiresManualInput };
+        configSection, "Test watch provider")
+    { RequiresManualInput = requiresManualInput };
 
     public string? ConfigSection => configSection;
     public bool IsConfigured => true;
@@ -69,7 +70,7 @@ file sealed class NullSectionWatchProvider : IWatchStateProvider
 file sealed class TestThoughtProvider(string configSection = "TestThought") : IThoughtProvider
 {
     public DataProviderMetadata Metadata =>
-        new ThoughtProviderMetadata(configSection, "Test thought provider", BrandData: new BrandData("", ""));
+        new DataProviderMetadata(configSection, "Test thought provider", BrandData: new BrandData("", ""));
 
     public string? ConfigSection => configSection;
     public bool IsConfigured => false;
@@ -93,53 +94,6 @@ file sealed class TestThoughtProvider(string configSection = "TestThought") : IT
 // ---------------------------------------------------------------------------
 // Shared factory helpers
 // ---------------------------------------------------------------------------
-
-file static class TestFactory
-{
-    private const string TestUsername = "testadmin";
-    private const string TestPassword = "TestPass1!@#456";
-
-    public static (WebApplicationFactory<Program> factory, HttpClient client, string configPath)
-        Build(params (IWatchStateProvider? watch, IThoughtProvider? thought)[] providers)
-    {
-        var configPath = Path.Combine(Path.GetTempPath(), $"watchback-test-{Guid.NewGuid()}.json");
-
-        var hasher = new PasswordHasher<string>();
-        var hash = hasher.HashPassword("", TestPassword);
-
-        var watchProviders = providers.Select(p => p.watch).OfType<IWatchStateProvider>().ToList();
-        var thoughtProviders = providers.Select(p => p.thought).OfType<IThoughtProvider>().ToList();
-
-        var factory = new WebApplicationFactory<Program>()
-            .WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureAppConfiguration((_, config) =>
-                    config.AddInMemoryCollection(new Dictionary<string, string?>
-                    {
-                        ["Auth:Username"] = TestUsername,
-                        ["Auth:PasswordHash"] = hash,
-                        ["Auth:OnboardingComplete"] = "true",
-                    }));
-
-                builder.ConfigureServices(services =>
-                {
-                    services.RemoveAll<IWatchStateProvider>();
-                    services.RemoveAll<IThoughtProvider>();
-
-                    foreach (var p in watchProviders)
-                        services.AddScoped(_ => p);
-                    foreach (var p in thoughtProviders)
-                        services.AddScoped(_ => p);
-
-                    services.RemoveAll<UserConfigFile>();
-                    services.AddSingleton(new UserConfigFile(configPath));
-                });
-            });
-
-        var client = factory.CreateClient();
-        return (factory, client, configPath);
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Standard scenario: one watch provider + one thought provider
@@ -199,13 +153,13 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
         _client?.Dispose();
         _factory?.Dispose();
         if (File.Exists(_tempConfigPath))
             File.Delete(_tempConfigPath);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public void Dispose()
@@ -515,13 +469,13 @@ public class ConfigEndpointsNullConfigSectionTests : IAsyncLifetime, IDisposable
         (await _client.PostAsJsonAsync("/api/auth/login", loginBody)).EnsureSuccessStatusCode();
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
         _client?.Dispose();
         _factory?.Dispose();
         if (File.Exists(_tempConfigPath))
             File.Delete(_tempConfigPath);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public void Dispose()
@@ -627,13 +581,13 @@ public class ConfigEndpointsSharedConfigSectionTests : IAsyncLifetime, IDisposab
         (await _client.PostAsJsonAsync("/api/auth/login", loginBody)).EnsureSuccessStatusCode();
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
         _client?.Dispose();
         _factory?.Dispose();
         if (File.Exists(_tempConfigPath))
             File.Delete(_tempConfigPath);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public void Dispose()
@@ -753,13 +707,13 @@ public class ConfigEndpointsRequiresManualInputTests : IAsyncLifetime, IDisposab
         (await _client.PostAsJsonAsync("/api/auth/login", loginBody)).EnsureSuccessStatusCode();
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
         _client?.Dispose();
         _factory?.Dispose();
         if (File.Exists(_tempConfigPath))
             File.Delete(_tempConfigPath);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public void Dispose()

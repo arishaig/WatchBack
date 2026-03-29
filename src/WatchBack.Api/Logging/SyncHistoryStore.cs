@@ -17,7 +17,7 @@ public sealed record SyncSnapshot(
     List<ProviderSyncRecord> Sources);
 
 /// <summary>Singleton that holds the most recent sync result and persists sync logs to the database.</summary>
-public sealed class SyncHistoryStore(IServiceScopeFactory scopeFactory, ILogger<SyncHistoryStore> logger)
+public sealed partial class SyncHistoryStore(IServiceScopeFactory scopeFactory, ILogger<SyncHistoryStore> logger)
 {
     private volatile SyncSnapshot? _latest;
 
@@ -53,9 +53,10 @@ public sealed class SyncHistoryStore(IServiceScopeFactory scopeFactory, ILogger<
         }
         catch (Exception ex)
         {
-#pragma warning disable CA1848
-            logger.LogWarning(ex, "Failed to persist sync log entry");
-#pragma warning restore CA1848
+            LogPersistFailure(logger, ex);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to persist sync log entry")]
+    private static partial void LogPersistFailure(ILogger logger, Exception ex);
 }
