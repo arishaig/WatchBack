@@ -28,7 +28,7 @@ public record MediaContext(
         var hash = HashCode.Combine(EqualityContract, Title, ReleaseDate);
         if (ExternalIds is not null)
         {
-            foreach (var (k, v) in ExternalIds.OrderBy(kvp => kvp.Key, StringComparer.Ordinal))
+            foreach ((string k, string v) in ExternalIds.OrderBy(kvp => kvp.Key, StringComparer.Ordinal))
                 hash = HashCode.Combine(hash, k, v);
         }
         return hash;
@@ -41,7 +41,7 @@ public record MediaContext(
         if (ReferenceEquals(a, b)) return true;
         if (a is null || b is null) return false;
         if (a.Count != b.Count) return false;
-        foreach (var (k, v) in a)
+        foreach ((string k, string v) in a)
             if (!b.TryGetValue(k, out var bv) || v != bv) return false;
         return true;
     }

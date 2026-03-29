@@ -31,7 +31,7 @@ public sealed partial class OmdbMediaSearchProvider
 
         if (sxxMatch.Success || longMatch.Success)
         {
-            var (season, episode) = sxxMatch.Success
+            (int season, int episode) = sxxMatch.Success
                 ? (int.Parse(sxxMatch.Groups[1].Value, CultureInfo.InvariantCulture),
                    int.Parse(sxxMatch.Groups[2].Value, CultureInfo.InvariantCulture))
                 : (int.Parse(longMatch.Groups[1].Value, CultureInfo.InvariantCulture),

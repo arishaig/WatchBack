@@ -125,7 +125,7 @@ public sealed class ResilientHttpHandler(
     private static HttpRequestMessage CloneRequest(HttpRequestMessage original)
     {
         var clone = new HttpRequestMessage(original.Method, original.RequestUri);
-        foreach (var (key, values) in original.Headers)
+        foreach ((string key, IEnumerable<string> values) in original.Headers)
             clone.Headers.TryAddWithoutValidation(key, values);
         return clone;
     }

@@ -343,7 +343,7 @@ internal static class PlaywrightHelpers
         PropertyNamingPolicy = null, // keys are already camelCase in our dicts
     };
 
-    public static async Task SetupApiRoutes(
+    private static async Task SetupApiRoutes(
         IPage page,
         Dictionary<string, object?>? sync = null,
         Dictionary<string, object?>? config = null,
@@ -429,7 +429,7 @@ internal static class PlaywrightHelpers
     // Theme helpers
     // -----------------------------------------------------------------------
 
-    public static async Task ApplyTheme(IPage page, string theme)
+    private static async Task ApplyTheme(IPage page, string theme)
     {
         await page.EvaluateAsync($"document.documentElement.setAttribute('data-theme', '{theme}')");
     }

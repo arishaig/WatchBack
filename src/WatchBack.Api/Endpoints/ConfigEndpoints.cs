@@ -200,7 +200,7 @@ public static class ConfigEndpoints
             var existing = await AuthEndpoints.ReadConfigFile(configFile.Path, ct);
 
             // Apply updates (key format: "Section__Key")
-            foreach (var (flatKey, value) in body)
+            foreach ((string flatKey, string value) in body)
             {
                 if (string.IsNullOrEmpty(value))
                     continue; // skip empty values — preserve existing

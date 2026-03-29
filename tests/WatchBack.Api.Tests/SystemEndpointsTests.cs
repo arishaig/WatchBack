@@ -45,7 +45,7 @@ public class SystemEndpointsTests : IAsyncLifetime, IDisposable
                     {
                         ["Auth:Username"] = TestUsername,
                         ["Auth:PasswordHash"] = hash,
-                        ["Auth:OnboardingComplete"] = "true",
+                        ["Auth:OnboardingComplete"] = "true"
                     });
                 });
                 builder.ConfigureServices(services =>

@@ -25,7 +25,7 @@ public static class SearchEndpoints
             .Produces<IReadOnlyList<SeasonInfo>>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status503ServiceUnavailable);
 
-        group.MapGet("/show/{imdbId}/season/{seasonNumber}/episodes", GetEpisodes)
+        group.MapGet("/show/{imdbId}/season/{seasonNumber:int}/episodes", GetEpisodes)
             .WithName("GetEpisodes")
             .WithSummary("List episodes in a season")
             .Produces<IReadOnlyList<EpisodeInfo>>(StatusCodes.Status200OK)

@@ -48,8 +48,7 @@ public sealed class RedditThoughtProvider(
 
     public string GetCacheKey(MediaContext mediaContext)
     {
-        var episode = mediaContext as EpisodeContext;
-        return episode != null
+        return mediaContext is EpisodeContext episode
             ? $"reddit:thoughts:{mediaContext.Title}:S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}:t{_options.MaxThreads}"
             : $"reddit:thoughts:{mediaContext.Title}:t{_options.MaxThreads}";
     }
@@ -113,7 +112,7 @@ public sealed class RedditThoughtProvider(
             // Merge deduplicated results from all specs
             var seenIds = new Dictionary<string, PullPushSubmissionDto>();
             var bypassIds = new HashSet<string>();
-            foreach (var (subs, isBypass, _) in specResults)
+            foreach ((PullPushSubmissionDto[] subs, bool isBypass, var _) in specResults)
             {
                 foreach (var sub in subs)
                 {
@@ -125,7 +124,7 @@ public sealed class RedditThoughtProvider(
             }
 
             // Log raw results before filtering so we can diagnose misses
-            foreach (var (id, sub) in seenIds)
+            foreach ((string id, PullPushSubmissionDto sub) in seenIds)
             {
                 var passes = bypassIds.Contains(id) || MatchesEpisode(sub.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber);
                 logger.LogInformation("PullPush raw: [{Id}] r/{Sub} \"{Title}\" → {Result}",
@@ -374,7 +373,7 @@ public sealed class RedditThoughtProvider(
     {
         return s_episodeRegexCache.GetOrAdd((season, episode), key =>
         {
-            var (s, e) = key;
+            (int s, int e) = key;
             var sStr = s.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var sL = s.ToString("D2", System.Globalization.CultureInfo.InvariantCulture);
             var eStr = e.ToString(System.Globalization.CultureInfo.InvariantCulture);

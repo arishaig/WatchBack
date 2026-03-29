@@ -103,15 +103,18 @@ public static class AuthEndpoints
         var hasher = new PasswordHasher<string>();
         var result = hasher.VerifyHashedPassword("", opts.PasswordHash, body.Password);
 
-        if (result == PasswordVerificationResult.Failed)
-            return Results.Json(new { ok = false, message = "Invalid credentials." }, statusCode: 401);
-
-        // Upgrade the stored hash if the hashing algorithm has been updated
-        if (result == PasswordVerificationResult.SuccessRehashNeeded)
+        switch (result)
         {
-            var configFile = ctx.RequestServices.GetRequiredService<UserConfigFile>();
-            var newHash = hasher.HashPassword("", body.Password);
-            await WriteAuthConfig(configFile, opts.Username, newHash, opts.OnboardingComplete, ct);
+            case PasswordVerificationResult.Failed:
+                return Results.Json(new { ok = false, message = "Invalid credentials." }, statusCode: 401);
+            // Upgrade the stored hash if the hashing algorithm has been updated
+            case PasswordVerificationResult.SuccessRehashNeeded:
+                {
+                    var configFile = ctx.RequestServices.GetRequiredService<UserConfigFile>();
+                    var newHash = hasher.HashPassword("", body.Password);
+                    await WriteAuthConfig(configFile, opts.Username, newHash, opts.OnboardingComplete, ct);
+                    break;
+                }
         }
 
         await SignInUser(ctx, body.Username);
@@ -279,7 +282,7 @@ public static class AuthEndpoints
             var json = await File.ReadAllTextAsync(path, ct);
             var parsed = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(json);
             if (parsed != null)
-                foreach (var (section, values) in parsed)
+                foreach ((string section, Dictionary<string, string> values) in parsed)
                     result[section] = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception ex)

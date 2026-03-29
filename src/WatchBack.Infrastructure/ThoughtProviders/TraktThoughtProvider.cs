@@ -49,8 +49,7 @@ public sealed class TraktThoughtProvider(
 
     public string GetCacheKey(MediaContext mediaContext)
     {
-        var episode = mediaContext as EpisodeContext;
-        return episode != null
+        return mediaContext is EpisodeContext episode
             ? $"trakt:thoughts:{mediaContext.Title}:s{episode.SeasonNumber}e{episode.EpisodeNumber}"
             : $"trakt:thoughts:{mediaContext.Title}";
     }
@@ -194,7 +193,7 @@ public sealed class TraktThoughtProvider(
         if (mediaContext.ExternalIds?.TryGetValue(Tmdb, out var tmdbId) == true && tmdbId != null)
             idLookups.Add(("tmdb", tmdbId));
 
-        foreach (var (idType, idValue) in idLookups)
+        foreach ((string idType, string idValue) in idLookups)
         {
             var url = $"https://api.trakt.tv/search/{idType}/{Uri.EscapeDataString(idValue)}?type=show";
             var slug = await TryResolveSlugFromSearchUrlAsync(url, mediaContext.Title, ct);

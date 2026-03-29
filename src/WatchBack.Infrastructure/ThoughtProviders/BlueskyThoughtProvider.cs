@@ -44,8 +44,7 @@ public sealed class BlueskyThoughtProvider(
 
     public string GetCacheKey(MediaContext mediaContext)
     {
-        var episode = mediaContext as EpisodeContext;
-        return episode != null
+        return mediaContext is EpisodeContext episode
             ? $"bluesky:thoughts:{mediaContext.Title}:S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}"
             : $"bluesky:thoughts:{mediaContext.Title}";
     }

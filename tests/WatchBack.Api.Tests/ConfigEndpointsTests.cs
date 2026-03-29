@@ -126,7 +126,7 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
                     {
                         ["Auth:Username"] = TestUsername,
                         ["Auth:PasswordHash"] = hash,
-                        ["Auth:OnboardingComplete"] = "true",
+                        ["Auth:OnboardingComplete"] = "true"
                     }));
 
                 builder.ConfigureServices(services =>
@@ -281,7 +281,7 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     {
         var payload = new Dictionary<string, string>
         {
-            ["TestWatch__Url"] = "http://test:8096",
+            ["TestWatch__Url"] = "http://test:8096"
         };
 
         var response = await _client.PostAsJsonAsync("/api/config", payload);
@@ -298,7 +298,7 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         // WatchBack is always in allowed sections regardless of providers
         var payload = new Dictionary<string, string>
         {
-            ["WatchBack__TimeMachineDays"] = "30",
+            ["WatchBack__TimeMachineDays"] = "30"
         };
 
         var response = await _client.PostAsJsonAsync("/api/config", payload);
@@ -314,7 +314,7 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         var payload = new Dictionary<string, string>
         {
             ["ConnectionStrings__Default"] = "Server=evil",
-            ["TestWatch__Url"] = "http://legit:8096",
+            ["TestWatch__Url"] = "http://legit:8096"
         };
 
         var response = await _client.PostAsJsonAsync("/api/config", payload);
@@ -331,7 +331,7 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         var payload = new Dictionary<string, string>
         {
             ["TestWatch__Url"] = "http://test:8096",
-            ["TestWatch__Secret"] = "",
+            ["TestWatch__Secret"] = ""
         };
 
         var response = await _client.PostAsJsonAsync("/api/config", payload);
@@ -398,7 +398,7 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         // Then reset it
         var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/config")
         {
-            Content = JsonContent.Create(_resetWatchUrlKeys),
+            Content = JsonContent.Create(_resetWatchUrlKeys)
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -412,7 +412,7 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         // Attempting to reset a key not in allowed sections — should not crash, just ignore
         var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/config")
         {
-            Content = JsonContent.Create(_resetConnectionStringKeys),
+            Content = JsonContent.Create(_resetConnectionStringKeys)
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -447,7 +447,7 @@ public class ConfigEndpointsNullConfigSectionTests : IAsyncLifetime, IDisposable
                     {
                         ["Auth:Username"] = TestUsername,
                         ["Auth:PasswordHash"] = hash,
-                        ["Auth:OnboardingComplete"] = "true",
+                        ["Auth:OnboardingComplete"] = "true"
                     }));
 
                 builder.ConfigureServices(services =>
@@ -559,7 +559,7 @@ public class ConfigEndpointsSharedConfigSectionTests : IAsyncLifetime, IDisposab
                     {
                         ["Auth:Username"] = TestUsername,
                         ["Auth:PasswordHash"] = hash,
-                        ["Auth:OnboardingComplete"] = "true",
+                        ["Auth:OnboardingComplete"] = "true"
                     }));
 
                 builder.ConfigureServices(services =>

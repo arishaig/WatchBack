@@ -50,7 +50,7 @@ public class SyncIntegrationTests : IAsyncLifetime
                     {
                         ["Auth:Username"] = TestUsername,
                         ["Auth:PasswordHash"] = hash,
-                        ["Auth:OnboardingComplete"] = "true",
+                        ["Auth:OnboardingComplete"] = "true"
                     });
                 });
                 builder.ConfigureServices(services =>

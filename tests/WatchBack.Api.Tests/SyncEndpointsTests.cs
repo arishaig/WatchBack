@@ -147,7 +147,7 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
         using var response = await _client.GetAsync("/api/sync/stream", HttpCompletionOption.ResponseHeadersRead);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        using var stream = await response.Content.ReadAsStreamAsync();
+        await using var stream = await response.Content.ReadAsStreamAsync();
         using var reader = new StreamReader(stream);
 
         var lines = new List<string>();
