@@ -79,8 +79,12 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
     },
 
     redditSearchUrl(title: string, season: number, episode: number): string {
+        // This is for both bad data from Watch Providers and edge cases like specials that Jellyfin classifies as "Season 0"
+        const querySeason = season === 0 ? '' : 'S' + String(season).padStart(2, '0');
+        const queryEpisode = episode === 0 ? '' : 'E' + String(episode).padStart(2, '0');
+        
         const query = encodeURIComponent(
-            title + ' S' + String(season).padStart(2, '0') + 'E' + String(episode).padStart(2, '0') + ' reddit'
+            title + querySeason + queryEpisode + ' reddit'
         );
         const prefs = (this.prefEdits as Record<string, unknown>);
         const config = (this.configData?.['preferences'] as Record<string, unknown> | undefined) ?? {};
