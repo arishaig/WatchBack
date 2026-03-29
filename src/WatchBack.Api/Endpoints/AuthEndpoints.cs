@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -8,7 +9,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-using WatchBack.Api.Auth;
 using WatchBack.Core.Options;
 using WatchBack.Resources;
 
@@ -21,7 +21,7 @@ public static class AuthEndpoints
 
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/auth")
+        RouteGroupBuilder group = app.MapGroup("/api/auth")
             .WithTags("Authentication");
 
         group.MapGet("/me", GetMe)
@@ -35,7 +35,7 @@ public static class AuthEndpoints
             .AllowAnonymous()
             .RequireRateLimiting("login");
 
-        group.MapPost("/logout", async (HttpContext ctx) => await Logout(ctx))
+        group.MapPost("/logout", async ctx => await Logout(ctx))
             .WithName("Logout")
             .WithSummary("Log out and clear session cookie")
             .RequireAuthorization();
@@ -63,14 +63,14 @@ public static class AuthEndpoints
 
     private static IResult GetMe(HttpContext ctx, IOptionsSnapshot<AuthOptions> authOptions)
     {
-        var user = ctx.User;
-        var isAuthenticated = user.Identity?.IsAuthenticated == true;
-        var authMethod = isAuthenticated
-            ? (user.Identity?.AuthenticationType == "ForwardAuth" ? "forwardAuth" : "cookie")
-            : (string?)null;
-        var username = isAuthenticated ? user.Identity?.Name : null;
-        var opts = authOptions.Value;
-        var needsOnboarding = authMethod != "forwardAuth" && !opts.OnboardingComplete;
+        ClaimsPrincipal user = ctx.User;
+        bool isAuthenticated = user.Identity?.IsAuthenticated == true;
+        string? authMethod = isAuthenticated
+            ? user.Identity?.AuthenticationType == "ForwardAuth" ? "forwardAuth" : "cookie"
+            : null;
+        string? username = isAuthenticated ? user.Identity?.Name : null;
+        AuthOptions opts = authOptions.Value;
+        bool needsOnboarding = authMethod != "forwardAuth" && !opts.OnboardingComplete;
 
         return Results.Ok(new
         {
@@ -78,8 +78,8 @@ public static class AuthEndpoints
             username,
             needsOnboarding,
             authMethod,
-            forwardAuthHeader = opts.ForwardAuthHeader ?? "",
-            forwardAuthTrustedHost = opts.ForwardAuthTrustedHost ?? "",
+            forwardAuthHeader = opts.ForwardAuthHeader,
+            forwardAuthTrustedHost = opts.ForwardAuthTrustedHost
         });
     }
 
@@ -89,19 +89,26 @@ public static class AuthEndpoints
         IOptionsSnapshot<AuthOptions> authOptions,
         CancellationToken ct)
     {
-        var opts = authOptions.Value;
+        AuthOptions opts = authOptions.Value;
 
         if (string.IsNullOrEmpty(opts.PasswordHash))
-            return Results.Json(new { ok = false, message = "Authentication not configured. Check server logs." }, statusCode: 500);
+        {
+            return Results.Json(new { ok = false, message = "Authentication not configured. Check server logs." },
+                statusCode: 500);
+        }
 
         if (string.IsNullOrEmpty(body.Username) || string.IsNullOrEmpty(body.Password))
+        {
             return Results.BadRequest(new { ok = false, message = "Username and password are required." });
+        }
 
         if (!string.Equals(body.Username, opts.Username, StringComparison.OrdinalIgnoreCase))
+        {
             return Results.Json(new { ok = false, message = "Invalid credentials." }, statusCode: 401);
+        }
 
-        var hasher = new PasswordHasher<string>();
-        var result = hasher.VerifyHashedPassword("", opts.PasswordHash, body.Password);
+        PasswordHasher<string> hasher = new();
+        PasswordVerificationResult result = hasher.VerifyHashedPassword("", opts.PasswordHash, body.Password);
 
         switch (result)
         {
@@ -110,8 +117,8 @@ public static class AuthEndpoints
             // Upgrade the stored hash if the hashing algorithm has been updated
             case PasswordVerificationResult.SuccessRehashNeeded:
                 {
-                    var configFile = ctx.RequestServices.GetRequiredService<UserConfigFile>();
-                    var newHash = hasher.HashPassword("", body.Password);
+                    UserConfigFile configFile = ctx.RequestServices.GetRequiredService<UserConfigFile>();
+                    string newHash = hasher.HashPassword("", body.Password);
                     await WriteAuthConfig(configFile, opts.Username, newHash, opts.OnboardingComplete, ct);
                     break;
                 }
@@ -119,8 +126,8 @@ public static class AuthEndpoints
 
         await SignInUser(ctx, body.Username);
 
-        var needsOnboarding = !opts.OnboardingComplete;
-        var needsPasswordChange = result == PasswordVerificationResult.SuccessRehashNeeded;
+        bool needsOnboarding = !opts.OnboardingComplete;
+        bool needsPasswordChange = result == PasswordVerificationResult.SuccessRehashNeeded;
         return Results.Ok(new { ok = true, needsOnboarding, needsPasswordChange, message = (string?)null });
     }
 
@@ -138,19 +145,29 @@ public static class AuthEndpoints
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.NewUsername))
+        {
             return Results.BadRequest(new { ok = false, message = "New username is required." });
+        }
 
         if (string.IsNullOrWhiteSpace(body.NewPassword))
+        {
             return Results.BadRequest(new { ok = false, message = "New password is required." });
+        }
 
-        var currentUsername = authOptions.Value.Username;
+        string currentUsername = authOptions.Value.Username;
         if (string.Equals(body.NewUsername, currentUsername, StringComparison.OrdinalIgnoreCase))
-            return Results.BadRequest(new { ok = false, message = "New username must be different from the current username." });
+        {
+            return Results.BadRequest(new
+            {
+                ok = false,
+                message = "New username must be different from the current username."
+            });
+        }
 
-        var hasher = new PasswordHasher<string>();
-        var newHash = hasher.HashPassword("", body.NewPassword);
+        PasswordHasher<string> hasher = new();
+        string newHash = hasher.HashPassword("", body.NewPassword);
 
-        await WriteAuthConfig(configFile, body.NewUsername, newHash, onboardingComplete: true, ct);
+        await WriteAuthConfig(configFile, body.NewUsername, newHash, true, ct);
 
         // Re-sign-in with new username so session reflects new identity
         await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -165,12 +182,12 @@ public static class AuthEndpoints
         IOptionsSnapshot<AuthOptions> authOptions,
         CancellationToken ct)
     {
-        var newPassword = GeneratePassword();
-        var hasher = new PasswordHasher<string>();
-        var newHash = hasher.HashPassword("", newPassword);
+        string newPassword = GeneratePassword();
+        PasswordHasher<string> hasher = new();
+        string newHash = hasher.HashPassword("", newPassword);
 
-        var currentUsername = authOptions.Value.Username;
-        var onboardingComplete = authOptions.Value.OnboardingComplete;
+        string currentUsername = authOptions.Value.Username;
+        bool onboardingComplete = authOptions.Value.OnboardingComplete;
 
         await WriteAuthConfig(configFile, currentUsername, newHash, onboardingComplete, ct);
 
@@ -183,7 +200,11 @@ public static class AuthEndpoints
         Console.WriteLine("║  Use this password to log in.                ║");
         Console.WriteLine("╚══════════════════════════════════════════════╝");
 
-        return Results.Ok(new { ok = true, message = UiStrings.AuthEndpoints_ResetPassword_New_password_generated__Check_server_logs_ });
+        return Results.Ok(new
+        {
+            ok = true,
+            message = UiStrings.AuthEndpoints_ResetPassword_New_password_generated__Check_server_logs_
+        });
     }
 
     private static async Task<IResult> ChangePassword(
@@ -194,11 +215,17 @@ public static class AuthEndpoints
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.NewPassword))
-            return Results.BadRequest(new { ok = false, message = UiStrings.AuthEndpoints_ChangePassword_Password_is_required_ });
+        {
+            return Results.BadRequest(new
+            {
+                ok = false,
+                message = UiStrings.AuthEndpoints_ChangePassword_Password_is_required_
+            });
+        }
 
-        var opts = authOptions.Value;
-        var hasher = new PasswordHasher<string>();
-        var newHash = hasher.HashPassword("", body.NewPassword);
+        AuthOptions opts = authOptions.Value;
+        PasswordHasher<string> hasher = new();
+        string newHash = hasher.HashPassword("", body.NewPassword);
 
         await WriteAuthConfig(configFile, opts.Username, newHash, opts.OnboardingComplete, ct);
 
@@ -217,13 +244,16 @@ public static class AuthEndpoints
         await ConfigFileLock.WaitAsync(ct);
         try
         {
-            var existing = await ReadConfigFile(configFile.Path, ct);
+            Dictionary<string, Dictionary<string, string>> existing = await ReadConfigFile(configFile.Path, ct);
 
-            if (!existing.ContainsKey("Auth"))
-                existing["Auth"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (!existing.TryGetValue("Auth", out Dictionary<string, string>? authSection))
+            {
+                authSection = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                existing["Auth"] = authSection;
+            }
 
-            existing["Auth"]["ForwardAuthHeader"] = body.Header?.Trim() ?? "";
-            existing["Auth"]["ForwardAuthTrustedHost"] = body.TrustedHost?.Trim() ?? "";
+            authSection["ForwardAuthHeader"] = body.Header?.Trim() ?? "";
+            authSection["ForwardAuthTrustedHost"] = body.TrustedHost?.Trim() ?? "";
 
             await WriteConfigFile(configFile.Path, existing, ct);
         }
@@ -237,9 +267,9 @@ public static class AuthEndpoints
 
     private static Task SignInUser(HttpContext ctx, string username)
     {
-        var claims = new[] { new Claim(ClaimTypes.Name, username) };
-        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-        var principal = new ClaimsPrincipal(identity);
+        Claim[] claims = [new(ClaimTypes.Name, username)];
+        ClaimsIdentity identity = new(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        ClaimsPrincipal principal = new(identity);
         return ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
     }
 
@@ -253,15 +283,18 @@ public static class AuthEndpoints
         await ConfigFileLock.WaitAsync(ct);
         try
         {
-            var existing = await ReadConfigFile(configFile.Path, ct);
+            Dictionary<string, Dictionary<string, string>> existing = await ReadConfigFile(configFile.Path, ct);
 
             // Merge into existing to preserve ForwardAuthHeader
-            if (!existing.ContainsKey("Auth"))
-                existing["Auth"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (!existing.TryGetValue("Auth", out Dictionary<string, string>? authSection))
+            {
+                authSection = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                existing["Auth"] = authSection;
+            }
 
-            existing["Auth"]["Username"] = username;
-            existing["Auth"]["PasswordHash"] = passwordHash;
-            existing["Auth"]["OnboardingComplete"] = onboardingComplete ? "True" : "False";
+            authSection["Username"] = username;
+            authSection["PasswordHash"] = passwordHash;
+            authSection["OnboardingComplete"] = onboardingComplete ? "True" : "False";
 
             await WriteConfigFile(configFile.Path, existing, ct);
         }
@@ -274,21 +307,29 @@ public static class AuthEndpoints
     internal static async Task<Dictionary<string, Dictionary<string, string>>> ReadConfigFile(
         string path, CancellationToken ct)
     {
-        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-        if (!File.Exists(path)) return result;
+        Dictionary<string, Dictionary<string, string>> result = new(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(path))
+        {
+            return result;
+        }
 
         try
         {
-            var json = await File.ReadAllTextAsync(path, ct);
-            var parsed = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(json);
+            string json = await File.ReadAllTextAsync(path, ct);
+            Dictionary<string, Dictionary<string, string>>? parsed =
+                JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(json);
             if (parsed != null)
+            {
                 foreach ((string section, Dictionary<string, string> values) in parsed)
+                {
                     result[section] = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
+                }
+            }
         }
         catch (Exception ex)
         {
             // Log but continue — treat as empty config so the app can still start
-            System.Diagnostics.Debug.WriteLine($"Failed to read config file {path}: {ex.Message}");
+            Debug.WriteLine($"Failed to read config file {path}: {ex.Message}");
         }
 
         return result;
@@ -297,12 +338,12 @@ public static class AuthEndpoints
     internal static async Task WriteConfigFile(
         string path, Dictionary<string, Dictionary<string, string>> data, CancellationToken ct)
     {
-        var dir = Path.GetDirectoryName(path)!;
+        string dir = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(dir);
-        var json = JsonSerializer.Serialize(data, s_jsonOptions);
-        var tmp = path + ".tmp";
+        string json = JsonSerializer.Serialize(data, s_jsonOptions);
+        string tmp = path + ".tmp";
         await File.WriteAllTextAsync(tmp, json, ct);
-        File.Move(tmp, path, overwrite: true);
+        File.Move(tmp, path, true);
     }
 
     internal static string GeneratePassword(int length = 24)
@@ -314,37 +355,47 @@ public static class AuthEndpoints
         const string charset = upper + lower + digits + special;
 
         // Rejection sampling — avoids modulo bias
-        var maxUsable = (256 / charset.Length) * charset.Length; // largest multiple of charset.Length ≤ 256
+        int maxUsable = 256 / charset.Length * charset.Length; // largest multiple of charset.Length ≤ 256
 
-        var chars = new char[length];
-        for (var i = 0; i < length; i++)
+        char[] chars = new char[length];
+        for (int i = 0; i < length; i++)
         {
             int b;
-            do { b = RandomNumberGenerator.GetBytes(1)[0]; }
-            while (b >= maxUsable);
+            do { b = RandomNumberGenerator.GetBytes(1)[0]; } while (b >= maxUsable);
+
             chars[i] = charset[b % charset.Length];
         }
 
         // Guarantee at least one of each category
-        Span<int> required = [
+        Span<int> required =
+        [
             RandomIndex(upper),
             RandomIndex(lower),
             RandomIndex(digits),
             RandomIndex(special)
         ];
         // Place required chars at random distinct positions
-        var positions = Enumerable.Range(0, length).OrderBy(_ => RandomNumberGenerator.GetInt32(length)).Take(4).ToArray();
-        var categories = new[] { upper, lower, digits, special };
-        for (var i = 0; i < 4; i++)
+        int[] positions = Enumerable.Range(0, length).OrderBy(_ => RandomNumberGenerator.GetInt32(length)).Take(4)
+            .ToArray();
+        string[] categories = [upper, lower, digits, special];
+        for (int i = 0; i < 4; i++)
+        {
             chars[positions[i]] = categories[i][required[i]];
+        }
 
         return new string(chars);
 
-        static int RandomIndex(string pool) => RandomNumberGenerator.GetInt32(pool.Length);
+        static int RandomIndex(string pool)
+        {
+            return RandomNumberGenerator.GetInt32(pool.Length);
+        }
     }
 
     private sealed record LoginRequest(string Username, string Password);
+
     private sealed record SetupRequest(string NewUsername, string NewPassword);
+
     private sealed record ChangePasswordRequest(string NewPassword);
+
     private sealed record ForwardAuthSettingsRequest(string? Header, string? TrustedHost);
 }

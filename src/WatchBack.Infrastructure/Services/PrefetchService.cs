@@ -19,11 +19,7 @@ public sealed class PrefetchService(
     private const string StateKey = "watchback:prefetch:state";
 
     // How long to keep prefetch state tracked (governs stale-entry eviction window).
-    private static readonly TimeSpan StateTtl = TimeSpan.FromHours(4);
-
-    private sealed record PrefetchState(
-        EpisodeContext TriggerEpisode,
-        EpisodeContext[] Targets);
+    private static readonly TimeSpan s_stateTtl = TimeSpan.FromHours(4);
 
     public void SchedulePrefetch(EpisodeContext current)
     {
@@ -31,15 +27,19 @@ public sealed class PrefetchService(
 
         // Already prefetched (or in flight) for this episode — don't re-schedule.
         if (cache.TryGetValue(StateKey, out PrefetchState? existing) && existing?.TriggerEpisode == current)
+        {
             return;
+        }
 
-        var targets = BuildTargets(current);
+        EpisodeContext[] targets = BuildTargets(current);
         if (targets.Length == 0)
+        {
             return;
+        }
 
-        cache.Set(StateKey, new PrefetchState(current, targets), StateTtl);
+        cache.Set(StateKey, new PrefetchState(current, targets), s_stateTtl);
 
-        var ct = lifetime.ApplicationStopping;
+        CancellationToken ct = lifetime.ApplicationStopping;
         _ = Task.Run(async () =>
         {
             try
@@ -59,11 +59,15 @@ public sealed class PrefetchService(
     private void EvictStaleTargets(EpisodeContext current)
     {
         if (!cache.TryGetValue(StateKey, out PrefetchState? state) || state == null)
+        {
             return;
+        }
 
         // Still watching the same episode that triggered the last prefetch — nothing to do.
         if (state.TriggerEpisode == current)
+        {
             return;
+        }
 
         EpisodeContext[] stale;
         if (!string.Equals(state.TriggerEpisode.Title, current.Title, StringComparison.Ordinal))
@@ -75,7 +79,7 @@ public sealed class PrefetchService(
         {
             // Same show. If the user landed on one of our predictions, keep that cache
             // entry and evict the others. Otherwise evict everything.
-            var hit = Array.FindIndex(
+            int hit = Array.FindIndex(
                 state.Targets,
                 t => t.SeasonNumber == current.SeasonNumber && t.EpisodeNumber == current.EpisodeNumber);
 
@@ -84,18 +88,20 @@ public sealed class PrefetchService(
                 : state.Targets;
         }
 
-        using var scope = scopeFactory.CreateScope();
-        var providers = scope.ServiceProvider.GetServices<IThoughtProvider>().ToList();
+        using IServiceScope scope = scopeFactory.CreateScope();
+        List<IThoughtProvider> providers = scope.ServiceProvider.GetServices<IThoughtProvider>().ToList();
         EvictAll(stale, providers);
         cache.Remove(StateKey);
     }
 
     private void EvictAll(IEnumerable<EpisodeContext> targets, IReadOnlyList<IThoughtProvider> providers)
     {
-        foreach (var target in targets)
+        foreach (EpisodeContext target in targets)
         {
-            foreach (var provider in providers)
+            foreach (IThoughtProvider provider in providers)
+            {
                 cache.Remove(provider.GetCacheKey(target));
+            }
 
             logger.LogDebug("Prefetch: evicted stale cache for {Title} S{Season}E{Episode}",
                 target.Title, target.SeasonNumber, target.EpisodeNumber);
@@ -106,10 +112,10 @@ public sealed class PrefetchService(
 
     private async Task RunPrefetchAsync(EpisodeContext[] targets, CancellationToken ct = default)
     {
-        using var scope = scopeFactory.CreateScope();
-        var providers = scope.ServiceProvider.GetServices<IThoughtProvider>().ToList();
+        using IServiceScope scope = scopeFactory.CreateScope();
+        List<IThoughtProvider> providers = scope.ServiceProvider.GetServices<IThoughtProvider>().ToList();
 
-        foreach (var target in targets)
+        foreach (EpisodeContext target in targets)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -117,7 +123,7 @@ public sealed class PrefetchService(
                 "Prefetch: warming cache for {Title} S{Season}E{Episode} ({Count} provider(s))",
                 target.Title, target.SeasonNumber, target.EpisodeNumber, providers.Count);
 
-            foreach (var provider in providers)
+            foreach (IThoughtProvider provider in providers)
             {
                 try
                 {
@@ -142,7 +148,7 @@ public sealed class PrefetchService(
 
     private static EpisodeContext[] BuildTargets(EpisodeContext current)
     {
-        var targets = new List<EpisodeContext>(2);
+        List<EpisodeContext> targets = new(2);
 
         // Next episode in the same season (E+1)
         if (current.EpisodeNumber < short.MaxValue)
@@ -151,7 +157,7 @@ public sealed class PrefetchService(
             {
                 EpisodeTitle = string.Empty,
                 ReleaseDate = null,
-                EpisodeNumber = (short)(current.EpisodeNumber + 1),
+                EpisodeNumber = (short)(current.EpisodeNumber + 1)
             });
         }
 
@@ -165,11 +171,14 @@ public sealed class PrefetchService(
                 EpisodeTitle = string.Empty,
                 ReleaseDate = null,
                 SeasonNumber = (short)(current.SeasonNumber + 1),
-                EpisodeNumber = 1,
+                EpisodeNumber = 1
             });
         }
 
         return targets.ToArray();
     }
 
+    private sealed record PrefetchState(
+        EpisodeContext TriggerEpisode,
+        EpisodeContext[] Targets);
 }

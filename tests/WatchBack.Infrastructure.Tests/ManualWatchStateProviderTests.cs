@@ -10,45 +10,48 @@ namespace WatchBack.Infrastructure.Tests;
 
 public class ManualWatchStateProviderTests
 {
-    private static ManualWatchStateProvider CreateProvider() => new();
+    private static ManualWatchStateProvider CreateProvider()
+    {
+        return new ManualWatchStateProvider();
+    }
 
     [Fact]
     public async Task GetCurrentMediaContextAsync_WhenNothingSet_ReturnsNull()
     {
-        var provider = CreateProvider();
-        var result = await provider.GetCurrentMediaContextAsync();
+        ManualWatchStateProvider provider = CreateProvider();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
         result.Should().BeNull();
     }
 
     [Fact]
     public async Task GetCurrentMediaContextAsync_AfterSettingMovieContext_ReturnsIt()
     {
-        var provider = CreateProvider();
-        var context = new MediaContext(Title: "Inception", ReleaseDate: new DateTimeOffset(2010, 7, 16, 0, 0, 0, TimeSpan.Zero));
+        ManualWatchStateProvider provider = CreateProvider();
+        MediaContext context = new("Inception", new DateTimeOffset(2010, 7, 16, 0, 0, 0, TimeSpan.Zero));
 
         provider.SetCurrentContext(context);
-        var result = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
 
         result.Should().NotBeNull();
-        result!.Title.Should().Be("Inception");
+        result.Title.Should().Be("Inception");
         result.Should().NotBeOfType<EpisodeContext>();
     }
 
     [Fact]
     public async Task GetCurrentMediaContextAsync_AfterSettingEpisodeContext_ReturnsEpisodeContext()
     {
-        var provider = CreateProvider();
-        var context = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2009, 4, 12, 0, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Breakage",
-            SeasonNumber: 2,
-            EpisodeNumber: 5);
+        ManualWatchStateProvider provider = CreateProvider();
+        EpisodeContext context = new(
+            "Breaking Bad",
+            new DateTimeOffset(2009, 4, 12, 0, 0, 0, TimeSpan.Zero),
+            "Breakage",
+            2,
+            5);
 
         provider.SetCurrentContext(context);
-        var result = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
 
-        var episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        EpisodeContext? episode = result.Should().BeOfType<EpisodeContext>().Subject;
         episode.Title.Should().Be("Breaking Bad");
         episode.SeasonNumber.Should().Be(2);
         episode.EpisodeNumber.Should().Be(5);
@@ -57,30 +60,30 @@ public class ManualWatchStateProviderTests
     [Fact]
     public async Task GetCurrentMediaContextAsync_AfterClearing_ReturnsNull()
     {
-        var provider = CreateProvider();
+        ManualWatchStateProvider provider = CreateProvider();
         provider.SetCurrentContext(new MediaContext("Something", null));
         provider.SetCurrentContext(null);
 
-        var result = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
         result.Should().BeNull();
     }
 
     [Fact]
     public async Task GetCurrentMediaContextAsync_WithExternalIds_ContextCarriesIds()
     {
-        var provider = CreateProvider();
-        var externalIds = new Dictionary<string, string>
+        ManualWatchStateProvider provider = CreateProvider();
+        Dictionary<string, string> externalIds = new()
         {
             [ExternalIdType.Imdb] = "tt0903747",
             [ExternalIdType.Tvdb] = "81189"
         };
-        var context = new EpisodeContext(
-            Title: "Breaking Bad", ReleaseDate: null,
-            EpisodeTitle: "Pilot", SeasonNumber: 1, EpisodeNumber: 1,
-            ExternalIds: externalIds);
+        EpisodeContext context = new(
+            "Breaking Bad", null,
+            "Pilot", 1, 1,
+            externalIds);
 
         provider.SetCurrentContext(context);
-        var result = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
 
         result!.ExternalIds.Should().ContainKey(ExternalIdType.Imdb).WhoseValue.Should().Be("tt0903747");
         result.ExternalIds.Should().ContainKey(ExternalIdType.Tvdb).WhoseValue.Should().Be("81189");
@@ -90,18 +93,18 @@ public class ManualWatchStateProviderTests
     [Fact]
     public async Task GetServiceHealthAsync_IsAlwaysHealthy()
     {
-        var provider = CreateProvider();
-        var health = await provider.GetServiceHealthAsync();
+        ManualWatchStateProvider provider = CreateProvider();
+        ServiceHealth health = await provider.GetServiceHealthAsync();
         health.IsHealthy.Should().BeTrue();
     }
 
     [Fact]
     public async Task GetServiceHealthAsync_WhenContextSet_MessageIncludesTitle()
     {
-        var provider = CreateProvider();
+        ManualWatchStateProvider provider = CreateProvider();
         provider.SetCurrentContext(new MediaContext("Inception", null));
 
-        var health = await provider.GetServiceHealthAsync();
+        ServiceHealth health = await provider.GetServiceHealthAsync();
         health.IsHealthy.Should().BeTrue();
         health.Message.Should().Contain("Inception");
     }
@@ -109,23 +112,24 @@ public class ManualWatchStateProviderTests
     [Fact]
     public void Metadata_Name_IsManual()
     {
-        var provider = CreateProvider();
+        ManualWatchStateProvider provider = CreateProvider();
         provider.Metadata.Name.Should().Be("Manual");
     }
 
     [Fact]
     public void Metadata_SupportedExternalIds_ContainsImdbTmdbTvdb()
     {
-        var provider = CreateProvider();
-        var meta = provider.Metadata.Should().BeOfType<WatchStateDataProviderMetadata>().Subject;
-        meta.SupportedExternalIds.Should().BeEquivalentTo(
-            [ExternalIdType.Imdb, ExternalIdType.Tmdb, ExternalIdType.Tvdb]);
+        ManualWatchStateProvider provider = CreateProvider();
+        WatchStateDataProviderMetadata? meta = provider.Metadata.Should().BeOfType<WatchStateDataProviderMetadata>()
+            .Subject;
+        meta.SupportedExternalIds.Should()
+            .BeEquivalentTo(ExternalIdType.Imdb, ExternalIdType.Tmdb, ExternalIdType.Tvdb);
     }
 
     [Fact]
     public void ConfigSection_IsNull()
     {
-        var provider = CreateProvider();
+        ManualWatchStateProvider provider = CreateProvider();
         // Manual provider has no config panel — ConfigSection must be null
         ((IDataProvider)provider).ConfigSection.Should().BeNull();
     }
@@ -133,16 +137,17 @@ public class ManualWatchStateProviderTests
     [Fact]
     public void Metadata_RequiresManualInput_IsTrue()
     {
-        var provider = CreateProvider();
-        var meta = provider.Metadata.Should().BeOfType<WatchStateDataProviderMetadata>().Subject;
+        ManualWatchStateProvider provider = CreateProvider();
+        WatchStateDataProviderMetadata? meta = provider.Metadata.Should().BeOfType<WatchStateDataProviderMetadata>()
+            .Subject;
         meta.RequiresManualInput.Should().BeTrue();
     }
 
     [Fact]
     public void GetConfigSchema_ReturnsEmpty()
     {
-        var provider = CreateProvider();
-        var fields = ((IDataProvider)provider).GetConfigSchema(_ => "", (_, _) => false);
+        ManualWatchStateProvider provider = CreateProvider();
+        IReadOnlyList<ProviderConfigField> fields = ((IDataProvider)provider).GetConfigSchema(_ => "", (_, _) => false);
         fields.Should().BeEmpty();
     }
 }

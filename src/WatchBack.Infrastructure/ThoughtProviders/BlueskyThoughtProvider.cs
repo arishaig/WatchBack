@@ -1,3 +1,5 @@
+using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -16,7 +18,7 @@ namespace WatchBack.Infrastructure.ThoughtProviders;
 
 [JsonSerializable(typeof(BlueskyAuthResponseDto))]
 [JsonSerializable(typeof(BlueskySearchResponseDto))]
-internal sealed partial class BlueskyJsonContext : JsonSerializerContext { }
+internal sealed partial class BlueskyJsonContext : JsonSerializerContext;
 
 public sealed class BlueskyThoughtProvider(
     HttpClient httpClient,
@@ -26,16 +28,15 @@ public sealed class BlueskyThoughtProvider(
     ILogger<BlueskyThoughtProvider> logger)
     : IThoughtProvider
 {
-    private static readonly ThoughtResult Empty = new(Source: "Bluesky", PostTitle: null, PostUrl: null, ImageUrl: null, Thoughts: [], NextPageToken: null);
+    private static readonly ThoughtResult s_empty = new("Bluesky", null, null, null, [], null);
 
     private readonly BlueskyOptions _options = options.Value;
 
     public DataProviderMetadata Metadata => new(
-        Name: "Bluesky",
-        Description: UiStrings.BlueskyThoughtProvider_Metadata_Bluesky_skeets,
+        "Bluesky",
+        UiStrings.BlueskyThoughtProvider_Metadata_Bluesky_skeets,
         BrandData: new BrandData(
-            Color: "#1185FE",
-            LogoSvg:
+            "#1185FE",
             "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Bluesky</title><path d=\"M5.202 2.857C7.954 4.922 10.913 9.11 12 11.358c1.087-2.247 4.046-6.436 6.798-8.501C20.783 1.366 24 .213 24 3.883c0 .732-.42 6.156-.667 7.037-.856 3.061-3.978 3.842-6.755 3.37 4.854.826 6.089 3.562 3.422 6.299-5.065 5.196-7.28-1.304-7.847-2.97-.104-.305-.152-.448-.153-.327 0-.121-.05.022-.153.327-.568 1.666-2.782 8.166-7.847 2.97-2.667-2.737-1.432-5.473 3.422-6.3-2.777.473-5.899-.308-6.755-3.369C.42 10.04 0 4.615 0 3.883c0-3.67 3.217-2.517 5.202-1.026\"/></svg>"
         )
     );
@@ -49,83 +50,89 @@ public sealed class BlueskyThoughtProvider(
             : $"bluesky:thoughts:{mediaContext.Title}";
     }
 
-    public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
+    public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext,
+        IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
     {
         try
         {
             if (mediaContext is not EpisodeContext episode)
             {
-                return Empty;
+                return s_empty;
             }
 
-            var cacheKey = GetCacheKey(mediaContext);
+            string cacheKey = GetCacheKey(mediaContext);
             if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
             {
                 return cached;
             }
 
-            var token = await GetAccessTokenAsync(ct);
+            string? token = await GetAccessTokenAsync(ct);
 
             // Search for posts
-            var query = $"{mediaContext.Title} S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
-            var searchUrl = $"https://bsky.social/xrpc/app.bsky.feed.searchPosts?q={Uri.EscapeDataString(query)}&limit=100";
+            string query = $"{mediaContext.Title} S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
+            string searchUrl =
+                $"https://bsky.social/xrpc/app.bsky.feed.searchPosts?q={Uri.EscapeDataString(query)}&limit=100";
 
-            var request = new HttpRequestMessage(HttpMethod.Get, searchUrl);
+            HttpRequestMessage request = new(HttpMethod.Get, searchUrl);
             if (!string.IsNullOrEmpty(token))
             {
                 request.Headers.Add("Authorization", $"Bearer {token}");
             }
 
-            var response = await httpClient.SendAsync(request, ct);
+            HttpResponseMessage response = await httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
-                return Empty;
+                return s_empty;
             }
 
-            var content = await response.Content.ReadAsStringAsync(ct);
-            var searchResult = JsonSerializer.Deserialize<BlueskySearchResponseDto>(
+            string content = await response.Content.ReadAsStringAsync(ct);
+            BlueskySearchResponseDto? searchResult = JsonSerializer.Deserialize<BlueskySearchResponseDto>(
                 content,
                 BlueskyJsonContext.Default.BlueskySearchResponseDto);
 
-            var posts = searchResult?.Posts ?? [];
-            var seenTexts = new HashSet<string>();
-            var thoughts = new List<Thought>();
+            BlueskyPostDto[] posts = searchResult?.Posts ?? [];
+            HashSet<string> seenTexts = new();
+            List<Thought> thoughts = new();
 
-            foreach (var post in posts)
+            foreach (BlueskyPostDto post in posts)
             {
                 if (post.Record?.Text == null)
+                {
                     continue;
+                }
 
-                var normalizedText = NormalizeText(post.Record.Text);
+                string normalizedText = NormalizeText(post.Record.Text);
                 if (!seenTexts.Add(normalizedText))
+                {
                     continue;
+                }
 
-                var postThought = new Thought(
-                    Id: $"bluesky:{post.Uri}",
-                    ParentId: null,
-                    Title: null,
-                    Content: post.Record.Text,
-                    Url: ToBlueskyWebUrl(post.Uri, post.Author?.Handle),
-                    Images: post.Record.Embed?.Images?.Select(i => new ThoughtImage(Url: i.Image?.Link ?? "", Alt: i.Alt))
+                Thought postThought = new(
+                    $"bluesky:{post.Uri}",
+                    null,
+                    null,
+                    post.Record.Text,
+                    ToBlueskyWebUrl(post.Uri, post.Author?.Handle),
+                    post.Record.Embed?.Images?.Select(i => new ThoughtImage(i.Image?.Link ?? "", i.Alt))
                         .ToList() ?? [],
-                    Author: post.Author?.DisplayName ?? post.Author?.Handle ?? "Unknown",
-                    Score: post.LikeCount,
-                    CreatedAt: post.Record.CreatedAt ?? DateTimeOffset.UtcNow,
-                    Source: "Bluesky",
-                    Replies: []);
+                    post.Author?.DisplayName ?? post.Author?.Handle ?? "Unknown",
+                    post.LikeCount,
+                    post.Record.CreatedAt ?? DateTimeOffset.UtcNow,
+                    "Bluesky",
+                    []);
 
                 thoughts.Add(postThought);
             }
 
-            var treeThoughts = treeBuilder.BuildTree(thoughts);
+            IReadOnlyList<Thought> treeThoughts = treeBuilder.BuildTree(thoughts);
 
-            var result = new ThoughtResult(
-                Source: "Bluesky",
-                PostTitle: query,
-                PostUrl: null,
-                ImageUrl: null,
-                Thoughts: treeThoughts,
-                NextPageToken: null);
+            ThoughtResult result = new(
+                "Bluesky",
+                query,
+                null,
+                null,
+                treeThoughts,
+                null);
 
             cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
@@ -133,7 +140,7 @@ public sealed class BlueskyThoughtProvider(
         catch (Exception ex)
         {
             logger.LogError(ex, "Bluesky thought fetch failed");
-            return Empty;
+            return s_empty;
         }
         finally
         {
@@ -145,20 +152,92 @@ public sealed class BlueskyThoughtProvider(
     {
         try
         {
-            var token = await GetAccessTokenAsync(ct);
+            string? token = await GetAccessTokenAsync(ct);
 
             return new ServiceHealth(
-                IsHealthy: !string.IsNullOrEmpty(token),
-                Message: !string.IsNullOrEmpty(token) ? "OK" : "Failed to authenticate",
-                CheckedAt: DateTimeOffset.UtcNow);
+                !string.IsNullOrEmpty(token),
+                !string.IsNullOrEmpty(token) ? "OK" : "Failed to authenticate",
+                DateTimeOffset.UtcNow);
         }
         catch (Exception ex)
         {
             return new ServiceHealth(
-                IsHealthy: false,
-                Message: ex.Message,
-                CheckedAt: DateTimeOffset.UtcNow);
+                false,
+                ex.Message,
+                DateTimeOffset.UtcNow);
         }
+    }
+
+    public string ConfigSection => "Bluesky";
+
+    public bool IsConfigured =>
+        !string.IsNullOrEmpty(_options.Handle) && !string.IsNullOrEmpty(_options.AppPassword);
+
+    public IReadOnlyList<ProviderConfigField> GetConfigSchema(
+        Func<string, string> envVal,
+        Func<string, string, bool> isOverridden)
+    {
+        return
+        [
+            new ProviderConfigField("Bluesky__Handle",
+                UiStrings.ConfigEndpoints_GetConfig_Handle_Email,
+                "text",
+                "you.bsky.social",
+                !string.IsNullOrEmpty(_options.Handle),
+                _options.Handle,
+                envVal("Bluesky__Handle"),
+                isOverridden("Bluesky", "Handle")),
+            new ProviderConfigField("Bluesky__AppPassword",
+                UiStrings.ConfigEndpoints_GetConfig_Bluesky_App_Password,
+                "password",
+                "xxxx-xxxx-xxxx-xxxx",
+                !string.IsNullOrEmpty(_options.AppPassword),
+                "",
+                "",
+                isOverridden("Bluesky", "AppPassword"))
+        ];
+    }
+
+    public async Task<ServiceHealth> TestConnectionAsync(
+        IReadOnlyDictionary<string, string> formValues,
+        CancellationToken ct = default)
+    {
+        string handle = formValues.ResolveFormValue("Bluesky__Handle", _options.Handle);
+        string password = formValues.ResolveFormValue("Bluesky__AppPassword", _options.AppPassword);
+
+        if (string.IsNullOrEmpty(handle))
+        {
+            return new ServiceHealth(false, UiStrings.ConfigEndpoints_TestBluesky_Handle_required,
+                DateTimeOffset.UtcNow);
+        }
+
+        if (string.IsNullOrEmpty(password))
+        {
+            return new ServiceHealth(true, UiStrings.ConfigEndpoints_TestBluesky_Handle_set__no_app_password_to_verify_,
+                DateTimeOffset.UtcNow);
+        }
+
+        using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        HttpRequestMessage req = new(HttpMethod.Post, "https://bsky.social/xrpc/com.atproto.server.createSession");
+        req.Content = new StringContent(
+            JsonSerializer.Serialize(new { identifier = handle, password }),
+            Encoding.UTF8, "application/json");
+        HttpResponseMessage res = await httpClient.SendAsync(req, cts.Token);
+
+        return res.IsSuccessStatusCode
+            ? new ServiceHealth(true, UiStrings.ConfigEndpoints_TestJellyfin_Connected, DateTimeOffset.UtcNow)
+            : new ServiceHealth(false,
+                res.StatusCode == HttpStatusCode.Unauthorized
+                    ? UiStrings.ConfigEndpoints_TestBluesky_Invalid_credentials
+                    : $"HTTP {(int)res.StatusCode}",
+                DateTimeOffset.UtcNow);
+    }
+
+    public string? RevealSecret(string key)
+    {
+        return key == "Bluesky__AppPassword" ? _options.AppPassword : null;
     }
 
     private async Task<string?> GetAccessTokenAsync(CancellationToken ct)
@@ -169,10 +248,10 @@ public sealed class BlueskyThoughtProvider(
         }
 
         // Key by credential hash so a credential change immediately invalidates the cached token
-        var credentialHash = Convert.ToHexString(
-            System.Security.Cryptography.SHA256.HashData(
+        string credentialHash = Convert.ToHexString(
+            SHA256.HashData(
                 Encoding.UTF8.GetBytes($"{_options.Handle}:{_options.AppPassword}")))[..16];
-        var cacheKey = $"bluesky:auth:token:{credentialHash}";
+        string cacheKey = $"bluesky:auth:token:{credentialHash}";
         if (cache.TryGetValue(cacheKey, out string? cachedToken))
         {
             return cachedToken;
@@ -181,12 +260,12 @@ public sealed class BlueskyThoughtProvider(
         try
         {
             var authPayload = new { identifier = _options.Handle, password = _options.AppPassword };
-            var content = new StringContent(
+            StringContent content = new(
                 JsonSerializer.Serialize(authPayload),
                 Encoding.UTF8,
                 "application/json");
 
-            var response = await httpClient.PostAsync(
+            HttpResponseMessage response = await httpClient.PostAsync(
                 "https://bsky.social/xrpc/com.atproto.server.createSession",
                 content,
                 ct);
@@ -196,12 +275,12 @@ public sealed class BlueskyThoughtProvider(
                 return null;
             }
 
-            var responseContent = await response.Content.ReadAsStringAsync(ct);
-            var authResponse = JsonSerializer.Deserialize<BlueskyAuthResponseDto>(
+            string responseContent = await response.Content.ReadAsStringAsync(ct);
+            BlueskyAuthResponseDto? authResponse = JsonSerializer.Deserialize<BlueskyAuthResponseDto>(
                 responseContent,
                 BlueskyJsonContext.Default.BlueskyAuthResponseDto);
 
-            var token = authResponse?.AccessJwt;
+            string? token = authResponse?.AccessJwt;
             if (token != null)
             {
                 cache.Set(cacheKey, token, TimeSpan.FromSeconds(_options.TokenCacheTtlSeconds));
@@ -216,29 +295,35 @@ public sealed class BlueskyThoughtProvider(
     }
 
     /// <summary>
-    /// Converts an AT Protocol URI (at://did:plc:xxx/app.bsky.feed.post/rkey)
-    /// to a browsable https://bsky.app URL.
+    ///     Converts an AT Protocol URI (at://did:plc:xxx/app.bsky.feed.post/rkey)
+    ///     to a browsable https://bsky.app URL.
     /// </summary>
     private static string? ToBlueskyWebUrl(string? atUri, string? handle)
     {
         if (string.IsNullOrEmpty(atUri))
+        {
             return null;
+        }
 
         // Extract the rkey (last path segment) from the AT URI
-        var lastSlash = atUri.LastIndexOf('/');
+        int lastSlash = atUri.LastIndexOf('/');
         if (lastSlash < 0)
+        {
             return atUri;
+        }
 
-        var rkey = atUri[(lastSlash + 1)..];
+        string rkey = atUri[(lastSlash + 1)..];
         if (string.IsNullOrEmpty(rkey))
+        {
             return atUri;
+        }
 
         // Use handle if available, otherwise extract the DID from the URI
-        var authority = handle;
+        string? authority = handle;
         if (string.IsNullOrEmpty(authority) && atUri.StartsWith("at://", StringComparison.Ordinal))
         {
-            var afterScheme = atUri[5..];
-            var slashIdx = afterScheme.IndexOf('/');
+            string afterScheme = atUri[5..];
+            int slashIdx = afterScheme.IndexOf('/');
             authority = slashIdx > 0 ? afterScheme[..slashIdx] : afterScheme;
         }
 
@@ -251,71 +336,11 @@ public sealed class BlueskyThoughtProvider(
     {
         return text.ToLowerInvariant().Trim();
     }
-
-    public string? ConfigSection => "Bluesky";
-
-    public bool IsConfigured =>
-        !string.IsNullOrEmpty(_options.Handle) && !string.IsNullOrEmpty(_options.AppPassword);
-
-    public IReadOnlyList<ProviderConfigField> GetConfigSchema(
-        Func<string, string> envVal,
-        Func<string, string, bool> isOverridden) =>
-    [
-        new(Key: "Bluesky__Handle",
-            Label: UiStrings.ConfigEndpoints_GetConfig_Handle_Email,
-            Type: "text",
-            Placeholder: "you.bsky.social",
-            HasValue: !string.IsNullOrEmpty(_options.Handle),
-            Value: _options.Handle ?? "",
-            EnvValue: envVal("Bluesky__Handle"),
-            IsOverridden: isOverridden("Bluesky", "Handle")),
-        new(Key: "Bluesky__AppPassword",
-            Label: UiStrings.ConfigEndpoints_GetConfig_Bluesky_App_Password,
-            Type: "password",
-            Placeholder: "xxxx-xxxx-xxxx-xxxx",
-            HasValue: !string.IsNullOrEmpty(_options.AppPassword),
-            Value: "",
-            EnvValue: "",
-            IsOverridden: isOverridden("Bluesky", "AppPassword")),
-    ];
-
-    public async Task<ServiceHealth> TestConnectionAsync(
-        IReadOnlyDictionary<string, string> formValues,
-        CancellationToken ct = default)
-    {
-        var handle = formValues.ResolveFormValue("Bluesky__Handle", _options.Handle);
-        var password = formValues.ResolveFormValue("Bluesky__AppPassword", _options.AppPassword);
-
-        if (string.IsNullOrEmpty(handle))
-            return new ServiceHealth(false, UiStrings.ConfigEndpoints_TestBluesky_Handle_required, DateTimeOffset.UtcNow);
-
-        if (string.IsNullOrEmpty(password))
-            return new ServiceHealth(true, UiStrings.ConfigEndpoints_TestBluesky_Handle_set__no_app_password_to_verify_, DateTimeOffset.UtcNow);
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(5));
-
-        var req = new HttpRequestMessage(HttpMethod.Post, "https://bsky.social/xrpc/com.atproto.server.createSession");
-        req.Content = new StringContent(
-            JsonSerializer.Serialize(new { identifier = handle, password }),
-            Encoding.UTF8, "application/json");
-        var res = await httpClient.SendAsync(req, cts.Token);
-
-        return res.IsSuccessStatusCode
-            ? new ServiceHealth(true, UiStrings.ConfigEndpoints_TestJellyfin_Connected, DateTimeOffset.UtcNow)
-            : new ServiceHealth(false,
-                res.StatusCode == System.Net.HttpStatusCode.Unauthorized
-                    ? UiStrings.ConfigEndpoints_TestBluesky_Invalid_credentials
-                    : $"HTTP {(int)res.StatusCode}",
-                DateTimeOffset.UtcNow);
-    }
-
-    public string? RevealSecret(string key) =>
-        key == "Bluesky__AppPassword" ? _options.AppPassword : null;
 }
 
 internal sealed record BlueskyAuthResponseDto(
-    [property: JsonPropertyName("accessJwt")] string? AccessJwt);
+    [property: JsonPropertyName("accessJwt")]
+    string? AccessJwt);
 
 internal sealed record BlueskyImageDto(
     [property: JsonPropertyName("link")] string? Link);
@@ -329,19 +354,22 @@ internal sealed record BlueskyEmbedDto(
 
 internal sealed record BlueskyRecordDto(
     [property: JsonPropertyName("text")] string? Text,
-    [property: JsonPropertyName("createdAt")] DateTimeOffset? CreatedAt,
+    [property: JsonPropertyName("createdAt")]
+    DateTimeOffset? CreatedAt,
     [property: JsonPropertyName("embed")] BlueskyEmbedDto? Embed);
 
 internal sealed record BlueskyAuthorDto(
     [property: JsonPropertyName("handle")] string? Handle,
-    [property: JsonPropertyName("displayName")] string? DisplayName);
+    [property: JsonPropertyName("displayName")]
+    string? DisplayName);
 
 internal sealed record BlueskyPostDto(
     [property: JsonPropertyName("uri")] string? Uri,
     [property: JsonPropertyName("cid")] string? Cid,
     [property: JsonPropertyName("author")] BlueskyAuthorDto? Author,
     [property: JsonPropertyName("record")] BlueskyRecordDto? Record,
-    [property: JsonPropertyName("likeCount")] int? LikeCount);
+    [property: JsonPropertyName("likeCount")]
+    int? LikeCount);
 
 internal sealed record BlueskySearchResponseDto(
     [property: JsonPropertyName("posts")] BlueskyPostDto[]? Posts);

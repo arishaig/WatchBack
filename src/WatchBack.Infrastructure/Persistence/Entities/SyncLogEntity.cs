@@ -1,13 +1,13 @@
 namespace WatchBack.Infrastructure.Persistence.Entities;
 
 /// <summary>
-/// Stores historical sync attempt records for audit trail and debugging.
+///     Stores historical sync attempt records for audit trail and debugging.
 /// </summary>
 public class SyncLogEntity
 {
     public int Id { get; init; }
 
-    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>One of "Idle", "Watching", or "Error".</summary>
     public required string Status { get; init; }

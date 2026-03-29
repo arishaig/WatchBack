@@ -10,7 +10,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-using WatchBack.Api;
 using WatchBack.Api.Endpoints;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
@@ -32,63 +31,95 @@ file sealed class TestWatchProvider(
         configSection, "Test watch provider")
     { RequiresManualInput = requiresManualInput };
 
-    public string? ConfigSection => configSection;
+    public string ConfigSection => configSection;
     public bool IsConfigured => true;
 
     public IReadOnlyList<ProviderConfigField> GetConfigSchema(
         Func<string, string> envVal,
-        Func<string, string, bool> isOverridden) =>
-    [
-        new($"{configSection}__Url", "Server URL", "text", "", true, "http://test:8096", "", false),
-    ];
+        Func<string, string, bool> isOverridden)
+    {
+        return
+        [
+            new ProviderConfigField($"{configSection}__Url", "Server URL", "text", "", true, "http://test:8096", "",
+                false)
+        ];
+    }
 
-    public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default) =>
-        Task.FromResult(new ServiceHealth(true, "Connected", DateTimeOffset.UtcNow));
+    public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
+    {
+        return Task.FromResult(new ServiceHealth(true, "Connected", DateTimeOffset.UtcNow));
+    }
 
     public Task<ServiceHealth> TestConnectionAsync(
         IReadOnlyDictionary<string, string> formValues,
-        CancellationToken ct = default) =>
-        Task.FromResult(new ServiceHealth(true, "Connected", DateTimeOffset.UtcNow));
+        CancellationToken ct = default)
+    {
+        return Task.FromResult(new ServiceHealth(true, "Connected", DateTimeOffset.UtcNow));
+    }
 
-    public string? RevealSecret(string key) =>
-        key == $"{configSection}__Secret" ? "revealed-value" : null;
+    public string? RevealSecret(string key)
+    {
+        return key == $"{configSection}__Secret" ? "revealed-value" : null;
+    }
 
-    public Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default) =>
-        Task.FromResult<MediaContext?>(null);
+    public Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default)
+    {
+        return Task.FromResult<MediaContext?>(null);
+    }
 }
 
 file sealed class NullSectionWatchProvider : IWatchStateProvider
 {
-    public DataProviderMetadata Metadata => new WatchStateDataProviderMetadata("NoConfig", "Provider without config section");
+    public DataProviderMetadata Metadata =>
+        new WatchStateDataProviderMetadata("NoConfig", "Provider without config section");
+
     public string? ConfigSection => null; // explicitly no config panel
-    public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default) =>
-        Task.FromResult(new ServiceHealth(true, "OK", DateTimeOffset.UtcNow));
-    public Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default) =>
-        Task.FromResult<MediaContext?>(null);
+
+    public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
+    {
+        return Task.FromResult(new ServiceHealth(true, "OK", DateTimeOffset.UtcNow));
+    }
+
+    public Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default)
+    {
+        return Task.FromResult<MediaContext?>(null);
+    }
 }
 
 file sealed class TestThoughtProvider(string configSection = "TestThought") : IThoughtProvider
 {
     public DataProviderMetadata Metadata =>
-        new DataProviderMetadata(configSection, "Test thought provider", BrandData: new BrandData("", ""));
+        new(configSection, "Test thought provider", BrandData: new BrandData("", ""));
 
-    public string? ConfigSection => configSection;
+    public string ConfigSection => configSection;
     public bool IsConfigured => false;
 
     public IReadOnlyList<ProviderConfigField> GetConfigSchema(
         Func<string, string> envVal,
-        Func<string, string, bool> isOverridden) => [];
+        Func<string, string, bool> isOverridden)
+    {
+        return [];
+    }
 
-    public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default) =>
-        Task.FromResult(new ServiceHealth(false, "Not configured", DateTimeOffset.UtcNow));
+    public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
+    {
+        return Task.FromResult(new ServiceHealth(false, "Not configured", DateTimeOffset.UtcNow));
+    }
 
     public int ExpectedWeight => 100;
-    public string GetCacheKey(MediaContext mediaContext) => $"test:{mediaContext.Title}";
+
+    public string GetCacheKey(MediaContext mediaContext)
+    {
+        return $"test:{mediaContext.Title}";
+    }
+
     public Task<ThoughtResult?> GetThoughtsAsync(
         MediaContext mediaContext,
         IProgress<SyncProgressTick>? progress = null,
-        CancellationToken ct = default) =>
-        Task.FromResult<ThoughtResult?>(null);
+        CancellationToken ct = default)
+    {
+        return Task.FromResult<ThoughtResult?>(null);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -104,19 +135,19 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     private const string TestUsername = "testadmin";
     private const string TestPassword = "TestPass1!@#456";
 
-    private static readonly string[] _resetWatchUrlKeys = ["TestWatch__Url"];
-    private static readonly string[] _resetConnectionStringKeys = ["ConnectionStrings__Default"];
+    private static readonly string[] s_resetWatchUrlKeys = ["TestWatch__Url"];
+    private static readonly string[] s_resetConnectionStringKeys = ["ConnectionStrings__Default"];
+    private HttpClient _client = null!;
 
     private WebApplicationFactory<Program> _factory = null!;
-    private HttpClient _client = null!;
     private string _tempConfigPath = null!;
 
     public async Task InitializeAsync()
     {
         _tempConfigPath = Path.Combine(Path.GetTempPath(), $"watchback-test-{Guid.NewGuid()}.json");
 
-        var hasher = new PasswordHasher<string>();
-        var hash = hasher.HashPassword("", TestPassword);
+        PasswordHasher<string> hasher = new();
+        string hash = hasher.HashPassword("", TestPassword);
 
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
@@ -134,8 +165,8 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
                     services.RemoveAll<IWatchStateProvider>();
                     services.RemoveAll<IThoughtProvider>();
 
-                    services.AddScoped<IWatchStateProvider>(_ => new TestWatchProvider("TestWatch"));
-                    services.AddScoped<IThoughtProvider>(_ => new TestThoughtProvider("TestThought"));
+                    services.AddScoped<IWatchStateProvider>(_ => new TestWatchProvider());
+                    services.AddScoped<IThoughtProvider>(_ => new TestThoughtProvider());
 
                     services.RemoveAll<UserConfigFile>();
                     services.AddSingleton(new UserConfigFile(_tempConfigPath));
@@ -146,19 +177,15 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         await LoginAsync();
     }
 
-    private async Task LoginAsync()
-    {
-        var loginBody = new { username = TestUsername, password = TestPassword };
-        var response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
-        response.EnsureSuccessStatusCode();
-    }
-
     public Task DisposeAsync()
     {
         _client?.Dispose();
         _factory?.Dispose();
         if (File.Exists(_tempConfigPath))
+        {
             File.Delete(_tempConfigPath);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -169,15 +196,22 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         GC.SuppressFinalize(this);
     }
 
+    private async Task LoginAsync()
+    {
+        var loginBody = new { username = TestUsername, password = TestPassword };
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
+        response.EnsureSuccessStatusCode();
+    }
+
     // ---- Basic GET /api/config ----
 
     [Fact]
     public async Task GetConfig_ReturnsOkWithIntegrations()
     {
-        var response = await _client.GetAsync("/api/config");
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var json = await response.Content.ReadAsStringAsync();
+        string json = await response.Content.ReadAsStringAsync();
         json.Should().Contain("integrations");
         json.Should().Contain("preferences");
         json.Should().Contain("testwatch");
@@ -187,14 +221,14 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task GetConfig_IntegrationContainsProviderTypes()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        var integration = doc.RootElement
+        JsonElement integration = doc.RootElement
             .GetProperty("integrations")
             .GetProperty("testwatch");
 
-        integration.TryGetProperty("providerTypes", out var pt).Should().BeTrue();
+        integration.TryGetProperty("providerTypes", out JsonElement pt).Should().BeTrue();
         pt.ValueKind.Should().Be(JsonValueKind.Array);
         pt.EnumerateArray().Select(e => e.GetString()).Should().Contain("watchState");
     }
@@ -202,10 +236,10 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task GetConfig_ThoughtIntegrationContainsThoughtProviderType()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        var providerTypes = doc.RootElement
+        string?[] providerTypes = doc.RootElement
             .GetProperty("integrations")
             .GetProperty("testthought")
             .GetProperty("providerTypes")
@@ -220,8 +254,8 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task GetConfig_SearchConfigured_FalseWhenNoRatingsProviders()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
         doc.RootElement.GetProperty("preferences")
             .GetProperty("searchConfigured")
@@ -232,10 +266,10 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task GetConfig_WatchProviders_IncludesRequiresManualInput()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        var providers = doc.RootElement.GetProperty("preferences")
+        JsonElement[] providers = doc.RootElement.GetProperty("preferences")
             .GetProperty("watchProviders")
             .EnumerateArray()
             .ToArray();
@@ -247,10 +281,10 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task GetConfig_Fields_ExposedFromProvider()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        var fields = doc.RootElement
+        JsonElement[] fields = doc.RootElement
             .GetProperty("integrations")
             .GetProperty("testwatch")
             .GetProperty("fields")
@@ -266,10 +300,10 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task GetStatus_ReturnsWatchProvider()
     {
-        var response = await _client.GetAsync("/api/status");
+        HttpResponseMessage response = await _client.GetAsync("/api/status");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var json = await response.Content.ReadAsStringAsync();
+        string json = await response.Content.ReadAsStringAsync();
         json.Should().Contain("watchProvider");
         json.Should().Contain("testwatch");
     }
@@ -279,16 +313,13 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task SaveConfig_WithValidKeys_PersistsConfig()
     {
-        var payload = new Dictionary<string, string>
-        {
-            ["TestWatch__Url"] = "http://test:8096"
-        };
+        Dictionary<string, string> payload = new() { ["TestWatch__Url"] = "http://test:8096" };
 
-        var response = await _client.PostAsJsonAsync("/api/config", payload);
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/config", payload);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         File.Exists(_tempConfigPath).Should().BeTrue();
-        var saved = await File.ReadAllTextAsync(_tempConfigPath);
+        string saved = await File.ReadAllTextAsync(_tempConfigPath);
         saved.Should().Contain("http://test:8096");
     }
 
@@ -296,31 +327,28 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     public async Task SaveConfig_WatchBackSection_AlwaysAllowed()
     {
         // WatchBack is always in allowed sections regardless of providers
-        var payload = new Dictionary<string, string>
-        {
-            ["WatchBack__TimeMachineDays"] = "30"
-        };
+        Dictionary<string, string> payload = new() { ["WatchBack__TimeMachineDays"] = "30" };
 
-        var response = await _client.PostAsJsonAsync("/api/config", payload);
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/config", payload);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var saved = await File.ReadAllTextAsync(_tempConfigPath);
+        string saved = await File.ReadAllTextAsync(_tempConfigPath);
         saved.Should().Contain("30");
     }
 
     [Fact]
     public async Task SaveConfig_RejectsUnknownSections()
     {
-        var payload = new Dictionary<string, string>
+        Dictionary<string, string> payload = new()
         {
             ["ConnectionStrings__Default"] = "Server=evil",
             ["TestWatch__Url"] = "http://legit:8096"
         };
 
-        var response = await _client.PostAsJsonAsync("/api/config", payload);
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/config", payload);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var saved = await File.ReadAllTextAsync(_tempConfigPath);
+        string saved = await File.ReadAllTextAsync(_tempConfigPath);
         saved.Should().NotContain("ConnectionStrings");
         saved.Should().Contain("http://legit:8096");
     }
@@ -328,16 +356,16 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task SaveConfig_SkipsEmptyValues()
     {
-        var payload = new Dictionary<string, string>
+        Dictionary<string, string> payload = new()
         {
             ["TestWatch__Url"] = "http://test:8096",
             ["TestWatch__Secret"] = ""
         };
 
-        var response = await _client.PostAsJsonAsync("/api/config", payload);
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/config", payload);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var saved = await File.ReadAllTextAsync(_tempConfigPath);
+        string saved = await File.ReadAllTextAsync(_tempConfigPath);
         saved.Should().Contain("Url");
         saved.Should().NotContain("Secret");
     }
@@ -347,22 +375,22 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task TestService_KnownProvider_ReturnsHealthResult()
     {
-        var payload = new Dictionary<string, string>();
-        var response = await _client.PostAsJsonAsync("/api/test/testwatch", payload);
+        Dictionary<string, string> payload = new();
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/test/testwatch", payload);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var json = await response.Content.ReadAsStringAsync();
+        string json = await response.Content.ReadAsStringAsync();
         json.Should().Contain("Connected");
     }
 
     [Fact]
     public async Task TestService_Unknown_ReturnsError()
     {
-        var payload = new Dictionary<string, string>();
-        var response = await _client.PostAsJsonAsync("/api/test/unknown", payload);
+        Dictionary<string, string> payload = new();
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/test/unknown", payload);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var json = await response.Content.ReadAsStringAsync();
+        string json = await response.Content.ReadAsStringAsync();
         json.Should().Contain("Unknown service");
     }
 
@@ -371,17 +399,17 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task RevealConfigValue_KnownKey_ReturnsValue()
     {
-        var response = await _client.PostAsync("/api/config/reveal/TestWatch__Secret", null);
+        HttpResponseMessage response = await _client.PostAsync("/api/config/reveal/TestWatch__Secret", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var json = await response.Content.ReadAsStringAsync();
+        string json = await response.Content.ReadAsStringAsync();
         json.Should().Contain("revealed-value");
     }
 
     [Fact]
     public async Task RevealConfigValue_UnknownKey_ReturnsNotFound()
     {
-        var response = await _client.PostAsync("/api/config/reveal/Nonexistent__Key", null);
+        HttpResponseMessage response = await _client.PostAsync("/api/config/reveal/Nonexistent__Key", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -392,17 +420,18 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     public async Task ResetConfig_RemovesSpecifiedKeys()
     {
         // First save a value
-        await _client.PostAsJsonAsync("/api/config", new Dictionary<string, string> { ["TestWatch__Url"] = "http://test:8096" });
+        await _client.PostAsJsonAsync("/api/config",
+            new Dictionary<string, string> { ["TestWatch__Url"] = "http://test:8096" });
         File.Exists(_tempConfigPath).Should().BeTrue();
 
         // Then reset it
-        var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/config")
+        HttpResponseMessage response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/config")
         {
-            Content = JsonContent.Create(_resetWatchUrlKeys)
+            Content = JsonContent.Create(s_resetWatchUrlKeys)
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var saved = await File.ReadAllTextAsync(_tempConfigPath);
+        string saved = await File.ReadAllTextAsync(_tempConfigPath);
         saved.Should().NotContain("http://test:8096");
     }
 
@@ -410,9 +439,9 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     public async Task ResetConfig_RejectsUnknownSections()
     {
         // Attempting to reset a key not in allowed sections — should not crash, just ignore
-        var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/config")
+        HttpResponseMessage response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/config")
         {
-            Content = JsonContent.Create(_resetConnectionStringKeys)
+            Content = JsonContent.Create(s_resetConnectionStringKeys)
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -427,17 +456,17 @@ public class ConfigEndpointsNullConfigSectionTests : IAsyncLifetime, IDisposable
 {
     private const string TestUsername = "testadmin";
     private const string TestPassword = "TestPass1!@#456";
+    private HttpClient _client = null!;
 
     private WebApplicationFactory<Program> _factory = null!;
-    private HttpClient _client = null!;
     private string _tempConfigPath = null!;
 
     public async Task InitializeAsync()
     {
         _tempConfigPath = Path.Combine(Path.GetTempPath(), $"watchback-test-{Guid.NewGuid()}.json");
 
-        var hasher = new PasswordHasher<string>();
-        var hash = hasher.HashPassword("", TestPassword);
+        PasswordHasher<string> hasher = new();
+        string hash = hasher.HashPassword("", TestPassword);
 
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
@@ -474,7 +503,10 @@ public class ConfigEndpointsNullConfigSectionTests : IAsyncLifetime, IDisposable
         _client?.Dispose();
         _factory?.Dispose();
         if (File.Exists(_tempConfigPath))
+        {
             File.Delete(_tempConfigPath);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -488,9 +520,9 @@ public class ConfigEndpointsNullConfigSectionTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task GetConfig_NullConfigSection_ExcludedFromIntegrations()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var integrations = doc.RootElement.GetProperty("integrations");
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        JsonElement integrations = doc.RootElement.GetProperty("integrations");
 
         integrations.TryGetProperty("noconfig", out _).Should().BeFalse(
             "providers with null ConfigSection should not appear in integrations");
@@ -500,10 +532,10 @@ public class ConfigEndpointsNullConfigSectionTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task GetConfig_NullConfigSection_ProviderStillAppearsInWatchProviders()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        var watchProviders = doc.RootElement.GetProperty("preferences")
+        string?[] watchProviders = doc.RootElement.GetProperty("preferences")
             .GetProperty("watchProviders")
             .EnumerateArray()
             .Select(e => e.GetProperty("value").GetString())
@@ -518,14 +550,14 @@ public class ConfigEndpointsNullConfigSectionTests : IAsyncLifetime, IDisposable
     public async Task SaveConfig_NullConfigSectionProvider_KeysRejected()
     {
         // "NoConfig" is not in allowed sections (no ConfigSection), so its keys should be silently rejected
-        var payload = new Dictionary<string, string> { ["NoConfig__Key"] = "secret" };
-        var response = await _client.PostAsJsonAsync("/api/config", payload);
+        Dictionary<string, string> payload = new() { ["NoConfig__Key"] = "secret" };
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/config", payload);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         // Nothing should be saved for the null-section provider
         if (File.Exists(_tempConfigPath))
         {
-            var saved = await File.ReadAllTextAsync(_tempConfigPath);
+            string saved = await File.ReadAllTextAsync(_tempConfigPath);
             saved.Should().NotContain("secret");
         }
     }
@@ -539,17 +571,17 @@ public class ConfigEndpointsSharedConfigSectionTests : IAsyncLifetime, IDisposab
 {
     private const string TestUsername = "testadmin";
     private const string TestPassword = "TestPass1!@#456";
+    private HttpClient _client = null!;
 
     private WebApplicationFactory<Program> _factory = null!;
-    private HttpClient _client = null!;
     private string _tempConfigPath = null!;
 
     public async Task InitializeAsync()
     {
         _tempConfigPath = Path.Combine(Path.GetTempPath(), $"watchback-test-{Guid.NewGuid()}.json");
 
-        var hasher = new PasswordHasher<string>();
-        var hash = hasher.HashPassword("", TestPassword);
+        PasswordHasher<string> hasher = new();
+        string hash = hasher.HashPassword("", TestPassword);
 
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
@@ -586,7 +618,10 @@ public class ConfigEndpointsSharedConfigSectionTests : IAsyncLifetime, IDisposab
         _client?.Dispose();
         _factory?.Dispose();
         if (File.Exists(_tempConfigPath))
+        {
             File.Delete(_tempConfigPath);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -600,21 +635,21 @@ public class ConfigEndpointsSharedConfigSectionTests : IAsyncLifetime, IDisposab
     [Fact]
     public async Task GetConfig_SharedConfigSection_ProducesOneIntegration()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var integrations = doc.RootElement.GetProperty("integrations");
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        JsonElement integrations = doc.RootElement.GetProperty("integrations");
 
-        var keys = integrations.EnumerateObject().Select(p => p.Name).ToArray();
+        string[] keys = integrations.EnumerateObject().Select(p => p.Name).ToArray();
         keys.Should().ContainSingle(k => k == "sharedsection");
     }
 
     [Fact]
     public async Task GetConfig_SharedConfigSection_ProviderTypesContainsBothRoles()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        var providerTypes = doc.RootElement
+        string?[] providerTypes = doc.RootElement
             .GetProperty("integrations")
             .GetProperty("sharedsection")
             .GetProperty("providerTypes")
@@ -630,10 +665,10 @@ public class ConfigEndpointsSharedConfigSectionTests : IAsyncLifetime, IDisposab
     [Fact]
     public async Task GetConfig_SharedConfigSection_FieldsFromFirstProviderWithFields()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        var fields = doc.RootElement
+        JsonElement[] fields = doc.RootElement
             .GetProperty("integrations")
             .GetProperty("sharedsection")
             .GetProperty("fields")
@@ -649,11 +684,11 @@ public class ConfigEndpointsSharedConfigSectionTests : IAsyncLifetime, IDisposab
     [Fact]
     public async Task SaveConfig_SharedConfigSection_SectionAllowed()
     {
-        var payload = new Dictionary<string, string> { ["SharedSection__Url"] = "http://shared:8096" };
-        var response = await _client.PostAsJsonAsync("/api/config", payload);
+        Dictionary<string, string> payload = new() { ["SharedSection__Url"] = "http://shared:8096" };
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/config", payload);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var saved = await File.ReadAllTextAsync(_tempConfigPath);
+        string saved = await File.ReadAllTextAsync(_tempConfigPath);
         saved.Should().Contain("http://shared:8096");
     }
 }
@@ -666,17 +701,17 @@ public class ConfigEndpointsRequiresManualInputTests : IAsyncLifetime, IDisposab
 {
     private const string TestUsername = "testadmin";
     private const string TestPassword = "TestPass1!@#456";
+    private HttpClient _client = null!;
 
     private WebApplicationFactory<Program> _factory = null!;
-    private HttpClient _client = null!;
     private string _tempConfigPath = null!;
 
     public async Task InitializeAsync()
     {
         _tempConfigPath = Path.Combine(Path.GetTempPath(), $"watchback-test-{Guid.NewGuid()}.json");
 
-        var hasher = new PasswordHasher<string>();
-        var hash = hasher.HashPassword("", TestPassword);
+        PasswordHasher<string> hasher = new();
+        string hash = hasher.HashPassword("", TestPassword);
 
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
@@ -686,7 +721,7 @@ public class ConfigEndpointsRequiresManualInputTests : IAsyncLifetime, IDisposab
                     {
                         ["Auth:Username"] = TestUsername,
                         ["Auth:PasswordHash"] = hash,
-                        ["Auth:OnboardingComplete"] = "true",
+                        ["Auth:OnboardingComplete"] = "true"
                     }));
 
                 builder.ConfigureServices(services =>
@@ -695,7 +730,7 @@ public class ConfigEndpointsRequiresManualInputTests : IAsyncLifetime, IDisposab
                     services.RemoveAll<IThoughtProvider>();
 
                     services.AddScoped<IWatchStateProvider>(_ =>
-                        new TestWatchProvider("ManualProvider", requiresManualInput: true));
+                        new TestWatchProvider("ManualProvider", true));
 
                     services.RemoveAll<UserConfigFile>();
                     services.AddSingleton(new UserConfigFile(_tempConfigPath));
@@ -712,7 +747,10 @@ public class ConfigEndpointsRequiresManualInputTests : IAsyncLifetime, IDisposab
         _client?.Dispose();
         _factory?.Dispose();
         if (File.Exists(_tempConfigPath))
+        {
             File.Delete(_tempConfigPath);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -726,10 +764,10 @@ public class ConfigEndpointsRequiresManualInputTests : IAsyncLifetime, IDisposab
     [Fact]
     public async Task GetConfig_RequiresManualInput_ExposedInWatchProviders()
     {
-        var response = await _client.GetAsync("/api/config");
-        var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        var provider = doc.RootElement.GetProperty("preferences")
+        JsonElement provider = doc.RootElement.GetProperty("preferences")
             .GetProperty("watchProviders")
             .EnumerateArray()
             .First(p => p.GetProperty("value").GetString() == "manualprovider");

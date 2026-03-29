@@ -8,13 +8,14 @@ public static class ManualWatchStateEndpoints
 {
     public static void MapManualWatchStateEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/watchstate/manual")
+        RouteGroupBuilder group = app.MapGroup("/api/watchstate/manual")
             .WithTags("Watch State");
 
         group.MapPost("/", SetManualWatchState)
             .WithName("SetManualWatchState")
             .WithSummary("Set the manual watch state")
-            .WithDescription("Sets a movie or episode as the current manual watch state. Pass external IDs when available to improve thought provider search accuracy.")
+            .WithDescription(
+                "Sets a movie or episode as the current manual watch state. Pass external IDs when available to improve thought provider search accuracy.")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest);
 
@@ -30,25 +31,27 @@ public static class ManualWatchStateEndpoints
         IManualWatchStateProvider provider)
     {
         if (string.IsNullOrWhiteSpace(request.Title))
+        {
             return Results.BadRequest(UiStrings.ManualWatchStateEndpoints_SetManualWatchState_Title_is_required_);
+        }
 
         MediaContext context;
-        if (request.EpisodeTitle != null && request.SeasonNumber.HasValue && request.EpisodeNumber.HasValue)
+        if (request is { EpisodeTitle: { } episodeTitle, SeasonNumber: { } seasonNumber, EpisodeNumber: { } episodeNumber })
         {
             context = new EpisodeContext(
-                Title: request.Title.Trim(),
-                ReleaseDate: request.ReleaseDate,
-                EpisodeTitle: request.EpisodeTitle,
-                SeasonNumber: request.SeasonNumber.Value,
-                EpisodeNumber: request.EpisodeNumber.Value,
-                ExternalIds: request.ExternalIds);
+                request.Title.Trim(),
+                request.ReleaseDate,
+                episodeTitle,
+                seasonNumber,
+                episodeNumber,
+                request.ExternalIds);
         }
         else
         {
             context = new MediaContext(
-                Title: request.Title.Trim(),
-                ReleaseDate: request.ReleaseDate,
-                ExternalIds: request.ExternalIds);
+                request.Title.Trim(),
+                request.ReleaseDate,
+                request.ExternalIds);
         }
 
         provider.SetCurrentContext(context);

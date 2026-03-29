@@ -1,9 +1,10 @@
+using System.Collections.Concurrent;
 using System.Net;
 
 using FluentAssertions;
 
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using NSubstitute;
 
@@ -19,17 +20,13 @@ namespace WatchBack.Infrastructure.Tests;
 public class BlueskyThoughtProviderTests : IDisposable
 {
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
-    private readonly BlueskyOptions _options;
 
-    public BlueskyThoughtProviderTests()
+    private readonly BlueskyOptions _options = new()
     {
-        _options = new BlueskyOptions
-        {
-            Handle = "testuser.bsky.social",
-            AppPassword = "test-password",
-            TokenCacheTtlSeconds = 5400
-        };
-    }
+        Handle = "testuser.bsky.social",
+        AppPassword = "test-password",
+        TokenCacheTtlSeconds = 5400
+    };
 
     public void Dispose()
     {
@@ -41,58 +38,59 @@ public class BlueskyThoughtProviderTests : IDisposable
     public async Task GetThoughtsAsync_WithValidSearchResults_ReturnsPosts()
     {
         // Arrange
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext mediaContext = new(
+            "Breaking Bad",
+            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
 
-        var tokenJson = """
-            {
-                "accessJwt": "test-token"
-            }
-            """;
+        string tokenJson = """
+                           {
+                               "accessJwt": "test-token"
+                           }
+                           """;
 
-        var searchJson = """
-            {
-                "posts": [
-                    {
-                        "uri": "at://did/app.bsky.feed.post/123",
-                        "cid": "abc123",
-                        "author": {
-                            "handle": "user1.bsky.social",
-                            "displayName": "User One"
-                        },
-                        "record": {
-                            "text": "Amazing first episode!",
-                            "createdAt": "2009-01-20T12:00:00Z"
-                        },
-                        "likeCount": 10
-                    }
-                ]
-            }
-            """;
+        string searchJson = """
+                            {
+                                "posts": [
+                                    {
+                                        "uri": "at://did/app.bsky.feed.post/123",
+                                        "cid": "abc123",
+                                        "author": {
+                                            "handle": "user1.bsky.social",
+                                            "displayName": "User One"
+                                        },
+                                        "record": {
+                                            "text": "Amazing first episode!",
+                                            "createdAt": "2009-01-20T12:00:00Z"
+                                        },
+                                        "likeCount": 10
+                                    }
+                                ]
+                            }
+                            """;
 
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
+        Queue<HttpResponseMessage> responses = new(
+        [
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
-        });
+        ]);
 
-        var handler = new MockHttpMessageHandler(() => responses.Dequeue());
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Act
-        var result = await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
         // Assert
         result.Should().NotBeNull();
-        result!.Source.Should().Be("Bluesky");
+        result.Source.Should().Be("Bluesky");
         result.Thoughts.Should().NotBeEmpty();
     }
 
@@ -100,60 +98,61 @@ public class BlueskyThoughtProviderTests : IDisposable
     public async Task GetThoughtsAsync_DeduplicatesSimilarPosts()
     {
         // Arrange
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext mediaContext = new(
+            "Breaking Bad",
+            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
 
-        var tokenJson = """
-            {
-                "accessJwt": "test-token"
-            }
-            """;
+        string tokenJson = """
+                           {
+                               "accessJwt": "test-token"
+                           }
+                           """;
 
-        var searchJson = """
-            {
-                "posts": [
-                    {
-                        "uri": "at://did/app.bsky.feed.post/123",
-                        "cid": "abc123",
-                        "author": { "handle": "user1.bsky.social" },
-                        "record": {
-                            "text": "This is an amazing episode!",
-                            "createdAt": "2009-01-20T12:00:00Z"
-                        },
-                        "likeCount": 10
-                    },
-                    {
-                        "uri": "at://did/app.bsky.feed.post/124",
-                        "cid": "abc124",
-                        "author": { "handle": "user2.bsky.social" },
-                        "record": {
-                            "text": "This is an amazing episode!",
-                            "createdAt": "2009-01-20T13:00:00Z"
-                        },
-                        "likeCount": 5
-                    }
-                ]
-            }
-            """;
+        string searchJson = """
+                            {
+                                "posts": [
+                                    {
+                                        "uri": "at://did/app.bsky.feed.post/123",
+                                        "cid": "abc123",
+                                        "author": { "handle": "user1.bsky.social" },
+                                        "record": {
+                                            "text": "This is an amazing episode!",
+                                            "createdAt": "2009-01-20T12:00:00Z"
+                                        },
+                                        "likeCount": 10
+                                    },
+                                    {
+                                        "uri": "at://did/app.bsky.feed.post/124",
+                                        "cid": "abc124",
+                                        "author": { "handle": "user2.bsky.social" },
+                                        "record": {
+                                            "text": "This is an amazing episode!",
+                                            "createdAt": "2009-01-20T13:00:00Z"
+                                        },
+                                        "likeCount": 5
+                                    }
+                                ]
+                            }
+                            """;
 
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
+        Queue<HttpResponseMessage> responses = new(
+        [
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
-        });
+        ]);
 
-        var handler = new MockHttpMessageHandler(() => responses.Dequeue());
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        var capturedThoughts = new List<Thought>();
+        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        List<Thought> capturedThoughts = new();
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => capturedThoughts.AddRange(x)))
             .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -167,61 +166,58 @@ public class BlueskyThoughtProviderTests : IDisposable
     public async Task GetThoughtsAsync_WithoutCredentials_UsesPublicAPI()
     {
         // Arrange
-        var optionsWithoutCreds = new BlueskyOptions
-        {
-            Handle = "",
-            AppPassword = null,
-            TokenCacheTtlSeconds = 5400
-        };
+        BlueskyOptions optionsWithoutCreds = new() { Handle = "", AppPassword = null, TokenCacheTtlSeconds = 5400 };
 
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext mediaContext = new(
+            "Breaking Bad",
+            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
 
-        var searchJson = """
-            {
-                "posts": []
-            }
-            """;
+        string searchJson = """
+                            {
+                                "posts": []
+                            }
+                            """;
 
-        var handler = new MockHttpMessageHandler(
+        MockHttpMessageHandler handler = new(
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(optionsWithoutCreds), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(optionsWithoutCreds),
+            _cache, treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Act
-        var result = await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
         // Assert
         result.Should().NotBeNull();
-        result!.Source.Should().Be("Bluesky");
+        result.Source.Should().Be("Bluesky");
     }
 
     [Fact]
     public async Task GetServiceHealthAsync_ReturnsHealthy()
     {
         // Arrange
-        var tokenJson = """
-            {
-                "accessJwt": "test-token"
-            }
-            """;
+        string tokenJson = """
+                           {
+                               "accessJwt": "test-token"
+                           }
+                           """;
 
-        var handler = new MockHttpMessageHandler(
+        MockHttpMessageHandler handler = new(
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Act
-        var health = await provider.GetServiceHealthAsync();
+        ServiceHealth health = await provider.GetServiceHealthAsync();
 
         // Assert
         health.IsHealthy.Should().BeTrue();
@@ -230,12 +226,12 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public void ExpectedWeight_IsOne()
     {
-        var provider = new BlueskyThoughtProvider(
+        BlueskyThoughtProvider provider = new(
             new HttpClient(),
             new OptionsSnapshotStub<BlueskyOptions>(_options),
             _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+            NullLogger<BlueskyThoughtProvider>.Instance);
 
         provider.ExpectedWeight.Should().Be(1);
     }
@@ -243,25 +239,26 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public async Task GetThoughtsAsync_ReportsOneTickWithWeightOne()
     {
-        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
 
-        var tokenJson = """{"accessJwt":"test-token"}""";
-        var searchJson = """{"posts":[]}""";
+        string tokenJson = """{"accessJwt":"test-token"}""";
+        string searchJson = """{"posts":[]}""";
 
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
+        Queue<HttpResponseMessage> responses = new(
+        [
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) },
-        });
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
+        ]);
 
-        var handler = new MockHttpMessageHandler(() => responses.Dequeue());
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
 
-        var ticks = new System.Collections.Concurrent.ConcurrentBag<SyncProgressTick>();
+        ConcurrentBag<SyncProgressTick> ticks = new();
         await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
 
         ticks.Should().ContainSingle(t => t.Weight == 1 && t.Provider == "Bluesky");
@@ -270,14 +267,15 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public async Task GetThoughtsAsync_ReportsTickEvenOnAuthFailure()
     {
-        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
-        var handler = new MockHttpMessageHandler(() =>
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        MockHttpMessageHandler handler = new(() =>
             new HttpResponseMessage(HttpStatusCode.Unauthorized));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
 
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, Substitute.For<IReplyTreeBuilder>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
 
-        var ticks = new System.Collections.Concurrent.ConcurrentBag<SyncProgressTick>();
+        ConcurrentBag<SyncProgressTick> ticks = new();
         await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
 
         ticks.Should().ContainSingle(t => t.Weight == 1 && t.Provider == "Bluesky");
@@ -286,13 +284,14 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public async Task GetThoughtsAsync_NullProgress_DoesNotThrow()
     {
-        var handler = new MockHttpMessageHandler(() =>
+        MockHttpMessageHandler handler = new(() =>
             new HttpResponseMessage(HttpStatusCode.Unauthorized));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://bsky.social") };
-        var provider = new BlueskyThoughtProvider(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache, Substitute.For<IReplyTreeBuilder>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
 
-        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
-        var act = async () => await provider.GetThoughtsAsync(mediaContext, null);
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        Func<Task<ThoughtResult?>> act = async () => await provider.GetThoughtsAsync(mediaContext);
         await act.Should().NotThrowAsync();
     }
 
@@ -301,10 +300,10 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public void ConfigSection_IsBluesky()
     {
-        var provider = new BlueskyThoughtProvider(
+        BlueskyThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+            NullLogger<BlueskyThoughtProvider>.Instance);
 
         provider.ConfigSection.Should().Be("Bluesky");
     }
@@ -312,10 +311,10 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public void IsConfigured_WhenBothSet_IsTrue()
     {
-        var provider = new BlueskyThoughtProvider(
+        BlueskyThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+            NullLogger<BlueskyThoughtProvider>.Instance);
 
         provider.IsConfigured.Should().BeTrue();
     }
@@ -323,11 +322,17 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public void IsConfigured_WhenHandleMissing_IsFalse()
     {
-        var opts = new BlueskyOptions { Handle = "", AppPassword = _options.AppPassword, TokenCacheTtlSeconds = _options.TokenCacheTtlSeconds, CacheTtlSeconds = _options.CacheTtlSeconds };
-        var provider = new BlueskyThoughtProvider(
+        BlueskyOptions opts = new()
+        {
+            Handle = "",
+            AppPassword = _options.AppPassword,
+            TokenCacheTtlSeconds = _options.TokenCacheTtlSeconds,
+            CacheTtlSeconds = _options.CacheTtlSeconds
+        };
+        BlueskyThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(opts), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+            NullLogger<BlueskyThoughtProvider>.Instance);
 
         provider.IsConfigured.Should().BeFalse();
     }
@@ -335,11 +340,17 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public void IsConfigured_WhenPasswordMissing_IsFalse()
     {
-        var opts = new BlueskyOptions { Handle = _options.Handle, AppPassword = "", TokenCacheTtlSeconds = _options.TokenCacheTtlSeconds, CacheTtlSeconds = _options.CacheTtlSeconds };
-        var provider = new BlueskyThoughtProvider(
+        BlueskyOptions opts = new()
+        {
+            Handle = _options.Handle,
+            AppPassword = "",
+            TokenCacheTtlSeconds = _options.TokenCacheTtlSeconds,
+            CacheTtlSeconds = _options.CacheTtlSeconds
+        };
+        BlueskyThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(opts), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+            NullLogger<BlueskyThoughtProvider>.Instance);
 
         provider.IsConfigured.Should().BeFalse();
     }
@@ -347,26 +358,26 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public void GetConfigSchema_ReturnsTwoFields()
     {
-        var provider = new BlueskyThoughtProvider(
+        BlueskyThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+            NullLogger<BlueskyThoughtProvider>.Instance);
 
-        var fields = provider.GetConfigSchema(_ => "", (_, _) => false);
+        IReadOnlyList<ProviderConfigField> fields = provider.GetConfigSchema(_ => "", (_, _) => false);
 
         fields.Should().HaveCount(2);
-        fields.Select(f => f.Key).Should().BeEquivalentTo(["Bluesky__Handle", "Bluesky__AppPassword"]);
+        fields.Select(f => f.Key).Should().BeEquivalentTo("Bluesky__Handle", "Bluesky__AppPassword");
     }
 
     [Fact]
     public void GetConfigSchema_AppPasswordField_IsPasswordType()
     {
-        var provider = new BlueskyThoughtProvider(
+        BlueskyThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+            NullLogger<BlueskyThoughtProvider>.Instance);
 
-        var pwField = provider.GetConfigSchema(_ => "", (_, _) => false)
+        ProviderConfigField pwField = provider.GetConfigSchema(_ => "", (_, _) => false)
             .First(f => f.Key == "Bluesky__AppPassword");
 
         pwField.Type.Should().Be("password");
@@ -376,10 +387,10 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public void RevealSecret_AppPassword_ReturnsStoredValue()
     {
-        var provider = new BlueskyThoughtProvider(
+        BlueskyThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+            NullLogger<BlueskyThoughtProvider>.Instance);
 
         provider.RevealSecret("Bluesky__AppPassword").Should().Be(_options.AppPassword);
     }
@@ -387,13 +398,12 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public void RevealSecret_UnknownKey_ReturnsNull()
     {
-        var provider = new BlueskyThoughtProvider(
+        BlueskyThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+            NullLogger<BlueskyThoughtProvider>.Instance);
 
         provider.RevealSecret("Bluesky__Handle").Should().BeNull();
         provider.RevealSecret("Other__Key").Should().BeNull();
     }
-
 }

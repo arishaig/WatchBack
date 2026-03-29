@@ -7,5 +7,8 @@ namespace WatchBack.Infrastructure.Tests;
 internal sealed class CapturingProgress(ConcurrentBag<SyncProgressTick> bag)
     : IProgress<SyncProgressTick>
 {
-    public void Report(SyncProgressTick value) => bag.Add(value);
+    public void Report(SyncProgressTick value)
+    {
+        bag.Add(value);
+    }
 }

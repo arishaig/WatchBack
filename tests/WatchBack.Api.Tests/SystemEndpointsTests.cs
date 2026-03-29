@@ -12,9 +12,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using NSubstitute;
 
-using WatchBack.Api;
 using WatchBack.Core.Interfaces;
-using WatchBack.Core.Models;
 
 using Xunit;
 
@@ -24,16 +22,16 @@ public class SystemEndpointsTests : IAsyncLifetime, IDisposable
 {
     private const string TestUsername = "testadmin";
     private const string TestPassword = "TestPass1!@#456";
+    private HttpClient _client = null!;
 
     private WebApplicationFactory<Program> _factory = null!;
-    private HttpClient _client = null!;
 
     public async Task InitializeAsync()
     {
-        var hasher = new PasswordHasher<string>();
-        var hash = hasher.HashPassword("", TestPassword);
+        PasswordHasher<string> hasher = new();
+        string hash = hasher.HashPassword("", TestPassword);
 
-        var mockWatchProvider = Substitute.For<IWatchStateProvider>();
+        IWatchStateProvider? mockWatchProvider = Substitute.For<IWatchStateProvider>();
         mockWatchProvider.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
 
         _factory = new WebApplicationFactory<Program>()
@@ -78,16 +76,16 @@ public class SystemEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task ClearCache_WithoutAuth_Returns401()
     {
-        using var anonClient = _factory.CreateClient();
-        var response = await anonClient.PostAsync("/api/system/clear-cache", null);
+        using HttpClient anonClient = _factory.CreateClient();
+        HttpResponseMessage response = await anonClient.PostAsync("/api/system/clear-cache", null);
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
     public async Task Restart_WithoutAuth_Returns401()
     {
-        using var anonClient = _factory.CreateClient();
-        var response = await anonClient.PostAsync("/api/system/restart", null);
+        using HttpClient anonClient = _factory.CreateClient();
+        HttpResponseMessage response = await anonClient.PostAsync("/api/system/restart", null);
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -96,9 +94,9 @@ public class SystemEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task ClearCache_WhenAuthenticated_ReturnsOkTrue()
     {
-        var response = await _client.PostAsync("/api/system/clear-cache", null);
+        HttpResponseMessage response = await _client.PostAsync("/api/system/clear-cache", null);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<OkResponse>();
+        OkResponse? body = await response.Content.ReadFromJsonAsync<OkResponse>();
         body!.Ok.Should().BeTrue();
     }
 
@@ -106,8 +104,8 @@ public class SystemEndpointsTests : IAsyncLifetime, IDisposable
     public async Task ClearCache_EvictsCachedEntries()
     {
         // Seed a cache entry in a test scope
-        using var scope = _factory.Services.CreateScope();
-        var cache = scope.ServiceProvider.GetRequiredService<IMemoryCache>();
+        using IServiceScope scope = _factory.Services.CreateScope();
+        IMemoryCache cache = scope.ServiceProvider.GetRequiredService<IMemoryCache>();
         cache.Set("test-key", "test-value");
         cache.TryGetValue("test-key", out string? _).Should().BeTrue();
 
@@ -119,9 +117,9 @@ public class SystemEndpointsTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task Restart_WhenAuthenticated_ReturnsOkTrue()
     {
-        var response = await _client.PostAsync("/api/system/restart", null);
+        HttpResponseMessage response = await _client.PostAsync("/api/system/restart", null);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<OkResponse>();
+        OkResponse? body = await response.Content.ReadFromJsonAsync<OkResponse>();
         body!.Ok.Should().BeTrue();
     }
 
@@ -130,7 +128,7 @@ public class SystemEndpointsTests : IAsyncLifetime, IDisposable
     private async Task LoginAsync()
     {
         var loginBody = new { username = TestUsername, password = TestPassword };
-        var response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
         response.EnsureSuccessStatusCode();
     }
 

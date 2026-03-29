@@ -13,7 +13,7 @@ public static class SystemEndpoints
             .WithSummary("Liveness probe")
             .AllowAnonymous();
 
-        var group = app.MapGroup("/api/system")
+        RouteGroupBuilder group = app.MapGroup("/api/system")
             .WithTags("System")
             .RequireAuthorization();
 
@@ -29,7 +29,9 @@ public static class SystemEndpoints
     private static IResult ClearCache(IMemoryCache cache)
     {
         if (cache is MemoryCache mc)
+        {
             mc.Compact(1.0);
+        }
 
         return Results.Ok(new { ok = true });
     }

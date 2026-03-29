@@ -1,9 +1,10 @@
+using System.Collections.Concurrent;
 using System.Net;
 
 using FluentAssertions;
 
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using NSubstitute;
 
@@ -19,18 +20,14 @@ namespace WatchBack.Infrastructure.Tests;
 public class TraktThoughtProviderTests : IDisposable
 {
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
-    private readonly TraktOptions _options;
 
-    public TraktThoughtProviderTests()
+    private readonly TraktOptions _options = new()
     {
-        _options = new TraktOptions
-        {
-            ClientId = "test-client-id",
-            Username = "testuser",
-            AccessToken = "test-token",
-            CacheTtlSeconds = 30
-        };
-    }
+        ClientId = "test-client-id",
+        Username = "testuser",
+        AccessToken = "test-token",
+        CacheTtlSeconds = 30
+    };
 
     public void Dispose()
     {
@@ -42,55 +39,55 @@ public class TraktThoughtProviderTests : IDisposable
     public async Task GetThoughtsAsync_WithValidShow_ReturnsComments()
     {
         // Arrange
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext mediaContext = new(
+            "Breaking Bad",
+            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
 
-        var searchResponseJson = """
-            [
-                {
-                    "show": {
-                        "ids": { "trakt": 1 },
-                        "title": "Breaking Bad"
-                    }
-                }
-            ]
-            """;
+        string searchResponseJson = """
+                                    [
+                                        {
+                                            "show": {
+                                                "ids": { "trakt": 1 },
+                                                "title": "Breaking Bad"
+                                            }
+                                        }
+                                    ]
+                                    """;
 
-        var commentsResponseJson = """
-            [
-                {
-                    "comment": "Great pilot!",
-                    "rating": 8.5,
-                    "user": { "username": "user1" },
-                    "created_at": "2009-01-20T12:00:00Z"
-                }
-            ]
-            """;
+        string commentsResponseJson = """
+                                      [
+                                          {
+                                              "comment": "Great pilot!",
+                                              "rating": 8.5,
+                                              "user": { "username": "user1" },
+                                              "created_at": "2009-01-20T12:00:00Z"
+                                          }
+                                      ]
+                                      """;
 
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
+        Queue<HttpResponseMessage> responses = new(
+        [
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchResponseJson) },
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsResponseJson) }
-        });
+        ]);
 
-        var handler = new MockHttpMessageHandler(
-            () => responses.Dequeue());
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
-        var result = await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
         // Assert
         result.Should().NotBeNull();
-        result!.Source.Should().Be("Trakt");
+        result.Source.Should().Be("Trakt");
         result.Thoughts.Should().NotBeEmpty();
     }
 
@@ -98,80 +95,78 @@ public class TraktThoughtProviderTests : IDisposable
     public async Task GetThoughtsAsync_WithUnknownShow_ReturnsEmpty()
     {
         // Arrange
-        var mediaContext = new EpisodeContext(
-            Title: "Unknown Show",
-            ReleaseDate: null,
-            EpisodeTitle: "Episode",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext mediaContext = new(
+            "Unknown Show",
+            null,
+            "Episode",
+            1,
+            1);
 
-        var searchResponseJson = "[]";
+        string searchResponseJson = "[]";
 
-        var handler = new MockHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(searchResponseJson)
-            });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        MockHttpMessageHandler handler = new(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchResponseJson) });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
-        var result = await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
         // Assert
         result.Should().NotBeNull();
-        result!.Thoughts.Should().BeEmpty();
+        result.Thoughts.Should().BeEmpty();
     }
 
     [Fact]
     public async Task GetThoughtsAsync_CallsReplyTreeBuilder()
     {
         // Arrange
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext mediaContext = new(
+            "Breaking Bad",
+            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
 
-        var searchResponseJson = """
-            [
-                {
-                    "show": {
-                        "ids": { "trakt": 1 },
-                        "title": "Breaking Bad"
-                    }
-                }
-            ]
-            """;
+        string searchResponseJson = """
+                                    [
+                                        {
+                                            "show": {
+                                                "ids": { "trakt": 1 },
+                                                "title": "Breaking Bad"
+                                            }
+                                        }
+                                    ]
+                                    """;
 
-        var commentsResponseJson = """
-            [
-                {
-                    "comment": "Great pilot!",
-                    "rating": 8.5,
-                    "user": { "username": "user1" },
-                    "created_at": "2009-01-20T12:00:00Z"
-                }
-            ]
-            """;
+        string commentsResponseJson = """
+                                      [
+                                          {
+                                              "comment": "Great pilot!",
+                                              "rating": 8.5,
+                                              "user": { "username": "user1" },
+                                              "created_at": "2009-01-20T12:00:00Z"
+                                          }
+                                      ]
+                                      """;
 
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
+        Queue<HttpResponseMessage> responses = new(
+        [
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchResponseJson) },
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsResponseJson) }
-        });
+        ]);
 
-        var handler = new MockHttpMessageHandler(() => responses.Dequeue());
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        var flatThoughts = new List<Thought>();
-        treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => flatThoughts.AddRange(x)))
+        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>())
             .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -184,15 +179,16 @@ public class TraktThoughtProviderTests : IDisposable
     public async Task GetServiceHealthAsync_ReturnsHealthy()
     {
         // Arrange
-        var handler = new MockHttpMessageHandler(
+        MockHttpMessageHandler handler = new(
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
-        var health = await provider.GetServiceHealthAsync();
+        ServiceHealth health = await provider.GetServiceHealthAsync();
 
         // Assert
         health.IsHealthy.Should().BeTrue();
@@ -201,12 +197,12 @@ public class TraktThoughtProviderTests : IDisposable
     [Fact]
     public void ExpectedWeight_IsOne()
     {
-        var provider = new TraktThoughtProvider(
+        TraktThoughtProvider provider = new(
             new HttpClient(),
             new OptionsSnapshotStub<TraktOptions>(_options),
             _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+            NullLogger<TraktThoughtProvider>.Instance);
 
         provider.ExpectedWeight.Should().Be(1);
     }
@@ -214,26 +210,27 @@ public class TraktThoughtProviderTests : IDisposable
     [Fact]
     public async Task GetThoughtsAsync_ReportsOneTickWithWeightOne()
     {
-        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
 
-        var searchJson = """[{"show":{"ids":{"trakt":1},"title":"Breaking Bad"}}]""";
-        var commentsJson = """[]""";
+        string searchJson = """[{"show":{"ids":{"trakt":1},"title":"Breaking Bad"}}]""";
+        string commentsJson = """[]""";
 
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
+        Queue<HttpResponseMessage> responses = new(
+        [
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) },
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) },
-        });
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) }
+        ]);
 
-        var handler = new MockHttpMessageHandler(() => responses.Dequeue());
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
-        var ticks = new System.Collections.Concurrent.ConcurrentBag<SyncProgressTick>();
-        var progress = new CapturingProgress(ticks);
+        ConcurrentBag<SyncProgressTick> ticks = new();
+        CapturingProgress progress = new(ticks);
 
         await provider.GetThoughtsAsync(mediaContext, progress);
 
@@ -243,14 +240,15 @@ public class TraktThoughtProviderTests : IDisposable
     [Fact]
     public async Task GetThoughtsAsync_ReportsTickEvenOnError()
     {
-        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
-        var handler = new MockHttpMessageHandler(() =>
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        MockHttpMessageHandler handler = new(() =>
             new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
 
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, Substitute.For<IReplyTreeBuilder>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(), NullLogger<TraktThoughtProvider>.Instance);
 
-        var ticks = new System.Collections.Concurrent.ConcurrentBag<SyncProgressTick>();
+        ConcurrentBag<SyncProgressTick> ticks = new();
         await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
 
         ticks.Should().ContainSingle(t => t.Weight == 1 && t.Provider == "Trakt");
@@ -260,25 +258,26 @@ public class TraktThoughtProviderTests : IDisposable
     public async Task GetThoughtsAsync_WithImdbId_UsesIdLookupInsteadOfTitleSearch()
     {
         // Arrange
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad", ReleaseDate: null, EpisodeTitle: "Pilot", SeasonNumber: 1, EpisodeNumber: 1,
-            ExternalIds: new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0903747" });
+        EpisodeContext mediaContext = new(
+            "Breaking Bad", null, "Pilot", 1, 1,
+            new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0903747" });
 
-        var requestedUrls = new List<string>();
-        var searchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
-        var commentsJson = "[]";
+        List<string> requestedUrls = new();
+        string searchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
+        string commentsJson = "[]";
 
-        var handler = new MockHttpMessageHandler(request =>
+        MockHttpMessageHandler handler = new(request =>
         {
             requestedUrls.Add(request.RequestUri?.ToString() ?? "");
             return requestedUrls.Count == 1
                 ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
                 : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) };
         });
-        var client = new HttpClient(handler);
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        HttpClient client = new(handler);
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -292,31 +291,38 @@ public class TraktThoughtProviderTests : IDisposable
     public async Task GetThoughtsAsync_WithImdbIdReturningNoResults_FallsBackToTitleSearch()
     {
         // Arrange
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad", ReleaseDate: null, EpisodeTitle: "Pilot", SeasonNumber: 1, EpisodeNumber: 1,
-            ExternalIds: new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0903747" });
+        EpisodeContext mediaContext = new(
+            "Breaking Bad", null, "Pilot", 1, 1,
+            new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0903747" });
 
-        var requestedUrls = new List<string>();
-        var titleSearchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
-        var commentsJson = "[]";
+        List<string> requestedUrls = new();
+        string titleSearchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
+        string commentsJson = "[]";
 
-        var handler = new MockHttpMessageHandler(request =>
+        MockHttpMessageHandler handler = new(request =>
         {
-            var url = request.RequestUri?.ToString() ?? "";
+            string url = request.RequestUri?.ToString() ?? "";
             requestedUrls.Add(url);
             if (url.Contains("/search/imdb/"))
+            {
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]") };
+            }
+
             if (url.Contains("/search/show"))
+            {
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(titleSearchJson) };
+            }
+
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) };
         });
-        var client = new HttpClient(handler);
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        HttpClient client = new(handler);
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
-        var result = await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
         // Assert — tried IMDB first, fell back to title search, still returned a result
         requestedUrls.Should().Contain(u => u.Contains("/search/imdb/"));
@@ -328,31 +334,32 @@ public class TraktThoughtProviderTests : IDisposable
     public async Task GetThoughtsAsync_WithMultipleExternalIds_PrefersImdbOverTvdbAndTmdb()
     {
         // Arrange
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad", ReleaseDate: null, EpisodeTitle: "Pilot", SeasonNumber: 1, EpisodeNumber: 1,
-            ExternalIds: new Dictionary<string, string>
+        EpisodeContext mediaContext = new(
+            "Breaking Bad", null, "Pilot", 1, 1,
+            new Dictionary<string, string>
             {
                 [ExternalIdType.Imdb] = "tt0903747",
                 [ExternalIdType.Tvdb] = "81189",
                 [ExternalIdType.Tmdb] = "1396"
             });
 
-        var requestedUrls = new List<string>();
-        var searchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
-        var commentsJson = "[]";
+        List<string> requestedUrls = new();
+        string searchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
+        string commentsJson = "[]";
 
-        var handler = new MockHttpMessageHandler(request =>
+        MockHttpMessageHandler handler = new(request =>
         {
-            var url = request.RequestUri?.ToString() ?? "";
+            string url = request.RequestUri?.ToString() ?? "";
             requestedUrls.Add(url);
             return url.Contains("/search/imdb/") || url.Contains("/search/show")
                 ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
                 : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) };
         });
-        var client = new HttpClient(handler);
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        HttpClient client = new(handler);
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -367,26 +374,27 @@ public class TraktThoughtProviderTests : IDisposable
     public async Task GetThoughtsAsync_WithOnlyTvdbId_UsesTvdbLookupAndSkipsTitleSearch()
     {
         // Arrange
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad", ReleaseDate: null, EpisodeTitle: "Pilot", SeasonNumber: 1, EpisodeNumber: 1,
-            ExternalIds: new Dictionary<string, string> { [ExternalIdType.Tvdb] = "81189" });
+        EpisodeContext mediaContext = new(
+            "Breaking Bad", null, "Pilot", 1, 1,
+            new Dictionary<string, string> { [ExternalIdType.Tvdb] = "81189" });
 
-        var requestedUrls = new List<string>();
-        var searchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
-        var commentsJson = "[]";
+        List<string> requestedUrls = new();
+        string searchJson = """[{"show":{"ids":{"trakt":1,"slug":"breaking-bad"},"title":"Breaking Bad"}}]""";
+        string commentsJson = "[]";
 
-        var handler = new MockHttpMessageHandler(request =>
+        MockHttpMessageHandler handler = new(request =>
         {
-            var url = request.RequestUri?.ToString() ?? "";
+            string url = request.RequestUri?.ToString() ?? "";
             requestedUrls.Add(url);
             return url.Contains("/search/tvdb/") || url.Contains("/search/show")
                 ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
                 : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) };
         });
-        var client = new HttpClient(handler);
-        var treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        HttpClient client = new(handler);
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -399,13 +407,14 @@ public class TraktThoughtProviderTests : IDisposable
     [Fact]
     public async Task GetThoughtsAsync_NullProgress_DoesNotThrow()
     {
-        var handler = new MockHttpMessageHandler(() =>
+        MockHttpMessageHandler handler = new(() =>
             new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktThoughtProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, Substitute.For<IReplyTreeBuilder>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(), NullLogger<TraktThoughtProvider>.Instance);
 
-        var mediaContext = new EpisodeContext("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
-        var act = async () => await provider.GetThoughtsAsync(mediaContext, null);
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        Func<Task<ThoughtResult?>> act = async () => await provider.GetThoughtsAsync(mediaContext);
         await act.Should().NotThrowAsync();
     }
 
@@ -414,10 +423,10 @@ public class TraktThoughtProviderTests : IDisposable
     [Fact]
     public void ConfigSection_IsTrakt()
     {
-        var provider = new TraktThoughtProvider(
+        TraktThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+            NullLogger<TraktThoughtProvider>.Instance);
 
         // Shares ConfigSection with TraktWatchStateProvider — same key, one merged card in the UI
         provider.ConfigSection.Should().Be("Trakt");
@@ -426,25 +435,37 @@ public class TraktThoughtProviderTests : IDisposable
     [Fact]
     public void IsConfigured_WhenClientIdSet_IsTrue()
     {
-        var opts = new TraktOptions { ClientId = "some-client-id", Username = _options.Username, AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
-        var provider = new TraktThoughtProvider(
+        TraktOptions opts = new()
+        {
+            ClientId = "some-client-id",
+            Username = _options.Username,
+            AccessToken = _options.AccessToken,
+            CacheTtlSeconds = _options.CacheTtlSeconds
+        };
+        TraktThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+            NullLogger<TraktThoughtProvider>.Instance);
 
-        ((IDataProvider)provider).IsConfigured.Should().BeTrue();
+        provider.IsConfigured.Should().BeTrue();
     }
 
     [Fact]
     public void IsConfigured_WhenClientIdEmpty_IsFalse()
     {
-        var opts = new TraktOptions { ClientId = "", Username = _options.Username, AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
-        var provider = new TraktThoughtProvider(
+        TraktOptions opts = new()
+        {
+            ClientId = "",
+            Username = _options.Username,
+            AccessToken = _options.AccessToken,
+            CacheTtlSeconds = _options.CacheTtlSeconds
+        };
+        TraktThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+            NullLogger<TraktThoughtProvider>.Instance);
 
-        ((IDataProvider)provider).IsConfigured.Should().BeFalse();
+        provider.IsConfigured.Should().BeFalse();
     }
 
     [Fact]
@@ -453,13 +474,12 @@ public class TraktThoughtProviderTests : IDisposable
         // TraktThoughtProvider defers schema ownership to TraktWatchStateProvider.
         // Both share the same ConfigSection; the endpoint picks fields from the first
         // provider that returns a non-empty schema.
-        var provider = new TraktThoughtProvider(
+        TraktThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             Substitute.For<IReplyTreeBuilder>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+            NullLogger<TraktThoughtProvider>.Instance);
 
-        var fields = ((IDataProvider)provider).GetConfigSchema(_ => "", (_, _) => false);
+        IReadOnlyList<ProviderConfigField> fields = ((IDataProvider)provider).GetConfigSchema(_ => "", (_, _) => false);
         fields.Should().BeEmpty();
     }
-
 }

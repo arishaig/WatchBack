@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **WatchBack** is a self-hosted .NET web application that tracks what you're currently watching (movies/TV shows) and aggregates community discussion and ratings from multiple sources. It uses a provider-based architecture with a .NET backend and an Alpine.js + Tailwind CSS frontend.
 
 - **.NET Target**: .NET 10.0 (`LangVersion: latest`)
-- **Frontend**: Alpine.js 3.15, Tailwind CSS 4.2, built with Vite 8
+- **Frontend**: TypeScript, Alpine.js 3.15, Tailwind CSS 4.2, built with Vite 8
 - **Database**: SQLite via EF Core 10
 - **Authentication**: Cookie-based (30-day sliding) with optional reverse-proxy forward auth
 - **Localization**: en-US (default), es — via .resx files in WatchBack.Resources
@@ -94,15 +94,46 @@ dotnet ef migrations add <Name> --project src/WatchBack.Infrastructure --startup
 
 ## Code Style and Conventions
 
+Follows the [Microsoft C# coding conventions](https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions) and the [.NET Runtime team style guide](https://github.com/dotnet/runtime/blob/main/docs/coding-guidelines/coding-style.md). The `.editorconfig` enforces these at build time (`EnforceCodeStyleInBuild = true`).
+
+### C#
+
 - **File-scoped namespaces**: `namespace X.Y;` (not block-scoped)
 - **Implicit usings** and **nullable reference types**: enabled project-wide
-- **EditorConfig enforced at build**: `EnforceCodeStyleInBuild = true` — style violations fail the build
-- **Indentation**: 4 spaces for C#, 2 spaces for `.csproj` / `.props` / `.json` / `.xml`
-- **Imports**: System directives first, groups separated by blank line
-- **Naming**: PascalCase types/methods/properties, camelCase locals/params, `_camelCase` private fields, `s_camelCase` private static fields, `I` prefix for interfaces, `T` prefix for type parameters
-- **No `this.` qualification**
+- **Indentation**: 4 spaces
+- **Braces**: Allman style — opening brace on its own line, aligned with the block
+- **Imports**: `System` directives first, groups separated by blank line, placed outside namespace
 - **Predefined types**: `string` not `String`, `int` not `Int32`
-- **Primary constructors**: preferred (`csharp_style_prefer_primary_constructors = true`)
+- **No `this.` qualification**
+- **Primary constructors**: preferred
+- **Explicit visibility modifiers**: always present on all members
+
+**Naming:**
+
+| Identifier | Style | Example |
+|---|---|---|
+| Types, namespaces | PascalCase | `SyncService`, `WatchBack.Core` |
+| Interfaces | `I` + PascalCase | `IThoughtProvider` |
+| Type parameters | `T` + PascalCase | `TSession`, `TInput` |
+| Methods, properties, events, public fields | PascalCase | `GetThoughtsAsync`, `IsValid` |
+| Local variables, parameters | camelCase | `mediaContext`, `cancellationToken` |
+| Local constants | camelCase | `maxRetries` |
+| Constants (field-level) | PascalCase | `DefaultTimeout` |
+| Private instance fields | `_camelCase` | `_workerQueue` |
+| Private static fields (including `static readonly`) | `s_camelCase` | `s_jsonOptions`, `s_episodeRegexCache` |
+| Thread-static fields | `t_camelCase` | `t_threadState` |
+
+### TypeScript (frontend)
+
+The frontend (`frontend/`) is 100% TypeScript with strict mode enabled. Follows the [Microsoft TypeScript coding guidelines](https://github.com/microsoft/TypeScript/wiki/Coding-guidelines):
+
+- **No `I` prefix** for interfaces (unlike C#)
+- Types, classes, interfaces, enums: PascalCase
+- Variables, functions, properties: camelCase
+- No underscore prefix for private members
+- Double quotes for strings
+- 4 spaces indentation
+- K&R brace style (opening brace on same line)
 
 ## Key Implementation Patterns
 

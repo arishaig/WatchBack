@@ -17,32 +17,27 @@ public class ReplyTreeBuilderTests
         string content = "Test")
     {
         return new Thought(
-            Id: id,
-            ParentId: parentId,
-            Title: null,
-            Content: content,
-            Url: null,
-            Images: [],
-            Author: "Author",
-            Score: 0,
-            CreatedAt: DateTimeOffset.UtcNow,
-            Source: "Test",
-            Replies: []);
+            id,
+            parentId,
+            null,
+            content,
+            null,
+            [],
+            "Author",
+            0,
+            DateTimeOffset.UtcNow,
+            "Test",
+            []);
     }
 
     [Fact]
     public void BuildTree_WithNoParentIds_AllTopLevel()
     {
         // Arrange
-        var thoughts = new[]
-        {
-            CreateThought("1"),
-            CreateThought("2"),
-            CreateThought("3"),
-        };
+        Thought[] thoughts = [CreateThought("1"), CreateThought("2"), CreateThought("3")];
 
         // Act
-        var result = _builder.BuildTree(thoughts);
+        IReadOnlyList<Thought> result = _builder.BuildTree(thoughts);
 
         // Assert
         result.Should().HaveCount(3);
@@ -54,21 +49,21 @@ public class ReplyTreeBuilderTests
     public void BuildTree_WithOneLevel_CorrectlyNests()
     {
         // Arrange
-        var thoughts = new[]
-        {
-            CreateThought("1"),                  // top-level
-            CreateThought("2", parentId: "1"),  // reply to 1
-            CreateThought("3", parentId: "1"),  // reply to 1
-            CreateThought("4"),                  // top-level
-        };
+        Thought[] thoughts =
+        [
+            CreateThought("1"), // top-level
+            CreateThought("2", "1"), // reply to 1
+            CreateThought("3", "1"), // reply to 1
+            CreateThought("4") // top-level
+        ];
 
         // Act
-        var result = _builder.BuildTree(thoughts);
+        IReadOnlyList<Thought> result = _builder.BuildTree(thoughts);
 
         // Assert
         result.Should().HaveCount(2);
         result[0].Replies.Should().HaveCount(2);
-        result[0].Replies.Select(r => r.Id).Should().BeEquivalentTo(["2", "3"]);
+        result[0].Replies.Select(r => r.Id).Should().BeEquivalentTo("2", "3");
         result[1].Replies.Should().BeEmpty();
     }
 
@@ -76,16 +71,16 @@ public class ReplyTreeBuilderTests
     public void BuildTree_WithDeepNesting_MaintainsChain()
     {
         // Arrange
-        var thoughts = new[]
-        {
-            CreateThought("1"),                  // A
-            CreateThought("2", parentId: "1"),  // A -> B
-            CreateThought("3", parentId: "2"),  // A -> B -> C
-            CreateThought("4", parentId: "3"),  // A -> B -> C -> D
-        };
+        Thought[] thoughts =
+        [
+            CreateThought("1"), // A
+            CreateThought("2", "1"), // A -> B
+            CreateThought("3", "2"), // A -> B -> C
+            CreateThought("4", "3") // A -> B -> C -> D
+        ];
 
         // Act
-        var result = _builder.BuildTree(thoughts);
+        IReadOnlyList<Thought> result = _builder.BuildTree(thoughts);
 
         // Assert
         result.Should().HaveCount(1);
@@ -102,19 +97,18 @@ public class ReplyTreeBuilderTests
     public void BuildTree_WithOrphanedParent_SurfacesAsTopLevel()
     {
         // Arrange
-        var thoughts = new[]
-        {
-            CreateThought("1"),
-            CreateThought("2", parentId: "999"), // parent doesn't exist
-            CreateThought("3", parentId: "1"),
-        };
+        Thought[] thoughts =
+        [
+            CreateThought("1"), CreateThought("2", "999"), // parent doesn't exist
+            CreateThought("3", "1")
+        ];
 
         // Act
-        var result = _builder.BuildTree(thoughts);
+        IReadOnlyList<Thought> result = _builder.BuildTree(thoughts);
 
         // Assert
         result.Should().HaveCount(2);
-        var ids = result.Select(t => t.Id).ToList();
+        List<string> ids = result.Select(t => t.Id).ToList();
         ids.Should().Contain("1");
         ids.Should().Contain("2");
         result.Single(t => t.Id == "1").Replies.Should().ContainSingle(r => r.Id == "3");
@@ -124,7 +118,7 @@ public class ReplyTreeBuilderTests
     public void BuildTree_WithEmptyInput_ReturnsEmpty()
     {
         // Act
-        var result = _builder.BuildTree([]);
+        IReadOnlyList<Thought> result = _builder.BuildTree([]);
 
         // Assert
         result.Should().BeEmpty();
@@ -134,30 +128,30 @@ public class ReplyTreeBuilderTests
     public void BuildTree_WithMultipleBranches_BuildsCorrectStructure()
     {
         // Arrange
-        var thoughts = new[]
-        {
-            CreateThought("1"),                  // root A
-            CreateThought("2", parentId: "1"),  // A -> B
-            CreateThought("3", parentId: "2"),  // A -> B -> C
-            CreateThought("4"),                  // root D
-            CreateThought("5", parentId: "4"),  // D -> E
-            CreateThought("6", parentId: "5"),  // D -> E -> F
-        };
+        Thought[] thoughts =
+        [
+            CreateThought("1"), // root A
+            CreateThought("2", "1"), // A -> B
+            CreateThought("3", "2"), // A -> B -> C
+            CreateThought("4"), // root D
+            CreateThought("5", "4"), // D -> E
+            CreateThought("6", "5") // D -> E -> F
+        ];
 
         // Act
-        var result = _builder.BuildTree(thoughts);
+        IReadOnlyList<Thought> result = _builder.BuildTree(thoughts);
 
         // Assert
         result.Should().HaveCount(2);
 
-        var first = result[0];
+        Thought first = result[0];
         first.Id.Should().Be("1");
         first.Replies.Should().HaveCount(1);
         first.Replies[0].Id.Should().Be("2");
         first.Replies[0].Replies.Should().HaveCount(1);
         first.Replies[0].Replies[0].Id.Should().Be("3");
 
-        var second = result[1];
+        Thought second = result[1];
         second.Id.Should().Be("4");
         second.Replies.Should().HaveCount(1);
         second.Replies[0].Id.Should().Be("5");
@@ -169,14 +163,10 @@ public class ReplyTreeBuilderTests
     public void BuildTree_DoesNotModifyInputThoughts()
     {
         // Arrange
-        var original = new[]
-        {
-            CreateThought("1"),
-            CreateThought("2", parentId: "1"),
-        };
+        Thought[] original = [CreateThought("1"), CreateThought("2", "1")];
 
         // Act
-        var result = _builder.BuildTree(original);
+        _builder.BuildTree(original);
 
         // Assert
         // Input thoughts should still have empty replies (they're immutable records)

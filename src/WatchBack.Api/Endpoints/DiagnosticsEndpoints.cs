@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading.Channels;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +13,7 @@ public static class DiagnosticsEndpoints
 {
     public static void MapDiagnosticsEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/diagnostics")
+        RouteGroupBuilder group = app.MapGroup("/api/diagnostics")
             .WithTags("Diagnostics");
 
         group.MapGet("/logs", GetLogs)
@@ -42,7 +43,7 @@ public static class DiagnosticsEndpoints
 
     private static IResult GetLogs(InMemoryLogBuffer buffer, string? level = null, int limit = 200)
     {
-        var entries = buffer.GetEntries(level, Math.Clamp(limit, 1, 500));
+        IReadOnlyList<LogEntry> entries = buffer.GetEntries(level, Math.Clamp(limit, 1, 500));
         return Results.Ok(entries);
     }
 
@@ -55,12 +56,12 @@ public static class DiagnosticsEndpoints
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
 
-        using var sub = buffer.Subscribe(out var reader);
+        using IDisposable sub = buffer.Subscribe(out ChannelReader<LogEntry> reader);
         try
         {
-            await foreach (var entry in reader.ReadAllAsync(ct))
+            await foreach (LogEntry entry in reader.ReadAllAsync(ct))
             {
-                var json = JsonSerializer.Serialize(entry, WatchBackJsonContext.Default.LogEntry);
+                string json = JsonSerializer.Serialize(entry, WatchBackJsonContext.Default.LogEntry);
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
             }
@@ -68,8 +69,10 @@ public static class DiagnosticsEndpoints
         catch (OperationCanceledException) { }
     }
 
-    private static IResult GetStatus(SyncHistoryStore store) =>
-        Results.Ok(new DiagnosticsStatusResponse(ThisAssembly.Info.InformationalVersion, store.GetLatest()));
+    private static IResult GetStatus(SyncHistoryStore store)
+    {
+        return Results.Ok(new DiagnosticsStatusResponse(ThisAssembly.Info.InformationalVersion, store.GetLatest()));
+    }
 
     private static IResult ClearLogs(InMemoryLogBuffer buffer)
     {

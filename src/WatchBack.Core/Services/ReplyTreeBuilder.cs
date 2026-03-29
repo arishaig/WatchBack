@@ -7,31 +7,35 @@ public class ReplyTreeBuilder : IReplyTreeBuilder
 {
     public IReadOnlyList<Thought> BuildTree(IEnumerable<Thought> flat)
     {
-        var flatList = flat.ToList();
+        List<Thought> flatList = flat.ToList();
         if (flatList.Count == 0)
+        {
             return [];
+        }
 
-        var byId = flatList.ToDictionary(t => t.Id);
+        Dictionary<string, Thought> byId = flatList.ToDictionary(t => t.Id);
 
         // Group children by parent ID in a single pass, excluding self-referential entries
-        var byParent = flatList
+        Dictionary<string, List<Thought>> byParent = flatList
             .Where(t => t.ParentId != null && t.ParentId != t.Id)
             .GroupBy(t => t.ParentId!)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         // Build each node bottom-up via memoization
-        var built = new Dictionary<string, Thought>(flatList.Count);
+        Dictionary<string, Thought> built = new(flatList.Count);
 
         Thought Build(Thought t)
         {
-            if (built.TryGetValue(t.Id, out var cached))
+            if (built.TryGetValue(t.Id, out Thought? cached))
+            {
                 return cached;
+            }
 
-            var replies = byParent.TryGetValue(t.Id, out var children)
+            List<Thought> replies = byParent.TryGetValue(t.Id, out List<Thought>? children)
                 ? children.Select(Build).ToList()
                 : [];
 
-            var result = t with { Replies = replies };
+            Thought result = t with { Replies = replies };
             built[t.Id] = result;
             return result;
         }
