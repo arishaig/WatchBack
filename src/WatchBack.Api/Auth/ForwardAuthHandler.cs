@@ -12,7 +12,7 @@ namespace WatchBack.Api.Auth;
 
 public class ForwardAuthOptions : AuthenticationSchemeOptions { }
 
-public class ForwardAuthHandler(
+public partial class ForwardAuthHandler(
     IOptionsMonitor<ForwardAuthOptions> options,
     ILoggerFactory logger,
     UrlEncoder encoder,
@@ -39,11 +39,7 @@ public class ForwardAuthHandler(
             var remoteIp = Context.Connection.RemoteIpAddress;
             if (remoteIp == null || !await IsFromTrustedHostAsync(remoteIp, opts.ForwardAuthTrustedHost))
             {
-#pragma warning disable CA1848
-                Logger.LogWarning(
-                    "ForwardAuth: remote IP {IP} does not match trusted host '{TrustedHost}', falling back to cookie auth",
-                    remoteIp, opts.ForwardAuthTrustedHost);
-#pragma warning restore CA1848
+                LogTrustedHostMismatch(Logger, remoteIp, opts.ForwardAuthTrustedHost);
                 return AuthenticateResult.NoResult();
             }
         }
@@ -81,4 +77,7 @@ public class ForwardAuthHandler(
 
         return addresses is not null && addresses.Any(a => a.Equals(remoteIp));
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "ForwardAuth: remote IP {IP} does not match trusted host '{TrustedHost}', falling back to cookie auth")]
+    private static partial void LogTrustedHostMismatch(ILogger logger, IPAddress? ip, string trustedHost);
 }

@@ -225,7 +225,7 @@ internal static class PlaywrightHelpers
             .OfType<Dictionary<string, object?>>()
             .Select(sr => new
             {
-                source       = (string?)sr["source"] ?? "",
+                source = (string?)sr["source"] ?? "",
                 thoughtCount = (sr["thoughts"] as IEnumerable<object>)?.Count() ?? 0,
             })
             .ToArray();
@@ -233,8 +233,8 @@ internal static class PlaywrightHelpers
         var lastSync = new
         {
             timestamp = "2026-03-15T10:20:00Z",
-            status    = (string?)syncResponse["status"] ?? "Idle",
-            title     = (string?)syncResponse["title"],
+            status = (string?)syncResponse["status"] ?? "Idle",
+            title = (string?)syncResponse["title"],
             sources,
         };
 
@@ -259,13 +259,13 @@ internal static class PlaywrightHelpers
 
     private static Dictionary<string, object?> MakeLogEntry(
         string level, string category, string message, string? exceptionText = null) => new()
-    {
-        ["timestamp"]     = "2026-03-15T10:23:45Z",
-        ["level"]         = level,
-        ["category"]      = category,
-        ["message"]       = message,
-        ["exceptionText"] = exceptionText,
-    };
+        {
+            ["timestamp"] = "2026-03-15T10:23:45Z",
+            ["level"] = level,
+            ["category"] = category,
+            ["message"] = message,
+            ["exceptionText"] = exceptionText,
+        };
 
     public static readonly Dictionary<string, object?> ConfigEmpty = new()
     {

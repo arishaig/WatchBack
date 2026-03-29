@@ -36,7 +36,7 @@ public class SyncIntegrationTests : IAsyncLifetime
         _mockWatchProvider = Substitute.For<IWatchStateProvider>();
         _mockWatchProvider.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
         _mockThoughtProvider = Substitute.For<IThoughtProvider>();
-        _mockThoughtProvider.Metadata.Returns(new ThoughtProviderMetadata("Test", "Test", BrandData: new BrandData("", "")));
+        _mockThoughtProvider.Metadata.Returns(new DataProviderMetadata("Test", "Test", BrandData: new BrandData("", "")));
 
         var hasher = new PasswordHasher<string>();
         var hash = hasher.HashPassword("", TestPassword);
@@ -76,11 +76,11 @@ public class SyncIntegrationTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
         _client?.Dispose();
         _factory?.Dispose();
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     [Fact]

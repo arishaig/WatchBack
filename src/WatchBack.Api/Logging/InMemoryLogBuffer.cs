@@ -30,7 +30,7 @@ public sealed class InMemoryLogBuffer
             if (_entries.Count >= Capacity)
                 _entries.Dequeue();
             _entries.Enqueue(entry);
-            subscribers = [.._subscribers];
+            subscribers = [.. _subscribers];
         }
 
         foreach (var writer in subscribers)

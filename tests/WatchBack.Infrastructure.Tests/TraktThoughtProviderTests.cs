@@ -462,9 +462,4 @@ public class TraktThoughtProviderTests : IDisposable
         fields.Should().BeEmpty();
     }
 
-    private sealed class CapturingProgress(System.Collections.Concurrent.ConcurrentBag<SyncProgressTick> bag)
-        : IProgress<SyncProgressTick>
-    {
-        public void Report(SyncProgressTick value) => bag.Add(value);
-    }
 }

@@ -13,7 +13,7 @@ namespace WatchBack.Infrastructure.WatchStateProviders;
 /// from an external service. Registered as a singleton so the stored context survives
 /// across requests for the lifetime of the application.
 /// </summary>
-public class ManualWatchStateProvider : IManualWatchStateProvider
+public sealed class ManualWatchStateProvider : IManualWatchStateProvider
 {
     private MediaContext? _context;
 
@@ -25,7 +25,8 @@ public class ManualWatchStateProvider : IManualWatchStateProvider
             LogoSvg:
             "<svg role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Manual</title><path d=\"M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z\"/></svg>"
         )
-    ) { SupportedExternalIds = new HashSet<string> { Imdb, Tmdb, Tvdb }, RequiresManualInput = true };
+    )
+    { SupportedExternalIds = new HashSet<string> { Imdb, Tmdb, Tvdb }, RequiresManualInput = true };
 
     /// <summary>
     /// Sets the current media context. Pass <c>null</c> to clear.
@@ -36,7 +37,7 @@ public class ManualWatchStateProvider : IManualWatchStateProvider
     }
 
     public Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default) =>
-        Task.FromResult(Interlocked.CompareExchange(ref _context, null, null));
+        Task.FromResult(Volatile.Read(ref _context));
 
     public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
     {

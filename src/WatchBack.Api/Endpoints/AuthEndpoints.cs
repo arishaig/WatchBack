@@ -35,7 +35,7 @@ public static class AuthEndpoints
             .AllowAnonymous()
             .RequireRateLimiting("login");
 
-        group.MapPost("/logout", (Delegate)Logout)
+        group.MapPost("/logout", async (HttpContext ctx) => await Logout(ctx))
             .WithName("Logout")
             .WithSummary("Log out and clear session cookie")
             .RequireAuthorization();
@@ -92,19 +92,19 @@ public static class AuthEndpoints
         var opts = authOptions.Value;
 
         if (string.IsNullOrEmpty(opts.PasswordHash))
-            return Results.Ok(new { ok = false, message = "Authentication not configured. Check server logs." });
+            return Results.Json(new { ok = false, message = "Authentication not configured. Check server logs." }, statusCode: 500);
 
         if (string.IsNullOrEmpty(body.Username) || string.IsNullOrEmpty(body.Password))
-            return Results.Ok(new { ok = false, message = "Username and password are required." });
+            return Results.BadRequest(new { ok = false, message = "Username and password are required." });
 
         if (!string.Equals(body.Username, opts.Username, StringComparison.OrdinalIgnoreCase))
-            return Results.Ok(new { ok = false, message = "Invalid credentials." });
+            return Results.Json(new { ok = false, message = "Invalid credentials." }, statusCode: 401);
 
         var hasher = new PasswordHasher<string>();
         var result = hasher.VerifyHashedPassword("", opts.PasswordHash, body.Password);
 
         if (result == PasswordVerificationResult.Failed)
-            return Results.Ok(new { ok = false, message = "Invalid credentials." });
+            return Results.Json(new { ok = false, message = "Invalid credentials." }, statusCode: 401);
 
         // Upgrade the stored hash if the hashing algorithm has been updated
         if (result == PasswordVerificationResult.SuccessRehashNeeded)
@@ -135,14 +135,14 @@ public static class AuthEndpoints
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.NewUsername))
-            return Results.Ok(new { ok = false, message = "New username is required." });
+            return Results.BadRequest(new { ok = false, message = "New username is required." });
 
         if (string.IsNullOrWhiteSpace(body.NewPassword))
-            return Results.Ok(new { ok = false, message = "New password is required." });
+            return Results.BadRequest(new { ok = false, message = "New password is required." });
 
         var currentUsername = authOptions.Value.Username;
         if (string.Equals(body.NewUsername, currentUsername, StringComparison.OrdinalIgnoreCase))
-            return Results.Ok(new { ok = false, message = "New username must be different from the current username." });
+            return Results.BadRequest(new { ok = false, message = "New username must be different from the current username." });
 
         var hasher = new PasswordHasher<string>();
         var newHash = hasher.HashPassword("", body.NewPassword);
@@ -191,7 +191,7 @@ public static class AuthEndpoints
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.NewPassword))
-            return Results.Ok(new { ok = false, message = UiStrings.AuthEndpoints_ChangePassword_Password_is_required_ });
+            return Results.BadRequest(new { ok = false, message = UiStrings.AuthEndpoints_ChangePassword_Password_is_required_ });
 
         var opts = authOptions.Value;
         var hasher = new PasswordHasher<string>();

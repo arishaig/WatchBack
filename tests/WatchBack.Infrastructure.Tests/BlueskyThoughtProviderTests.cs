@@ -396,9 +396,4 @@ public class BlueskyThoughtProviderTests : IDisposable
         provider.RevealSecret("Other__Key").Should().BeNull();
     }
 
-    private sealed class CapturingProgress(System.Collections.Concurrent.ConcurrentBag<SyncProgressTick> bag)
-        : IProgress<SyncProgressTick>
-    {
-        public void Report(SyncProgressTick value) => bag.Add(value);
-    }
 }

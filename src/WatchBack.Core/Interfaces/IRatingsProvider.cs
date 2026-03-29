@@ -15,10 +15,3 @@ public interface IRatingsProvider : IDataProvider
     Task<IReadOnlyList<MediaRating>> GetRatingsAsync(string imdbId, CancellationToken ct = default);
 }
 
-/// <summary>Metadata describing a ratings provider.</summary>
-public record RatingsProviderMetadata(
-    string Name,
-    string Description,
-    string? OverrideDisplayName = null,
-    BrandData? BrandData = null)
-    : DataProviderMetadata(Name, Description, OverrideDisplayName, BrandData);

@@ -681,9 +681,4 @@ public class RedditThoughtProviderTests : IDisposable
         ((IDataProvider)provider).RevealSecret("Reddit__MaxComments").Should().BeNull();
     }
 
-    private sealed class CapturingProgress(System.Collections.Concurrent.ConcurrentBag<SyncProgressTick> bag)
-        : IProgress<SyncProgressTick>
-    {
-        public void Report(SyncProgressTick value) => bag.Add(value);
-    }
 }

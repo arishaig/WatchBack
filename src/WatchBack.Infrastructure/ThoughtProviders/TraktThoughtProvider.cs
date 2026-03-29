@@ -18,7 +18,7 @@ namespace WatchBack.Infrastructure.ThoughtProviders;
 [JsonSerializable(typeof(TraktCommentDto[]))]
 internal sealed partial class TraktThoughtJsonContext : JsonSerializerContext { }
 
-public class TraktThoughtProvider(
+public sealed class TraktThoughtProvider(
     HttpClient httpClient,
     IOptionsSnapshot<TraktOptions> options,
     IMemoryCache cache,
@@ -31,7 +31,7 @@ public class TraktThoughtProvider(
 
     private readonly TraktOptions _options = options.Value;
 
-    public DataProviderMetadata Metadata => new ThoughtProviderMetadata(
+    public DataProviderMetadata Metadata => new(
         Name: "Trakt",
         Description: UiStrings.TraktThoughtProvider_Metadata_Trakt_comments_provider,
         BrandData: new BrandData(
@@ -248,7 +248,9 @@ public class TraktThoughtProvider(
         return slug;
     }
 
-    public void ConfigureRequest(HttpRequestMessage request)
+    void IDataProvider.ConfigureRequest(HttpRequestMessage request) => ConfigureRequest(request);
+
+    private void ConfigureRequest(HttpRequestMessage request)
     {
         IDataProvider.ApplyDefaultHeaders(request);
         request.Headers.Add("trakt-api-version", "2");

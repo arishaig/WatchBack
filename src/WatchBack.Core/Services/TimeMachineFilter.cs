@@ -18,13 +18,12 @@ public class TimeMachineFilter : ITimeMachineFilter
         return thoughts
             .Where(t =>
             {
-                // For windowDays == 0, include only thoughts on the same calendar day
+                // Zero means same calendar day; positive means a rolling window after air date
                 if (windowDays == 0)
                 {
                     return t.CreatedAt.Date == airDate.Value.Date;
                 }
 
-                // For windowDays > 0, include thoughts within the time window after air date
                 var deltaDays = (t.CreatedAt - airDate.Value).TotalDays;
                 return deltaDays >= 0 && deltaDays <= windowDays;
             })
