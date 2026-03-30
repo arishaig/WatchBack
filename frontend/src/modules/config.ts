@@ -83,8 +83,9 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
         const querySeason = season === 0 ? '' : 'S' + String(season).padStart(2, '0');
         const queryEpisode = episode === 0 ? '' : 'E' + String(episode).padStart(2, '0');
         
+        const episodeCode = querySeason + queryEpisode;
         const query = encodeURIComponent(
-            title + querySeason + queryEpisode + ' reddit'
+            (episodeCode ? title + ' ' + episodeCode : title) + ' reddit'
         );
         const prefs = (this.prefEdits as Record<string, unknown>);
         const config = (this.configData?.['preferences'] as Record<string, unknown> | undefined) ?? {};
