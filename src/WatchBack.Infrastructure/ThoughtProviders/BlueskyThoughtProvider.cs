@@ -55,11 +55,6 @@ public sealed class BlueskyThoughtProvider(
     {
         try
         {
-            if (mediaContext is not EpisodeContext episode)
-            {
-                return s_empty;
-            }
-
             string cacheKey = GetCacheKey(mediaContext);
             if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
             {
@@ -68,8 +63,7 @@ public sealed class BlueskyThoughtProvider(
 
             string? token = await GetAccessTokenAsync(ct);
 
-            // Search for posts
-            string query = $"{mediaContext.Title} S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
+            string query = IThoughtProvider.BuildTextQuery(mediaContext);
             string searchUrl =
                 $"https://bsky.social/xrpc/app.bsky.feed.searchPosts?q={Uri.EscapeDataString(query)}&limit=100";
 

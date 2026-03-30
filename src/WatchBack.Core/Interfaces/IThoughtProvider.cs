@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using WatchBack.Core.Models;
 
 namespace WatchBack.Core.Interfaces;
@@ -33,4 +35,63 @@ public interface IThoughtProvider : IDataProvider
     /// <param name="ct">Optional cancellation token.</param>
     Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext, IProgress<SyncProgressTick>? progress = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    ///     Builds the canonical text search query for a media context.
+    ///     Encodes the business rules for how movies, normal episodes, and season-0 specials
+    ///     are represented in text searches, independently of any specific API:
+    ///     <list type="bullet">
+    ///         <item>Movie (plain <see cref="MediaContext" />): "{title} movie"</item>
+    ///         <item>Episode with valid season/episode numbers: "{title} S{ss}E{ee}"</item>
+    ///         <item>Episode with season/episode 0 and a premiere date: "{title} {date}"</item>
+    ///         <item>Episode with season/episode 0 and an episode title: "{title} {episodeTitle}"</item>
+    ///         <item>Episode with season/episode 0 and neither: "{title}"</item>
+    ///     </list>
+    ///     Text-search providers should call this rather than duplicating the branching logic.
+    /// </summary>
+    static string BuildTextQuery(MediaContext context)
+    {
+        if (context is EpisodeContext episode && episode.SeasonNumber > 0 && episode.EpisodeNumber > 0)
+        {
+            return $"{context.Title} S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}";
+        }
+
+        string? qualifier = GetTextSearchQualifier(context);
+        return qualifier is null ? context.Title : $"{context.Title} {qualifier}";
+    }
+
+    /// <summary>
+    ///     Returns the qualifier to append to the show/movie title in a text search,
+    ///     or <c>null</c> for normal episodes where the caller should supply their own
+    ///     episode code format (e.g. S01E01, NxNN).
+    ///     <list type="bullet">
+    ///         <item>Movie: "movie"</item>
+    ///         <item>Episode with valid season/episode numbers: null</item>
+    ///         <item>Episode with season/episode 0 and a premiere date: locale-neutral date string</item>
+    ///         <item>Episode with season/episode 0 and an episode title: the episode title</item>
+    ///         <item>Episode with season/episode 0 and neither: null</item>
+    ///     </list>
+    ///     Providers that build multiple search specs (e.g. one global + one per-subreddit) can use
+    ///     this to get the qualifier and compose their own spec list.
+    /// </summary>
+    static string? GetTextSearchQualifier(MediaContext context)
+    {
+        if (context is not EpisodeContext episode)
+        {
+            return "movie";
+        }
+
+        if (episode.SeasonNumber > 0 && episode.EpisodeNumber > 0)
+        {
+            return null; // Caller provides episode code(s) in their preferred format(s)
+        }
+
+        // Season 0 or episode 0 (specials, daily shows, etc.): fall back to premiere date or title
+        if (context.ReleaseDate.HasValue)
+        {
+            return context.ReleaseDate.Value.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture);
+        }
+
+        return !string.IsNullOrWhiteSpace(episode.EpisodeTitle) ? episode.EpisodeTitle : null;
+    }
 }

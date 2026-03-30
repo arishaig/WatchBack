@@ -62,10 +62,7 @@ public sealed class RedditThoughtProvider(
     {
         try
         {
-            if (mediaContext is not EpisodeContext episode)
-            {
-                return s_empty;
-            }
+            EpisodeContext? episode = mediaContext as EpisodeContext;
 
             string cacheKey = GetCacheKey(mediaContext);
             if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
@@ -77,7 +74,12 @@ public sealed class RedditThoughtProvider(
             string derivedSubreddit = Regex.Replace(
                 mediaContext.Title.ToLowerInvariant(), "[^a-z0-9]", "");
 
-            List<SearchSpec> specs = BuildSearchSpecs(mediaContext.Title, derivedSubreddit, episode);
+            List<SearchSpec> specs = BuildSearchSpecs(mediaContext, derivedSubreddit, episode);
+
+            if (specs.Count == 0)
+            {
+                return s_empty;
+            }
 
             // Run all search specs in parallel — PullPush is the bottleneck, so fan-out wins here
             (PullPushSubmissionDto[] Subs, bool IsBypass, bool Ok)[] specResults = await Task.WhenAll(
@@ -144,7 +146,7 @@ public sealed class RedditThoughtProvider(
             foreach ((string id, PullPushSubmissionDto sub) in seenIds)
             {
                 bool passes = bypassIds.Contains(id) ||
-                              MatchesEpisode(sub.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber);
+                              (episode != null && MatchesEpisode(sub.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber));
                 logger.LogInformation("PullPush raw: [{Id}] r/{Sub} \"{Title}\" → {Result}",
                     id, sub.Subreddit, sub.Title, passes ? "KEEP" : "SKIP");
             }
@@ -153,14 +155,23 @@ public sealed class RedditThoughtProvider(
             // (episode-title search, where PullPush already did the scoping)
             List<PullPushSubmissionDto> submissions = seenIds.Values
                 .Where(s => s.Id != null && (bypassIds.Contains(s.Id!) ||
-                                             MatchesEpisode(s.Title ?? "", episode.SeasonNumber,
-                                                 episode.EpisodeNumber)))
+                                             (episode != null && MatchesEpisode(s.Title ?? "", episode.SeasonNumber,
+                                                 episode.EpisodeNumber))))
                 .OrderByDescending(s => s.Score ?? 0)
                 .ToList();
 
-            logger.LogInformation(
-                "PullPush: found {Count} matching submission(s) for '{Title}' S{Season:D2}E{Episode:D2}",
-                submissions.Count, mediaContext.Title, episode.SeasonNumber, episode.EpisodeNumber);
+            if (episode != null)
+            {
+                logger.LogInformation(
+                    "PullPush: found {Count} matching submission(s) for '{Title}' S{Season:D2}E{Episode:D2}",
+                    submissions.Count, mediaContext.Title, episode.SeasonNumber, episode.EpisodeNumber);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "PullPush: found {Count} matching submission(s) for movie '{Title}'",
+                    submissions.Count, mediaContext.Title);
+            }
 
             if (submissions.Count == 0)
             {
@@ -372,26 +383,48 @@ public sealed class RedditThoughtProvider(
     // already recognize all standard formats (SxxExx, NxNN, "Season N Episode N"), so
     // new search formats just need to be added here to be searched and matched.
     private static List<SearchSpec> BuildSearchSpecs(
-        string showTitle, string derivedSubreddit, EpisodeContext episode)
+        MediaContext mediaContext, string derivedSubreddit, EpisodeContext? episode)
     {
+        // Movie: one global text search using the canonical query (bypass — MatchesEpisode not used)
+        if (episode is null)
+        {
+            return [new(IThoughtProvider.BuildTextQuery(mediaContext), null, true)];
+        }
+
         string sn = episode.SeasonNumber.ToString(CultureInfo.InvariantCulture);
         string ss = episode.SeasonNumber.ToString("D2", CultureInfo.InvariantCulture);
         string en = episode.EpisodeNumber.ToString(CultureInfo.InvariantCulture);
         string ee = episode.EpisodeNumber.ToString("D2", CultureInfo.InvariantCulture);
 
-        List<SearchSpec> specs =
-        [
-            // Global: show title + episode code — catches cross-subreddit threads (e.g. r/television)
-            new($"{showTitle} S{sn}E{en}", null),
-            new($"{showTitle} S{ss}E{ee}", null),
-            new($"{showTitle} {sn}x{ee}", null), // NxNN (e.g. "Halt and Catch Fire 3x02")
+        List<SearchSpec> specs = [];
 
-            // Show subreddit: bare episode code — catches terse titles with no show name
-            new($"S{sn}E{en}", derivedSubreddit),
-            new($"S{ss}E{ee}", derivedSubreddit),
-            new($"{sn}x{ee}", derivedSubreddit), // NxNN (e.g. "3x02 Joe's Deposition...")
-            new($"Season {sn} Episode {en}", derivedSubreddit) // long form (e.g. "Season 3 Episode 2 Rewatch")
-        ];
+        if (episode.SeasonNumber > 0 && episode.EpisodeNumber > 0)
+        {
+            specs.AddRange(
+            [
+                // Global: show title + episode code — catches cross-subreddit threads (e.g. r/television)
+                new($"{mediaContext.Title} S{sn}E{en}", null),
+                new($"{mediaContext.Title} S{ss}E{ee}", null),
+                new($"{mediaContext.Title} {sn}x{ee}", null), // NxNN (e.g. "Halt and Catch Fire 3x02")
+
+                // Show subreddit: bare episode code — catches terse titles with no show name
+                new($"S{sn}E{en}", derivedSubreddit),
+                new($"S{ss}E{ee}", derivedSubreddit),
+                new($"{sn}x{ee}", derivedSubreddit), // NxNN (e.g. "3x02 Joe's Deposition...")
+                new($"Season {sn} Episode {en}", derivedSubreddit) // long form (e.g. "Season 3 Episode 2 Rewatch")
+            ]);
+        }
+        else
+        {
+            // Season 0 or episode 0 (specials, daily shows, etc.): episode codes are meaningless.
+            // Use the canonical qualifier (premiere date or episode title) as the search term.
+            string? qualifier = IThoughtProvider.GetTextSearchQualifier(mediaContext);
+            if (qualifier is not null)
+            {
+                specs.Add(new($"{mediaContext.Title} {qualifier}", null, true));
+                specs.Add(new(qualifier, derivedSubreddit, true));
+            }
+        }
 
         // Episode title: PullPush already scopes results, so MatchesEpisode is bypassed for these
         if (!string.IsNullOrWhiteSpace(episode.EpisodeTitle))

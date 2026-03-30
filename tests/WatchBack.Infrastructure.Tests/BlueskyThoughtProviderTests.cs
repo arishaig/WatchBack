@@ -406,4 +406,81 @@ public class BlueskyThoughtProviderTests : IDisposable
         provider.RevealSecret("Bluesky__Handle").Should().BeNull();
         provider.RevealSecret("Other__Key").Should().BeNull();
     }
+
+    // ---- Movie and season-0 / dateless-episode handling ----
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithMovieContext_UsesMovieQuery()
+    {
+        MediaContext mediaContext = new(
+            "Interstellar",
+            new DateTimeOffset(2014, 11, 5, 0, 0, 0, TimeSpan.Zero));
+
+        string tokenJson = """{"accessJwt":"test-token"}""";
+        string searchJson = """{"posts":[]}""";
+
+        List<string> searchedUrls = new();
+        Queue<HttpResponseMessage> responses = new(
+        [
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
+        ]);
+
+        MockHttpMessageHandler handler = new(req =>
+        {
+            searchedUrls.Add(req.RequestUri?.ToString() ?? "");
+            return responses.Dequeue();
+        });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        result.Should().NotBeNull();
+        searchedUrls.Should().Contain(u => Uri.UnescapeDataString(u).Contains("Interstellar movie"));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithSeasonZeroEpisode_WithDate_UsesDateQuery()
+    {
+        EpisodeContext mediaContext = new(
+            "The Daily Show",
+            new DateTimeOffset(2026, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "January 20, 2026",
+            0,
+            1);
+
+        string tokenJson = """{"accessJwt":"test-token"}""";
+        string searchJson = """{"posts":[]}""";
+
+        List<string> searchedUrls = new();
+        Queue<HttpResponseMessage> responses = new(
+        [
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
+        ]);
+
+        MockHttpMessageHandler handler = new(req =>
+        {
+            searchedUrls.Add(req.RequestUri?.ToString() ?? "");
+            return responses.Dequeue();
+        });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        searchedUrls.Should().Contain(u => Uri.UnescapeDataString(u).Contains("January 20, 2026"));
+        searchedUrls.Should().NotContain(u => Uri.UnescapeDataString(u).Contains("S00"));
+    }
 }

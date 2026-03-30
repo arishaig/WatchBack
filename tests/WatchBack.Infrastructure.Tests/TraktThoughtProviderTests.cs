@@ -482,4 +482,141 @@ public class TraktThoughtProviderTests : IDisposable
         IReadOnlyList<ProviderConfigField> fields = ((IDataProvider)provider).GetConfigSchema(_ => "", (_, _) => false);
         fields.Should().BeEmpty();
     }
+
+    // ---- Movie handling ----
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithMovieContext_FetchesMovieComments()
+    {
+        MediaContext mediaContext = new(
+            "Interstellar",
+            new DateTimeOffset(2014, 11, 5, 0, 0, 0, TimeSpan.Zero));
+
+        string movieSearchJson = """[{"movie":{"title":"Interstellar","ids":{"trakt":1,"slug":"interstellar-2014"}}}]""";
+        string commentsJson = """
+                              [
+                                  {
+                                      "comment": "Mind-bending film!",
+                                      "user": { "username": "user1" },
+                                      "created_at": "2014-11-10T12:00:00Z"
+                                  }
+                              ]
+                              """;
+
+        List<string> requestedUrls = new();
+        Queue<HttpResponseMessage> responses = new(
+        [
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(movieSearchJson) },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) }
+        ]);
+
+        MockHttpMessageHandler handler = new(req =>
+        {
+            requestedUrls.Add(req.RequestUri?.ToString() ?? "");
+            return responses.Dequeue();
+        });
+        HttpClient client = new(handler);
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        result.Should().NotBeNull();
+        result.Thoughts.Should().NotBeEmpty();
+        // Must use movie search endpoint, not show search
+        requestedUrls.Should().Contain(u => u.Contains("/search/movie"));
+        requestedUrls.Should().NotContain(u => u.Contains("/search/show"));
+        // Must fetch from movies comments endpoint
+        requestedUrls.Should().Contain(u => u.Contains("/movies/") && u.Contains("/comments/"));
+        requestedUrls.Should().NotContain(u => u.Contains("/shows/"));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithMovieContextAndImdbId_UsesImdbLookup()
+    {
+        MediaContext mediaContext = new(
+            "Interstellar",
+            new DateTimeOffset(2014, 11, 5, 0, 0, 0, TimeSpan.Zero),
+            new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0816692" });
+
+        string movieSearchJson = """[{"movie":{"title":"Interstellar","ids":{"trakt":1,"slug":"interstellar-2014"}}}]""";
+        string commentsJson = "[]";
+
+        List<string> requestedUrls = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            requestedUrls.Add(req.RequestUri?.ToString() ?? "");
+            return requestedUrls.Count == 1
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(movieSearchJson) }
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) };
+        });
+        HttpClient client = new(handler);
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        // First request must be the IMDB ID lookup with type=movie
+        requestedUrls[0].Should().Contain("/search/imdb/tt0816692");
+        requestedUrls[0].Should().Contain("type=movie");
+        requestedUrls[0].Should().NotContain("type=show");
+        requestedUrls.Should().NotContain(u => u.Contains("/search/movie?query="));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithMovieContextAndImdbId_TvdbNotUsedForMovies()
+    {
+        MediaContext mediaContext = new(
+            "Interstellar",
+            null,
+            new Dictionary<string, string>
+            {
+                [ExternalIdType.Imdb] = "tt0816692",
+                [ExternalIdType.Tvdb] = "999999"
+            });
+
+        string movieSearchJson = """[{"movie":{"title":"Interstellar","ids":{"trakt":1,"slug":"interstellar-2014"}}}]""";
+        string commentsJson = "[]";
+
+        List<string> requestedUrls = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            requestedUrls.Add(req.RequestUri?.ToString() ?? "");
+            return requestedUrls.Count == 1
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(movieSearchJson) }
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) };
+        });
+        HttpClient client = new(handler);
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        // TVDB must never be used for movies
+        requestedUrls.Should().NotContain(u => u.Contains("/search/tvdb/"));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithUnknownMovie_ReturnsEmpty()
+    {
+        MediaContext mediaContext = new("Nonexistent Movie 12345", null);
+
+        MockHttpMessageHandler handler = new(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]") });
+        HttpClient client = new(handler);
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        result.Should().NotBeNull();
+        result.Thoughts.Should().BeEmpty();
+    }
 }

@@ -14,13 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WatchBack.Core\WatchBack.Core.csproj"/>
-    <ProjectReference Include="..\WatchBack.Infrastructure\WatchBack.Infrastructure.csproj"/>
+    <ProjectReference Include="..\WatchBack.Core\WatchBack.Core.csproj" />
+    <ProjectReference Include="..\WatchBack.Infrastructure\WatchBack.Infrastructure.csproj" />
   </ItemGroup>
 
-  <Target Name="BuildFrontend" BeforeTargets="BeforeBuild"
-          Condition="'$(Configuration)' == 'Release' and '$(SkipFrontendBuild)' != 'true'">
-    <Exec Command="npm run build" WorkingDirectory="$(MSBuildThisFileDirectory)../../"/>
+  <Target Name="BuildFrontend" BeforeTargets="BeforeBuild" Condition="'$(Configuration)' == 'Release' and '$(SkipFrontendBuild)' != 'true'">
+    <Exec Command="npm run build" WorkingDirectory="$(MSBuildThisFileDirectory)../../" />
   </Target>
 
   <ItemGroup>

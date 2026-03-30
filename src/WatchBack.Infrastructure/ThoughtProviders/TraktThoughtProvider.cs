@@ -16,6 +16,7 @@ using static WatchBack.Core.Models.ExternalIdType;
 namespace WatchBack.Infrastructure.ThoughtProviders;
 
 [JsonSerializable(typeof(TraktShowSearchItemDto[]))]
+[JsonSerializable(typeof(TraktMovieSearchItemDto[]))]
 [JsonSerializable(typeof(TraktCommentDto[]))]
 internal sealed partial class TraktThoughtJsonContext : JsonSerializerContext;
 
@@ -73,18 +74,33 @@ public sealed class TraktThoughtProvider(
                 return cached;
             }
 
-            // Resolve show slug — tries external IDs first (IMDB → TVDB → TMDB), then falls back to title search
-            string? showId = await ResolveSlugAsync(mediaContext, ct);
-            if (showId == null)
+            // Resolve Trakt slug and build the comments URL
+            string commentsUrl;
+            if (episode == null)
             {
-                logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
-                return s_empty;
-            }
+                // Movie: resolve via external IDs (IMDB → TMDB; TVDB is TV-only) then title search
+                string? movieId = await ResolveMovieSlugAsync(mediaContext, ct);
+                if (movieId == null)
+                {
+                    logger.LogWarning("Trakt: no movie found for '{Title}'", mediaContext.Title);
+                    return s_empty;
+                }
 
-            // Fetch comments
-            string commentsUrl = episode != null
-                ? $"https://api.trakt.tv/shows/{showId}/seasons/{episode.SeasonNumber}/episodes/{episode.EpisodeNumber}/comments/newest"
-                : $"https://api.trakt.tv/shows/{showId}/comments/newest";
+                commentsUrl = $"https://api.trakt.tv/movies/{movieId}/comments/newest";
+            }
+            else
+            {
+                // TV show: resolve via external IDs (IMDB → TVDB → TMDB) then title search
+                string? showId = await ResolveSlugAsync(mediaContext, ct);
+                if (showId == null)
+                {
+                    logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
+                    return s_empty;
+                }
+
+                commentsUrl =
+                    $"https://api.trakt.tv/shows/{showId}/seasons/{episode.SeasonNumber}/episodes/{episode.EpisodeNumber}/comments/newest";
+            }
 
             HttpRequestMessage commentsRequest = new(HttpMethod.Get, commentsUrl);
             ConfigureRequest(commentsRequest);
@@ -193,25 +209,7 @@ public sealed class TraktThoughtProvider(
             return cached;
         }
 
-        // Build the ordered list of ID lookups to attempt before falling back to text search.
-        // IMDB is tried first (most canonical), then TVDB (TV-specific), then TMDB.
-        List<(string IdType, string IdValue)> idLookups = new();
-        if (mediaContext.ExternalIds?.TryGetValue(Imdb, out string? imdbId) == true)
-        {
-            idLookups.Add(("imdb", imdbId));
-        }
-
-        if (mediaContext.ExternalIds?.TryGetValue(Tvdb, out string? tvdbId) == true)
-        {
-            idLookups.Add(("tvdb", tvdbId));
-        }
-
-        if (mediaContext.ExternalIds?.TryGetValue(Tmdb, out string? tmdbId) == true)
-        {
-            idLookups.Add(("tmdb", tmdbId));
-        }
-
-        foreach ((string idType, string idValue) in idLookups)
+        foreach ((string idType, string idValue) in ExternalIdType.GetShowLookupPriority(mediaContext.ExternalIds))
         {
             string url = $"https://api.trakt.tv/search/{idType}/{Uri.EscapeDataString(idValue)}?type=show";
             string? slug = await TryResolveSlugFromSearchUrlAsync(url, mediaContext.Title, ct);
@@ -267,6 +265,76 @@ public sealed class TraktThoughtProvider(
         return slug;
     }
 
+    /// <summary>
+    ///     Resolves a Trakt movie slug from the media context. Tries IMDB then TMDB external ID
+    ///     lookups before falling back to a title text search. Result is cached for 24 h.
+    /// </summary>
+    private async Task<string?> ResolveMovieSlugAsync(MediaContext mediaContext, CancellationToken ct)
+    {
+        string slugCacheKey = $"trakt:movie-slug:{mediaContext.Title}";
+        if (cache.TryGetValue(slugCacheKey, out string? cached) && cached != null)
+        {
+            return cached;
+        }
+
+        foreach ((string idType, string idValue) in ExternalIdType.GetMovieLookupPriority(mediaContext.ExternalIds))
+        {
+            string url = $"https://api.trakt.tv/search/{idType}/{Uri.EscapeDataString(idValue)}?type=movie";
+            string? slug = await TryResolveMovieSlugFromSearchUrlAsync(url, mediaContext.Title, ct);
+            if (slug != null)
+            {
+                cache.Set(slugCacheKey, slug, TimeSpan.FromHours(24));
+                return slug;
+            }
+        }
+
+        // Fall back to title text search
+        string textSearchUrl =
+            $"https://api.trakt.tv/search/movie?query={Uri.EscapeDataString(mediaContext.Title)}";
+        string? textSlug = await TryResolveMovieSlugFromSearchUrlAsync(textSearchUrl, mediaContext.Title, ct);
+        if (textSlug != null)
+        {
+            cache.Set(slugCacheKey, textSlug, TimeSpan.FromHours(24));
+            return textSlug;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Calls a Trakt movie search endpoint and extracts the slug from the first movie result.
+    ///     Returns null if the request fails or yields no results.
+    /// </summary>
+    private async Task<string?> TryResolveMovieSlugFromSearchUrlAsync(string url, string title,
+        CancellationToken ct)
+    {
+        HttpRequestMessage request = new(HttpMethod.Get, url);
+        ConfigureRequest(request);
+
+        HttpResponseMessage response = await httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("Trakt movie search failed: HTTP {Status} for '{Title}'",
+                (int)response.StatusCode, title);
+            return null;
+        }
+
+        string content = await response.Content.ReadAsStringAsync(ct);
+        TraktMovieSearchItemDto[]? results = JsonSerializer.Deserialize<TraktMovieSearchItemDto[]>(
+            content, TraktThoughtJsonContext.Default.TraktMovieSearchItemDtoArray);
+
+        TraktMovieDto? movie = results?.FirstOrDefault()?.Movie;
+        if (movie?.Ids?.Slug is null && movie?.Ids?.Trakt is null)
+        {
+            return null;
+        }
+
+        string slug = Uri.EscapeDataString(movie.Ids?.Slug
+                                           ?? movie.Ids!.Trakt!.Value.ToString(CultureInfo.InvariantCulture));
+        logger.LogDebug("Trakt: resolved movie '{Title}' → slug '{Slug}'", title, slug);
+        return slug;
+    }
+
     private void ConfigureRequest(HttpRequestMessage request)
     {
         IDataProvider.ApplyDefaultHeaders(request);
@@ -285,6 +353,13 @@ internal sealed record TraktShowDto(
 
 internal sealed record TraktShowSearchItemDto(
     [property: JsonPropertyName("show")] TraktShowDto? Show);
+
+internal sealed record TraktMovieDto(
+    [property: JsonPropertyName("title")] string? Title,
+    [property: JsonPropertyName("ids")] TraktShowIdsDto? Ids);
+
+internal sealed record TraktMovieSearchItemDto(
+    [property: JsonPropertyName("movie")] TraktMovieDto? Movie);
 
 internal sealed record TraktUserDto(
     [property: JsonPropertyName("username")]

@@ -674,4 +674,142 @@ public class RedditThoughtProviderTests : IDisposable
         ((IDataProvider)provider).RevealSecret("Reddit__MaxThreads").Should().BeNull();
         ((IDataProvider)provider).RevealSecret("Reddit__MaxComments").Should().BeNull();
     }
+
+    // ---- Movie and season-0 / dateless-episode handling ----
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithMovieContext_SearchesWithMovieSuffix()
+    {
+        MediaContext mediaContext = new(
+            "Interstellar",
+            new DateTimeOffset(2014, 11, 5, 0, 0, 0, TimeSpan.Zero));
+
+        string movieSubmissionJson = """
+                                     {
+                                         "data": [
+                                             {
+                                                 "id": "sub1",
+                                                 "title": "Interstellar [Discussion]",
+                                                 "permalink": "/r/movies/comments/sub1",
+                                                 "subreddit": "movies",
+                                                 "score": 500
+                                             }
+                                         ]
+                                     }
+                                     """;
+
+        List<string> searchedUrls = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            string url = Uri.UnescapeDataString(req.RequestUri?.ToString() ?? "");
+            searchedUrls.Add(url);
+            string content = url.Contains("/comment/") ? """{"data": []}"""
+                : movieSubmissionJson;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) };
+        });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        result.Should().NotBeNull();
+        searchedUrls.Where(u => u.Contains("/submission/")).Should()
+            .ContainSingle(u => u.Contains("Interstellar movie"));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithSeasonZeroEpisode_WithDate_SearchesByDate()
+    {
+        EpisodeContext mediaContext = new(
+            "The Daily Show",
+            new DateTimeOffset(2026, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "January 20, 2026",
+            0,
+            1);
+
+        List<string> searchedUrls = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            string url = Uri.UnescapeDataString(req.RequestUri?.ToString() ?? "");
+            searchedUrls.Add(url);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
+        });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        searchedUrls.Where(u => u.Contains("/submission/")).Should()
+            .Contain(u => u.Contains("January 20, 2026"));
+        searchedUrls.Where(u => u.Contains("/submission/")).Should()
+            .NotContain(u => u.Contains("S00") || u.Contains("0x"));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithSeasonZeroEpisode_NoDate_SearchesByEpisodeTitle()
+    {
+        EpisodeContext mediaContext = new(
+            "The Daily Show",
+            null,
+            "Special Report",
+            0,
+            1);
+
+        List<string> searchedUrls = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            string url = Uri.UnescapeDataString(req.RequestUri?.ToString() ?? "");
+            searchedUrls.Add(url);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
+        });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        searchedUrls.Where(u => u.Contains("/submission/")).Should()
+            .Contain(u => u.Contains("Special Report"));
+        searchedUrls.Where(u => u.Contains("/submission/")).Should()
+            .NotContain(u => u.Contains("S00") || u.Contains("0x"));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithSeasonZeroEpisode_NoDateNoTitle_ReturnsEmpty()
+    {
+        EpisodeContext mediaContext = new(
+            "The Daily Show",
+            null,
+            "",
+            0,
+            1);
+
+        MockHttpMessageHandler handler = new(req =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        result.Should().NotBeNull();
+        result.Thoughts.Should().BeEmpty();
+    }
 }
