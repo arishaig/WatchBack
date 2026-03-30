@@ -1,9 +1,8 @@
 using FluentAssertions;
 
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 
-using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 using WatchBack.Core.Services;
@@ -14,12 +13,11 @@ using Xunit;
 
 namespace WatchBack.Infrastructure.Tests;
 
-
 /// <summary>
-/// Live integration tests against real APIs.
-/// These tests are marked with [Trait("Category", "Integration")] and should be run separately.
-/// They require valid .env configuration (see .env at the solution root).
-/// Run with: dotnet test --filter "Category=Integration"
+///     Live integration tests against real APIs.
+///     These tests are marked with [Trait("Category", "Integration")] and should be run separately.
+///     They require valid .env configuration (see .env at the solution root).
+///     Run with: dotnet test --filter "Category=Integration"
 /// </summary>
 [Trait("Category", "Integration")]
 public class LiveIntegrationTests : IDisposable
@@ -27,7 +25,10 @@ public class LiveIntegrationTests : IDisposable
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
     private readonly HttpClient _httpClient = new();
 
-    public LiveIntegrationTests() => LoadEnvFile();
+    public LiveIntegrationTests()
+    {
+        LoadEnvFile();
+    }
 
     public void Dispose()
     {
@@ -39,34 +40,37 @@ public class LiveIntegrationTests : IDisposable
     private static void LoadEnvFile()
     {
         // Try to find .env relative to current directory or solution root
-        var envPath = Path.Combine(Directory.GetCurrentDirectory(), "../../../../.env");
+        string envPath = Path.Combine(Directory.GetCurrentDirectory(), "../../../../.env");
         if (!File.Exists(envPath))
         {
             // Fallback: look in sibling Python project
-            var dir = Directory.GetCurrentDirectory();
+            string? dir = Directory.GetCurrentDirectory();
             while (dir != null)
             {
                 if (File.Exists(Path.Combine(dir, "WatchBack.sln")))
                 {
-                    var sibling = Path.Combine(Path.GetDirectoryName(dir)!, "WatchBack", ".env");
+                    string sibling = Path.Combine(Path.GetDirectoryName(dir)!, "WatchBack", ".env");
                     if (File.Exists(sibling))
                     {
                         envPath = sibling;
                         break;
                     }
                 }
+
                 dir = Directory.GetParent(dir)?.FullName;
             }
         }
 
         if (File.Exists(envPath))
         {
-            foreach (var line in File.ReadAllLines(envPath))
+            foreach (string line in File.ReadAllLines(envPath))
             {
                 if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+                {
                     continue;
+                }
 
-                var parts = line.Split('=', 2);
+                string[] parts = line.Split('=', 2);
                 if (parts.Length == 2)
                 {
                     Environment.SetEnvironmentVariable(parts[0].Trim(), parts[1].Trim());
@@ -79,7 +83,7 @@ public class LiveIntegrationTests : IDisposable
     public async Task JellyfinWatchState_GetCurrentMediaContext_ReturnsDataOrNull()
     {
         // Arrange
-        var options = new JellyfinOptions
+        JellyfinOptions options = new()
         {
             BaseUrl = Environment.GetEnvironmentVariable("JF_URL") ?? "http://192.168.1.158:8096",
             ApiKey = Environment.GetEnvironmentVariable("JF_API_KEY") ?? "",
@@ -87,13 +91,16 @@ public class LiveIntegrationTests : IDisposable
         };
 
         if (string.IsNullOrEmpty(options.ApiKey))
+        {
             return; // Skip: JF_API_KEY not set in environment
+        }
 
-        var provider = new JellyfinWatchStateProvider(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(options), _cache, Microsoft.Extensions.Logging.Abstractions.NullLogger<JellyfinWatchStateProvider>.Instance);
+        JellyfinWatchStateProvider provider = new(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(options),
+            _cache, NullLogger<JellyfinWatchStateProvider>.Instance);
 
         // Act
-        var result = await provider.GetCurrentMediaContextAsync();
-        var health = await provider.GetServiceHealthAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
+        ServiceHealth health = await provider.GetServiceHealthAsync();
 
         // Assert
         health.IsHealthy.Should().BeTrue($"Jellyfin health check failed: {health.Message}");
@@ -109,7 +116,7 @@ public class LiveIntegrationTests : IDisposable
     public async Task TraktWatchState_GetServiceHealth_ReturnsValidResponse()
     {
         // Arrange
-        var options = new TraktOptions
+        TraktOptions options = new()
         {
             ClientId = Environment.GetEnvironmentVariable("TRAKT_CLIENT_ID") ?? "",
             AccessToken = Environment.GetEnvironmentVariable("TRAKT_ACCESS_TOKEN") ?? "",
@@ -117,12 +124,15 @@ public class LiveIntegrationTests : IDisposable
         };
 
         if (string.IsNullOrEmpty(options.ClientId))
+        {
             return; // Skip: TRAKT_CLIENT_ID not set in environment
+        }
 
-        var provider = new TraktWatchStateProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktWatchStateProvider>.Instance);
+        TraktWatchStateProvider provider = new(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
-        var health = await provider.GetServiceHealthAsync();
+        ServiceHealth health = await provider.GetServiceHealthAsync();
 
         // Assert
         health.Should().NotBeNull();
@@ -135,7 +145,7 @@ public class LiveIntegrationTests : IDisposable
     public async Task TraktThoughts_GetThoughts_SearchWorks()
     {
         // Arrange
-        var options = new TraktOptions
+        TraktOptions options = new()
         {
             ClientId = Environment.GetEnvironmentVariable("TRAKT_CLIENT_ID") ?? "",
             AccessToken = Environment.GetEnvironmentVariable("TRAKT_ACCESS_TOKEN") ?? "",
@@ -143,26 +153,29 @@ public class LiveIntegrationTests : IDisposable
         };
 
         if (string.IsNullOrEmpty(options.ClientId))
+        {
             return; // Skip: TRAKT_CLIENT_ID not set in environment
+        }
 
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext mediaContext = new(
+            "Breaking Bad",
+            new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
 
-        var treeBuilder = new ReplyTreeBuilder();
-        var provider = new TraktThoughtProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+        ReplyTreeBuilder treeBuilder = new();
+        TraktThoughtProvider provider = new(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
-        var result = await provider.GetThoughtsAsync(mediaContext);
-        var health = await provider.GetServiceHealthAsync();
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+        ServiceHealth health = await provider.GetServiceHealthAsync();
 
         // Assert
         health.Should().NotBeNull();
         result.Should().NotBeNull();
-        result!.Source.Should().Be("Trakt");
+        result.Source.Should().Be("Trakt");
         // Note: Actual content may be empty if Trakt API is unavailable or has rate limiting
         // We're primarily validating the provider can be called without throwing
     }
@@ -171,31 +184,27 @@ public class LiveIntegrationTests : IDisposable
     public async Task RedditThoughts_GetThoughts_SearchWorks()
     {
         // Arrange
-        var options = new RedditOptions
-        {
-            MaxThreads = 2,
-            MaxComments = 100,
-            CacheTtlSeconds = 3600
-        };
+        RedditOptions options = new() { MaxThreads = 2, MaxComments = 100, CacheTtlSeconds = 3600 };
 
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext mediaContext = new(
+            "Breaking Bad",
+            new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
 
-        var treeBuilder = new ReplyTreeBuilder();
-        var provider = new RedditThoughtProvider(_httpClient, new OptionsSnapshotStub<RedditOptions>(options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
+        ReplyTreeBuilder treeBuilder = new();
+        RedditThoughtProvider provider = new(_httpClient, new OptionsSnapshotStub<RedditOptions>(options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
 
         // Act
-        var result = await provider.GetThoughtsAsync(mediaContext);
-        var health = await provider.GetServiceHealthAsync();
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+        ServiceHealth health = await provider.GetServiceHealthAsync();
 
         // Assert
         health.Should().NotBeNull();
         result.Should().NotBeNull();
-        result!.Source.Should().Be("Reddit");
+        result.Source.Should().Be("Reddit");
         // Note: PullPush API may be unavailable or rate limited. We're validating the provider
         // can be called without throwing and returns a valid ThoughtResult structure
     }
@@ -204,31 +213,32 @@ public class LiveIntegrationTests : IDisposable
     public async Task BlueskyThoughts_GetThoughts_SearchWorks()
     {
         // Arrange
-        var options = new BlueskyOptions
+        BlueskyOptions options = new()
         {
             Handle = Environment.GetEnvironmentVariable("BSKY_IDENTIFIER") ?? "arishaig.bsky.social",
             AppPassword = Environment.GetEnvironmentVariable("BSKY_APP_PASSWORD"),
             TokenCacheTtlSeconds = 5400
         };
 
-        var mediaContext = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext mediaContext = new(
+            "Breaking Bad",
+            new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
 
-        var treeBuilder = new ReplyTreeBuilder();
-        var provider = new BlueskyThoughtProvider(_httpClient, new OptionsSnapshotStub<BlueskyOptions>(options), _cache, treeBuilder, Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+        ReplyTreeBuilder treeBuilder = new();
+        BlueskyThoughtProvider provider = new(_httpClient, new OptionsSnapshotStub<BlueskyOptions>(options), _cache,
+            treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Act
-        var result = await provider.GetThoughtsAsync(mediaContext);
-        var health = await provider.GetServiceHealthAsync();
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+        ServiceHealth health = await provider.GetServiceHealthAsync();
 
         // Assert
         health.Should().NotBeNull();
         result.Should().NotBeNull();
-        result!.Source.Should().Be("Bluesky");
+        result.Source.Should().Be("Bluesky");
         // Note: Auth may fail if credentials are invalid. We're validating provider integration
         // works without exceptions and returns valid result structure
     }
@@ -240,46 +250,49 @@ public class LiveIntegrationTests : IDisposable
         // and that they respond to health checks (doesn't require specific watch state or thoughts)
 
         // Jellyfin
-        var jellyfinOpts = new JellyfinOptions
+        JellyfinOptions jellyfinOpts = new()
         {
             BaseUrl = Environment.GetEnvironmentVariable("JF_URL") ?? "http://192.168.1.158:8096",
             ApiKey = Environment.GetEnvironmentVariable("JF_API_KEY") ?? ""
         };
-        var jellyfinProvider = new JellyfinWatchStateProvider(_httpClient, new OptionsSnapshotStub<JellyfinOptions>(jellyfinOpts), _cache, Microsoft.Extensions.Logging.Abstractions.NullLogger<JellyfinWatchStateProvider>.Instance);
+        JellyfinWatchStateProvider jellyfinProvider = new(_httpClient,
+            new OptionsSnapshotStub<JellyfinOptions>(jellyfinOpts), _cache,
+            NullLogger<JellyfinWatchStateProvider>.Instance);
 
         // Trakt
-        var traktOpts = new TraktOptions
+        TraktOptions traktOpts = new()
         {
             ClientId = Environment.GetEnvironmentVariable("TRAKT_CLIENT_ID") ?? "",
             AccessToken = Environment.GetEnvironmentVariable("TRAKT_ACCESS_TOKEN") ?? ""
         };
-        var traktWatchProvider = new TraktWatchStateProvider(_httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache, Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktWatchStateProvider>.Instance);
-        var traktThoughtProvider = new TraktThoughtProvider(
+        TraktWatchStateProvider traktWatchProvider = new(_httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts),
+            _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktThoughtProvider traktThoughtProvider = new(
             _httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache, new ReplyTreeBuilder(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TraktThoughtProvider>.Instance);
+            NullLogger<TraktThoughtProvider>.Instance);
 
         // Bluesky
-        var blueskyOpts = new BlueskyOptions
+        BlueskyOptions blueskyOpts = new()
         {
             Handle = Environment.GetEnvironmentVariable("BSKY_IDENTIFIER") ?? "",
             AppPassword = Environment.GetEnvironmentVariable("BSKY_APP_PASSWORD")
         };
-        var blueskyProvider = new BlueskyThoughtProvider(
+        BlueskyThoughtProvider blueskyProvider = new(
             _httpClient, new OptionsSnapshotStub<BlueskyOptions>(blueskyOpts), _cache, new ReplyTreeBuilder(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<BlueskyThoughtProvider>.Instance);
+            NullLogger<BlueskyThoughtProvider>.Instance);
 
         // Reddit
-        var redditOpts = new RedditOptions();
-        var redditProvider = new RedditThoughtProvider(
+        RedditOptions redditOpts = new();
+        RedditThoughtProvider redditProvider = new(
             _httpClient, new OptionsSnapshotStub<RedditOptions>(redditOpts), _cache, new ReplyTreeBuilder(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<RedditThoughtProvider>.Instance);
+            NullLogger<RedditThoughtProvider>.Instance);
 
         // Act - all providers should handle health checks without throwing
-        var jellyfinHealth = await jellyfinProvider.GetServiceHealthAsync();
-        var traktWatchHealth = await traktWatchProvider.GetServiceHealthAsync();
-        var traktThoughtHealth = await traktThoughtProvider.GetServiceHealthAsync();
-        var blueskyHealth = await blueskyProvider.GetServiceHealthAsync();
-        var redditHealth = await redditProvider.GetServiceHealthAsync();
+        ServiceHealth jellyfinHealth = await jellyfinProvider.GetServiceHealthAsync();
+        ServiceHealth traktWatchHealth = await traktWatchProvider.GetServiceHealthAsync();
+        ServiceHealth traktThoughtHealth = await traktThoughtProvider.GetServiceHealthAsync();
+        ServiceHealth blueskyHealth = await blueskyProvider.GetServiceHealthAsync();
+        ServiceHealth redditHealth = await redditProvider.GetServiceHealthAsync();
 
         // Assert - just verify we got health responses (they may be healthy or unhealthy depending on config)
         jellyfinHealth.Should().NotBeNull();

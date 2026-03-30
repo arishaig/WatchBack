@@ -1,6 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-
 using WatchBack.Infrastructure.Persistence;
 using WatchBack.Infrastructure.Persistence.Entities;
 
@@ -27,17 +24,20 @@ public sealed partial class SyncHistoryStore(IServiceScopeFactory scopeFactory, 
         _ = PersistAsync(snapshot, durationMs);
     }
 
-    public SyncSnapshot? GetLatest() => _latest;
+    public SyncSnapshot? GetLatest()
+    {
+        return _latest;
+    }
 
     private async Task PersistAsync(SyncSnapshot snapshot, long? durationMs)
     {
         try
         {
-            using var scope = scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<WatchBackDbContext>();
+            using IServiceScope scope = scopeFactory.CreateScope();
+            WatchBackDbContext db = scope.ServiceProvider.GetRequiredService<WatchBackDbContext>();
 
-            var thoughtCount = snapshot.Sources.Sum(s => s.ThoughtCount);
-            var entity = new SyncLogEntity
+            int thoughtCount = snapshot.Sources.Sum(s => s.ThoughtCount);
+            SyncLogEntity entity = new()
             {
                 Timestamp = snapshot.Timestamp,
                 Status = snapshot.Status,

@@ -1,9 +1,12 @@
+using System.Diagnostics;
+using System.Text.Json;
 using System.Threading.Channels;
 
 using Microsoft.AspNetCore.Mvc;
 
 using WatchBack.Api.Logging;
 using WatchBack.Api.Models;
+using WatchBack.Api.Serialization;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 
@@ -13,14 +16,15 @@ public static class SyncEndpoints
 {
     public static void MapSyncEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api")
+        RouteGroupBuilder group = app.MapGroup("/api")
             .WithTags("Sync");
 
         group.MapGet("/sync", GetSync)
             .WithName("GetSync")
             .WithSummary("Get current sync status")
-            .WithDescription("Retrieves the current media context, all associated thoughts from providers, and filtered time-machine thoughts")
-            .Produces<SyncResponse>(StatusCodes.Status200OK);
+            .WithDescription(
+                "Retrieves the current media context, all associated thoughts from providers, and filtered time-machine thoughts")
+            .Produces<SyncResponse>();
 
         group.MapPost("/sync/trigger", (SyncTrigger trigger) =>
             {
@@ -35,22 +39,25 @@ public static class SyncEndpoints
         group.MapGet("/sync/stream", GetSyncStream)
             .WithName("GetSyncStream")
             .WithSummary("Stream sync status updates")
-            .WithDescription("Server-sent events stream that polls sync status every 5 seconds and sends updates to the client")
+            .WithDescription(
+                "Server-sent events stream that polls sync status every 5 seconds and sends updates to the client")
             .Produces(StatusCodes.Status200OK);
     }
 
-    private static Dictionary<string, BrandData?> BuildBrandLookup(IEnumerable<IThoughtProvider> providers) =>
-        providers.ToDictionary(
+    private static Dictionary<string, BrandData?> BuildBrandLookup(IEnumerable<IThoughtProvider> providers)
+    {
+        return providers.ToDictionary(
             p => p.Metadata.Name,
             p => p.Metadata.BrandData,
             StringComparer.OrdinalIgnoreCase);
+    }
 
     private static async Task<SyncResponse> GetSync(
         ISyncService syncService,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         CancellationToken ct)
     {
-        var result = await syncService.SyncAsync(null, ct);
+        SyncResult result = await syncService.SyncAsync(null, ct);
         return MapSyncResult(result, BuildBrandLookup(thoughtProviders));
     }
 
@@ -66,11 +73,11 @@ public static class SyncEndpoints
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
 
-        var providerList = thoughtProviders.ToList();
-        var totalWeight = providerList.Sum(p => p.ExpectedWeight);
+        List<IThoughtProvider> providerList = thoughtProviders.ToList();
+        int totalWeight = providerList.Sum(p => p.ExpectedWeight);
 
         // Pre-build provider metadata for the segmented bar: name → (color, totalWeight)
-        var providerMeta = providerList.ToDictionary(
+        Dictionary<string, (string Color, int Total)> providerMeta = providerList.ToDictionary(
             p => p.Metadata.Name,
             p => (Color: p.Metadata.BrandData?.Color ?? "var(--wb-accent)", Total: p.ExpectedWeight));
 
@@ -79,10 +86,9 @@ public static class SyncEndpoints
             try
             {
                 // Channel lets providers report ticks from any thread without blocking
-                var channel = Channel.CreateUnbounded<SyncProgressTick>(
+                Channel<SyncProgressTick> channel = Channel.CreateUnbounded<SyncProgressTick>(
                     new UnboundedChannelOptions { SingleReader = true });
-                var progress = new Progress<SyncProgressTick>(
-                    tick => channel.Writer.TryWrite(tick));
+                Progress<SyncProgressTick> progress = new(tick => channel.Writer.TryWrite(tick));
 
                 // Emit 0% so the bar appears immediately
                 await context.Response.WriteAsync(
@@ -90,21 +96,21 @@ public static class SyncEndpoints
                 await context.Response.Body.FlushAsync(ct);
 
                 // Start sync; complete the channel when it finishes so ReadAllAsync terminates
-                var syncStopwatch = System.Diagnostics.Stopwatch.StartNew();
-                var syncTask = syncService.SyncAsync(progress, ct);
+                Stopwatch syncStopwatch = Stopwatch.StartNew();
+                Task<SyncResult> syncTask = syncService.SyncAsync(progress, ct);
                 _ = syncTask.ContinueWith(
                     t => channel.Writer.Complete(t.IsFaulted ? t.Exception : null),
                     TaskScheduler.Default);
 
                 // Drain progress ticks and forward them to the SSE stream
-                var completed = 0;
-                var providerCompleted = new Dictionary<string, int>();
-                await foreach (var tick in channel.Reader.ReadAllAsync(ct))
+                int completed = 0;
+                Dictionary<string, int> providerCompleted = new();
+                await foreach (SyncProgressTick tick in channel.Reader.ReadAllAsync(ct))
                 {
                     completed += tick.Weight;
                     providerCompleted[tick.Provider] = providerCompleted.GetValueOrDefault(tick.Provider) + tick.Weight;
 
-                    var segments = providerMeta
+                    ProgressSegment[] segments = providerMeta
                         .OrderBy(kv => kv.Value.Total)
                         .Select(kv => new ProgressSegment(
                             kv.Key, kv.Value.Color,
@@ -119,7 +125,7 @@ public static class SyncEndpoints
                 // Force 100% in case providers reported fewer ticks than expected (e.g. cache hits)
                 if (completed < totalWeight)
                 {
-                    var fullSegments = providerMeta
+                    ProgressSegment[] fullSegments = providerMeta
                         .OrderBy(kv => kv.Value.Total)
                         .Select(kv => new ProgressSegment(
                             kv.Key, kv.Value.Color, kv.Value.Total, kv.Value.Total)).ToArray();
@@ -128,27 +134,30 @@ public static class SyncEndpoints
                     await context.Response.Body.FlushAsync(ct);
                 }
 
-                var result = await syncTask;
+                SyncResult result = await syncTask;
                 syncStopwatch.Stop();
 
                 // Record sync history for the diagnostics panel and persist to database
-                var sourceRecords = result.SourceResults
+                List<ProviderSyncRecord> sourceRecords = result.SourceResults
                     .Select(sr => new ProviderSyncRecord(sr.Source, sr.Thoughts?.Count ?? 0))
                     .ToList();
                 syncHistory.Record(
                     new SyncSnapshot(DateTimeOffset.UtcNow, result.Status.ToString(), result.Title, sourceRecords),
                     syncStopwatch.ElapsedMilliseconds);
 
-                var response = MapSyncResult(result, BuildBrandLookup(providerList));
-                var json = System.Text.Json.JsonSerializer.Serialize(response, Serialization.WatchBackJsonContext.Default.SyncResponse);
+                SyncResponse response = MapSyncResult(result, BuildBrandLookup(providerList));
+                string json = JsonSerializer.Serialize(response, WatchBackJsonContext.Default.SyncResponse);
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
 
                 // Wait up to 5 s, but wake immediately if the user hits the Sync button
-                using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                using CancellationTokenSource delayCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 delayCts.CancelAfter(5000);
                 try { await syncTrigger.WaitAsync(delayCts.Token); }
-                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { /* normal timeout */ }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    /* normal timeout */
+                }
             }
             catch (OperationCanceledException)
             {
@@ -163,92 +172,94 @@ public static class SyncEndpoints
         }
     }
 
-    internal sealed record ProgressSegment(string Provider, string Color, int Completed, int Total);
-    internal sealed record ProgressEvent(int Completed, int Total, ProgressSegment[]? Providers);
-
     private static string BuildProgressEvent(int completed, int total, ProgressSegment[] segments)
     {
-        var evt = new ProgressEvent(completed, total, segments.Length > 0 ? segments : null);
-        var json = System.Text.Json.JsonSerializer.Serialize(evt, Serialization.WatchBackJsonContext.Default.ProgressEvent);
+        ProgressEvent evt = new(completed, total, segments.Length > 0 ? segments : null);
+        string json = JsonSerializer.Serialize(evt, WatchBackJsonContext.Default.ProgressEvent);
         return $"data: {json}\n\n";
     }
 
     private static SyncResponse MapSyncResult(
-        Core.Models.SyncResult result,
-        IReadOnlyDictionary<string, Core.Models.BrandData?> brandBySource)
+        SyncResult result,
+        IReadOnlyDictionary<string, BrandData?> brandBySource)
     {
         return new SyncResponse(
-            Status: result.Status.ToString(),
-            Title: result.Title,
-            Metadata: result.Metadata != null ? MapMediaContext(result.Metadata) : null,
-            AllThoughts: result.AllThoughts.Select(t => MapThought(t, brandBySource)).ToList(),
-            TimeMachineThoughts: result.TimeMachineThoughts.Select(t => MapThought(t, brandBySource)).ToList(),
-            TimeMachineDays: result.TimeMachineDays,
-            SourceResults: result.SourceResults.Select(r => MapSourceResult(r, brandBySource)).ToList(),
-            WatchProvider: result.WatchProvider,
-            SuppressedProvider: result.SuppressedProvider,
-            SuppressedTitle: result.SuppressedTitle,
-            Ratings: result.Ratings?.Select(r => new MediaRatingResponse(r.Source, r.Value, r.BrandData?.LogoSvg, r.BrandData?.Color)).ToList(),
-            RatingsProvider: result.RatingsProvider);
+            result.Status.ToString(),
+            result.Title,
+            result.Metadata != null ? MapMediaContext(result.Metadata) : null,
+            result.AllThoughts.Select(t => MapThought(t, brandBySource)).ToList(),
+            result.TimeMachineThoughts.Select(t => MapThought(t, brandBySource)).ToList(),
+            result.TimeMachineDays,
+            result.SourceResults.Select(r => MapSourceResult(r, brandBySource)).ToList(),
+            result.WatchProvider,
+            result.SuppressedProvider,
+            result.SuppressedTitle,
+            result.Ratings?.Select(r =>
+                new MediaRatingResponse(r.Source, r.Value, r.BrandData?.LogoSvg, r.BrandData?.Color)).ToList(),
+            result.RatingsProvider);
     }
 
-    private static MediaContextResponse MapMediaContext(Core.Models.MediaContext context)
+    private static MediaContextResponse MapMediaContext(MediaContext context)
     {
-        if (context is Core.Models.EpisodeContext episode)
+        if (context is EpisodeContext episode)
         {
             return new MediaContextResponse(
-                Title: episode.Title,
-                ReleaseDate: episode.ReleaseDate?.DateTime,
-                EpisodeTitle: episode.EpisodeTitle,
-                SeasonNumber: episode.SeasonNumber,
-                EpisodeNumber: episode.EpisodeNumber);
+                episode.Title,
+                episode.ReleaseDate?.DateTime,
+                episode.EpisodeTitle,
+                episode.SeasonNumber,
+                episode.EpisodeNumber);
         }
 
         return new MediaContextResponse(
-            Title: context.Title,
-            ReleaseDate: context.ReleaseDate?.DateTime,
-            EpisodeTitle: null,
-            SeasonNumber: null,
-            EpisodeNumber: null);
+            context.Title,
+            context.ReleaseDate?.DateTime,
+            null,
+            null,
+            null);
     }
 
     private static ThoughtResponse MapThought(
-        Core.Models.Thought thought,
-        IReadOnlyDictionary<string, Core.Models.BrandData?> brandBySource)
+        Thought thought,
+        IReadOnlyDictionary<string, BrandData?> brandBySource)
     {
-        var brand = brandBySource.GetValueOrDefault(thought.Source);
+        BrandData? brand = brandBySource.GetValueOrDefault(thought.Source);
         return new ThoughtResponse(
-            Id: thought.Id,
-            ParentId: thought.ParentId,
-            Title: thought.Title,
-            Content: thought.Content,
-            Url: thought.Url,
-            Images: thought.Images.Select(i => new ThoughtImageResponse(i.Url, i.Alt)).ToList(),
-            Author: thought.Author,
-            Score: thought.Score,
-            CreatedAt: thought.CreatedAt.DateTime,
-            Source: thought.Source,
-            Replies: thought.Replies.Select(r => MapThought(r, brandBySource)).ToList(),
-            PostTitle: thought.PostTitle,
-            PostUrl: thought.PostUrl,
-            PostBody: thought.PostBody,
-            BrandColor: brand?.Color,
-            BrandLogoSvg: brand?.LogoSvg);
+            thought.Id,
+            thought.ParentId,
+            thought.Title,
+            thought.Content,
+            thought.Url,
+            thought.Images.Select(i => new ThoughtImageResponse(i.Url, i.Alt)).ToList(),
+            thought.Author,
+            thought.Score,
+            thought.CreatedAt.DateTime,
+            thought.Source,
+            thought.Replies.Select(r => MapThought(r, brandBySource)).ToList(),
+            thought.PostTitle,
+            thought.PostUrl,
+            thought.PostBody,
+            brand?.Color,
+            brand?.LogoSvg);
     }
 
     private static SourceResultResponse MapSourceResult(
-        Core.Models.ThoughtResult result,
-        IReadOnlyDictionary<string, Core.Models.BrandData?> brandBySource)
+        ThoughtResult result,
+        IReadOnlyDictionary<string, BrandData?> brandBySource)
     {
-        var brand = brandBySource.GetValueOrDefault(result.Source);
+        BrandData? brand = brandBySource.GetValueOrDefault(result.Source);
         return new SourceResultResponse(
-            Source: result.Source,
-            PostTitle: result.PostTitle,
-            PostUrl: result.PostUrl,
-            ImageUrl: result.ImageUrl,
-            Thoughts: result.Thoughts?.Select(r => MapThought(r, brandBySource)).ToList() ?? [],
-            NextPageToken: result.NextPageToken,
-            BrandColor: brand?.Color,
-            BrandLogoSvg: brand?.LogoSvg);
+            result.Source,
+            result.PostTitle,
+            result.PostUrl,
+            result.ImageUrl,
+            result.Thoughts?.Select(r => MapThought(r, brandBySource)).ToList() ?? [],
+            result.NextPageToken,
+            brand?.Color,
+            brand?.LogoSvg);
     }
+
+    internal sealed record ProgressSegment(string Provider, string Color, int Completed, int Total);
+
+    internal sealed record ProgressEvent(int Completed, int Total, ProgressSegment[]? Providers);
 }

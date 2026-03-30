@@ -2,13 +2,10 @@ using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.Localization;
-using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Localization;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 using WatchBack.Api;
 using WatchBack.Api.Auth;
@@ -22,7 +19,7 @@ using WatchBack.Infrastructure.Extensions;
 using WatchBack.Infrastructure.Persistence;
 using WatchBack.Infrastructure.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<InMemoryLogBuffer>();
 builder.Services.AddSingleton<SyncHistoryStore>();
@@ -35,24 +32,26 @@ builder.Services.AddHttpClient();
 
 // Add database
 // Use environment variable or default path
-var databasePath = Environment.GetEnvironmentVariable("WATCHBACK_DATABASE_PATH");
+string? databasePath = Environment.GetEnvironmentVariable("WATCHBACK_DATABASE_PATH");
 if (string.IsNullOrEmpty(databasePath))
 {
     // Default: use /app/data for Docker, or AppData for local development
-    var basePath = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production"
+    string basePath = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production"
         ? "/app/data"
         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WatchBack");
     databasePath = Path.Combine(basePath, "watchback.db");
 }
 
-var dbDirectory = Path.GetDirectoryName(databasePath);
+string? dbDirectory = Path.GetDirectoryName(databasePath);
 if (dbDirectory != null)
+{
     Directory.CreateDirectory(dbDirectory);
+}
 
 // Load user-editable config from the same directory as the database
-var userConfigPath = Path.Combine(dbDirectory ?? ".", "user-settings.json");
-builder.Configuration.AddJsonFile(userConfigPath, optional: true, reloadOnChange: true);
-builder.Services.AddSingleton(new WatchBack.Api.Endpoints.UserConfigFile(userConfigPath));
+string userConfigPath = Path.Combine(dbDirectory ?? ".", "user-settings.json");
+builder.Configuration.AddJsonFile(userConfigPath, true, true);
+builder.Services.AddSingleton(new UserConfigFile(userConfigPath));
 
 builder.Services.AddDbContext<WatchBackDbContext>(options =>
     options.UseSqlite($"Data Source={databasePath}"));
@@ -102,7 +101,7 @@ builder.Services.AddWatchBackInfrastructure();
 
 // Add internationalization and localization
 builder.Services.AddLocalization();
-var supportedCultures = new[] { "en-US", "es" };
+string[] supportedCultures = ["en-US", "es"];
 builder.Services.Configure<RequestLocalizationOptions>(opts =>
 {
     opts.SetDefaultCulture("en-US")
@@ -128,8 +127,8 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("login", ctx =>
         RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new FixedWindowRateLimiterOptions
+            ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 5,
                 Window = TimeSpan.FromMinutes(1),
@@ -162,7 +161,7 @@ builder.Services
 
 builder.Services.AddAuthorization(options =>
 {
-    options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+    options.DefaultPolicy = new AuthorizationPolicyBuilder()
         .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, "ForwardAuth")
         .RequireAuthenticatedUser()
         .Build();
@@ -172,12 +171,12 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // Initialize database
-using (var scope = app.Services.CreateScope())
+using (IServiceScope scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<WatchBackDbContext>();
+    WatchBackDbContext dbContext = scope.ServiceProvider.GetRequiredService<WatchBackDbContext>();
     await dbContext.Database.MigrateAsync();
 }
 
@@ -198,12 +197,13 @@ app.UseWhen(
     ctx => ctx.Request.Path.StartsWithSegments("/swagger"),
     branch => branch.Use(async (ctx, next) =>
     {
-        var authResult = await ctx.AuthenticateAsync();
+        AuthenticateResult authResult = await ctx.AuthenticateAsync();
         if (!authResult.Succeeded)
         {
             ctx.Response.Redirect("/");
             return;
         }
+
         await next();
     }));
 app.UseSwagger();
@@ -216,7 +216,7 @@ app.UseSwaggerUI(options =>
 // Map endpoints
 app.MapStringsEndpoints(); // public strings endpoint
 app.MapAuthEndpoints(); // public auth endpoints
-var protectedGroup = app.MapGroup("").RequireAuthorization();
+RouteGroupBuilder protectedGroup = app.MapGroup("").RequireAuthorization();
 protectedGroup.MapSyncEndpoints();
 protectedGroup.MapConfigEndpoints();
 protectedGroup.MapSystemEndpoints();
@@ -231,20 +231,24 @@ app.Run();
 
 static async Task InitializeAuthAsync(WebApplication webApp)
 {
-    var passwordHash = webApp.Configuration["Auth:PasswordHash"] ?? "";
+    string passwordHash = webApp.Configuration["Auth:PasswordHash"] ?? "";
     if (!string.IsNullOrEmpty(passwordHash))
+    {
         return;
+    }
 
-    var password = AuthEndpoints.GeneratePassword();
-    var hasher = new Microsoft.AspNetCore.Identity.PasswordHasher<string>();
-    var hash = hasher.HashPassword("", password);
+    string password = AuthEndpoints.GeneratePassword();
+    PasswordHasher<string> hasher = new();
+    string hash = hasher.HashPassword("", password);
 
-    var configFile = webApp.Services.GetRequiredService<UserConfigFile>();
-    await AuthEndpoints.WriteAuthConfig(configFile, "watchback", hash, onboardingComplete: false, CancellationToken.None);
+    UserConfigFile configFile = webApp.Services.GetRequiredService<UserConfigFile>();
+    await AuthEndpoints.WriteAuthConfig(configFile, "watchback", hash, false, CancellationToken.None);
 
     // Force reload so IOptionsSnapshot picks up new values on first request
     if (webApp.Configuration is IConfigurationRoot configRoot)
+    {
         configRoot.Reload();
+    }
 
     // Write directly to stdout — avoids logger pipeline so credentials
     // don't end up in structured log sinks (Seq, ELK, etc.)
@@ -257,4 +261,4 @@ static async Task InitializeAuthAsync(WebApplication webApp)
 }
 
 // Make Program accessible for tests
-public partial class Program { }
+public partial class Program;

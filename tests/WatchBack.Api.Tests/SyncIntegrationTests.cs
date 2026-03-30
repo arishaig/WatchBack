@@ -12,10 +12,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using NSubstitute;
 
-using WatchBack.Api;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
-using WatchBack.Core.Options;
 
 using Xunit;
 
@@ -25,21 +23,22 @@ public class SyncIntegrationTests : IAsyncLifetime
 {
     private const string TestUsername = "testadmin";
     private const string TestPassword = "TestPass1!@#456";
+    private HttpClient _client = null!;
 
     private WebApplicationFactory<Program> _factory = null!;
-    private HttpClient _client = null!;
-    private IWatchStateProvider _mockWatchProvider = null!;
     private IThoughtProvider _mockThoughtProvider = null!;
+    private IWatchStateProvider _mockWatchProvider = null!;
 
     public async Task InitializeAsync()
     {
         _mockWatchProvider = Substitute.For<IWatchStateProvider>();
         _mockWatchProvider.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
         _mockThoughtProvider = Substitute.For<IThoughtProvider>();
-        _mockThoughtProvider.Metadata.Returns(new DataProviderMetadata("Test", "Test", BrandData: new BrandData("", "")));
+        _mockThoughtProvider.Metadata.Returns(
+            new DataProviderMetadata("Test", "Test", BrandData: new BrandData("", "")));
 
-        var hasher = new PasswordHasher<string>();
-        var hash = hasher.HashPassword("", TestPassword);
+        PasswordHasher<string> hasher = new();
+        string hash = hasher.HashPassword("", TestPassword);
 
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
@@ -50,7 +49,7 @@ public class SyncIntegrationTests : IAsyncLifetime
                     {
                         ["Auth:Username"] = TestUsername,
                         ["Auth:PasswordHash"] = hash,
-                        ["Auth:OnboardingComplete"] = "true",
+                        ["Auth:OnboardingComplete"] = "true"
                     });
                 });
                 builder.ConfigureServices(services =>
@@ -69,18 +68,18 @@ public class SyncIntegrationTests : IAsyncLifetime
         await LoginAsync();
     }
 
-    private async Task LoginAsync()
-    {
-        var loginBody = new { username = TestUsername, password = TestPassword };
-        var response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
-        response.EnsureSuccessStatusCode();
-    }
-
     public Task DisposeAsync()
     {
         _client?.Dispose();
         _factory?.Dispose();
         return Task.CompletedTask;
+    }
+
+    private async Task LoginAsync()
+    {
+        var loginBody = new { username = TestUsername, password = TestPassword };
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
+        response.EnsureSuccessStatusCode();
     }
 
     [Fact]
@@ -91,8 +90,8 @@ public class SyncIntegrationTests : IAsyncLifetime
             .Returns((MediaContext?)null);
 
         // Act
-        var response = await _client.GetAsync("/api/sync");
-        var json = await response.Content.ReadAsStringAsync();
+        HttpResponseMessage response = await _client.GetAsync("/api/sync");
+        string json = await response.Content.ReadAsStringAsync();
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -105,35 +104,37 @@ public class SyncIntegrationTests : IAsyncLifetime
     public async Task GetSync_WithActiveEpisode_ReturnsWatchingStatus()
     {
         // Arrange
-        var episode = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext episode = new(
+            "Breaking Bad",
+            new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
 
         _mockWatchProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>())
             .Returns(episode);
 
-        var thought = new Thought(
-            Id: "1",
-            ParentId: null,
-            Title: null,
-            Content: "Amazing episode!",
-            Url: null,
-            Images: [],
-            Author: "TestUser",
-            Score: 10,
-            CreatedAt: DateTimeOffset.UtcNow,
-            Source: "TestSource",
-            Replies: []);
+        Thought thought = new(
+            "1",
+            null,
+            null,
+            "Amazing episode!",
+            null,
+            [],
+            "TestUser",
+            10,
+            DateTimeOffset.UtcNow,
+            "TestSource",
+            []);
 
-        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
-            .Returns(new ThoughtResult("TestSource", "Episode Discussion", "http://example.com", null, [thought], null));
+        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("TestSource", "Episode Discussion", "http://example.com", null, [thought],
+                null));
 
         // Act
-        var response = await _client.GetAsync("/api/sync");
-        var json = await response.Content.ReadAsStringAsync();
+        HttpResponseMessage response = await _client.GetAsync("/api/sync");
+        string json = await response.Content.ReadAsStringAsync();
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -147,24 +148,25 @@ public class SyncIntegrationTests : IAsyncLifetime
     public async Task GetSync_AggregatesMultipleThoughtProviders()
     {
         // Arrange
-        var episode = new EpisodeContext(
-            Title: "Test Show",
-            ReleaseDate: DateTimeOffset.UtcNow,
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext episode = new(
+            "Test Show",
+            DateTimeOffset.UtcNow,
+            "Pilot",
+            1,
+            1);
 
         _mockWatchProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>())
             .Returns(episode);
 
         // First provider
-        var thought1 = new Thought("1", null, null, "Great!", null, [], "User1", 5, DateTimeOffset.UtcNow, "Reddit", []);
-        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+        Thought thought1 = new("1", null, null, "Great!", null, [], "User1", 5, DateTimeOffset.UtcNow, "Reddit", []);
+        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(),
+                Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Reddit", "Discussion", "http://reddit.com", null, [thought1], null));
 
         // Act
-        var response = await _client.GetAsync("/api/sync");
-        var json = await response.Content.ReadAsStringAsync();
+        HttpResponseMessage response = await _client.GetAsync("/api/sync");
+        string json = await response.Content.ReadAsStringAsync();
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -180,15 +182,15 @@ public class SyncIntegrationTests : IAsyncLifetime
             .Returns((MediaContext?)null);
 
         // Act
-        var response = await _client.GetAsync("/api/sync");
-        var json = await response.Content.ReadAsStringAsync();
+        HttpResponseMessage response = await _client.GetAsync("/api/sync");
+        string json = await response.Content.ReadAsStringAsync();
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var doc = JsonDocument.Parse(json);
+        JsonDocument doc = JsonDocument.Parse(json);
         doc.Should().NotBeNull();
 
-        var root = doc.RootElement;
+        JsonElement root = doc.RootElement;
         root.HaveProperty("status").Should().BeTrue();
         root.HaveProperty("timeMachineDays").Should().BeTrue();
         root.HaveProperty("allThoughts").Should().BeTrue();
@@ -199,22 +201,23 @@ public class SyncIntegrationTests : IAsyncLifetime
     public async Task GetSync_IncludesMetadataWhenWatching()
     {
         // Arrange
-        var episode = new EpisodeContext(
-            Title: "Breaking Bad",
-            ReleaseDate: new DateTimeOffset(2008, 1, 20, 12, 0, 0, TimeSpan.Zero),
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext episode = new(
+            "Breaking Bad",
+            new DateTimeOffset(2008, 1, 20, 12, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
 
         _mockWatchProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>())
             .Returns(episode);
 
-        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(),
+                Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Source", null, null, null, [], null));
 
         // Act
-        var response = await _client.GetAsync("/api/sync");
-        var json = await response.Content.ReadAsStringAsync();
+        HttpResponseMessage response = await _client.GetAsync("/api/sync");
+        string json = await response.Content.ReadAsStringAsync();
 
         // Assert
         json.Should().Contain("\"title\":\"Breaking Bad\"");
@@ -227,34 +230,35 @@ public class SyncIntegrationTests : IAsyncLifetime
     public async Task GetSync_SortsThoughtsByCreatedAtDescending()
     {
         // Arrange
-        var episode = new EpisodeContext(
-            Title: "Test",
-            ReleaseDate: DateTimeOffset.UtcNow,
-            EpisodeTitle: "Pilot",
-            SeasonNumber: 1,
-            EpisodeNumber: 1);
+        EpisodeContext episode = new(
+            "Test",
+            DateTimeOffset.UtcNow,
+            "Pilot",
+            1,
+            1);
 
         _mockWatchProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>())
             .Returns(episode);
 
-        var now = DateTimeOffset.UtcNow;
-        var thoughts = new[]
-        {
-            new Thought("1", null, null, "Oldest", null, [], "Author", 0, now.AddHours(-2), "Source", []),
-            new Thought("2", null, null, "Newest", null, [], "Author", 0, now, "Source", []),
-            new Thought("3", null, null, "Middle", null, [], "Author", 0, now.AddHours(-1), "Source", []),
-        };
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        Thought[] thoughts =
+        [
+            new("1", null, null, "Oldest", null, [], "Author", 0, now.AddHours(-2), "Source", []),
+            new("2", null, null, "Newest", null, [], "Author", 0, now, "Source", []),
+            new("3", null, null, "Middle", null, [], "Author", 0, now.AddHours(-1), "Source", [])
+        ];
 
-        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+        _mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(),
+                Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Source", null, null, null, thoughts, null));
 
         // Act
-        var response = await _client.GetAsync("/api/sync");
-        var json = await response.Content.ReadAsStringAsync();
-        var doc = JsonDocument.Parse(json);
+        HttpResponseMessage response = await _client.GetAsync("/api/sync");
+        string json = await response.Content.ReadAsStringAsync();
+        JsonDocument doc = JsonDocument.Parse(json);
 
         // Assert
-        var allThoughts = doc.RootElement.GetProperty("allThoughts");
+        JsonElement allThoughts = doc.RootElement.GetProperty("allThoughts");
         allThoughts.GetArrayLength().Should().Be(3);
         allThoughts[0].GetProperty("content").GetString().Should().Be("Newest");
         allThoughts[1].GetProperty("content").GetString().Should().Be("Middle");

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -6,29 +7,27 @@ using Microsoft.Extensions.Logging;
 namespace WatchBack.Infrastructure.Http;
 
 /// <summary>
-/// Pipeline handler applied to every typed HttpClient in the application.
-///
-/// • 429 Too Many Requests: records the Retry-After window in IMemoryCache keyed by
-///   host. Subsequent requests to that host short-circuit immediately (no network call)
-///   and return a synthetic 429 until the window expires. Capped at 5 minutes to guard
-///   against a misbehaving server pinning us indefinitely.
-///
-/// • 5xx transient responses and network errors: up to 3 retries with exponential
-///   backoff (~1 s → ~2 s → ~4 s) and ±25 % jitter, capped at 30 s.
+///     Pipeline handler applied to every typed HttpClient in the application.
+///     • 429 Too Many Requests: records the Retry-After window in IMemoryCache keyed by
+///     host. Subsequent requests to that host short-circuit immediately (no network call)
+///     and return a synthetic 429 until the window expires. Capped at 5 minutes to guard
+///     against a misbehaving server pinning us indefinitely.
+///     • 5xx transient responses and network errors: up to 3 retries with exponential
+///     backoff (~1 s → ~2 s → ~4 s) and ±25 % jitter, capped at 30 s.
 /// </summary>
 public sealed class ResilientHttpHandler(
     IMemoryCache cache,
     ILogger<ResilientHttpHandler> logger) : DelegatingHandler
 {
     private const int MaxRetries = 3;
-    private static readonly TimeSpan MaxBackoffDelay = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan MaxRateLimitWindow = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan s_maxBackoffDelay = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan s_maxRateLimitWindow = TimeSpan.FromMinutes(5);
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        var host = request.RequestUri?.Host ?? string.Empty;
-        var rateLimitKey = $"ratelimit:{host}";
+        string host = request.RequestUri?.Host ?? string.Empty;
+        string rateLimitKey = $"ratelimit:{host}";
 
         // Short-circuit during an active rate-limit window — no network call made.
         if (cache.TryGetValue(rateLimitKey, out _))
@@ -37,7 +36,7 @@ public sealed class ResilientHttpHandler(
             return new HttpResponseMessage(HttpStatusCode.TooManyRequests) { RequestMessage = request };
         }
 
-        for (var attempt = 0; ; attempt++)
+        for (int attempt = 0; ; attempt++)
         {
             HttpResponseMessage? response = null;
             try
@@ -46,7 +45,7 @@ public sealed class ResilientHttpHandler(
 
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
-                    var window = RateLimitWindow(response);
+                    TimeSpan window = RateLimitWindow(response);
                     logger.LogWarning(
                         "Rate limited (429) by {Host}. Suppressing requests for {Seconds} s.",
                         host, (int)window.TotalSeconds);
@@ -56,7 +55,7 @@ public sealed class ResilientHttpHandler(
 
                 if (IsTransientStatus(response.StatusCode) && attempt < MaxRetries && IsIdempotent(request.Method))
                 {
-                    var delay = ExponentialDelay(attempt);
+                    TimeSpan delay = ExponentialDelay(attempt);
                     logger.LogWarning(
                         "HTTP {Status} from {Host} (attempt {Attempt}/{Max}). Retrying in {Ms} ms.",
                         (int)response.StatusCode, host, attempt + 1, MaxRetries, (int)delay.TotalMilliseconds);
@@ -68,10 +67,11 @@ public sealed class ResilientHttpHandler(
 
                 return response;
             }
-            catch (Exception ex) when (IsTransientException(ex, cancellationToken) && attempt < MaxRetries && IsIdempotent(request.Method))
+            catch (Exception ex) when (IsTransientException(ex, cancellationToken) && attempt < MaxRetries &&
+                                       IsIdempotent(request.Method))
             {
                 response?.Dispose();
-                var delay = ExponentialDelay(attempt);
+                TimeSpan delay = ExponentialDelay(attempt);
                 logger.LogWarning(ex,
                     "Transient error from {Host} (attempt {Attempt}/{Max}). Retrying in {Ms} ms.",
                     host, attempt + 1, MaxRetries, (int)delay.TotalMilliseconds);
@@ -83,12 +83,18 @@ public sealed class ResilientHttpHandler(
 
     private static TimeSpan RateLimitWindow(HttpResponseMessage response)
     {
-        var retryAfter = response.Headers.RetryAfter;
-        var window = retryAfter?.Delta
-            ?? (retryAfter?.Date is DateTimeOffset date ? date - DateTimeOffset.UtcNow : TimeSpan.FromSeconds(60));
+        RetryConditionHeaderValue? retryAfter = response.Headers.RetryAfter;
+        TimeSpan window = retryAfter?.Delta
+                          ?? (retryAfter?.Date is { } date
+                              ? date - DateTimeOffset.UtcNow
+                              : TimeSpan.FromSeconds(60));
 
-        if (window <= TimeSpan.Zero) window = TimeSpan.FromSeconds(60);
-        return window > MaxRateLimitWindow ? MaxRateLimitWindow : window;
+        if (window <= TimeSpan.Zero)
+        {
+            window = TimeSpan.FromSeconds(60);
+        }
+
+        return window > s_maxRateLimitWindow ? s_maxRateLimitWindow : window;
     }
 
     private static bool IsTransientStatus(HttpStatusCode status)
@@ -108,25 +114,30 @@ public sealed class ResilientHttpHandler(
                    || (ex is TaskCanceledException or OperationCanceledException && !ct.IsCancellationRequested));
     }
 
-    /// <summary>~1 s → ~2 s → ~4 s with ±25 % jitter, capped at MaxBackoffDelay.</summary>
+    /// <summary>~1 s → ~2 s → ~4 s with ±25 % jitter, capped at s_maxBackoffDelay.</summary>
     private static TimeSpan ExponentialDelay(int attempt)
     {
-        var baseMs = Math.Pow(2, attempt) * 1000;
-        var jitter = (Random.Shared.NextDouble() - 0.5) * 0.5 * baseMs;
-        return TimeSpan.FromMilliseconds(Math.Min(baseMs + jitter, MaxBackoffDelay.TotalMilliseconds));
+        double baseMs = Math.Pow(2, attempt) * 1000;
+        double jitter = (Random.Shared.NextDouble() - 0.5) * 0.5 * baseMs;
+        return TimeSpan.FromMilliseconds(Math.Min(baseMs + jitter, s_maxBackoffDelay.TotalMilliseconds));
     }
 
     /// <summary>Only idempotent methods are safe to retry — POST/PATCH bodies cannot be reliably cloned.</summary>
-    private static bool IsIdempotent(HttpMethod method) =>
-        method == HttpMethod.Get || method == HttpMethod.Head ||
-        method == HttpMethod.Options || method == HttpMethod.Delete;
+    private static bool IsIdempotent(HttpMethod method)
+    {
+        return method == HttpMethod.Get || method == HttpMethod.Head ||
+               method == HttpMethod.Options || method == HttpMethod.Delete;
+    }
 
     /// <summary>Clones a request for retry — HttpRequestMessage is single-use after SendAsync.</summary>
     private static HttpRequestMessage CloneRequest(HttpRequestMessage original)
     {
-        var clone = new HttpRequestMessage(original.Method, original.RequestUri);
-        foreach (var (key, values) in original.Headers)
+        HttpRequestMessage clone = new(original.Method, original.RequestUri);
+        foreach ((string key, IEnumerable<string> values) in original.Headers)
+        {
             clone.Headers.TryAddWithoutValidation(key, values);
+        }
+
         return clone;
     }
 }

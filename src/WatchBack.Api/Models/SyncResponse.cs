@@ -1,9 +1,7 @@
-using WatchBack.Core.Models;
-
 namespace WatchBack.Api.Models;
 
 /// <summary>
-/// Consolidated sync result containing media context, all retrieved thoughts, and time-filtered thoughts
+///     Consolidated sync result containing media context, all retrieved thoughts, and time-filtered thoughts
 /// </summary>
 /// <param name="Status">Current sync status: Idle, Watching, or Error</param>
 /// <param name="Title">Title of the media currently being watched, or null if idle</param>
@@ -30,7 +28,7 @@ public record SyncResponse(
     string? RatingsProvider = null);
 
 /// <summary>
-/// Media context information for the currently watched content
+///     Media context information for the currently watched content
 /// </summary>
 /// <param name="Title">Title of the show or movie</param>
 /// <param name="ReleaseDate">Air date or release date of the content</param>
@@ -45,7 +43,7 @@ public record MediaContextResponse(
     int? EpisodeNumber);
 
 /// <summary>
-/// A single thought (comment, review, post, etc.) from a thought provider
+///     A single thought (comment, review, post, etc.) from a thought provider
 /// </summary>
 /// <param name="Id">Unique, deterministic ID derived from the source content</param>
 /// <param name="ParentId">ID of the parent thought if this is a reply</param>
@@ -80,7 +78,7 @@ public record ThoughtResponse(
     string? BrandLogoSvg = null);
 
 /// <summary>
-/// An image associated with a thought
+///     An image associated with a thought
 /// </summary>
 /// <param name="Url">URL to the image</param>
 /// <param name="Alt">Alt text for the image</param>
@@ -89,7 +87,7 @@ public record ThoughtImageResponse(
     string? Alt);
 
 /// <summary>
-/// Aggregated results from a single thought provider
+///     Aggregated results from a single thought provider
 /// </summary>
 /// <param name="Source">Name of the thought provider (Reddit, Bluesky, Trakt, etc.)</param>
 /// <param name="PostTitle">Title of the post or discussion</param>
@@ -108,7 +106,7 @@ public record SourceResultResponse(
     string? BrandLogoSvg = null);
 
 /// <summary>
-/// A single rating from a review aggregator or publication.
+///     A single rating from a review aggregator or publication.
 /// </summary>
 /// <param name="Source">The name of the rating source (e.g. "Internet Movie Database", "Rotten Tomatoes").</param>
 /// <param name="Value">The rating value as a formatted string (e.g. "8.7/10", "97%").</param>

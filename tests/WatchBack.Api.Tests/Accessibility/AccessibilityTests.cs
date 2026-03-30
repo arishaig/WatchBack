@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 
+using Deque.AxeCore.Commons;
 using Deque.AxeCore.Playwright;
 
 using FluentAssertions;
@@ -17,17 +19,24 @@ using static WatchBack.Api.Tests.Accessibility.PlaywrightHelpers;
 namespace WatchBack.Api.Tests.Accessibility;
 
 /// <summary>
-/// Accessibility tests using axe-core via Playwright.
-/// Requires Playwright browsers installed in ~/.cache/ms-playwright.
-/// Every test runs once per theme defined in the UI dropdown.
+///     Accessibility tests using axe-core via Playwright.
+///     Requires Playwright browsers installed in ~/.cache/ms-playwright.
+///     Every test runs once per theme defined in the UI dropdown.
 /// </summary>
 [Trait("Category", "Accessibility")]
 public class AccessibilityTests : IAsyncLifetime, IDisposable
 {
+    private string _baseUrl = null!;
+    private IBrowser _browser = null!;
     private KestrelWebApplicationFactory _factory = null!;
     private IPlaywright _playwright = null!;
-    private IBrowser _browser = null!;
-    private string _baseUrl = null!;
+
+    // -----------------------------------------------------------------------
+    // Dynamic theme data source
+    // -----------------------------------------------------------------------
+
+    public static IEnumerable<object[]> ThemeData =>
+        GetAvailableThemes().Select(t => new object[] { t });
 
     public async Task InitializeAsync()
     {
@@ -37,7 +46,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
         _playwright = await Playwright.CreateAsync();
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
         {
-            ExecutablePath = FindChromiumExecutable(),
+            ExecutablePath = FindChromiumExecutable()
         });
     }
 
@@ -45,7 +54,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     {
         await _browser.DisposeAsync();
         _playwright.Dispose();
-        _factory.Dispose();
+        await _factory.DisposeAsync();
     }
 
     public void Dispose()
@@ -56,38 +65,35 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
 
     private static string? FindChromiumExecutable()
     {
-        var cacheDir = Path.Combine(
+        string cacheDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".cache", "ms-playwright");
 
         if (!Directory.Exists(cacheDir))
+        {
             return null;
+        }
 
-        var chromiumDirs = Directory.GetDirectories(cacheDir, "chromium-*")
+        List<string> chromiumDirs = Directory.GetDirectories(cacheDir, "chromium-*")
             .Where(d => !d.Contains("headless_shell") && !d.Contains("tip-of-tree"))
             .OrderByDescending(d => d)
             .ToList();
 
-        foreach (var dir in chromiumDirs)
+        foreach (string dir in chromiumDirs)
         {
-            var candidates = new[]
+            string[] candidates =
+            [
+                Path.Combine(dir, "chrome-linux", "chrome"), Path.Combine(dir, "chrome-linux64", "chrome")
+            ];
+            string? found = candidates.FirstOrDefault(File.Exists);
+            if (found != null)
             {
-                Path.Combine(dir, "chrome-linux", "chrome"),
-                Path.Combine(dir, "chrome-linux64", "chrome"),
-            };
-            var found = candidates.FirstOrDefault(File.Exists);
-            if (found != null) return found;
+                return found;
+            }
         }
 
         return null;
     }
-
-    // -----------------------------------------------------------------------
-    // Dynamic theme data source
-    // -----------------------------------------------------------------------
-
-    public static IEnumerable<object[]> ThemeData =>
-        GetAvailableThemes().Select(t => new object[] { t });
 
     // -----------------------------------------------------------------------
     // Assertion helper
@@ -95,8 +101,8 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
 
     private static async Task AssertNoViolations(IPage page)
     {
-        var results = await page.RunAxe();
-        var violations = results.Violations;
+        AxeResult results = await page.RunAxe();
+        AxeResultItem[]? violations = results.Violations;
 
         violations.Should().BeEmpty(
             "axe-core found {0} violation(s):\n{1}",
@@ -106,34 +112,43 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
                 string.Join("\n  ", v.Nodes.Select(n => n.Html)))));
 
         // Surface computable contrast failures hidden in 'incomplete'
-        var contrastFailures = new List<string>();
-        foreach (var item in results.Incomplete)
+        List<string> contrastFailures = new();
+        foreach (AxeResultItem? item in results.Incomplete)
         {
             if (item.Id != "color-contrast")
-                continue;
-
-            foreach (var node in item.Nodes)
             {
-                foreach (var check in node.Any)
+                continue;
+            }
+
+            foreach (AxeResultNode? node in item.Nodes)
+            {
+                foreach (AxeResultCheck? check in node.Any)
                 {
-                    var data = check.Data as IDictionary<string, object>;
-                    if (data == null) continue;
+                    IDictionary<string, object>? data = check.Data as IDictionary<string, object>;
+                    if (data == null)
+                    {
+                        continue;
+                    }
 
-                    var ratio = data.TryGetValue("contrastRatio", out var r)
-                        ? Convert.ToDouble(r, System.Globalization.CultureInfo.InvariantCulture)
+                    double ratio = data.TryGetValue("contrastRatio", out object? r)
+                        ? Convert.ToDouble(r, CultureInfo.InvariantCulture)
                         : 0.0;
-                    if (ratio == 0) continue;
+                    if (ratio == 0)
+                    {
+                        continue;
+                    }
 
-                    var expectedStr = data.TryGetValue("expectedContrastRatio", out var e)
-                        ? e.ToString() ?? "4.5:1" : "4.5:1";
-                    var expected = double.Parse(
-                        expectedStr!.Replace(":1", ""),
-                        System.Globalization.CultureInfo.InvariantCulture);
+                    string expectedStr = data.TryGetValue("expectedContrastRatio", out object? e)
+                        ? e.ToString() ?? "4.5:1"
+                        : "4.5:1";
+                    double expected = double.Parse(
+                        expectedStr.Replace(":1", ""),
+                        CultureInfo.InvariantCulture);
 
                     if (ratio < expected)
                     {
-                        var fg = data.TryGetValue("fgColor", out var fgVal) ? fgVal : "?";
-                        var bg = data.TryGetValue("bgColor", out var bgVal) ? bgVal : "?";
+                        object fg = data.TryGetValue("fgColor", out object? fgVal) ? fgVal : "?";
+                        object bg = data.TryGetValue("bgColor", out object? bgVal) ? bgVal : "?";
                         contrastFailures.Add(
                             $"  {node.Html}\n" +
                             $"    ratio={ratio:F2} (required {expectedStr}), fg={fg}, bg={bg}");
@@ -155,12 +170,12 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task IdleState(string theme)
     {
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
-                sync: SyncIdle,
-                config: ConfigFilled);
+                SyncIdle,
+                ConfigFilled);
             await AssertNoViolations(page);
         }
         finally
@@ -173,19 +188,17 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task SuccessTraktOnly(string theme)
     {
-        var thoughts = new[]
-        {
-            TraktThought(1, LoremShort, "alice"),
-            TraktThought(2, LoremMedium, "bob"),
-            TraktThought(3, LoremLong, "carol"),
-        };
+        Dictionary<string, object?>[] thoughts =
+        [
+            TraktThought(1), TraktThought(2, LoremMedium, "bob"), TraktThought(3, LoremLong, "carol")
+        ];
 
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
-                sync: MakeSyncSuccess(thoughts),
-                config: ConfigFilled);
+                MakeSyncSuccess(thoughts),
+                ConfigFilled);
             await AssertNoViolations(page);
         }
         finally
@@ -198,22 +211,23 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task SuccessRedditWithNesting(string theme)
     {
-        var thoughts = new[]
-        {
+        Dictionary<string, object?>[] thoughts =
+        [
             RedditThought("r1", LoremMedium, "user1", score: 99,
-                replies: [
+                replies:
+                [
                     RedditThought("r1_1", LoremShort, "user2",
-                        replies: [RedditThought("r1_1_1", LoremShort, "user3")]),
+                        replies: [RedditThought("r1_1_1", LoremShort, "user3")])
                 ]),
-            RedditThought("r2", LoremLong, "user4", score: 7),
-        };
+            RedditThought("r2", LoremLong, "user4", score: 7)
+        ];
 
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
-                sync: MakeSyncSuccess(thoughts),
-                config: ConfigFilled);
+                MakeSyncSuccess(thoughts),
+                ConfigFilled);
             await AssertNoViolations(page);
         }
         finally
@@ -226,20 +240,20 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task SuccessBlueskyWithImages(string theme)
     {
-        var img = $"{_baseUrl}/watchback.png";
-        var thoughts = new[]
-        {
+        string img = $"{_baseUrl}/watchback.png";
+        Dictionary<string, object?>[] thoughts =
+        [
             BlueskyThought("b1", LoremShort, "alice.bsky.social"),
             BlueskyThought("b2", LoremMedium, "bob.bsky.social", images: [img]),
-            BlueskyThought("b3", LoremLong, "carol.bsky.social", images: [img, img]),
-        };
+            BlueskyThought("b3", LoremLong, "carol.bsky.social", images: [img, img])
+        ];
 
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
-                sync: MakeSyncSuccess(thoughts),
-                config: ConfigFilled);
+                MakeSyncSuccess(thoughts),
+                ConfigFilled);
             await AssertNoViolations(page);
         }
         finally
@@ -252,24 +266,22 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task SuccessAllSources(string theme)
     {
-        var img = $"{_baseUrl}/watchback.png";
-        var thoughts = new Dictionary<string, object?>[]
-        {
-            TraktThought(1, LoremShort, "trakt_alice"),
-            RedditThought("r1", LoremMedium, "reddit_bob", score: 58,
+        string img = $"{_baseUrl}/watchback.png";
+        Dictionary<string, object?>[] thoughts =
+        [
+            TraktThought(1, LoremShort, "trakt_alice"), RedditThought("r1", LoremMedium, "reddit_bob", score: 58,
                 replies: [RedditThought("r1_1", LoremShort, "reddit_carol")]),
             BlueskyThought("b1", LoremShort, "bsky.user.social", images: [img]),
-            TraktThought(2, LoremLong, "trakt_dave"),
-            RedditThought("r2", LoremShort, "reddit_eve", score: 12),
-            BlueskyThought("b2", LoremMedium, "another.bsky.social"),
-        };
+            TraktThought(2, LoremLong, "trakt_dave"), RedditThought("r2", LoremShort, "reddit_eve", score: 12),
+            BlueskyThought("b2", LoremMedium, "another.bsky.social")
+        ];
 
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
-                sync: MakeSyncSuccess(thoughts),
-                config: ConfigFilled);
+                MakeSyncSuccess(thoughts),
+                ConfigFilled);
             await AssertNoViolations(page);
         }
         finally
@@ -282,12 +294,12 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task ConfigModalEmpty(string theme)
     {
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
-                sync: SyncIdle,
-                config: ConfigEmpty);
+                SyncIdle,
+                ConfigEmpty);
             await OpenConfigModal(page);
             await AssertNoViolations(page);
         }
@@ -301,12 +313,12 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task ConfigModalFilled(string theme)
     {
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
-                sync: SyncIdle,
-                config: ConfigFilled);
+                SyncIdle,
+                ConfigFilled);
             await OpenConfigModal(page);
             await AssertNoViolations(page);
         }
@@ -321,12 +333,12 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     public async Task DiagnosticsTabEmpty(string theme)
     {
         // No sync history, no log entries — tests the empty-state UI
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
-                sync: SyncIdle,
-                config: ConfigFilled);
+                SyncIdle,
+                ConfigFilled);
             await OpenConfigModal(page);
             await SwitchToDiagnosticsTab(page);
             await AssertNoViolations(page);
@@ -345,10 +357,10 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task WizardWelcome(string theme)
     {
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
-            await LoadPageWithWizard(page, _baseUrl, theme, config: ConfigEmpty);
+            await LoadPageWithWizard(page, _baseUrl, theme, ConfigEmpty);
             await AssertNoViolations(page);
         }
         finally
@@ -361,10 +373,10 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task WizardWatchProvider(string theme)
     {
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
-            await LoadPageWithWizard(page, _baseUrl, theme, config: ConfigEmpty);
+            await LoadPageWithWizard(page, _baseUrl, theme, ConfigEmpty);
             await AdvanceWizardToStep(page, 1);
             await AssertNoViolations(page);
         }
@@ -378,10 +390,10 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task WizardCommentSources(string theme)
     {
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
-            await LoadPageWithWizard(page, _baseUrl, theme, config: ConfigEmpty);
+            await LoadPageWithWizard(page, _baseUrl, theme, ConfigEmpty);
             await AdvanceWizardToStep(page, 2);
             await AssertNoViolations(page);
         }
@@ -395,10 +407,10 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task WizardDone(string theme)
     {
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
-            await LoadPageWithWizard(page, _baseUrl, theme, config: ConfigEmpty);
+            await LoadPageWithWizard(page, _baseUrl, theme, ConfigEmpty);
             await AdvanceWizardToStep(page, 3);
             await AssertNoViolations(page);
         }
@@ -412,13 +424,13 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task ChecklistVisible(string theme)
     {
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
             // Load with wizard flags cleared, then skip wizard so checklist appears
-            await LoadPageWithWizard(page, _baseUrl, theme, config: ConfigEmpty);
+            await LoadPageWithWizard(page, _baseUrl, theme, ConfigEmpty);
             // Skip the wizard — click the skip link
-            var skip = page.Locator("button:visible:has-text('Skip'), button:visible:has-text('Omitir')").First;
+            ILocator skip = page.Locator("button:visible:has-text('Skip'), button:visible:has-text('Omitir')").First;
             await skip.ClickAsync();
             await page.WaitForTimeoutAsync(400); // allow checklist entrance animation
             await AssertNoViolations(page);
@@ -439,22 +451,21 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     {
         // Sync history derived from the same thoughts used in the sync mock,
         // plus log entries at every severity level to exercise all badge colours.
-        var thoughts = new[]
-        {
-            TraktThought(1, LoremShort, "alice"),
-            RedditThought("r1", LoremMedium, "bob"),
-            BlueskyThought("b1", LoremShort, "carol.bsky.social"),
-        };
-        var sync = MakeSyncSuccess(thoughts);
+        Dictionary<string, object?>[] thoughts =
+        [
+            TraktThought(1), RedditThought("r1", LoremMedium, "bob"),
+            BlueskyThought("b1", LoremShort, "carol.bsky.social")
+        ];
+        Dictionary<string, object?> sync = MakeSyncSuccess(thoughts);
 
-        var page = await _browser.NewPageAsync();
+        IPage page = await _browser.NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
-                sync: sync,
-                config: ConfigFilled,
-                diagnosticsLogs: MakeDiagnosticsLogs(),
-                diagnosticsStatus: DiagnosticsStatusFromSync(sync));
+                sync,
+                ConfigFilled,
+                MakeDiagnosticsLogs(),
+                DiagnosticsStatusFromSync(sync));
             await OpenConfigModal(page);
             await SwitchToDiagnosticsTab(page);
             await AssertNoViolations(page);
@@ -467,14 +478,14 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
 }
 
 /// <summary>
-/// WebApplicationFactory that starts the real app on a TCP port
-/// so external processes like Playwright can connect to it.
+///     WebApplicationFactory that starts the real app on a TCP port
+///     so external processes like Playwright can connect to it.
 /// </summary>
 internal sealed class KestrelWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly int _port;
-    private TcpListener? _portHolder;
     private IHost? _host;
+    private TcpListener? _portHolder;
 
     public KestrelWebApplicationFactory()
     {
@@ -491,7 +502,7 @@ internal sealed class KestrelWebApplicationFactory : WebApplicationFactory<Progr
     protected override IHost CreateHost(IHostBuilder builder)
     {
         // Create the default test host (in-memory TestServer) — needed for the base class
-        var testHost = base.CreateHost(builder);
+        IHost testHost = base.CreateHost(builder);
 
         // Also start a real Kestrel host on a TCP port with proper content root
         builder.ConfigureWebHost(webHost =>
@@ -523,11 +534,14 @@ internal sealed class KestrelWebApplicationFactory : WebApplicationFactory<Progr
 
     private static string FindApiProjectRoot()
     {
-        var dir = Directory.GetCurrentDirectory();
+        string? dir = Directory.GetCurrentDirectory();
         while (dir != null)
         {
             if (File.Exists(Path.Combine(dir, "WatchBack.sln")))
+            {
                 return Path.Combine(dir, "src", "WatchBack.Api");
+            }
+
             dir = Directory.GetParent(dir)?.FullName;
         }
 

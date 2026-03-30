@@ -70,6 +70,7 @@ WORKDIR /app
 #           Alpine's aspnet image ships in invariant mode by default — adding icu-libs
 #           and setting DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false re-enables it.
 # shadow:  provides groupmod/usermod to rename the built-in 'app' user; removed after use
+# hadolint ignore=DL3018
 RUN apk add --no-cache su-exec curl icu-libs shadow && \
     groupmod -n watchback app && \
     usermod -l watchback -m -d /home/watchback app && \

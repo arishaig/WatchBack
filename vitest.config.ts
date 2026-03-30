@@ -5,5 +5,6 @@ export default defineConfig({
         environment: 'jsdom',
         include: ['frontend/tests/**/*.test.ts'],
         globals: false,
+        onConsoleLog: () => false,
     },
 });

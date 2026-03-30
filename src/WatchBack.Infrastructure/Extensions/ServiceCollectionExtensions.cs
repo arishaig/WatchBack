@@ -15,11 +15,16 @@ public static class ServiceCollectionExtensions
     {
         services.AddTransient<ResilientHttpHandler>();
 
-        services.AddHttpClient<JellyfinWatchStateProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
-        services.AddHttpClient<TraktWatchStateProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
-        services.AddHttpClient<TraktThoughtProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
-        services.AddHttpClient<RedditThoughtProvider>().ConfigureHttpClient(ConfigureRedditClient).AddHttpMessageHandler<ResilientHttpHandler>();
-        services.AddHttpClient<BlueskyThoughtProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<JellyfinWatchStateProvider>().ConfigureHttpClient(ConfigureClient)
+            .AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<TraktWatchStateProvider>().ConfigureHttpClient(ConfigureClient)
+            .AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<TraktThoughtProvider>().ConfigureHttpClient(ConfigureClient)
+            .AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<RedditThoughtProvider>().ConfigureHttpClient(ConfigureRedditClient)
+            .AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<BlueskyThoughtProvider>().ConfigureHttpClient(ConfigureClient)
+            .AddHttpMessageHandler<ResilientHttpHandler>();
 
         // ManualWatchStateProvider is a singleton so it can hold state across requests.
         // Registered as both IManualWatchStateProvider (for SyncService priority check)
@@ -40,7 +45,8 @@ public static class ServiceCollectionExtensions
         // Register media search and ratings providers — OMDb implements both interfaces.
         // AddHttpClient registers the typed client as transient; the scoped forwarding
         // registrations ensure the HttpClient handler pipeline rotates correctly.
-        services.AddHttpClient<OmdbMediaSearchProvider>().ConfigureHttpClient(ConfigureClient).AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<OmdbMediaSearchProvider>().ConfigureHttpClient(ConfigureClient)
+            .AddHttpMessageHandler<ResilientHttpHandler>();
         services.AddScoped<IMediaSearchProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
         services.AddScoped<IRatingsProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
 

@@ -603,6 +603,18 @@ namespace WatchBack.Resources {
             }
         }
         
+        public static string DangerZone_TrustedHost {
+            get {
+                return ResourceManager.GetString("DangerZone_TrustedHost", resourceCulture);
+            }
+        }
+        
+        public static string DangerZone_TrustedHostHelp {
+            get {
+                return ResourceManager.GetString("DangerZone_TrustedHostHelp", resourceCulture);
+            }
+        }
+        
         public static string DangerZone_ForwardAuthWarning {
             get {
                 return ResourceManager.GetString("DangerZone_ForwardAuthWarning", resourceCulture);
@@ -738,6 +750,24 @@ namespace WatchBack.Resources {
         public static string Diagnostics_Entries {
             get {
                 return ResourceManager.GetString("Diagnostics_Entries", resourceCulture);
+            }
+        }
+        
+        public static string Diagnostics_SyncHistory {
+            get {
+                return ResourceManager.GetString("Diagnostics_SyncHistory", resourceCulture);
+            }
+        }
+        
+        public static string Diagnostics_NoSyncHistory {
+            get {
+                return ResourceManager.GetString("Diagnostics_NoSyncHistory", resourceCulture);
+            }
+        }
+        
+        public static string Diagnostics_Thoughts {
+            get {
+                return ResourceManager.GetString("Diagnostics_Thoughts", resourceCulture);
             }
         }
         
@@ -1050,6 +1080,138 @@ namespace WatchBack.Resources {
         public static string Aria_ConfigSections {
             get {
                 return ResourceManager.GetString("Aria_ConfigSections", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_Welcome {
+            get {
+                return ResourceManager.GetString("Wizard_Welcome", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_WelcomeBody {
+            get {
+                return ResourceManager.GetString("Wizard_WelcomeBody", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_GetStarted {
+            get {
+                return ResourceManager.GetString("Wizard_GetStarted", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_SkipSetup {
+            get {
+                return ResourceManager.GetString("Wizard_SkipSetup", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_PickWatchProvider {
+            get {
+                return ResourceManager.GetString("Wizard_PickWatchProvider", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_PickWatchProviderHint {
+            get {
+                return ResourceManager.GetString("Wizard_PickWatchProviderHint", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_PickCommentSources {
+            get {
+                return ResourceManager.GetString("Wizard_PickCommentSources", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_PickCommentSourcesHint {
+            get {
+                return ResourceManager.GetString("Wizard_PickCommentSourcesHint", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_AllSet {
+            get {
+                return ResourceManager.GetString("Wizard_AllSet", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_AllSetBody {
+            get {
+                return ResourceManager.GetString("Wizard_AllSetBody", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_GoToDashboard {
+            get {
+                return ResourceManager.GetString("Wizard_GoToDashboard", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_Next {
+            get {
+                return ResourceManager.GetString("Wizard_Next", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_Back {
+            get {
+                return ResourceManager.GetString("Wizard_Back", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_SaveAndContinue {
+            get {
+                return ResourceManager.GetString("Wizard_SaveAndContinue", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_SkipThisStep {
+            get {
+                return ResourceManager.GetString("Wizard_SkipThisStep", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_StepOf {
+            get {
+                return ResourceManager.GetString("Wizard_StepOf", resourceCulture);
+            }
+        }
+        
+        public static string Wizard_NoConfigNeeded {
+            get {
+                return ResourceManager.GetString("Wizard_NoConfigNeeded", resourceCulture);
+            }
+        }
+        
+        public static string Checklist_Title {
+            get {
+                return ResourceManager.GetString("Checklist_Title", resourceCulture);
+            }
+        }
+        
+        public static string Checklist_WatchProvider {
+            get {
+                return ResourceManager.GetString("Checklist_WatchProvider", resourceCulture);
+            }
+        }
+        
+        public static string Checklist_CommentSource {
+            get {
+                return ResourceManager.GetString("Checklist_CommentSource", resourceCulture);
+            }
+        }
+        
+        public static string Checklist_FirstSync {
+            get {
+                return ResourceManager.GetString("Checklist_FirstSync", resourceCulture);
+            }
+        }
+        
+        public static string Checklist_AllDone {
+            get {
+                return ResourceManager.GetString("Checklist_AllDone", resourceCulture);
             }
         }
     }

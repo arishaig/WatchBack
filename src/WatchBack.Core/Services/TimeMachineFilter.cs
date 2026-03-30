@@ -24,7 +24,7 @@ public class TimeMachineFilter : ITimeMachineFilter
                     return t.CreatedAt.Date == airDate.Value.Date;
                 }
 
-                var deltaDays = (t.CreatedAt - airDate.Value).TotalDays;
+                double deltaDays = (t.CreatedAt - airDate.Value).TotalDays;
                 return deltaDays >= 0 && deltaDays <= windowDays;
             })
             .ToList();

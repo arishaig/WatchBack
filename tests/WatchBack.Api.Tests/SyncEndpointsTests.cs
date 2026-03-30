@@ -11,7 +11,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using NSubstitute;
 
-using WatchBack.Api;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 
@@ -23,24 +22,26 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
 {
     private const string TestUsername = "testadmin";
     private const string TestPassword = "TestPass1!@#456";
+    private HttpClient _client = null!;
 
     private WebApplicationFactory<Program> _factory = null!;
-    private HttpClient _client = null!;
 
     public async Task InitializeAsync()
     {
-        var hasher = new PasswordHasher<string>();
-        var hash = hasher.HashPassword("", TestPassword);
+        PasswordHasher<string> hasher = new();
+        string hash = hasher.HashPassword("", TestPassword);
 
-        var mockWatchProvider = Substitute.For<IWatchStateProvider>();
+        IWatchStateProvider? mockWatchProvider = Substitute.For<IWatchStateProvider>();
         mockWatchProvider.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
         mockWatchProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>())
             .Returns(new EpisodeContext("Test Show", null, "Pilot", 1, 1));
 
-        var mockThoughtProvider = Substitute.For<IThoughtProvider>();
-        mockThoughtProvider.Metadata.Returns(new DataProviderMetadata("Test", "Test", BrandData: new BrandData("", "")));
+        IThoughtProvider? mockThoughtProvider = Substitute.For<IThoughtProvider>();
+        mockThoughtProvider.Metadata.Returns(new DataProviderMetadata("Test", "Test",
+            BrandData: new BrandData("", "")));
         mockThoughtProvider.ExpectedWeight.Returns(1);
-        mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+        mockThoughtProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(),
+                Arg.Any<CancellationToken>())
             .Returns(ci =>
             {
                 ci.Arg<IProgress<SyncProgressTick>?>()?.Report(new SyncProgressTick(1, "Test"));
@@ -56,7 +57,7 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
                     {
                         ["Auth:Username"] = TestUsername,
                         ["Auth:PasswordHash"] = hash,
-                        ["Auth:OnboardingComplete"] = "true",
+                        ["Auth:OnboardingComplete"] = "true"
                     });
                 });
                 builder.ConfigureServices(services =>
@@ -69,13 +70,6 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
             });
         _client = _factory.CreateClient();
         await LoginAsync();
-    }
-
-    private async Task LoginAsync()
-    {
-        var loginBody = new { username = TestUsername, password = TestPassword };
-        var response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
-        response.EnsureSuccessStatusCode();
     }
 
     public Task DisposeAsync()
@@ -92,11 +86,18 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
         GC.SuppressFinalize(this);
     }
 
+    private async Task LoginAsync()
+    {
+        var loginBody = new { username = TestUsername, password = TestPassword };
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
+        response.EnsureSuccessStatusCode();
+    }
+
     [Fact]
     public async Task GetSync_ReturnsOkStatus()
     {
         // Act
-        var response = await _client.GetAsync("/api/sync");
+        HttpResponseMessage response = await _client.GetAsync("/api/sync");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -107,8 +108,8 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
     public async Task GetSync_ReturnsValidSyncResponse()
     {
         // Act
-        var response = await _client.GetAsync("/api/sync");
-        var jsonString = await response.Content.ReadAsStringAsync();
+        HttpResponseMessage response = await _client.GetAsync("/api/sync");
+        string jsonString = await response.Content.ReadAsStringAsync();
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -120,8 +121,8 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
     public async Task GetSync_ResponseHasRequiredFields()
     {
         // Act
-        var response = await _client.GetAsync("/api/sync");
-        var content = await response.Content.ReadAsStringAsync();
+        HttpResponseMessage response = await _client.GetAsync("/api/sync");
+        string content = await response.Content.ReadAsStringAsync();
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -133,7 +134,8 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
     public async Task GetSyncStream_ReturnsEventStream()
     {
         // Act - Use HttpCompletionOption.ResponseHeadersRead to avoid waiting for full response
-        var response = await _client.GetAsync("/api/sync/stream", HttpCompletionOption.ResponseHeadersRead);
+        HttpResponseMessage response =
+            await _client.GetAsync("/api/sync/stream", HttpCompletionOption.ResponseHeadersRead);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -144,23 +146,35 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
     public async Task GetSyncStream_EmitsProgressEventsBeforeSyncResult()
     {
         // Act — read first few lines of the SSE stream
-        using var response = await _client.GetAsync("/api/sync/stream", HttpCompletionOption.ResponseHeadersRead);
+        using HttpResponseMessage response =
+            await _client.GetAsync("/api/sync/stream", HttpCompletionOption.ResponseHeadersRead);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        using var stream = await response.Content.ReadAsStreamAsync();
-        using var reader = new StreamReader(stream);
+        await using Stream stream = await response.Content.ReadAsStreamAsync();
+        using StreamReader reader = new(stream);
 
-        var lines = new List<string>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        List<string> lines = new();
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
 
         // Read until we see a sync result (line containing "status")
         while (!cts.Token.IsCancellationRequested)
         {
-            var line = await reader.ReadLineAsync(cts.Token);
-            if (line == null) break;
-            if (line.StartsWith("data: ", StringComparison.Ordinal)) lines.Add(line);
+            string? line = await reader.ReadLineAsync(cts.Token);
+            if (line == null)
+            {
+                break;
+            }
+
+            if (line.StartsWith("data: ", StringComparison.Ordinal))
+            {
+                lines.Add(line);
+            }
+
             // Stop once we've received the sync payload
-            if (line.Contains("\"status\"")) break;
+            if (line.Contains("\"status\""))
+            {
+                break;
+            }
         }
 
         // Must have at least one progress event before the final sync event

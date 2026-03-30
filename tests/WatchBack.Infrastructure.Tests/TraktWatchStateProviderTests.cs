@@ -4,7 +4,6 @@ using FluentAssertions;
 
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
@@ -15,22 +14,17 @@ using Xunit;
 
 namespace WatchBack.Infrastructure.Tests;
 
-
 public class TraktWatchStateProviderTests : IDisposable
 {
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
-    private readonly TraktOptions _options;
 
-    public TraktWatchStateProviderTests()
+    private readonly TraktOptions _options = new()
     {
-        _options = new TraktOptions
-        {
-            ClientId = "test-client-id",
-            Username = "testuser",
-            AccessToken = "test-token",
-            CacheTtlSeconds = 30
-        };
-    }
+        ClientId = "test-client-id",
+        Username = "testuser",
+        AccessToken = "test-token",
+        CacheTtlSeconds = 30
+    };
 
     public void Dispose()
     {
@@ -42,13 +36,14 @@ public class TraktWatchStateProviderTests : IDisposable
     public async Task GetCurrentMediaContextAsync_WithNoActivePlayback_ReturnsNull()
     {
         // Arrange
-        var handler = new MockHttpMessageHandler(
+        MockHttpMessageHandler handler = new(
             new HttpResponseMessage(HttpStatusCode.NoContent));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktWatchStateProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
-        var result = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
 
         // Assert
         result.Should().BeNull();
@@ -58,36 +53,34 @@ public class TraktWatchStateProviderTests : IDisposable
     public async Task GetCurrentMediaContextAsync_WithActiveEpisode_ReturnsEpisodeContext()
     {
         // Arrange
-        var responseJson = """
-            {
-                "show": {
-                    "title": "Breaking Bad"
-                },
-                "episode": {
-                    "season": 2,
-                    "number": 5,
-                    "title": "Breakage",
-                    "ids": { "trakt": 73608 },
-                    "first_aired": "2009-04-12T00:00:00Z"
-                }
-            }
-            """;
+        string responseJson = """
+                              {
+                                  "show": {
+                                      "title": "Breaking Bad"
+                                  },
+                                  "episode": {
+                                      "season": 2,
+                                      "number": 5,
+                                      "title": "Breakage",
+                                      "ids": { "trakt": 73608 },
+                                      "first_aired": "2009-04-12T00:00:00Z"
+                                  }
+                              }
+                              """;
 
-        var handler = new MockHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(responseJson)
-            });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        MockHttpMessageHandler handler = new(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktWatchStateProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
-        var result = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
 
         // Assert
         result.Should().NotBeNull();
         result.Should().BeOfType<EpisodeContext>();
-        var episode = (EpisodeContext)result!;
+        EpisodeContext episode = (EpisodeContext)result;
         episode.Title.Should().Be("Breaking Bad");
         episode.EpisodeTitle.Should().Be("Breakage");
         episode.SeasonNumber.Should().Be(2);
@@ -99,70 +92,65 @@ public class TraktWatchStateProviderTests : IDisposable
     public async Task GetCurrentMediaContextAsync_WithoutFirstAired_ReturnsNullReleaseDate()
     {
         // Arrange
-        var responseJson = """
-            {
-                "show": {
-                    "title": "Breaking Bad"
-                },
-                "episode": {
-                    "season": 1,
-                    "number": 1,
-                    "title": "Pilot",
-                    "ids": { "trakt": 73605 }
-                }
-            }
-            """;
+        string responseJson = """
+                              {
+                                  "show": {
+                                      "title": "Breaking Bad"
+                                  },
+                                  "episode": {
+                                      "season": 1,
+                                      "number": 1,
+                                      "title": "Pilot",
+                                      "ids": { "trakt": 73605 }
+                                  }
+                              }
+                              """;
 
-        var handler = new MockHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(responseJson)
-            });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        MockHttpMessageHandler handler = new(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktWatchStateProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
-        var result = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
 
         // Assert
         result.Should().NotBeNull();
-        result!.ReleaseDate.Should().BeNull();
+        result.ReleaseDate.Should().BeNull();
     }
 
     [Fact]
     public async Task GetCurrentMediaContextAsync_SecondCall_UsesCacheWithinTtl()
     {
         // Arrange
-        var responseJson = """
-            {
-                "show": {
-                    "title": "Breaking Bad"
-                },
-                "episode": {
-                    "season": 1,
-                    "number": 1,
-                    "title": "Pilot",
-                    "ids": { "trakt": 73605 }
-                }
-            }
-            """;
+        string responseJson = """
+                              {
+                                  "show": {
+                                      "title": "Breaking Bad"
+                                  },
+                                  "episode": {
+                                      "season": 1,
+                                      "number": 1,
+                                      "title": "Pilot",
+                                      "ids": { "trakt": 73605 }
+                                  }
+                              }
+                              """;
 
-        var callCount = 0;
-        var handler = new MockHttpMessageHandler(
-            () =>
-            {
-                callCount++;
-                return new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new StringContent(responseJson)
-                };
-            });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        int callCount = 0;
+        MockHttpMessageHandler handler = new(() =>
+        {
+            callCount++;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) };
+        });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktWatchStateProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
-        var result1 = await provider.GetCurrentMediaContextAsync();
-        var result2 = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result1 = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result2 = await provider.GetCurrentMediaContextAsync();
 
         // Assert
         callCount.Should().Be(1); // Cache hit on second call
@@ -174,43 +162,46 @@ public class TraktWatchStateProviderTests : IDisposable
     public void Metadata_SupportedExternalIds_ContainsImdbTmdbTvdb()
     {
         // Arrange
-        var provider = new TraktWatchStateProvider(
-            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktWatchStateProvider provider = new(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Assert
         provider.Metadata.Should().BeOfType<WatchStateDataProviderMetadata>();
-        var meta = (WatchStateDataProviderMetadata)provider.Metadata;
-        meta.SupportedExternalIds.Should().BeEquivalentTo([ExternalIdType.Imdb, ExternalIdType.Tmdb, ExternalIdType.Tvdb]);
+        WatchStateDataProviderMetadata meta = (WatchStateDataProviderMetadata)provider.Metadata;
+        meta.SupportedExternalIds.Should()
+            .BeEquivalentTo(ExternalIdType.Imdb, ExternalIdType.Tmdb, ExternalIdType.Tvdb);
     }
 
     [Fact]
     public async Task GetCurrentMediaContextAsync_WithAllShowIds_PopulatesExternalIds()
     {
         // Arrange
-        var responseJson = """
-            {
-                "show": {
-                    "title": "Breaking Bad",
-                    "ids": { "imdb": "tt0903747", "tmdb": 1396, "tvdb": 81189 }
-                },
-                "episode": {
-                    "season": 1,
-                    "number": 1,
-                    "title": "Pilot"
-                }
-            }
-            """;
+        string responseJson = """
+                              {
+                                  "show": {
+                                      "title": "Breaking Bad",
+                                      "ids": { "imdb": "tt0903747", "tmdb": 1396, "tvdb": 81189 }
+                                  },
+                                  "episode": {
+                                      "season": 1,
+                                      "number": 1,
+                                      "title": "Pilot"
+                                  }
+                              }
+                              """;
 
-        var handler = new MockHttpMessageHandler(
+        MockHttpMessageHandler handler = new(
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktWatchStateProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
-        var result = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
 
         // Assert
-        var episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        EpisodeContext? episode = result.Should().BeOfType<EpisodeContext>().Subject;
         episode.ExternalIds.Should().NotBeNull();
         episode.ExternalIds![ExternalIdType.Imdb].Should().Be("tt0903747");
         episode.ExternalIds[ExternalIdType.Tmdb].Should().Be("1396");
@@ -221,30 +212,31 @@ public class TraktWatchStateProviderTests : IDisposable
     public async Task GetCurrentMediaContextAsync_WithPartialShowIds_PopulatesOnlyAvailableIds()
     {
         // Arrange
-        var responseJson = """
-            {
-                "show": {
-                    "title": "Breaking Bad",
-                    "ids": { "imdb": "tt0903747" }
-                },
-                "episode": {
-                    "season": 1,
-                    "number": 1,
-                    "title": "Pilot"
-                }
-            }
-            """;
+        string responseJson = """
+                              {
+                                  "show": {
+                                      "title": "Breaking Bad",
+                                      "ids": { "imdb": "tt0903747" }
+                                  },
+                                  "episode": {
+                                      "season": 1,
+                                      "number": 1,
+                                      "title": "Pilot"
+                                  }
+                              }
+                              """;
 
-        var handler = new MockHttpMessageHandler(
+        MockHttpMessageHandler handler = new(
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktWatchStateProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
-        var result = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
 
         // Assert
-        var episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        EpisodeContext? episode = result.Should().BeOfType<EpisodeContext>().Subject;
         episode.ExternalIds.Should().NotBeNull();
         episode.ExternalIds![ExternalIdType.Imdb].Should().Be("tt0903747");
         episode.ExternalIds.Should().NotContainKey(ExternalIdType.Tmdb);
@@ -255,29 +247,30 @@ public class TraktWatchStateProviderTests : IDisposable
     public async Task GetCurrentMediaContextAsync_WithNoShowIds_ReturnsNullExternalIds()
     {
         // Arrange
-        var responseJson = """
-            {
-                "show": {
-                    "title": "Breaking Bad"
-                },
-                "episode": {
-                    "season": 1,
-                    "number": 1,
-                    "title": "Pilot"
-                }
-            }
-            """;
+        string responseJson = """
+                              {
+                                  "show": {
+                                      "title": "Breaking Bad"
+                                  },
+                                  "episode": {
+                                      "season": 1,
+                                      "number": 1,
+                                      "title": "Pilot"
+                                  }
+                              }
+                              """;
 
-        var handler = new MockHttpMessageHandler(
+        MockHttpMessageHandler handler = new(
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktWatchStateProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
-        var result = await provider.GetCurrentMediaContextAsync();
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
 
         // Assert
-        var episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        EpisodeContext? episode = result.Should().BeOfType<EpisodeContext>().Subject;
         episode.ExternalIds.Should().BeNull();
     }
 
@@ -285,16 +278,14 @@ public class TraktWatchStateProviderTests : IDisposable
     public async Task GetServiceHealthAsync_WithSuccess_ReturnsHealthy()
     {
         // Arrange
-        var handler = new MockHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent("{}")
-            });
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        MockHttpMessageHandler handler = new(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktWatchStateProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
-        var health = await provider.GetServiceHealthAsync();
+        ServiceHealth health = await provider.GetServiceHealthAsync();
 
         // Assert
         health.IsHealthy.Should().BeTrue();
@@ -304,13 +295,14 @@ public class TraktWatchStateProviderTests : IDisposable
     public async Task GetServiceHealthAsync_WithFailure_ReturnsUnhealthy()
     {
         // Arrange
-        var handler = new MockHttpMessageHandler(
+        MockHttpMessageHandler handler = new(
             new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
-        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
-        var provider = new TraktWatchStateProvider(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktWatchStateProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         // Act
-        var health = await provider.GetServiceHealthAsync();
+        ServiceHealth health = await provider.GetServiceHealthAsync();
 
         // Assert
         health.IsHealthy.Should().BeFalse();
@@ -321,8 +313,9 @@ public class TraktWatchStateProviderTests : IDisposable
     [Fact]
     public void ConfigSection_IsTrakt()
     {
-        var provider = new TraktWatchStateProvider(
-            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktWatchStateProvider provider = new(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         provider.ConfigSection.Should().Be("Trakt");
     }
@@ -330,9 +323,16 @@ public class TraktWatchStateProviderTests : IDisposable
     [Fact]
     public void IsConfigured_WhenClientIdSet_IsTrue()
     {
-        var opts = new TraktOptions { ClientId = "abc", Username = "", AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
-        var provider = new TraktWatchStateProvider(
-            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktOptions opts = new()
+        {
+            ClientId = "abc",
+            Username = "",
+            AccessToken = _options.AccessToken,
+            CacheTtlSeconds = _options.CacheTtlSeconds
+        };
+        TraktWatchStateProvider provider = new(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         provider.IsConfigured.Should().BeTrue();
     }
@@ -340,9 +340,16 @@ public class TraktWatchStateProviderTests : IDisposable
     [Fact]
     public void IsConfigured_WhenUsernameSet_IsTrue()
     {
-        var opts = new TraktOptions { ClientId = "", Username = "myuser", AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
-        var provider = new TraktWatchStateProvider(
-            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktOptions opts = new()
+        {
+            ClientId = "",
+            Username = "myuser",
+            AccessToken = _options.AccessToken,
+            CacheTtlSeconds = _options.CacheTtlSeconds
+        };
+        TraktWatchStateProvider provider = new(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         provider.IsConfigured.Should().BeTrue();
     }
@@ -350,9 +357,16 @@ public class TraktWatchStateProviderTests : IDisposable
     [Fact]
     public void IsConfigured_WhenBothEmpty_IsFalse()
     {
-        var opts = new TraktOptions { ClientId = "", Username = "", AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
-        var provider = new TraktWatchStateProvider(
-            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktOptions opts = new()
+        {
+            ClientId = "",
+            Username = "",
+            AccessToken = _options.AccessToken,
+            CacheTtlSeconds = _options.CacheTtlSeconds
+        };
+        TraktWatchStateProvider provider = new(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         provider.IsConfigured.Should().BeFalse();
     }
@@ -360,23 +374,24 @@ public class TraktWatchStateProviderTests : IDisposable
     [Fact]
     public void GetConfigSchema_ReturnsThreeFields()
     {
-        var provider = new TraktWatchStateProvider(
-            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktWatchStateProvider provider = new(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
-        var fields = provider.GetConfigSchema(_ => "", (_, _) => false);
+        IReadOnlyList<ProviderConfigField> fields = provider.GetConfigSchema(_ => "", (_, _) => false);
 
         fields.Should().HaveCount(3);
-        fields.Select(f => f.Key).Should().BeEquivalentTo(
-            ["Trakt__ClientId", "Trakt__AccessToken", "Trakt__Username"]);
+        fields.Select(f => f.Key).Should().BeEquivalentTo("Trakt__ClientId", "Trakt__AccessToken", "Trakt__Username");
     }
 
     [Fact]
     public void GetConfigSchema_AccessTokenField_IsPasswordType()
     {
-        var provider = new TraktWatchStateProvider(
-            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktWatchStateProvider provider = new(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
-        var tokenField = provider.GetConfigSchema(_ => "", (_, _) => false)
+        ProviderConfigField tokenField = provider.GetConfigSchema(_ => "", (_, _) => false)
             .First(f => f.Key == "Trakt__AccessToken");
 
         tokenField.Type.Should().Be("password");
@@ -386,15 +401,16 @@ public class TraktWatchStateProviderTests : IDisposable
     [Fact]
     public async Task TestConnectionAsync_WithValidClientId_ReturnsHealthy()
     {
-        var handler = new MockHttpMessageHandler(
+        MockHttpMessageHandler handler = new(
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]") });
-        var client = new HttpClient(handler);
-        var provider = new TraktWatchStateProvider(
-            client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        HttpClient client = new(handler);
+        TraktWatchStateProvider provider = new(
+            client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
-        var health = await provider.TestConnectionAsync(new Dictionary<string, string>
+        ServiceHealth health = await provider.TestConnectionAsync(new Dictionary<string, string>
         {
-            ["Trakt__ClientId"] = _options.ClientId,
+            ["Trakt__ClientId"] = _options.ClientId
         });
 
         health.IsHealthy.Should().BeTrue();
@@ -403,11 +419,18 @@ public class TraktWatchStateProviderTests : IDisposable
     [Fact]
     public async Task TestConnectionAsync_MissingClientId_ReturnsUnhealthy()
     {
-        var opts = new TraktOptions { ClientId = "", Username = _options.Username, AccessToken = _options.AccessToken, CacheTtlSeconds = _options.CacheTtlSeconds };
-        var provider = new TraktWatchStateProvider(
-            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktOptions opts = new()
+        {
+            ClientId = "",
+            Username = _options.Username,
+            AccessToken = _options.AccessToken,
+            CacheTtlSeconds = _options.CacheTtlSeconds
+        };
+        TraktWatchStateProvider provider = new(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(opts), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
-        var health = await provider.TestConnectionAsync(new Dictionary<string, string>());
+        ServiceHealth health = await provider.TestConnectionAsync(new Dictionary<string, string>());
 
         health.IsHealthy.Should().BeFalse();
     }
@@ -415,20 +438,21 @@ public class TraktWatchStateProviderTests : IDisposable
     [Fact]
     public async Task TestConnectionAsync_ExistingPlaceholder_ResolvesToStoredAccessToken()
     {
-        var requestsSeen = new List<HttpRequestMessage>();
-        var handler = new MockHttpMessageHandler(req =>
+        List<HttpRequestMessage> requestsSeen = new();
+        MockHttpMessageHandler handler = new(req =>
         {
             requestsSeen.Add(req);
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]") };
         });
-        var client = new HttpClient(handler);
-        var provider = new TraktWatchStateProvider(
-            client, new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        HttpClient client = new(handler);
+        TraktWatchStateProvider provider = new(
+            client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
-        var health = await provider.TestConnectionAsync(new Dictionary<string, string>
+        ServiceHealth health = await provider.TestConnectionAsync(new Dictionary<string, string>
         {
             ["Trakt__ClientId"] = _options.ClientId,
-            ["Trakt__AccessToken"] = "__EXISTING__",
+            ["Trakt__AccessToken"] = "__EXISTING__"
         });
 
         health.IsHealthy.Should().BeTrue();
@@ -441,8 +465,9 @@ public class TraktWatchStateProviderTests : IDisposable
     [Fact]
     public void RevealSecret_AccessToken_ReturnsStoredValue()
     {
-        var provider = new TraktWatchStateProvider(
-            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktWatchStateProvider provider = new(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         provider.RevealSecret("Trakt__AccessToken").Should().Be(_options.AccessToken);
     }
@@ -450,8 +475,9 @@ public class TraktWatchStateProviderTests : IDisposable
     [Fact]
     public void RevealSecret_OtherKey_ReturnsNull()
     {
-        var provider = new TraktWatchStateProvider(
-            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache, NullLogger<TraktWatchStateProvider>.Instance);
+        TraktWatchStateProvider provider = new(
+            new HttpClient(), new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            NullLogger<TraktWatchStateProvider>.Instance);
 
         provider.RevealSecret("Trakt__ClientId").Should().BeNull();
         provider.RevealSecret("Trakt__Username").Should().BeNull();

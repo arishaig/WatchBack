@@ -56,5 +56,11 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("SearchEndpoints_Search_No_media_search_provider_is_configured_", resourceCulture);
             }
         }
+        
+        public static string ConfigEndpoints_GetConfig_Server_URL {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Server_URL", resourceCulture);
+            }
+        }
     }
 }

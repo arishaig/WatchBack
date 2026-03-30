@@ -1,7 +1,7 @@
 namespace WatchBack.Core.Models;
 
 /// <summary>
-/// Represents a single result returned from a media search query.
+///     Represents a single result returned from a media search query.
 /// </summary>
 /// <param name="ImdbId">IMDB identifier for this title, used for season/episode drill-down.</param>
 /// <param name="Title">Title of the movie or TV show.</param>
@@ -18,7 +18,7 @@ public record MediaSearchResult(
     DateTimeOffset? ReleaseDate = null);
 
 /// <summary>
-/// Summary information about a single season of a TV series.
+///     Summary information about a single season of a TV series.
 /// </summary>
 /// <param name="SeasonNumber">Season number.</param>
 /// <param name="EpisodeCount">Total number of episodes in the season.</param>
@@ -27,7 +27,7 @@ public record SeasonInfo(
     int EpisodeCount);
 
 /// <summary>
-/// Information about a single episode of a TV series.
+///     Information about a single episode of a TV series.
 /// </summary>
 /// <param name="ImdbId">IMDB identifier for this episode.</param>
 /// <param name="Title">Episode title.</param>
@@ -42,7 +42,7 @@ public record EpisodeInfo(
     DateTimeOffset? AirDate);
 
 /// <summary>
-/// A single rating from a review aggregator or publication.
+///     A single rating from a review aggregator or publication.
 /// </summary>
 /// <param name="Source">The name of the rating source (e.g. "Internet Movie Database", "Rotten Tomatoes").</param>
 /// <param name="Value">The rating value as a formatted string (e.g. "8.7/10", "97%").</param>

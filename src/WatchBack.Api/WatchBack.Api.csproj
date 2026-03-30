@@ -18,13 +18,12 @@
     <ProjectReference Include="..\WatchBack.Infrastructure\WatchBack.Infrastructure.csproj" />
   </ItemGroup>
 
-  <Target Name="BuildFrontend" BeforeTargets="BeforeBuild"
-          Condition="'$(Configuration)' == 'Release' and '$(SkipFrontendBuild)' != 'true'">
+  <Target Name="BuildFrontend" BeforeTargets="BeforeBuild" Condition="'$(Configuration)' == 'Release' and '$(SkipFrontendBuild)' != 'true'">
     <Exec Command="npm run build" WorkingDirectory="$(MSBuildThisFileDirectory)../../" />
   </Target>
 
   <ItemGroup>
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.*" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
     <PackageReference Include="ThisAssembly.AssemblyInfo" Version="2.1.2">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
