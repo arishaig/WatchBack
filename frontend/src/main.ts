@@ -50,6 +50,7 @@ Alpine.data('app', (): AppData => {
         setupPassword: '',
         setupError: null,
         setupLoading: false,
+        changePwCurrent: '',
         changePwNew: '',
         changePwConfirm: '',
         changePwError: null,

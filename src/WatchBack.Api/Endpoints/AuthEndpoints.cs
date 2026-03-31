@@ -127,7 +127,8 @@ public static class AuthEndpoints
         await SignInUser(ctx, body.Username);
 
         bool needsOnboarding = !opts.OnboardingComplete;
-        bool needsPasswordChange = result == PasswordVerificationResult.SuccessRehashNeeded;
+        bool needsPasswordChange = result == PasswordVerificationResult.SuccessRehashNeeded
+                                   || opts.PasswordResetPending;
         return Results.Ok(new { ok = true, needsOnboarding, needsPasswordChange, message = (string?)null });
     }
 
@@ -189,7 +190,14 @@ public static class AuthEndpoints
         string currentUsername = authOptions.Value.Username;
         bool onboardingComplete = authOptions.Value.OnboardingComplete;
 
-        await WriteAuthConfig(configFile, currentUsername, newHash, onboardingComplete, ct);
+        // Store the new hash and flag the reset as pending. On next login the
+        // server returns needsPasswordChange, which shows only the change-password
+        // screen (not full onboarding/tour).
+        await WriteAuthConfig(configFile, currentUsername, newHash, onboardingComplete, ct,
+            passwordResetPending: true);
+
+        // Sign out the current session — forces re-authentication with the temp password
+        await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
         // Write directly to stdout — avoids logger pipeline so credentials
         // don't end up in structured log sinks (Seq, ELK, etc.)
@@ -214,6 +222,15 @@ public static class AuthEndpoints
         UserConfigFile configFile,
         CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(body.CurrentPassword))
+        {
+            return Results.BadRequest(new
+            {
+                ok = false,
+                message = UiStrings.AuthEndpoints_ChangePassword_Password_is_required_
+            });
+        }
+
         if (string.IsNullOrWhiteSpace(body.NewPassword))
         {
             return Results.BadRequest(new
@@ -225,9 +242,18 @@ public static class AuthEndpoints
 
         AuthOptions opts = authOptions.Value;
         PasswordHasher<string> hasher = new();
+
+        PasswordVerificationResult verification = hasher.VerifyHashedPassword("", opts.PasswordHash, body.CurrentPassword);
+        if (verification == PasswordVerificationResult.Failed)
+        {
+            return Results.Json(new { ok = false, message = "Current password is incorrect." }, statusCode: 401);
+        }
+
         string newHash = hasher.HashPassword("", body.NewPassword);
 
-        await WriteAuthConfig(configFile, opts.Username, newHash, opts.OnboardingComplete, ct);
+        // Clear PasswordResetPending if it was set (user completed the forced password change)
+        await WriteAuthConfig(configFile, opts.Username, newHash, opts.OnboardingComplete, ct,
+            passwordResetPending: false);
 
         // Re-sign-in so the session reflects the updated credential state
         await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -278,7 +304,8 @@ public static class AuthEndpoints
         string username,
         string passwordHash,
         bool onboardingComplete,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool? passwordResetPending = null)
     {
         await ConfigFileLock.WaitAsync(ct);
         try
@@ -295,6 +322,11 @@ public static class AuthEndpoints
             authSection["Username"] = username;
             authSection["PasswordHash"] = passwordHash;
             authSection["OnboardingComplete"] = onboardingComplete ? "True" : "False";
+
+            if (passwordResetPending.HasValue)
+            {
+                authSection["PasswordResetPending"] = passwordResetPending.Value ? "True" : "False";
+            }
 
             await WriteConfigFile(configFile.Path, existing, ct);
         }
@@ -395,7 +427,7 @@ public static class AuthEndpoints
 
     private sealed record SetupRequest(string NewUsername, string NewPassword);
 
-    private sealed record ChangePasswordRequest(string NewPassword);
+    private sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
     private sealed record ForwardAuthSettingsRequest(string? Header, string? TrustedHost);
 }

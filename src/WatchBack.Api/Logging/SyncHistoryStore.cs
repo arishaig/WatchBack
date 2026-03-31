@@ -15,7 +15,9 @@ public sealed record SyncSnapshot(
 
 /// <summary>Singleton that holds the most recent sync result and persists sync logs to the database.</summary>
 public sealed partial class SyncHistoryStore(IServiceScopeFactory scopeFactory, ILogger<SyncHistoryStore> logger)
+    : IDisposable
 {
+    private readonly SemaphoreSlim _persistGate = new(1, 1);
     private volatile SyncSnapshot? _latest;
 
     public void Record(SyncSnapshot snapshot, long? durationMs = null)
@@ -31,6 +33,13 @@ public sealed partial class SyncHistoryStore(IServiceScopeFactory scopeFactory, 
 
     private async Task PersistAsync(SyncSnapshot snapshot, long? durationMs)
     {
+        // Limit to one concurrent persist — if a write is already in flight,
+        // skip this one rather than queueing unbounded background tasks.
+        if (!_persistGate.Wait(0))
+        {
+            return;
+        }
+
         try
         {
             using IServiceScope scope = scopeFactory.CreateScope();
@@ -55,6 +64,15 @@ public sealed partial class SyncHistoryStore(IServiceScopeFactory scopeFactory, 
         {
             LogPersistFailure(logger, ex);
         }
+        finally
+        {
+            _persistGate.Release();
+        }
+    }
+
+    public void Dispose()
+    {
+        _persistGate.Dispose();
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to persist sync log entry")]

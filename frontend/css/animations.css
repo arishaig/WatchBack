@@ -171,17 +171,15 @@
 }
 
 /* ─── Respect reduced motion ─── */
+/* Single authoritative rule — covers all custom animations, all CSS transitions,
+   all Tailwind utility classes (transition-*, duration-*, animate-*), and all
+   Alpine.js x-transition directives. Using 0.01ms rather than "none" lets
+   animations still reach their final state (important for Alpine leave hooks). */
 @media (prefers-reduced-motion: reduce) {
-    .comment-card,
-    .thread-group,
-    .config-enter,
-    .config-leave,
-    .wb-segment::after,
-    .wb-segments-glow,
-    .wizard-step-enter,
-    .checklist-in,
-    .checklist-out,
-    .checklist-complete {
-        animation: none !important;
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }

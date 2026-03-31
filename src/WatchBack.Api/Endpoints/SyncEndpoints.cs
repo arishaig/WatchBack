@@ -66,6 +66,7 @@ public static class SyncEndpoints
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         SyncHistoryStore syncHistory,
         SyncTrigger syncTrigger,
+        SyncGate syncGate,
         HttpContext context,
         CancellationToken ct)
     {
@@ -81,6 +82,7 @@ public static class SyncEndpoints
             p => p.Metadata.Name,
             p => (Color: p.Metadata.BrandData?.Color ?? "var(--wb-accent)", Total: p.ExpectedWeight));
 
+        int consecutiveErrors = 0;
         while (!ct.IsCancellationRequested)
         {
             try
@@ -95,9 +97,11 @@ public static class SyncEndpoints
                     BuildProgressEvent(0, totalWeight, []), ct);
                 await context.Response.Body.FlushAsync(ct);
 
-                // Start sync; complete the channel when it finishes so ReadAllAsync terminates
+                // Start sync (gated so only one runs at a time across all SSE clients);
+                // complete the channel when it finishes so ReadAllAsync terminates.
                 Stopwatch syncStopwatch = Stopwatch.StartNew();
-                Task<SyncResult> syncTask = syncService.SyncAsync(progress, ct);
+                Task<SyncResult> syncTask = syncGate.ExecuteAsync(
+                    () => syncService.SyncAsync(progress, ct), ct);
                 _ = syncTask.ContinueWith(
                     t => channel.Writer.Complete(t.IsFaulted ? t.Exception : null),
                     TaskScheduler.Default);
@@ -150,6 +154,8 @@ public static class SyncEndpoints
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
 
+                consecutiveErrors = 0;
+
                 // Wait up to 5 s, but wake immediately if the user hits the Sync button
                 using CancellationTokenSource delayCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 delayCts.CancelAfter(5000);
@@ -165,8 +171,10 @@ public static class SyncEndpoints
             }
             catch (Exception)
             {
-                // Provider fault — pause before retrying the sync loop
-                try { await Task.Delay(5000, ct); }
+                // Provider fault — exponential backoff (5 s → 10 s → 20 s → … capped at 60 s)
+                consecutiveErrors++;
+                int backoffMs = (int)Math.Min(5000 * Math.Pow(2, consecutiveErrors - 1), 60_000);
+                try { await Task.Delay(backoffMs, ct); }
                 catch (OperationCanceledException) { break; }
             }
         }

@@ -120,12 +120,13 @@
 
 <!-- Login -->
 <div class="fixed inset-0 z-[200] flex items-center justify-center p-4" style="background-color: var(--wb-bg);"
+     role="dialog" aria-modal="true" aria-labelledby="login-dialog-title"
      x-cloak
      x-show="authState === 'login'">
     <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
         <div class="flex items-center justify-center gap-3 mb-8">
             <img alt="WatchBack Logo" class="w-10 h-10 object-contain wb-logo" src="/watchback.png">
-            <h1 class="text-2xl font-bold wb-accent-text">WatchBack</h1>
+            <h1 class="text-2xl font-bold wb-accent-text" id="login-dialog-title">WatchBack</h1>
         </div>
         <form @submit.prevent="void login()">
             <div class="space-y-4">
@@ -187,12 +188,13 @@
 
 <!-- Onboarding -->
 <div class="fixed inset-0 z-[200] flex items-center justify-center p-4" style="background-color: var(--wb-bg);"
+     role="dialog" aria-modal="true" aria-labelledby="onboarding-dialog-title"
      x-cloak
      x-show="authState === 'onboarding'">
     <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
         <div class="flex items-center justify-center gap-3 mb-4">
             <img alt="WatchBack Logo" class="w-8 h-8 object-contain wb-logo" src="/watchback.png">
-            <h1 class="text-xl font-bold wb-accent-text" x-text="t('Setup_Title')"></h1>
+            <h1 class="text-xl font-bold wb-accent-text" id="onboarding-dialog-title" x-text="t('Setup_Title')"></h1>
         </div>
         <p class="text-xs wb-text-muted text-center mb-6" x-text="t('Setup_Subtitle')"></p>
         <form @submit.prevent="void setupAccount()">
@@ -250,16 +252,25 @@
 
 <!-- Password change (hash upgrade) -->
 <div class="fixed inset-0 z-[200] flex items-center justify-center p-4" style="background-color: var(--wb-bg);"
+     role="dialog" aria-modal="true" aria-labelledby="changepw-dialog-title"
      x-cloak
      x-show="authState === 'changePassword'">
     <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
         <div class="flex items-center justify-center gap-3 mb-4">
             <img alt="WatchBack Logo" class="w-8 h-8 object-contain wb-logo" src="/watchback.png">
-            <h1 class="text-xl font-bold wb-accent-text" x-text="t('PasswordUpdate_Title')"></h1>
+            <h1 class="text-xl font-bold wb-accent-text" id="changepw-dialog-title" x-text="t('PasswordUpdate_Title')"></h1>
         </div>
         <p class="text-xs wb-text-muted text-center mb-6" x-text="t('PasswordUpdate_Message')"></p>
         <form @submit.prevent="void changePassword()">
             <div class="space-y-4">
+                <div>
+                    <label class="text-xs font-medium wb-text-muted block mb-1" for="chpw-current"
+                           x-text="t('PasswordUpdate_CurrentPassword')"></label>
+                    <input :placeholder="t('PasswordUpdate_CurrentPassword')" autocomplete="current-password"
+                           class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2.5 text-sm border"
+                           id="chpw-current"
+                           type="password" x-model="changePwCurrent">
+                </div>
                 <div>
                     <label class="text-xs font-medium wb-text-muted block mb-1" for="chpw-new"
                            x-text="t('Setup_NewPassword')"></label>

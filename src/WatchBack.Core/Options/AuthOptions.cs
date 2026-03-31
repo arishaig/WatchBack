@@ -7,11 +7,18 @@ public class AuthOptions
     public string ForwardAuthHeader { get; set; } = "";
 
     /// <summary>
-    ///     Optional IP address or hostname of the trusted reverse proxy.
-    ///     When set, only requests from this host are accepted for forward auth.
-    ///     When blank, any host presenting the forward auth header is trusted.
+    ///     IP address or hostname of the trusted reverse proxy. Required when
+    ///     <see cref="ForwardAuthHeader" /> is set. Use <c>"any"</c> or <c>"*"</c>
+    ///     to explicitly trust all hosts. When blank, forward auth is disabled.
     /// </summary>
     public string ForwardAuthTrustedHost { get; set; } = "";
 
     public bool OnboardingComplete { get; set; }
+
+    /// <summary>
+    ///     Set to <c>true</c> after a password reset. The next successful login
+    ///     will force the user through the change-password screen (not full
+    ///     onboarding) and clear this flag.
+    /// </summary>
+    public bool PasswordResetPending { get; set; }
 }

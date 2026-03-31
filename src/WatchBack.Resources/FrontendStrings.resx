@@ -173,6 +173,9 @@
     <data name="PasswordUpdate_Message" xml:space="preserve">
         <value>Your password's security hash has been upgraded. Please set a new password to continue.</value>
     </data>
+    <data name="PasswordUpdate_CurrentPassword" xml:space="preserve">
+        <value>Current Password</value>
+    </data>
     <data name="PasswordUpdate_ConfirmPassword" xml:space="preserve">
         <value>Confirm Password</value>
     </data>

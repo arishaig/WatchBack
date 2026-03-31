@@ -107,7 +107,9 @@ public sealed class BlueskyThoughtProvider(
                     null,
                     post.Record.Text,
                     ToBlueskyWebUrl(post.Uri, post.Author?.Handle),
-                    post.Record.Embed?.Images?.Select(i => new ThoughtImage(i.Image?.Link ?? "", i.Alt))
+                    post.Record.Embed?.Images?
+                        .Where(i => !string.IsNullOrEmpty(i.Image?.Link))
+                        .Select(i => new ThoughtImage(i.Image!.Link!, i.Alt))
                         .ToList() ?? [],
                     post.Author?.DisplayName ?? post.Author?.Handle ?? "Unknown",
                     post.LikeCount,

@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
+using Microsoft.AspNetCore.HttpOverrides;
+
 using WatchBack.Api;
 using WatchBack.Api.Auth;
 using WatchBack.Api.Endpoints;
@@ -24,6 +26,7 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<InMemoryLogBuffer>();
 builder.Services.AddSingleton<SyncHistoryStore>();
 builder.Services.AddSingleton<SyncTrigger>();
+builder.Services.AddSingleton<SyncGate>();
 builder.Services.AddSingleton<ILoggerProvider, InMemoryLoggerProvider>();
 
 // Add services
@@ -81,7 +84,8 @@ builder.Services
 
 builder.Services
     .AddOptions<WatchBackOptions>()
-    .BindConfiguration("WatchBack");
+    .BindConfiguration("WatchBack")
+    .ValidateDataAnnotations();
 
 builder.Services
     .AddOptions<OmdbOptions>()
@@ -178,10 +182,21 @@ using (IServiceScope scope = app.Services.CreateScope())
 {
     WatchBackDbContext dbContext = scope.ServiceProvider.GetRequiredService<WatchBackDbContext>();
     await dbContext.Database.MigrateAsync();
+
+    // Enable WAL mode for better concurrent read/write performance (especially
+    // fire-and-forget sync history writes alongside foreground queries).
+    await dbContext.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
 }
 
 // Initialize auth — generate initial password if not set
 await InitializeAuthAsync(app);
+
+// Trust X-Forwarded-* headers from reverse proxies so RemoteIpAddress,
+// Scheme, and Host reflect the real client rather than the proxy itself.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 
 // Enable static files (frontend)
 app.UseDefaultFiles();
