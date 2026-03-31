@@ -55,6 +55,10 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
 
     async changePassword() {
         if (this.changePwLoading) return;
+        if (!this.changePwCurrent) {
+            this.changePwError = this.t('Auth_PasswordRequired');
+            return;
+        }
         if (!this.changePwNew) {
             this.changePwError = this.t('Auth_PasswordRequired');
             return;
@@ -69,7 +73,7 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
             const res = await fetch('/api/auth/change-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ newPassword: this.changePwNew }),
+                body: JSON.stringify({ currentPassword: this.changePwCurrent, newPassword: this.changePwNew }),
             });
             const data = await res.json() as Record<string, unknown>;
             if (data['ok']) {

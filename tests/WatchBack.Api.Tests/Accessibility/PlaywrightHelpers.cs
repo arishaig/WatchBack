@@ -528,6 +528,73 @@ internal static class PlaywrightHelpers
         }
     }
 
+    /// <summary>
+    ///     Load the login page, then trigger a login that forces the change-password
+    ///     screen (simulates the post-reset or hash-upgrade flow).
+    /// </summary>
+    public static async Task LoadPageWithChangePassword(IPage page, string url, string theme)
+    {
+        // Return unauthenticated so the login screen shows
+        await page.RouteAsync("**/api/auth/me", route =>
+            route.FulfillAsync(new RouteFulfillOptions
+            {
+                Status = 200,
+                ContentType = "application/json",
+                Body = """{"authenticated":false,"username":null,"needsOnboarding":false,"authMethod":null,"forwardAuthHeader":""}"""
+            }));
+
+        // Login succeeds but requires a password change
+        await page.RouteAsync("**/api/auth/login", route =>
+            route.FulfillAsync(new RouteFulfillOptions
+            {
+                Status = 200,
+                ContentType = "application/json",
+                Body = """{"ok":true,"needsOnboarding":false,"needsPasswordChange":true,"message":null}"""
+            }));
+
+        // Block SSE
+        await page.RouteAsync("**/api/sync/stream", route => route.AbortAsync());
+        await page.RouteAsync("**/api/diagnostics/logs/stream", route => route.AbortAsync());
+
+        await page.GotoAsync(url);
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 15_000 });
+        await page.WaitForTimeoutAsync(500);
+        await ApplyTheme(page, theme);
+
+        // Fill login form and submit to trigger the changePassword state
+        await page.FillAsync("#login-username", "testuser");
+        await page.FillAsync("#login-password", "temppass");
+        await page.ClickAsync("form >> button[type='submit']");
+        await page.WaitForTimeoutAsync(500); // allow Alpine to transition to changePassword state
+    }
+
+    /// <summary>
+    ///     Load the login page in its initial unauthenticated state.
+    /// </summary>
+    public static async Task LoadLoginPage(IPage page, string url, string theme, bool needsOnboarding = false)
+    {
+        string authBody = needsOnboarding
+            ? """{"authenticated":false,"username":null,"needsOnboarding":true,"authMethod":null,"forwardAuthHeader":""}"""
+            : """{"authenticated":false,"username":null,"needsOnboarding":false,"authMethod":null,"forwardAuthHeader":""}""";
+
+        await page.RouteAsync("**/api/auth/me", route =>
+            route.FulfillAsync(new RouteFulfillOptions
+            {
+                Status = 200,
+                ContentType = "application/json",
+                Body = authBody
+            }));
+
+        // Block SSE
+        await page.RouteAsync("**/api/sync/stream", route => route.AbortAsync());
+        await page.RouteAsync("**/api/diagnostics/logs/stream", route => route.AbortAsync());
+
+        await page.GotoAsync(url);
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 15_000 });
+        await page.WaitForTimeoutAsync(500);
+        await ApplyTheme(page, theme);
+    }
+
     public static async Task OpenConfigModal(IPage page)
     {
         await page.ClickAsync("button[title=\"Configuration\"]");

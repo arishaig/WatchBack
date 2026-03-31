@@ -13,6 +13,7 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
         setupUsername: 'newuser',
         setupPassword: 'newpass',
         setupError: null,
+        changePwCurrent: '',
         changePwNew: '',
         changePwConfirm: '',
         changePwError: null,
@@ -159,14 +160,20 @@ describe('setupAccount', () => {
 // ── changePassword ────────────────────────────────────────────────────────────
 
 describe('changePassword', () => {
+    it('sets error when changePwCurrent is empty', async () => {
+        const ctx = makeCtx({ changePwCurrent: '', changePwNew: 'abc', changePwConfirm: 'abc' });
+        await methods.changePassword.call(ctx);
+        expect(ctx.changePwError).toBe('Auth_PasswordRequired');
+    });
+
     it('sets error when changePwNew is empty', async () => {
-        const ctx = makeCtx({ changePwNew: '', changePwConfirm: '' });
+        const ctx = makeCtx({ changePwCurrent: 'old', changePwNew: '', changePwConfirm: '' });
         await methods.changePassword.call(ctx);
         expect(ctx.changePwError).toBe('Auth_PasswordRequired');
     });
 
     it('sets error when passwords do not match', async () => {
-        const ctx = makeCtx({ changePwNew: 'abc', changePwConfirm: 'xyz' });
+        const ctx = makeCtx({ changePwCurrent: 'old', changePwNew: 'abc', changePwConfirm: 'xyz' });
         await methods.changePassword.call(ctx);
         expect(ctx.changePwError).toBe('Auth_PasswordsDoNotMatch');
     });
@@ -174,7 +181,7 @@ describe('changePassword', () => {
     it('does nothing if already loading', async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
-        const ctx = makeCtx({ changePwLoading: true, changePwNew: 'abc', changePwConfirm: 'abc' });
+        const ctx = makeCtx({ changePwLoading: true, changePwCurrent: 'old', changePwNew: 'abc', changePwConfirm: 'abc' });
         await methods.changePassword.call(ctx);
         expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -183,16 +190,25 @@ describe('changePassword', () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             json: async () => ({ ok: true }),
         }));
-        const ctx = makeCtx({ changePwNew: 'newpass', changePwConfirm: 'newpass' });
+        const ctx = makeCtx({ changePwCurrent: 'old', changePwNew: 'newpass', changePwConfirm: 'newpass' });
         await methods.changePassword.call(ctx);
         expect((ctx.initApp as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
+    });
+
+    it('sends currentPassword and newPassword in request body', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const ctx = makeCtx({ changePwCurrent: 'oldpass', changePwNew: 'newpass', changePwConfirm: 'newpass' });
+        await methods.changePassword.call(ctx);
+        const [, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(JSON.parse(opts.body as string)).toEqual({ currentPassword: 'oldpass', newPassword: 'newpass' });
     });
 
     it('sets changePwError on failed response', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             json: async () => ({ ok: false, message: 'Too short' }),
         }));
-        const ctx = makeCtx({ changePwNew: 'abc', changePwConfirm: 'abc' });
+        const ctx = makeCtx({ changePwCurrent: 'old', changePwNew: 'abc', changePwConfirm: 'abc' });
         await methods.changePassword.call(ctx);
         expect(ctx.changePwError).toBe('Too short');
     });

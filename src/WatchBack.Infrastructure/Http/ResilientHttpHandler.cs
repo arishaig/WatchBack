@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Authentication;
 
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -109,7 +110,8 @@ public sealed class ResilientHttpHandler(
     {
         // Timeouts (HttpClient.Timeout elapsed → inner TimeoutException) are not retried:
         // they indicate a misconfigured or unreachable host, not a transient blip.
-        return ex.InnerException is not TimeoutException
+        // SSL/certificate errors are also not transient — retrying adds latency for no gain.
+        return ex.InnerException is not TimeoutException and not AuthenticationException
                && (ex is HttpRequestException
                    || (ex is TaskCanceledException or OperationCanceledException && !ct.IsCancellationRequested));
     }

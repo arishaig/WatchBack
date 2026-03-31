@@ -37,6 +37,7 @@ export interface AppData {
     setupPassword: string;
     setupError: string | null;
     setupLoading: boolean;
+    changePwCurrent: string;
     changePwNew: string;
     changePwConfirm: string;
     changePwError: string | null;

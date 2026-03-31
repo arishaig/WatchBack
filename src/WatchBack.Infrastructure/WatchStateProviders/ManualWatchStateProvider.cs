@@ -42,12 +42,13 @@ public sealed class ManualWatchStateProvider : IManualWatchStateProvider
 
     public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
     {
-        string? message = _context != null
+        MediaContext? context = Volatile.Read(ref _context);
+        string? message = context != null
 #pragma warning disable CA1863
             ? string.Format(
                 CultureInfo.InvariantCulture,
                 UiStrings.ManualWatchStateProvide_GetServiceHealthAsync_MediaContext,
-                _context.Title)
+                context.Title)
 #pragma warning restore CA1863
             : UiStrings.ManualWatchStateProvide_GetServiceHealthAsync_IdleState;
 

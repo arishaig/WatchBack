@@ -1,7 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace WatchBack.Core.Options;
 
 public class WatchBackOptions
 {
+    [Range(0, 365)]
     public int TimeMachineDays { get; init; } = 14;
     public string WatchProvider { get; init; } = "";
 

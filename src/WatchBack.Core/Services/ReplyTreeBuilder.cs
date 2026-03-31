@@ -21,29 +21,60 @@ public class ReplyTreeBuilder : IReplyTreeBuilder
             .GroupBy(t => t.ParentId!)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        // Build each node bottom-up via memoization
+        // Build each node iteratively using an explicit stack (post-order traversal)
+        // to avoid stack overflow on deeply nested reply chains.
         Dictionary<string, Thought> built = new(flatList.Count);
 
-        Thought Build(Thought t)
+        foreach (Thought root in flatList)
         {
-            if (built.TryGetValue(t.Id, out Thought? cached))
+            if (built.ContainsKey(root.Id))
             {
-                return cached;
+                continue;
             }
 
-            List<Thought> replies = byParent.TryGetValue(t.Id, out List<Thought>? children)
-                ? children.Select(Build).ToList()
-                : [];
+            Stack<(Thought Node, bool ChildrenProcessed)> stack = new();
+            stack.Push((root, false));
 
-            Thought result = t with { Replies = replies };
-            built[t.Id] = result;
-            return result;
+            while (stack.Count > 0)
+            {
+                (Thought node, bool childrenProcessed) = stack.Pop();
+
+                if (built.ContainsKey(node.Id))
+                {
+                    continue;
+                }
+
+                bool hasChildren = byParent.TryGetValue(node.Id, out List<Thought>? nodeChildren);
+
+                if (childrenProcessed || !hasChildren)
+                {
+                    // All children are built — assemble this node
+                    List<Thought> replies = hasChildren
+                        ? nodeChildren!.Select(c =>
+                                built.TryGetValue(c.Id, out Thought? b) ? b : c with { Replies = [] })
+                            .ToList()
+                        : [];
+                    built[node.Id] = node with { Replies = replies };
+                }
+                else
+                {
+                    // Re-push this node to be finalized after its children
+                    stack.Push((node, true));
+                    foreach (Thought child in nodeChildren!)
+                    {
+                        if (!built.ContainsKey(child.Id))
+                        {
+                            stack.Push((child, false));
+                        }
+                    }
+                }
+            }
         }
 
         // Top-level: no parent, or parent not in the set
         return flatList
             .Where(t => t.ParentId == null || !byId.ContainsKey(t.ParentId))
-            .Select(Build)
+            .Select(t => built.TryGetValue(t.Id, out Thought? b) ? b : t)
             .ToList();
     }
 }

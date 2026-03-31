@@ -18,10 +18,10 @@ public class TimeMachineFilter : ITimeMachineFilter
         return thoughts
             .Where(t =>
             {
-                // Zero means same calendar day; positive means a rolling window after air date
+                // Zero means same calendar day (UTC); positive means a rolling window after air date
                 if (windowDays == 0)
                 {
-                    return t.CreatedAt.Date == airDate.Value.Date;
+                    return t.CreatedAt.UtcDateTime.Date == airDate.Value.UtcDateTime.Date;
                 }
 
                 double deltaDays = (t.CreatedAt - airDate.Value).TotalDays;

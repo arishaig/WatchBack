@@ -442,6 +442,58 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     }
 
     // -----------------------------------------------------------------------
+    // Auth screen tests — login, change-password
+    // -----------------------------------------------------------------------
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task LoginScreen(string theme)
+    {
+        IPage page = await _browser.NewPageAsync();
+        try
+        {
+            await LoadLoginPage(page, _baseUrl, theme);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task LoginScreenWithOnboardingHint(string theme)
+    {
+        IPage page = await _browser.NewPageAsync();
+        try
+        {
+            await LoadLoginPage(page, _baseUrl, theme, needsOnboarding: true);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task ChangePasswordScreen(string theme)
+    {
+        IPage page = await _browser.NewPageAsync();
+        try
+        {
+            await LoadPageWithChangePassword(page, _baseUrl, theme);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Diagnostics tests
     // -----------------------------------------------------------------------
 

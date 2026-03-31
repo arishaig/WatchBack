@@ -21,6 +21,7 @@ public partial class ForwardAuthHandler(
     : AuthenticationHandler<ForwardAuthOptions>(options, logger, encoder)
 {
     private static readonly TimeSpan s_dnsCacheDuration = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan s_dnsNegativeCacheDuration = TimeSpan.FromSeconds(5);
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -30,15 +31,25 @@ public partial class ForwardAuthHandler(
             return AuthenticateResult.NoResult();
         }
 
+        // Trusted host is required when forward auth is enabled.
+        // Without it, any network peer could spoof the header.
+        if (string.IsNullOrEmpty(opts.ForwardAuthTrustedHost))
+        {
+            LogMissingTrustedHost(Logger);
+            return AuthenticateResult.NoResult();
+        }
+
         string? headerValue = Request.Headers[opts.ForwardAuthHeader].FirstOrDefault();
         if (string.IsNullOrEmpty(headerValue))
         {
             return AuthenticateResult.NoResult();
         }
 
-        // If a trusted host is configured, validate the remote IP against it.
-        // When blank, any host presenting the header is trusted.
-        if (!string.IsNullOrEmpty(opts.ForwardAuthTrustedHost))
+        // "any" or "*" means the user explicitly trusts all hosts.
+        bool trustAll = opts.ForwardAuthTrustedHost.Equals("any", StringComparison.OrdinalIgnoreCase)
+                        || opts.ForwardAuthTrustedHost == "*";
+
+        if (!trustAll)
         {
             IPAddress? remoteIp = Context.Connection.RemoteIpAddress;
             if (remoteIp == null || !await IsFromTrustedHostAsync(remoteIp, opts.ForwardAuthTrustedHost))
@@ -66,10 +77,18 @@ public partial class ForwardAuthHandler(
             return remoteIp.Equals(trustedIp);
         }
 
-        // Resolve hostname to IP addresses, caching to avoid DNS per-request
+        // Resolve hostname to IP addresses, caching to avoid DNS per-request.
+        // Negative results are cached briefly to prevent repeated timeout-inducing
+        // lookups when the trusted host is misconfigured.
         string cacheKey = $"forwardauth:dns:{trustedHost}";
+        string negativeCacheKey = $"forwardauth:dns:neg:{trustedHost}";
         if (!cache.TryGetValue(cacheKey, out IPAddress[]? addresses))
         {
+            if (cache.TryGetValue(negativeCacheKey, out _))
+            {
+                return false;
+            }
+
             try
             {
                 addresses = await Dns.GetHostAddressesAsync(trustedHost);
@@ -77,6 +96,7 @@ public partial class ForwardAuthHandler(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                cache.Set(negativeCacheKey, true, s_dnsNegativeCacheDuration);
                 return false;
             }
         }
@@ -88,4 +108,9 @@ public partial class ForwardAuthHandler(
         Message =
             "ForwardAuth: remote IP {IP} does not match trusted host '{TrustedHost}', falling back to cookie auth")]
     private static partial void LogTrustedHostMismatch(ILogger logger, IPAddress? ip, string trustedHost);
+
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message =
+            "ForwardAuth: header is configured but ForwardAuthTrustedHost is empty — forward auth is disabled until a trusted host is set (use 'any' or '*' to trust all hosts)")]
+    private static partial void LogMissingTrustedHost(ILogger logger);
 }

@@ -64,6 +64,7 @@ publish/
 *.csproj.DotSettings
 *.csproj.DotSettings.user
 *.sln.DotSettings.user
+inspectcode-results.xml
 
 # Visual Studio Code
 .vscode-ctags
