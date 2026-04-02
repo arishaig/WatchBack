@@ -129,6 +129,30 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("RedditThoughtProvider_Metadata_Comments_from_Reddit", resourceCulture);
             }
         }
+
+        public static string LemmyThoughtProvider_Metadata_Posts_from_Lemmy {
+            get {
+                return ResourceManager.GetString("LemmyThoughtProvider_Metadata_Posts_from_Lemmy", resourceCulture);
+            }
+        }
+
+        public static string ConfigLemmy_InstanceUrl {
+            get {
+                return ResourceManager.GetString("ConfigLemmy_InstanceUrl", resourceCulture);
+            }
+        }
+
+        public static string ConfigLemmy_Community {
+            get {
+                return ResourceManager.GetString("ConfigLemmy_Community", resourceCulture);
+            }
+        }
+
+        public static string ConfigEndpoints_GetConfig_Max_Posts {
+            get {
+                return ResourceManager.GetString("ConfigEndpoints_GetConfig_Max_Posts", resourceCulture);
+            }
+        }
         
         public static string ConfigEndpoints_GetConfig_Server_URL {
             get {
