@@ -1199,12 +1199,12 @@
                     </template>
                     <template x-if="syncHistoryEntries.length > 0">
                         <div>
-                            <!-- Timeline strip: one block per sync, oldest → newest left → right -->
+                            <!-- Timeline strip: one block per run, width proportional to sync count -->
                             <div aria-hidden="true" class="flex gap-px h-3 rounded-lg overflow-hidden mb-3">
-                                <template :key="i" x-for="(entry, i) in syncHistoryEntries.slice().reverse()">
-                                    <div :style="entry.status === 'Watching' ? 'background:var(--wb-success-text);opacity:0.75' : entry.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint);opacity:0.4'"
-                                         :title="entry.title || entry.status"
-                                         class="flex-1 min-w-[2px]">
+                                <template :key="i" x-for="(entry, i) in collapsedSyncHistory.slice().reverse()">
+                                    <div :style="(entry.status === 'Watching' ? 'background:var(--wb-success-text);opacity:0.75' : entry.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint);opacity:0.4') + ';flex-grow:' + entry.count"
+                                         :title="(entry.title ? entry.status + ': ' + entry.title : entry.status) + (entry.count > 1 ? ' ×' + entry.count : '') + (entry.avgDurationMs != null ? ' (' + (entry.avgDurationMs / 1000).toFixed(1) + 's avg)' : '')"
+                                         class="min-w-[2px]">
                                     </div>
                                 </template>
                             </div>
