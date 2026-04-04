@@ -35,6 +35,12 @@ public sealed class RedditThoughtProvider(
 
     private static readonly Regex s_excessiveNewlines = new(@"\n{3,}", RegexOptions.Compiled);
 
+    // Detects explicit season references in a submission title (SxxEyy, NxYY, or "Season N").
+    // Used to reject bypass results that name a different season than the one being fetched.
+    private static readonly Regex s_explicitSeasonRef = new(
+        @"\bS(\d{1,2})E\d+\b|\b(\d{1,2})x\d+\b|\bSeason\s+(\d+)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static readonly ConcurrentDictionary<(int, int), Regex[]> s_episodeRegexCache = new();
 
     private readonly RedditOptions _options = options.Value;
@@ -145,18 +151,25 @@ public sealed class RedditThoughtProvider(
             // Log raw results before filtering so we can diagnose misses
             foreach ((string id, PullPushSubmissionDto sub) in seenIds)
             {
-                bool passes = bypassIds.Contains(id) ||
-                              (episode != null && MatchesEpisode(sub.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber));
+                bool passes =
+                    (bypassIds.Contains(id) &&
+                     (episode == null || !MentionsDifferentSeason(sub.Title ?? "", episode.SeasonNumber))) ||
+                    (episode != null && MatchesEpisode(sub.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber));
                 logger.LogInformation("PullPush raw: [{Id}] r/{Sub} \"{Title}\" → {Result}",
                     id, sub.Subreddit, sub.Title, passes ? "KEEP" : "SKIP");
             }
 
             // Keep submissions whose title matches this episode, or that came from a bypass search
-            // (episode-title search, where PullPush already did the scoping)
+            // (episode-title search, where PullPush already did the scoping).
+            // For bypass results with an episode context, we still reject any submission that
+            // explicitly names a *different* season — this prevents S1 threads bleeding into S2
+            // results when the show is new and PullPush has no S2 content yet.
             List<PullPushSubmissionDto> submissions = seenIds.Values
-                .Where(s => s.Id != null && (bypassIds.Contains(s.Id!) ||
-                                             (episode != null && MatchesEpisode(s.Title ?? "", episode.SeasonNumber,
-                                                 episode.EpisodeNumber))))
+                .Where(s => s.Id != null && (
+                    (bypassIds.Contains(s.Id!) &&
+                     (episode == null || !MentionsDifferentSeason(s.Title ?? "", episode.SeasonNumber))) ||
+                    (episode != null && MatchesEpisode(s.Title ?? "", episode.SeasonNumber,
+                        episode.EpisodeNumber))))
                 .OrderByDescending(s => s.Score ?? 0)
                 .ToList();
 
@@ -462,6 +475,26 @@ public sealed class RedditThoughtProvider(
 
             return patterns.Select(p => new Regex(p, RegexOptions.Compiled | RegexOptions.IgnoreCase)).ToArray();
         });
+    }
+
+    // Returns true if the title contains an explicit season reference that does NOT match
+    // the given season number. Titles with no season marker are considered a match (return false).
+    private static bool MentionsDifferentSeason(string title, int season)
+    {
+        MatchCollection matches = s_explicitSeasonRef.Matches(title);
+        foreach (Match m in matches)
+        {
+            string raw = m.Groups[1].Success ? m.Groups[1].Value :
+                         m.Groups[2].Success ? m.Groups[2].Value :
+                         m.Groups[3].Value;
+
+            if (int.TryParse(raw, out int referencedSeason) && referencedSeason != season)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool MatchesEpisode(string title, int season, int episode)
