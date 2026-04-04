@@ -788,6 +788,118 @@ public class RedditThoughtProviderTests : IDisposable
             .NotContain(u => u.Contains("S00") || u.Contains("0x"));
     }
 
+    // Regression: when a show is new and PullPush has no S2 content, the episode-title bypass
+    // search may return S1 discussion threads whose titles explicitly name Season 1. Without the
+    // MentionsDifferentSeason guard those threads slipped through the bypass filter unchecked.
+    [Fact]
+    public async Task GetThoughtsAsync_BypassResult_WithExplicitPriorSeasonInTitle_IsRejected()
+    {
+        EpisodeContext mediaContext = new(
+            "The Pitt",
+            new DateTimeOffset(2026, 1, 9, 0, 0, 0, TimeSpan.Zero),
+            "Mass Casualty",
+            2,
+            1);
+
+        // S1 thread surfaced by the episode-title bypass search — title explicitly says S01E01
+        string s1ThreadJson = """
+                              {
+                                  "data": [
+                                      {
+                                          "id": "abc123",
+                                          "title": "The Pitt S01E01 - \"Mass Casualty\" Discussion",
+                                          "permalink": "/r/ThePitt/comments/abc123",
+                                          "subreddit": "ThePitt",
+                                          "score": 500
+                                      }
+                                  ]
+                              }
+                              """;
+
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("Mass Casualty", s1ThreadJson)
+            .Default("""{"data":[]}""");
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        // The episode-title bypass search must have fired (the mock DID return the S1 thread;
+        // it's the MentionsDifferentSeason guard that rejects it, not an absence of results)
+        handler.RecordedUris.Should().Contain(
+            u => Uri.UnescapeDataString(u.ToString()).Contains("Mass Casualty"),
+            "episode-title bypass search must have been attempted");
+
+        // The S1 thread must then be rejected — no comment fetch should follow
+        result.Should().NotBeNull();
+        result.Thoughts.Should().BeEmpty();
+        handler.RecordedUris.Should().NotContain(u => u.ToString().Contains("/comment/"));
+    }
+
+    // Complement: a bypass result whose title carries no season code must still pass through —
+    // many discussion threads are titled "Episode 3 Discussion" with no SxxExx code at all.
+    [Fact]
+    public async Task GetThoughtsAsync_BypassResult_WithNoSeasonInTitle_IsIncluded()
+    {
+        EpisodeContext mediaContext = new(
+            "The Pitt",
+            new DateTimeOffset(2026, 1, 9, 0, 0, 0, TimeSpan.Zero),
+            "Mass Casualty",
+            2,
+            1);
+
+        string unseasonedThreadJson = """
+                                      {
+                                          "data": [
+                                              {
+                                                  "id": "xyz789",
+                                                  "title": "Mass Casualty - Episode Discussion",
+                                                  "permalink": "/r/ThePitt/comments/xyz789",
+                                                  "subreddit": "ThePitt",
+                                                  "score": 80
+                                              }
+                                          ]
+                                      }
+                                      """;
+
+        string commentsJson = """
+                              {
+                                  "data": [
+                                      {
+                                          "id": "c1",
+                                          "body": "Incredible premiere.",
+                                          "score": 50,
+                                          "author": "viewer1",
+                                          "created_utc": 1736380800,
+                                          "parent_id": "t3_xyz789"
+                                      }
+                                  ]
+                              }
+                              """;
+
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("Mass Casualty", unseasonedThreadJson)
+            .RespondTo("/comment/", commentsJson)
+            .Default("""{"data":[]}""");
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        result.Should().NotBeNull();
+        result.Thoughts.Should().NotBeEmpty();
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_WithSeasonZeroEpisode_NoDateNoTitle_ReturnsEmpty()
     {
