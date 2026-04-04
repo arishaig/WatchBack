@@ -241,6 +241,15 @@
     <data name="Config_NotConfigured" xml:space="preserve">
         <value>{0} not configured</value>
     </data>
+    <data name="Config_DisableProvider" xml:space="preserve">
+        <value>Disable</value>
+    </data>
+    <data name="Config_EnableProvider" xml:space="preserve">
+        <value>Enable</value>
+    </data>
+    <data name="Config_DisabledSection" xml:space="preserve">
+        <value>Disabled providers</value>
+    </data>
     <data name="Config_CommentsFrom" xml:space="preserve">
         <value>Comments from {0}</value>
     </data>

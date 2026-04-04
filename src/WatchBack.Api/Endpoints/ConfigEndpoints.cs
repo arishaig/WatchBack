@@ -114,6 +114,10 @@ public static class ConfigEndpoints
             .Concat(ratingsProviderList.Select(p => ((IDataProvider)p, "ratings")))
             .Concat(mediaSearchProviderList.Select(p => ((IDataProvider)p, "search")));
 
+        HashSet<string> disabledProviders = w.DisabledProviders
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         Dictionary<string, object> integrations = tagged
             .Where(t => t.Item1.ConfigSection is not null)
             .GroupBy(t => t.Item1.ConfigSection!, StringComparer.OrdinalIgnoreCase)
@@ -135,7 +139,8 @@ public static class ConfigEndpoints
                         brandColor = primary.Metadata.BrandData?.Color ?? "",
                         fields,
                         configured = providers.Any(p => p.IsConfigured),
-                        providerTypes
+                        providerTypes,
+                        disabled = disabledProviders.Contains(g.Key)
                     };
                 });
 
@@ -164,14 +169,16 @@ public static class ConfigEndpoints
                     ["WatchBack__TimeMachineDays"] = EnvVal("WatchBack__TimeMachineDays"),
                     ["WatchBack__WatchProvider"] = EnvVal("WatchBack__WatchProvider"),
                     ["WatchBack__SearchEngine"] = EnvVal("WatchBack__SearchEngine"),
-                    ["WatchBack__CustomSearchUrl"] = EnvVal("WatchBack__CustomSearchUrl")
+                    ["WatchBack__CustomSearchUrl"] = EnvVal("WatchBack__CustomSearchUrl"),
+                    ["WatchBack__DisabledProviders"] = EnvVal("WatchBack__DisabledProviders")
                 },
                 overrides = new Dictionary<string, bool>
                 {
                     ["WatchBack__TimeMachineDays"] = IsOverridden("WatchBack", "TimeMachineDays"),
                     ["WatchBack__WatchProvider"] = IsOverridden("WatchBack", "WatchProvider"),
                     ["WatchBack__SearchEngine"] = IsOverridden("WatchBack", "SearchEngine"),
-                    ["WatchBack__CustomSearchUrl"] = IsOverridden("WatchBack", "CustomSearchUrl")
+                    ["WatchBack__CustomSearchUrl"] = IsOverridden("WatchBack", "CustomSearchUrl"),
+                    ["WatchBack__DisabledProviders"] = IsOverridden("WatchBack", "DisabledProviders")
                 }
             }
         };

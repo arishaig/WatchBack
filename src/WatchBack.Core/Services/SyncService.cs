@@ -78,8 +78,13 @@ public class SyncService(
                 return SyncResult.Idle(options.Value.TimeMachineDays);
             }
 
-            // Get thoughts and ratings from all providers in parallel
+            // Get thoughts and ratings from all providers in parallel, skipping disabled ones
+            HashSet<string> disabledSet = options.Value.DisabledProviders
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
             List<Task<ThoughtResult?>> thoughtTasks = thoughtProviders
+                .Where(p => p.ConfigSection is null || !disabledSet.Contains(p.ConfigSection))
                 .Select(provider => provider.GetThoughtsAsync(mediaContext, progress, ct))
                 .ToList();
 
