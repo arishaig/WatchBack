@@ -169,6 +169,49 @@ public class LemmyThoughtProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task GetThoughtsAsync_FallsBackToUnpaddedQueryWhenPaddedReturnsNoPosts()
+    {
+        // Padded query (S01E03) returns nothing; unpadded (S1E3) returns a post.
+        // Provider should return the post found via the fallback query.
+        EpisodeContext mediaContext = new("The Bear", DateTimeOffset.UtcNow, "Brigade", 1, 3);
+
+        string emptyJson = """{"posts": []}""";
+        string postJson = """
+                          {
+                              "posts": [
+                                  { "post": { "id": 42, "name": "The Bear S1E3 Brigade Discussion", "ap_id": "https://lemmy.world/post/42" } }
+                              ]
+                          }
+                          """;
+        string commentsJson = """{"comments": []}""";
+
+        Queue<string> requestedUrls = new();
+        Queue<HttpResponseMessage> responses = new(
+        [
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(emptyJson) },   // padded S01E03 → empty
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(postJson) },    // unpadded S1E3 → found
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) } // comments for post 42
+        ]);
+        MockHttpMessageHandler handler = new(req =>
+        {
+            requestedUrls.Enqueue(req.RequestUri!.ToString());
+            return responses.Dequeue();
+        });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://lemmy.world") };
+
+        LemmyThoughtProvider provider = CreateProvider(client);
+
+        // Act
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.PostTitle.Should().Be("The Bear S1E3 Brigade Discussion");
+        requestedUrls.Should().Contain(u => u.Contains("S01E03"));
+        requestedUrls.Should().Contain(u => u.Contains("S1E3") && !u.Contains("S01E03"));
+    }
+
+    [Fact]
     public async Task GetThoughtsAsync_WithCommunityFilter_IncludesCommunityInSearchUrl()
     {
         // Arrange
@@ -197,8 +240,8 @@ public class LemmyThoughtProviderTests : IDisposable
         // Act
         await provider.GetThoughtsAsync(mediaContext);
 
-        // Assert
-        requestedUrls.Should().ContainSingle(u => u.Contains("community_name=television"));
+        // Assert — both the padded and unpadded fallback queries should carry the community filter
+        requestedUrls.Should().OnlyContain(u => u.Contains("community_name=television"));
     }
 
     [Fact]
@@ -221,8 +264,8 @@ public class LemmyThoughtProviderTests : IDisposable
         // Act
         await provider.GetThoughtsAsync(mediaContext);
 
-        // Assert
-        requestedUrls.Should().ContainSingle(u => !u.Contains("community_name"));
+        // Assert — no URL should carry a community_name parameter when none is configured
+        requestedUrls.Should().OnlyContain(u => !u.Contains("community_name"));
     }
 
     // ---- Reply tree / parent ID parsing ----
@@ -346,8 +389,9 @@ public class LemmyThoughtProviderTests : IDisposable
         await provider.GetThoughtsAsync(mediaContext);
         await provider.GetThoughtsAsync(mediaContext);
 
-        // Assert — only one HTTP call because the second was served from cache
-        callCount.Should().Be(1);
+        // Assert — two HTTP calls on the first invocation (padded + unpadded fallback, both empty),
+        // then zero additional calls on the second invocation (served from cache).
+        callCount.Should().Be(2);
     }
 
     // ---- GetServiceHealthAsync ----

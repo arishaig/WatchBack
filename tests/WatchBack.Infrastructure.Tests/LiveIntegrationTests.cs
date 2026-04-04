@@ -244,6 +244,42 @@ public class LiveIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task LemmyThoughts_GetThoughts_ApiReachableAndReturnsValidStructure()
+    {
+        // Arrange — no auth required, uses public lemmy.world API.
+        // Lemmy TV discussions are typically season/show-level rather than per-episode,
+        // so we verify the provider round-trips correctly without asserting on result count.
+        LemmyOptions options = new()
+        {
+            InstanceUrl = "https://lemmy.world",
+            MaxPosts = 3,
+            MaxComments = 50,
+            CacheTtlSeconds = 3600
+        };
+
+        EpisodeContext mediaContext = new(
+            "The Bear",
+            new DateTimeOffset(2022, 6, 23, 0, 0, 0, TimeSpan.Zero),
+            "Brigade",
+            1,
+            3);
+
+        ReplyTreeBuilder treeBuilder = new();
+        LemmyThoughtProvider provider = new(_httpClient, new OptionsSnapshotStub<LemmyOptions>(options), _cache,
+            treeBuilder, NullLogger<LemmyThoughtProvider>.Instance);
+
+        // Act
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+        ServiceHealth health = await provider.GetServiceHealthAsync();
+
+        // Assert
+        health.IsHealthy.Should().BeTrue($"lemmy.world health check failed: {health.Message}");
+        result.Should().NotBeNull();
+        result!.Source.Should().Be("Lemmy");
+        // Thoughts may be empty — episode-level posts don't reliably exist on Lemmy
+    }
+
+    [Fact]
     public async Task AllProviders_CanBeInstantiatedWithEnvConfig()
     {
         // This test verifies that all providers can be created with environment variable configuration

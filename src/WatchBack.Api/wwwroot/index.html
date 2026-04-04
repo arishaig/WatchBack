@@ -657,29 +657,68 @@
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
                 <h2 class="text-sm font-semibold wb-text-secondary mb-3" x-text="t('Config_Integrations')"></h2>
 
+                <!-- Disabled providers section -->
+                <template x-if="Object.values(configData?.integrations || {}).some(i => i.disabled)">
+                    <div class="mb-4">
+                        <p class="text-xs font-medium wb-text-faint mb-2 uppercase tracking-wide"
+                           x-text="t('Config_DisabledSection')"></p>
+                        <div class="space-y-2">
+                            <template :key="'dis-' + key"
+                                      x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([,i]) => i.disabled)">
+                                <div :style="'--card-accent: ' + integration.brandColor"
+                                     class="integration-card rounded-xl overflow-hidden opacity-50">
+                                    <div class="w-full flex items-center justify-between gap-2 p-4">
+                                        <span class="flex items-center gap-2">
+                                            <span :style="'color: ' + integration.brandColor"
+                                                  class="integration-logo"
+                                                  x-html="sanitizeSvg(integration.logoSvg)"></span>
+                                            <span class="text-sm font-semibold wb-text-secondary"
+                                                  x-text="integration.name"></span>
+                                        </span>
+                                        <button :aria-label="t('Config_EnableProvider') + ' ' + integration.name"
+                                                @click.stop="void toggleDisabled(key)"
+                                                class="text-xs font-medium px-2.5 py-1 rounded-md wb-border border
+                                                       wb-text-secondary cursor-pointer wb-btn
+                                                       hover:scale-[1.02] active:scale-95 transition-all duration-150 transform-gpu"
+                                                type="button"
+                                                x-text="t('Config_EnableProvider')"></button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Active integrations -->
                 <div class="space-y-3">
-                    <template :key="key" x-for="[key, integration] in Object.entries(configData?.integrations || {})">
+                    <template :key="key"
+                              x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([,i]) => !i.disabled)">
                         <div :style="'--card-accent: ' + integration.brandColor"
                              class="integration-card rounded-xl overflow-hidden">
-                            <!-- Card header: logo + service name + collapse toggle -->
+                            <!-- Card header: logo + service name + collapse toggle + disable button -->
                             <button :aria-expanded="!collapsedSections[key]"
                                     :class="collapsedSections[key] ? '' : 'pb-3'"
                                     @click="toggleSection(key)"
                                     class="w-full flex items-center justify-between gap-2 p-4 cursor-pointer text-left"
                                     type="button">
-                <span class="flex items-center gap-2">
-                    <span :style="'color: ' + integration.brandColor"
-                          class="integration-logo"
-                          x-html="sanitizeSvg(integration.logoSvg)">
-                    </span>
-                    <span class="text-sm font-semibold wb-text-secondary"
-                          x-text="integration.name">
-                    </span>
-                </span>
-                                <ion-icon
-                                        :name="collapsedSections[key] ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
-                                        aria-hidden="true" class="wb-text-faint shrink-0">
-                                </ion-icon>
+                                <span class="flex items-center gap-2">
+                                    <span :style="'color: ' + integration.brandColor"
+                                          class="integration-logo"
+                                          x-html="sanitizeSvg(integration.logoSvg)"></span>
+                                    <span class="text-sm font-semibold wb-text-secondary"
+                                          x-text="integration.name"></span>
+                                </span>
+                                <span class="flex items-center gap-2 shrink-0">
+                                    <button :aria-label="t('Config_DisableProvider') + ' ' + integration.name"
+                                            @click.stop="void toggleDisabled(key)"
+                                            class="text-xs font-medium px-2.5 py-1 rounded-md wb-border border
+                                                   wb-text-faint cursor-pointer wb-btn
+                                                   hover:scale-[1.02] active:scale-95 transition-all duration-150 transform-gpu"
+                                            type="button"
+                                            x-text="t('Config_DisableProvider')"></button>
+                                    <ion-icon :name="collapsedSections[key] ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
+                                              aria-hidden="true" class="wb-text-faint"></ion-icon>
+                                </span>
                             </button>
                             <!-- Collapsible body: fields + test button -->
                             <div class="px-4 pb-4"
@@ -713,7 +752,7 @@
                         <ul class="space-y-1.5 text-sm wb-text-muted" role="list">
                             <template
                                     :key="'feat-' + key"
-                                    x-for="[key, integration] in Object.entries(configData?.integrations || {})">
+                                    x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([,i]) => !i.disabled)">
                                 <li class="flex items-start gap-2">
                     <span :aria-label="integration.name + ': ' + testIcon(key).label" :class="testIcon(key).cls"
                           class="mt-0.5" role="img"

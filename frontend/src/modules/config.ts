@@ -196,6 +196,26 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
         this.testAllStatus = allOk ? 'ok' : allFailed ? 'error' : 'warn';
         setTimeout(() => { this.testAllStatus = null; }, 5000);
     },
+
+    async toggleDisabled(key: string) {
+        const integrations = (this.configData?.['integrations'] as IntegrationMap | undefined) ?? {};
+        const disabledKeys = Object.entries(integrations)
+            .filter(([, v]) => v.disabled)
+            .map(([k]) => k);
+        const newDisabled = disabledKeys.includes(key)
+            ? disabledKeys.filter(k => k !== key)
+            : [...disabledKeys, key];
+        if (newDisabled.length === 0) {
+            await this.resetConfigKeys(['WatchBack__DisabledProviders']);
+        } else {
+            await postJson('/api/config', { 'WatchBack__DisabledProviders': newDisabled.join(',') });
+        }
+        const cRes = await fetch('/api/config');
+        if (cRes.ok) {
+            this.configData = await cRes.json() as Record<string, unknown>;
+            this._initConfigEdits(this.configData);
+        }
+    },
 };
 
 export default configMethods;

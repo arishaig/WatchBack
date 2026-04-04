@@ -18,4 +18,7 @@ public class WatchBackOptions
     public string CustomSearchUrl { get; set; } = "";
 
     public bool SegmentedProgressBar { get; set; }
+
+    /// <summary>Comma-separated list of provider config-section names to skip during sync (e.g. "Lemmy,Bluesky").</summary>
+    public string DisabledProviders { get; init; } = "";
 }

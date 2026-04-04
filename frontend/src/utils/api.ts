@@ -1,5 +1,5 @@
 export type IntegrationField = { key: string; type: string; value?: string; hasValue?: boolean };
-export type IntegrationMap = Record<string, { fields: IntegrationField[]; configured?: boolean }>;
+export type IntegrationMap = Record<string, { fields: IntegrationField[]; configured?: boolean; disabled?: boolean }>;
 
 /**
  * Build the flat config payload from integration fields + current edits.

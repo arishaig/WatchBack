@@ -60,30 +60,48 @@ public sealed class LemmyThoughtProvider(
             }
 
             string instance = _options.InstanceUrl.TrimEnd('/');
-            string query = IThoughtProvider.BuildTextQuery(mediaContext);
 
-            string searchUrl =
-                $"{instance}/api/v3/search?q={Uri.EscapeDataString(query)}&type_=Posts&listing_type=All&sort=TopAll&limit={_options.MaxPosts}";
-            if (!string.IsNullOrWhiteSpace(_options.Community))
+            // Build query variants to try in order. Community posts often omit leading zeros
+            // (S1E3 vs S01E03), so if the canonical padded query returns nothing we fall back
+            // to the non-padded form before giving up.
+            List<string> queries = [IThoughtProvider.BuildTextQuery(mediaContext)];
+            if (mediaContext is EpisodeContext { SeasonNumber: > 0, EpisodeNumber: > 0 } ep)
             {
-                searchUrl += $"&community_name={Uri.EscapeDataString(_options.Community)}";
+                string unpadded = $"{mediaContext.Title} S{ep.SeasonNumber}E{ep.EpisodeNumber}";
+                if (unpadded != queries[0])
+                    queries.Add(unpadded);
             }
 
-            HttpResponseMessage searchResponse = await httpClient.GetAsync(searchUrl, ct);
-            progress?.Report(new SyncProgressTick(1, "Lemmy"));
-
-            if (!searchResponse.IsSuccessStatusCode)
+            LemmyPostViewDto[] posts = [];
+            string usedQuery = queries[0];
+            foreach (string query in queries)
             {
-                logger.LogWarning("Lemmy search failed: HTTP {Status} for query '{Query}'",
-                    (int)searchResponse.StatusCode, query);
-                return s_empty;
+                string searchUrl =
+                    $"{instance}/api/v3/search?q={Uri.EscapeDataString(query)}&type_=Posts&listing_type=All&sort=TopAll&limit={_options.MaxPosts}";
+                if (!string.IsNullOrWhiteSpace(_options.Community))
+                    searchUrl += $"&community_name={Uri.EscapeDataString(_options.Community)}";
+
+                HttpResponseMessage searchResponse = await httpClient.GetAsync(searchUrl, ct);
+                progress?.Report(new SyncProgressTick(1, "Lemmy"));
+
+                if (!searchResponse.IsSuccessStatusCode)
+                {
+                    logger.LogWarning("Lemmy search failed: HTTP {Status} for query '{Query}'",
+                        (int)searchResponse.StatusCode, query);
+                    continue;
+                }
+
+                string searchContent = await searchResponse.Content.ReadAsStringAsync(ct);
+                LemmySearchResponseDto? searchResult = JsonSerializer.Deserialize(
+                    searchContent, LemmyJsonContext.Default.LemmySearchResponseDto);
+
+                posts = searchResult?.Posts ?? [];
+                usedQuery = query;
+                if (posts.Length > 0)
+                    break;
             }
 
-            string searchContent = await searchResponse.Content.ReadAsStringAsync(ct);
-            LemmySearchResponseDto? searchResult = JsonSerializer.Deserialize(
-                searchContent, LemmyJsonContext.Default.LemmySearchResponseDto);
-
-            LemmyPostViewDto[] posts = searchResult?.Posts ?? [];
+            logger.LogInformation("Lemmy: found {Count} post(s) for query '{Query}'", posts.Length, usedQuery);
 
             if (posts.Length == 0)
             {

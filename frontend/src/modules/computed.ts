@@ -92,13 +92,13 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
     },
 
     get hasWatchProvider(): boolean {
-        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean; providerTypes?: string[] }> | undefined) ?? {};
-        return Object.values(integrations).some(i => i.providerTypes?.includes('watchState') && i.configured);
+        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean; providerTypes?: string[]; disabled?: boolean }> | undefined) ?? {};
+        return Object.values(integrations).some(i => i.providerTypes?.includes('watchState') && i.configured && !i.disabled);
     },
 
     get hasCommentSource(): boolean {
-        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean; providerTypes?: string[] }> | undefined) ?? {};
-        return Object.values(integrations).some(i => i.providerTypes?.includes('thought') && i.configured);
+        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean; providerTypes?: string[]; disabled?: boolean }> | undefined) ?? {};
+        return Object.values(integrations).some(i => i.providerTypes?.includes('thought') && i.configured && !i.disabled);
     },
 
     get hasCompletedSync(): boolean {

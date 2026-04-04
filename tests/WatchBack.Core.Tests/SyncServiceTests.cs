@@ -339,4 +339,45 @@ public class SyncServiceTests
         await provider2.Received(1)
             .GetThoughtsAsync(Arg.Any<MediaContext>(), capturedProgress, Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task SyncAsync_DisabledProviders_SkipsTheirTasks()
+    {
+        // Arrange
+        EpisodeContext episode = new(
+            "The Bear",
+            new DateTimeOffset(2022, 6, 23, 0, 0, 0, TimeSpan.Zero),
+            "Brigade",
+            1,
+            3);
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+
+        IThoughtProvider activeProvider = Substitute.For<IThoughtProvider>();
+        activeProvider.ConfigSection.Returns("Reddit");
+        activeProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("Reddit", null, null, null, [], null));
+
+        IThoughtProvider disabledProvider = Substitute.For<IThoughtProvider>();
+        disabledProvider.ConfigSection.Returns("Lemmy");
+
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        IOptionsSnapshot<WatchBackOptions> options = new OptionsSnapshotStub<WatchBackOptions>(new WatchBackOptions
+        {
+            TimeMachineDays = 14,
+            WatchProvider = "jellyfin",
+            DisabledProviders = "Lemmy"
+        });
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [activeProvider, disabledProvider], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, options, NullLogger<SyncService>.Instance);
+
+        // Act
+        await service.SyncAsync();
+
+        // Assert
+        await activeProvider.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
+        await disabledProvider.DidNotReceive().GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
+    }
 }

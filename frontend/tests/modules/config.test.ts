@@ -339,3 +339,73 @@ describe('savePreferences', () => {
         expect(ctx.prefSaveStatus).toBe('error');
     });
 });
+
+// ── toggleDisabled ────────────────────────────────────────────────────────────
+
+describe('toggleDisabled', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('disables an enabled provider by POSTing the new list', async () => {
+        const integrations = {
+            lemmy: { fields: [], disabled: false },
+            reddit: { fields: [], disabled: false },
+        };
+        const ctx = makeCtx({
+            configData: { integrations },
+            _initConfigEdits: vi.fn(),
+            resetConfigKeys: vi.fn(),
+        });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ integrations }),
+        }));
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+        await methods.toggleDisabled.call(ctx, 'lemmy');
+
+        const postCall = fetchSpy.mock.calls.find(c => (c[1] as RequestInit)?.method === 'POST');
+        const body = JSON.parse((postCall?.[1] as RequestInit)?.body as string) as Record<string, string>;
+        expect(body['WatchBack__DisabledProviders']).toBe('lemmy');
+    });
+
+    it('re-enables a disabled provider by calling resetConfigKeys when list becomes empty', async () => {
+        const integrations = { lemmy: { fields: [], disabled: true } };
+        const resetKeys: string[] = [];
+        const ctx = makeCtx({
+            configData: { integrations },
+            _initConfigEdits: vi.fn(),
+            resetConfigKeys: vi.fn().mockImplementation(async (keys: string[]) => { resetKeys.push(...keys); }),
+        });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ integrations: { lemmy: { fields: [], disabled: false } } }),
+        }));
+
+        await methods.toggleDisabled.call(ctx, 'lemmy');
+
+        expect(resetKeys).toContain('WatchBack__DisabledProviders');
+    });
+
+    it('removes only the toggled key when others remain disabled', async () => {
+        const integrations = {
+            lemmy: { fields: [], disabled: true },
+            reddit: { fields: [], disabled: true },
+        };
+        const ctx = makeCtx({
+            configData: { integrations },
+            _initConfigEdits: vi.fn(),
+            resetConfigKeys: vi.fn(),
+        });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ integrations }),
+        }));
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+        await methods.toggleDisabled.call(ctx, 'lemmy');
+
+        const postCall = fetchSpy.mock.calls.find(c => (c[1] as RequestInit)?.method === 'POST');
+        const body = JSON.parse((postCall?.[1] as RequestInit)?.body as string) as Record<string, string>;
+        expect(body['WatchBack__DisabledProviders']).toBe('reddit');
+    });
+});

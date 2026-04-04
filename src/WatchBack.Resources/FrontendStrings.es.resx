@@ -186,6 +186,15 @@
     <data name="Config_NotConfigured" xml:space="preserve">
         <value>{0} no configurado</value>
     </data>
+    <data name="Config_DisableProvider" xml:space="preserve">
+        <value>Deshabilitar</value>
+    </data>
+    <data name="Config_EnableProvider" xml:space="preserve">
+        <value>Habilitar</value>
+    </data>
+    <data name="Config_DisabledSection" xml:space="preserve">
+        <value>Proveedores deshabilitados</value>
+    </data>
     <data name="Config_NotConfiguredStatus" xml:space="preserve">
         <value>no configurado</value>
     </data>
