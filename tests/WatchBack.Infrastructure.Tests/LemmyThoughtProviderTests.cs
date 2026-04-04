@@ -491,6 +491,42 @@ public class LemmyThoughtProviderTests : IDisposable
             "Lemmy__MaxComments");
     }
 
+    [Fact]
+    public void GetConfigSchema_Unconfigured_AllFieldsHaveValueFalse()
+    {
+        // No fields overridden, Community is null — provider is "new" to this install.
+        // HasValue must be false on all fields so the new-provider notification fires.
+        LemmyThoughtProvider provider = CreateProvider(new HttpClient());
+
+        IReadOnlyList<ProviderConfigField> fields = provider.GetConfigSchema(_ => "", (_, _) => false);
+
+        fields.Should().AllSatisfy(f => f.HasValue.Should().BeFalse());
+    }
+
+    [Fact]
+    public void GetConfigSchema_Configured_HasValueTrueOnOverriddenFields()
+    {
+        LemmyOptions configured = new()
+        {
+            InstanceUrl = "https://my.lemmy.instance",
+            Community = "television",
+            MaxPosts = 5,
+            MaxComments = 100,
+            CacheTtlSeconds = 3600
+        };
+        LemmyThoughtProvider provider = CreateProvider(new HttpClient(), configured);
+
+        // Simulate user-settings.json overriding InstanceUrl and Community
+        IReadOnlyList<ProviderConfigField> fields = provider.GetConfigSchema(
+            _ => "",
+            (section, key) => section == "Lemmy" && key is "InstanceUrl" or "Community");
+
+        fields.Single(f => f.Key == "Lemmy__InstanceUrl").HasValue.Should().BeTrue();
+        fields.Single(f => f.Key == "Lemmy__Community").HasValue.Should().BeTrue();
+        fields.Single(f => f.Key == "Lemmy__MaxPosts").HasValue.Should().BeFalse();
+        fields.Single(f => f.Key == "Lemmy__MaxComments").HasValue.Should().BeFalse();
+    }
+
     // ---- GetCacheKey ----
 
     [Fact]
