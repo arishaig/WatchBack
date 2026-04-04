@@ -114,7 +114,7 @@ export interface AppData {
     _initConfigEdits(configData: Record<string, unknown>): void;
     saveConfig(integrationKey: string): Promise<void>;
     saveAllConfig(): Promise<void>;
-    resetConfigKeys(keys: string[]): Promise<void>;
+    resetConfigKeys(keys: string[], refetch?: boolean): Promise<void>;
     toggleDisabled(key: string): Promise<void>;
     savePreferences(): Promise<void>;
     testIcon(service: string): { icon: string; cls: string; label: string };
