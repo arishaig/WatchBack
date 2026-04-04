@@ -165,6 +165,7 @@ export interface AppData {
     readonly checklistAllComplete: boolean;
     readonly showChecklist: boolean;
     readonly filteredLogs: unknown[];
+    readonly collapsedSyncHistory: { timestamp: string; status: string; title: string | null; count: number; thoughtCount: number; avgDurationMs: number | null }[];
     readonly showTimeMachine: boolean;
     readonly activeThoughts: unknown[];
     readonly hasThreadGroups: boolean;

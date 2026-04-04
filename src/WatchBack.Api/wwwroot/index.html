@@ -1198,46 +1198,62 @@
                         <p class="text-xs wb-text-muted" x-text="t('Diagnostics_NoSyncHistory')"></p>
                     </template>
                     <template x-if="syncHistoryEntries.length > 0">
-                        <div class="wb-surface wb-border border rounded-xl overflow-hidden">
-                            <div class="overflow-y-auto" style="max-height:16rem;">
-                                <table class="w-full text-xs">
-                                    <thead class="wb-surface-alt sticky top-0">
-                                    <tr class="border-b wb-border">
-                                        <th class="text-left px-3 py-2 wb-text-muted font-medium">Time</th>
-                                        <th class="text-left px-3 py-2 wb-text-muted font-medium">Status</th>
-                                        <th class="text-left px-3 py-2 wb-text-muted font-medium">Title</th>
-                                        <th class="text-right px-3 py-2 wb-text-muted font-medium">Thoughts</th>
-                                        <th class="text-right px-3 py-2 wb-text-muted font-medium">Duration</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    <template :key="i" x-for="(entry, i) in syncHistoryEntries">
-                                        <tr class="border-b wb-border last:border-b-0">
-                                            <td class="px-3 py-2 wb-text-muted whitespace-nowrap"
-                                                x-text="formatRelativeTime(entry.timestamp)">
-                                            </td>
-                                            <td class="px-3 py-2 whitespace-nowrap">
-                                    <span class="flex items-center gap-1.5">
-                                        <span :style="entry.status === 'Watching' ? 'background:var(--wb-success-text)' : entry.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint)'"
-                                              aria-hidden="true"
-                                              class="inline-block w-1.5 h-1.5 rounded-full shrink-0">
-                                        </span>
-                                        <span class="wb-text-secondary" x-text="entry.status"></span>
-                                    </span>
-                                            </td>
-                                            <td class="px-3 py-2 wb-text-secondary truncate" style="max-width:12rem;"
-                                                x-text="entry.title || '—'">
-                                            </td>
-                                            <td class="px-3 py-2 wb-text-muted text-right tabular-nums"
-                                                x-text="entry.thoughtCount">
-                                            </td>
-                                            <td class="px-3 py-2 wb-text-muted text-right tabular-nums whitespace-nowrap"
-                                                x-text="entry.durationMs != null ? (entry.durationMs / 1000).toFixed(1) + 's' : '—'">
-                                            </td>
+                        <div>
+                            <!-- Timeline strip: one block per sync, oldest → newest left → right -->
+                            <div aria-hidden="true" class="flex gap-px h-3 rounded-lg overflow-hidden mb-3">
+                                <template :key="i" x-for="(entry, i) in syncHistoryEntries.slice().reverse()">
+                                    <div :style="entry.status === 'Watching' ? 'background:var(--wb-success-text);opacity:0.75' : entry.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint);opacity:0.4'"
+                                         :title="entry.title || entry.status"
+                                         class="flex-1 min-w-[2px]">
+                                    </div>
+                                </template>
+                            </div>
+                            <!-- Collapsed table: consecutive identical runs merged into one row -->
+                            <div class="wb-surface wb-border border rounded-xl overflow-hidden">
+                                <div class="overflow-y-auto" style="max-height:16rem;">
+                                    <table class="w-full text-xs">
+                                        <thead class="wb-surface-alt sticky top-0">
+                                        <tr class="border-b wb-border">
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium">Time</th>
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium">Status</th>
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium">Title</th>
+                                            <th class="text-right px-3 py-2 wb-text-muted font-medium">Thoughts</th>
+                                            <th class="text-right px-3 py-2 wb-text-muted font-medium">Duration</th>
                                         </tr>
-                                    </template>
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                        <template :key="i" x-for="(entry, i) in collapsedSyncHistory">
+                                            <tr class="border-b wb-border last:border-b-0">
+                                                <td class="px-3 py-2 wb-text-muted whitespace-nowrap"
+                                                    x-text="formatRelativeTime(entry.timestamp)">
+                                                </td>
+                                                <td class="px-3 py-2 whitespace-nowrap">
+                                                    <span class="flex items-center gap-1.5">
+                                                        <span :style="entry.status === 'Watching' ? 'background:var(--wb-success-text)' : entry.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint)'"
+                                                              aria-hidden="true"
+                                                              class="inline-block w-1.5 h-1.5 rounded-full shrink-0">
+                                                        </span>
+                                                        <span class="wb-text-secondary" x-text="entry.status"></span>
+                                                        <span class="wb-text-faint tabular-nums"
+                                                              x-show="entry.count > 1"
+                                                              x-text="'×' + entry.count">
+                                                        </span>
+                                                    </span>
+                                                </td>
+                                                <td class="px-3 py-2 wb-text-secondary truncate" style="max-width:12rem;"
+                                                    x-text="entry.title || '—'">
+                                                </td>
+                                                <td class="px-3 py-2 wb-text-muted text-right tabular-nums"
+                                                    x-text="entry.thoughtCount">
+                                                </td>
+                                                <td class="px-3 py-2 wb-text-muted text-right tabular-nums whitespace-nowrap"
+                                                    x-text="entry.avgDurationMs != null ? (entry.avgDurationMs / 1000).toFixed(1) + 's' : '—'">
+                                                </td>
+                                            </tr>
+                                        </template>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </template>
