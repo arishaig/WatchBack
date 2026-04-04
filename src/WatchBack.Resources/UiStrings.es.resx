@@ -114,6 +114,18 @@
     <data name="RedditThoughtProvider_Metadata_Comments_from_Reddit" xml:space="preserve">
         <value>Comentarios de Reddit</value>
     </data>
+    <data name="LemmyThoughtProvider_Metadata_Posts_from_Lemmy" xml:space="preserve">
+        <value>Publicaciones de Lemmy</value>
+    </data>
+    <data name="ConfigLemmy_InstanceUrl" xml:space="preserve">
+        <value>URL de la instancia</value>
+    </data>
+    <data name="ConfigLemmy_Community" xml:space="preserve">
+        <value>Comunidad (opcional)</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Max_Posts" xml:space="preserve">
+        <value>Límite de publicaciones</value>
+    </data>
     <data name="TraktThoughtProvider_GetServiceHealthAsync_No_Client_ID_configured" xml:space="preserve">
         <value>Sin Client ID configurado</value>
     </data>

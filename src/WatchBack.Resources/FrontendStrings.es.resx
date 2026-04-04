@@ -327,4 +327,289 @@
     <data name="Checklist_AllDone" xml:space="preserve">
         <value>¡Todo listo!</value>
     </data>
+    <data name="DangerZone_TrustedHost" xml:space="preserve">
+        <value>Host de confianza (opcional)</value>
+    </data>
+    <data name="DangerZone_TrustedHostHelp" xml:space="preserve">
+        <value>Introduzca la IP o el nombre de host de su proxy inverso. Solo se aceptarán solicitudes de este host. Déjelo vacío para aceptar solicitudes de cualquier origen.</value>
+    </data>
+    <data name="Dashboard_Aired" xml:space="preserve">
+        <value>Fecha de emisión</value>
+    </data>
+    <data name="Dashboard_AllComments" xml:space="preserve">
+        <value>Todos los comentarios</value>
+    </data>
+    <data name="Dashboard_Back" xml:space="preserve">
+        <value>← Volver</value>
+    </data>
+    <data name="Dashboard_BrowseSeasons" xml:space="preserve">
+        <value>Ver las temporadas</value>
+    </data>
+    <data name="Dashboard_ClearManualState" xml:space="preserve">
+        <value>Borrar estado manual del reloj</value>
+    </data>
+    <data name="Dashboard_ClearWatchStateFailed" xml:space="preserve">
+        <value>No se pudo borrar el estado manual del reloj.</value>
+    </data>
+    <data name="Dashboard_ConnectionFailed" xml:space="preserve">
+        <value>Error de conexión.</value>
+    </data>
+    <data name="Dashboard_ErrorDetail" xml:space="preserve">
+        <value>Revise su configuración e intente sincronizar nuevamente.</value>
+    </data>
+    <data name="Dashboard_ErrorOccurred" xml:space="preserve">
+        <value>Ocurrió un error.</value>
+    </data>
+    <data name="Dashboard_GroupByThread" xml:space="preserve">
+        <value>Agrupar por hilo</value>
+    </data>
+    <data name="Dashboard_GroupedByThread" xml:space="preserve">
+        <value>Agrupado por hilo</value>
+    </data>
+    <data name="Dashboard_LoadEpisodesFailed" xml:space="preserve">
+        <value>No se pudieron cargar los episodios.</value>
+    </data>
+    <data name="Dashboard_LoadingEpisodes" xml:space="preserve">
+        <value>Cargando episodios…</value>
+    </data>
+    <data name="Dashboard_LoadingSeasons" xml:space="preserve">
+        <value>Cargando temporadas…</value>
+    </data>
+    <data name="Dashboard_LoadSeasonsFailed" xml:space="preserve">
+        <value>No se pudieron cargar las temporadas.</value>
+    </data>
+    <data name="Dashboard_ManualOverride" xml:space="preserve">
+        <value>Modo manual:</value>
+    </data>
+    <data name="Dashboard_MediaSearch" xml:space="preserve">
+        <value>Buscar contenido</value>
+    </data>
+    <data name="Dashboard_NoCommentsMatchFilter" xml:space="preserve">
+        <value>No hay comentarios que coincidan con el filtro actual.</value>
+    </data>
+    <data name="Dashboard_NoDiscussions" xml:space="preserve">
+        <value>No hay discusiones.</value>
+    </data>
+    <data name="Dashboard_NoDiscussionsDetail" xml:space="preserve">
+        <value>Todavía no hay información sobre este episodio, o las fuentes no la han indexado.</value>
+    </data>
+    <data name="Dashboard_NothingPlaying" xml:space="preserve">
+        <value>Nada reproduciéndose.</value>
+    </data>
+    <data name="Dashboard_NothingPlayingDetail" xml:space="preserve">
+        <value>El tablero se actualizará automáticamente cuando comience la reproducción.</value>
+    </data>
+    <data name="Dashboard_OmdbNotConfigured" xml:space="preserve">
+        <value>La clave de la API de OMDb no está configurada.</value>
+    </data>
+    <data name="Dashboard_ProviderPlaying" xml:space="preserve">
+        <value>{0} está reproduciendo {1} — listo para cambiar.</value>
+    </data>
+    <data name="Dashboard_Search" xml:space="preserve">
+        <value>Buscar</value>
+    </data>
+    <data name="Dashboard_SearchFailed" xml:space="preserve">
+        <value>Error en la búsqueda.</value>
+    </data>
+    <data name="Dashboard_Searching" xml:space="preserve">
+        <value>Buscando…</value>
+    </data>
+    <data name="Dashboard_SearchMoviesTVShows" xml:space="preserve">
+        <value>Buscar películas y series de televisión</value>
+    </data>
+    <data name="Dashboard_SearchPlaceholder" xml:space="preserve">
+        <value>Buscar películas y series de televisión...</value>
+    </data>
+    <data name="Dashboard_Season" xml:space="preserve">
+        <value>Temporada</value>
+    </data>
+    <data name="Dashboard_SeasonsBack" xml:space="preserve">
+        <value>Temporadas</value>
+    </data>
+    <data name="Dashboard_SeasonTitle" xml:space="preserve">
+        <value>{0} — Temporada {1}</value>
+    </data>
+    <data name="Dashboard_SelectSeason" xml:space="preserve">
+        <value>Elegir una temporada</value>
+    </data>
+    <data name="Dashboard_SetWatchStateFailed" xml:space="preserve">
+        <value>No se pudo guardar el estado manual del reloj.</value>
+    </data>
+    <data name="Dashboard_Syncing" xml:space="preserve">
+        <value>Actualizando</value>
+    </data>
+    <data name="Dashboard_TimeMachine" xml:space="preserve">
+        <value>Máquina del tiempo</value>
+    </data>
+    <data name="Diagnostics_All" xml:space="preserve">
+        <value>Todo</value>
+    </data>
+    <data name="Diagnostics_ApplicationLogs" xml:space="preserve">
+        <value>Registros de la aplicación</value>
+    </data>
+    <data name="Diagnostics_Browser" xml:space="preserve">
+        <value>Navegador:</value>
+    </data>
+    <data name="Diagnostics_Captured" xml:space="preserve">
+        <value>Capturado:</value>
+    </data>
+    <data name="Diagnostics_DebugPlus" xml:space="preserve">
+        <value>Depuración+</value>
+    </data>
+    <data name="Diagnostics_DiagnosticLog" xml:space="preserve">
+        <value>Registro de diagnóstico</value>
+    </data>
+    <data name="Diagnostics_Entries" xml:space="preserve">
+        <value>{0} de [1] entradas</value>
+    </data>
+    <data name="Diagnostics_ErrorPlus" xml:space="preserve">
+        <value>Error+</value>
+    </data>
+    <data name="Diagnostics_Filter" xml:space="preserve">
+        <value>Filtrar:</value>
+    </data>
+    <data name="Diagnostics_Found" xml:space="preserve">
+        <value>{0} encontrado</value>
+    </data>
+    <data name="Diagnostics_InfoPlus" xml:space="preserve">
+        <value>Info+</value>
+    </data>
+    <data name="Diagnostics_LastSync" xml:space="preserve">
+        <value>Últ. sinc.</value>
+    </data>
+    <data name="Diagnostics_NoEntriesMatchingFilter" xml:space="preserve">
+        <value>(no hay entradas que coincidan con el filtro)</value>
+    </data>
+    <data name="Diagnostics_NoLogs" xml:space="preserve">
+        <value>No hay entradas de registro que coincidan con el filtro actual.</value>
+    </data>
+    <data name="Diagnostics_NoSyncData" xml:space="preserve">
+        <value>No hay datos de sincronización aún. Se está esperando el primer ciclo…</value>
+    </data>
+    <data name="Diagnostics_NoSyncHistory" xml:space="preserve">
+        <value>No hay registro de sincronización todavía.</value>
+    </data>
+    <data name="Diagnostics_Providers" xml:space="preserve">
+        <value>Proveedores:</value>
+    </data>
+    <data name="Diagnostics_Sync" xml:space="preserve">
+        <value>Sincronización:</value>
+    </data>
+    <data name="Diagnostics_SyncHistory" xml:space="preserve">
+        <value>Registro de sincronización:</value>
+    </data>
+    <data name="Diagnostics_Thoughts" xml:space="preserve">
+        <value>{0} opiniones</value>
+    </data>
+    <data name="Diagnostics_Version" xml:space="preserve">
+        <value>Versión</value>
+    </data>
+    <data name="Diagnostics_WarningPlus" xml:space="preserve">
+        <value>Warning+</value>
+    </data>
+    <data name="Nav_Configuration" xml:space="preserve">
+        <value>Configuración</value>
+    </data>
+    <data name="Nav_Diagnostics" xml:space="preserve">
+        <value>Diagnóstico</value>
+    </data>
+    <data name="Nav_Settings" xml:space="preserve">
+        <value>Configuración</value>
+    </data>
+    <data name="Nav_Sync" xml:space="preserve">
+        <value>Sincronización</value>
+    </data>
+    <data name="PasswordUpdate_ConfirmPassword" xml:space="preserve">
+        <value>Verificar contraseña</value>
+    </data>
+    <data name="PasswordUpdate_CurrentPassword" xml:space="preserve">
+        <value>Contraseña actual</value>
+    </data>
+    <data name="PasswordUpdate_Message" xml:space="preserve">
+        <value>Su contraseña ha sido reforzada. Cree una nueva para continuar.</value>
+    </data>
+    <data name="PasswordUpdate_ReEnter" xml:space="preserve">
+        <value>Escriba la contraseña otra vez</value>
+    </data>
+    <data name="PasswordUpdate_Title" xml:space="preserve">
+        <value>Cambiar contraseña</value>
+    </data>
+    <data name="PasswordUpdate_Update" xml:space="preserve">
+        <value>Cambiar contraseña</value>
+    </data>
+    <data name="Preferences_AlwaysShowSearch" xml:space="preserve">
+        <value>Mostrar siempre la búsqueda</value>
+    </data>
+    <data name="Preferences_CustomOption" xml:space="preserve">
+        <value>Costumbre...</value>
+    </data>
+    <data name="Preferences_CustomSearchUrlHelp" xml:space="preserve">
+        <value>Los términos de búsqueda se añadirán a esta URL.</value>
+    </data>
+    <data name="Preferences_Language" xml:space="preserve">
+        <value>Idioma</value>
+    </data>
+    <data name="Preferences_RedditSearchEngine" xml:space="preserve">
+        <value>Buscador de Reddit</value>
+    </data>
+    <data name="Preferences_SavePreferences" xml:space="preserve">
+        <value>Guardar preferencias</value>
+    </data>
+    <data name="Preferences_SegmentedProgressBar" xml:space="preserve">
+        <value>Barra de progreso segmentada</value>
+    </data>
+    <data name="Preferences_TimeMachineWindow" xml:space="preserve">
+        <value>Ventana de días de Time Machine</value>
+    </data>
+    <data name="Preferences_Title" xml:space="preserve">
+        <value>Preferencias</value>
+    </data>
+    <data name="Preferences_WatchProvider" xml:space="preserve">
+        <value>Proveedor de seguimiento</value>
+    </data>
+    <data name="Setup_ChoosePassword" xml:space="preserve">
+        <value>Elige una contraseña segura.</value>
+    </data>
+    <data name="Setup_ChooseUsername" xml:space="preserve">
+        <value>Elige un nombre de usuario</value>
+    </data>
+    <data name="Setup_Complete" xml:space="preserve">
+        <value>Finalizar la configuración</value>
+    </data>
+    <data name="Setup_NewPassword" xml:space="preserve">
+        <value>Nueva contraseña</value>
+    </data>
+    <data name="Setup_NewUsername" xml:space="preserve">
+        <value>Nuevo nombre de usuario</value>
+    </data>
+    <data name="Setup_PasswordFair" xml:space="preserve">
+        <value>Bueno</value>
+    </data>
+    <data name="Setup_PasswordStrong" xml:space="preserve">
+        <value>Segura</value>
+    </data>
+    <data name="Setup_PasswordVeryStrong" xml:space="preserve">
+        <value>Muy segura</value>
+    </data>
+    <data name="Setup_PasswordVeryWeak" xml:space="preserve">
+        <value>Muy débil </value>
+    </data>
+    <data name="Setup_PasswordWeak" xml:space="preserve">
+        <value>Débil</value>
+    </data>
+    <data name="Setup_Subtitle" xml:space="preserve">
+        <value>Elija un nombre de usuario y una contraseña permanentes para continuar.</value>
+    </data>
+    <data name="Setup_Title" xml:space="preserve">
+        <value>Configurar cuenta</value>
+    </data>
+    <data name="Time_HoursAgo" xml:space="preserve">
+        <value>Hace {0} horas</value>
+    </data>
+    <data name="Time_MinutesAgo" xml:space="preserve">
+        <value>Hace {0} minutos</value>
+    </data>
+    <data name="Time_SecondsAgo" xml:space="preserve">
+        <value>Hace {0} segundos</value>
+    </data>
 </root>

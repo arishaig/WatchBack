@@ -291,6 +291,12 @@ namespace WatchBack.Resources {
             }
         }
         
+        public static string PasswordUpdate_CurrentPassword {
+            get {
+                return ResourceManager.GetString("PasswordUpdate_CurrentPassword", resourceCulture);
+            }
+        }
+        
         public static string PasswordUpdate_ConfirmPassword {
             get {
                 return ResourceManager.GetString("PasswordUpdate_ConfirmPassword", resourceCulture);
