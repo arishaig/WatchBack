@@ -199,12 +199,20 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
 
     async toggleDisabled(key: string) {
         const integrations = (this.configData?.['integrations'] as IntegrationMap | undefined) ?? {};
+        const currentlyDisabled = integrations[key]?.disabled ?? false;
         const disabledKeys = Object.entries(integrations)
             .filter(([, v]) => v.disabled)
             .map(([k]) => k);
-        const newDisabled = disabledKeys.includes(key)
+        const newDisabled = currentlyDisabled
             ? disabledKeys.filter(k => k !== key)
             : [...disabledKeys, key];
+
+        // Optimistic update — card animates immediately without waiting for the round-trip
+        if (this.configData?.['integrations']) {
+            const intMap = this.configData['integrations'] as IntegrationMap;
+            intMap[key] = { ...intMap[key], disabled: !currentlyDisabled };
+        }
+
         if (newDisabled.length === 0) {
             await this.resetConfigKeys(['WatchBack__DisabledProviders']);
         } else {
