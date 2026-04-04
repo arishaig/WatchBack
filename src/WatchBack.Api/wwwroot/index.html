@@ -696,30 +696,28 @@
                         <div :style="'--card-accent: ' + integration.brandColor"
                              class="integration-card rounded-xl overflow-hidden">
                             <!-- Card header: logo + service name + collapse toggle + disable button -->
-                            <button :aria-expanded="!collapsedSections[key]"
-                                    :class="collapsedSections[key] ? '' : 'pb-3'"
-                                    @click="toggleSection(key)"
-                                    class="w-full flex items-center justify-between gap-2 p-4 cursor-pointer text-left"
-                                    type="button">
-                                <span class="flex items-center gap-2">
+                            <div :class="collapsedSections[key] ? '' : 'pb-3'"
+                                 class="w-full flex items-center justify-between gap-2 p-4">
+                                <button :aria-expanded="!collapsedSections[key]"
+                                        @click="toggleSection(key)"
+                                        class="flex items-center gap-2 cursor-pointer text-left grow min-w-0"
+                                        type="button">
                                     <span :style="'color: ' + integration.brandColor"
                                           class="integration-logo"
                                           x-html="sanitizeSvg(integration.logoSvg)"></span>
                                     <span class="text-sm font-semibold wb-text-secondary"
                                           x-text="integration.name"></span>
-                                </span>
-                                <span class="flex items-center gap-2 shrink-0">
-                                    <button :aria-label="t('Config_DisableProvider') + ' ' + integration.name"
-                                            @click.stop="void toggleDisabled(key)"
-                                            class="text-xs font-medium px-2.5 py-1 rounded-md wb-border border
-                                                   wb-text-faint cursor-pointer wb-btn
-                                                   hover:scale-[1.02] active:scale-95 transition-all duration-150 transform-gpu"
-                                            type="button"
-                                            x-text="t('Config_DisableProvider')"></button>
                                     <ion-icon :name="collapsedSections[key] ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
-                                              aria-hidden="true" class="wb-text-faint"></ion-icon>
-                                </span>
-                            </button>
+                                              aria-hidden="true" class="wb-text-faint ml-auto"></ion-icon>
+                                </button>
+                                <button :aria-label="t('Config_DisableProvider') + ' ' + integration.name"
+                                        @click="void toggleDisabled(key)"
+                                        class="p-1 rounded wb-text-faint opacity-30 cursor-pointer shrink-0
+                                               hover:opacity-70 active:scale-95 transition-all duration-150 transform-gpu"
+                                        type="button">
+                                    <ion-icon aria-hidden="true" class="text-base block" name="power-sharp"></ion-icon>
+                                </button>
+                            </div>
                             <!-- Collapsible body: fields + test button -->
                             <div class="px-4 pb-4"
                                  x-providerfields="{ mode: 'config', prefix: 'field-' }"
