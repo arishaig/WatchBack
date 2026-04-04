@@ -13,6 +13,7 @@ jobs:
   codeql:
     name: CodeQL (C# + TypeScript)
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       security-events: write
@@ -44,6 +45,7 @@ jobs:
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository

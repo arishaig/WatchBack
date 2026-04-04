@@ -67,6 +67,18 @@
     <data name="RedditThoughtProvider_Metadata_Comments_from_Reddit" xml:space="preserve">
         <value>Comments from Reddit</value>
     </data>
+    <data name="LemmyThoughtProvider_Metadata_Posts_from_Lemmy" xml:space="preserve">
+        <value>Posts from Lemmy</value>
+    </data>
+    <data name="ConfigLemmy_InstanceUrl" xml:space="preserve">
+        <value>Instance URL</value>
+    </data>
+    <data name="ConfigLemmy_Community" xml:space="preserve">
+        <value>Community (optional)</value>
+    </data>
+    <data name="ConfigEndpoints_GetConfig_Max_Posts" xml:space="preserve">
+        <value>Max Posts</value>
+    </data>
     <data name="ConfigEndpoints_GetConfig_Server_URL" xml:space="preserve">
         <value>Server URL</value>
     </data>
