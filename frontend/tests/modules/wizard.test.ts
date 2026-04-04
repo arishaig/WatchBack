@@ -340,13 +340,14 @@ describe('saveAndDismissNewProviders', () => {
         localStorage.removeItem('wb_seenProviders');
     });
 
-    it('saves config for each selected provider', async () => {
+    it('saves config for every new provider key regardless of selection', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({ integrations: {} }),
         }));
         const ctx = makeCtx({
-            newProviderSelected: new Set(['lemmy', 'reddit']),
+            newProviderKeys: ['lemmy', 'reddit'],
+            newProviderSelected: new Set<string>(),
             dismissNewProviders: vi.fn(),
         });
         await methods.saveAndDismissNewProviders.call(ctx);
@@ -362,7 +363,7 @@ describe('saveAndDismissNewProviders', () => {
             json: async () => updated,
         }));
         const ctx = makeCtx({
-            newProviderSelected: new Set(['lemmy']),
+            newProviderKeys: ['lemmy'],
             dismissNewProviders: vi.fn(),
         });
         await methods.saveAndDismissNewProviders.call(ctx);
@@ -377,7 +378,7 @@ describe('saveAndDismissNewProviders', () => {
         }));
         const dismissFn = vi.fn();
         const ctx = makeCtx({
-            newProviderSelected: new Set(['lemmy']),
+            newProviderKeys: ['lemmy'],
             dismissNewProviders: dismissFn,
         });
         await methods.saveAndDismissNewProviders.call(ctx);
@@ -391,7 +392,7 @@ describe('saveAndDismissNewProviders', () => {
             json: async () => ({ integrations: {} }),
         }));
         const ctx = makeCtx({
-            newProviderSelected: new Set(['lemmy']),
+            newProviderKeys: ['lemmy'],
             dismissNewProviders: vi.fn(),
             saveConfig: vi.fn().mockImplementation(function(this: Record<string, unknown>) {
                 savingDuringCall = this.newProviderSaving as boolean;
@@ -406,7 +407,7 @@ describe('saveAndDismissNewProviders', () => {
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network')));
         const dismissFn = vi.fn();
         const ctx = makeCtx({
-            newProviderSelected: new Set(['lemmy']),
+            newProviderKeys: ['lemmy'],
             dismissNewProviders: dismissFn,
             saveConfig: vi.fn().mockRejectedValue(new Error('fail')),
         });

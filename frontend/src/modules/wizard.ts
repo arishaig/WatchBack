@@ -76,7 +76,7 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
     async saveAndDismissNewProviders() {
         this.newProviderSaving = true;
         try {
-            for (const key of this.newProviderSelected) {
+            for (const key of this.newProviderKeys) {
                 await this.saveConfig(key);
             }
             const cRes = await fetch('/api/config');
