@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import uiMethods from '../../src/modules/ui';
 
 // Extract typed method references
@@ -384,6 +384,131 @@ describe('showError', () => {
         vi.advanceTimersByTime(8000);
         expect(ctx.error).toBeNull();
         vi.useRealTimers();
+    });
+});
+
+// ── initApp (new-provider discovery) ─────────────────────────────────────────
+
+describe('initApp — new-provider discovery', () => {
+    function makeInitCtx(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+        return {
+            authState: 'checking',
+            configData: null,
+            initialized: false,
+            wizardActive: false,
+            newProviderKeys: [] as string[],
+            newProvidersActive: false,
+            newProviderSelected: new Set<string>(),
+            newProviderSaving: false,
+            _initConfigEdits: vi.fn(),
+            setupSSE: vi.fn(),
+            sync: vi.fn(),
+            ...overrides,
+        };
+    }
+
+    function stubFetchConfig(integrations: Record<string, unknown>) {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ integrations }),
+        }));
+    }
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        localStorage.removeItem('wb_wizardCompleted');
+        localStorage.removeItem('wb_checklistCompleted');
+        localStorage.removeItem('wb_seenProviders');
+    });
+
+    it('skips discovery for first-time users (no wizard/checklist flags)', async () => {
+        stubFetchConfig({
+            jellyfin: { fields: [{ hasValue: true }] },
+            lemmy: { fields: [{ hasValue: false }] },
+        });
+        const ctx = makeInitCtx();
+        await methods.initApp.call(ctx);
+        expect(ctx.newProvidersActive).toBe(false);
+        expect(localStorage.getItem('wb_seenProviders')).toBeNull();
+    });
+
+    it('seeds silently on upgrade (null wb_seenProviders) — configured providers not shown', async () => {
+        stubFetchConfig({
+            jellyfin: { fields: [{ hasValue: true }] },
+            trakt: { fields: [{ hasValue: true }] },
+        });
+        localStorage.setItem('wb_wizardCompleted', 'true');
+        const ctx = makeInitCtx();
+        await methods.initApp.call(ctx);
+        expect(ctx.newProvidersActive).toBe(false);
+        const seen = JSON.parse(localStorage.getItem('wb_seenProviders') ?? 'null') as string[];
+        expect(seen).toContain('jellyfin');
+        expect(seen).toContain('trakt');
+    });
+
+    it('flags a new provider added in the same upgrade (hasValue false on all its fields)', async () => {
+        stubFetchConfig({
+            jellyfin: { fields: [{ hasValue: true }] },
+            lemmy: { fields: [{ hasValue: false }] },
+        });
+        localStorage.setItem('wb_wizardCompleted', 'true');
+        const ctx = makeInitCtx();
+        await methods.initApp.call(ctx);
+        expect(ctx.newProviderKeys).toContain('lemmy');
+        expect(ctx.newProvidersActive).toBe(true);
+        // jellyfin should have been seeded (has user values)
+        const seen = JSON.parse(localStorage.getItem('wb_seenProviders') ?? 'null') as string[];
+        expect(seen).toContain('jellyfin');
+        expect(seen).not.toContain('lemmy');
+    });
+
+    it('flags a no-fields provider (e.g. Reddit) as seen on upgrade (never prompts about it)', async () => {
+        stubFetchConfig({
+            reddit: { fields: [] },
+        });
+        localStorage.setItem('wb_wizardCompleted', 'true');
+        const ctx = makeInitCtx();
+        await methods.initApp.call(ctx);
+        expect(ctx.newProvidersActive).toBe(false);
+        const seen = JSON.parse(localStorage.getItem('wb_seenProviders') ?? 'null') as string[];
+        expect(seen).toContain('reddit');
+    });
+
+    it('shows notification when wb_seenProviders is present but missing a new key', async () => {
+        stubFetchConfig({
+            jellyfin: { fields: [{ hasValue: true }] },
+            lemmy: { fields: [{ hasValue: false }] },
+        });
+        localStorage.setItem('wb_wizardCompleted', 'true');
+        localStorage.setItem('wb_seenProviders', JSON.stringify(['jellyfin']));
+        const ctx = makeInitCtx();
+        await methods.initApp.call(ctx);
+        expect(ctx.newProviderKeys).toEqual(['lemmy']);
+        expect(ctx.newProvidersActive).toBe(true);
+    });
+
+    it('shows no notification when all providers are already seen', async () => {
+        stubFetchConfig({
+            jellyfin: { fields: [{ hasValue: true }] },
+            reddit: { fields: [] },
+        });
+        localStorage.setItem('wb_wizardCompleted', 'true');
+        localStorage.setItem('wb_seenProviders', JSON.stringify(['jellyfin', 'reddit']));
+        const ctx = makeInitCtx();
+        await methods.initApp.call(ctx);
+        expect(ctx.newProvidersActive).toBe(false);
+        expect((ctx.newProviderKeys as string[])).toHaveLength(0);
+    });
+
+    it('also triggers on wb_checklistCompleted (no wb_wizardCompleted needed)', async () => {
+        stubFetchConfig({
+            lemmy: { fields: [{ hasValue: false }] },
+        });
+        localStorage.setItem('wb_checklistCompleted', 'true');
+        localStorage.setItem('wb_seenProviders', JSON.stringify([]));
+        const ctx = makeInitCtx();
+        await methods.initApp.call(ctx);
+        expect(ctx.newProvidersActive).toBe(true);
     });
 });
 

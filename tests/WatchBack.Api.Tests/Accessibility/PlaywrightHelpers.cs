@@ -482,6 +482,30 @@ internal static class PlaywrightHelpers
     }
 
     /// <summary>
+    ///     Load a page with the new-providers modal active. Sets <c>wb_wizardCompleted</c>
+    ///     and a partial <c>wb_seenProviders</c> list that omits one provider present in the
+    ///     config, so <c>initApp</c> detects it as new and shows the notification modal.
+    /// </summary>
+    public static async Task LoadPageWithNewProviders(
+        IPage page,
+        string url,
+        string theme,
+        Dictionary<string, object?>? config = null)
+    {
+        await SetupApiRoutes(page, SyncIdle, config ?? ConfigFilled);
+
+        await page.GotoAsync(url);
+        // Wizard is done but "reddit" has never been presented — it should appear as new.
+        await page.EvaluateAsync("localStorage.setItem('wb_wizardCompleted', 'true')");
+        await page.EvaluateAsync("localStorage.setItem('wb_seenProviders', JSON.stringify(['jellyfin','trakt','bluesky']))");
+        await page.ReloadAsync();
+
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 15_000 });
+        await page.WaitForTimeoutAsync(500); // allow Alpine init
+        await ApplyTheme(page, theme);
+    }
+
+    /// <summary>
     ///     Load a page with the wizard active (simulates first-time user after account setup).
     ///     Clears wizard-related localStorage flags so the wizard auto-launches.
     /// </summary>

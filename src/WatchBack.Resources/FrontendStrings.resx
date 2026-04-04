@@ -632,6 +632,19 @@
     <data name="Wizard_NoConfigNeeded" xml:space="preserve">
         <value>No configuration needed — just select and continue.</value>
     </data>
+    <!-- New provider discovery notification -->
+    <data name="NewProviders_Title" xml:space="preserve">
+        <value>New providers available</value>
+    </data>
+    <data name="NewProviders_Body" xml:space="preserve">
+        <value>{0} new provider(s) are available since your last visit. Select one to configure it, or skip to dismiss.</value>
+    </data>
+    <data name="NewProviders_Skip" xml:space="preserve">
+        <value>Skip</value>
+    </data>
+    <data name="NewProviders_SaveAndDone" xml:space="preserve">
+        <value>Save &amp; done</value>
+    </data>
     <data name="Checklist_Title" xml:space="preserve">
         <value>Setup Checklist</value>
     </data>
