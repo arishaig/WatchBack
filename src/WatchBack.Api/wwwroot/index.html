@@ -165,11 +165,10 @@
                 <label class="text-xs font-medium wb-text-faint block mb-1" x-text="t('Auth_Theme')"></label>
                 <div class="wb-select-wrap">
                     <select :aria-label="t('Auth_Theme')"
-                            @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
-                            class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-xs border"
-                            x-model="theme">
-                        <template :key="t.id" x-for="t in themes">
-                            <option :value="t.id" x-text="t.label"></option>
+                            @change="theme = $event.target.value; applyTheme(theme); localStorage.setItem('wb_theme', theme)"
+                            class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-xs border">
+                        <template :key="th.id" x-for="th in themes">
+                            <option :selected="theme === th.id" :value="th.id" x-text="th.label"></option>
                         </template>
                     </select>
                 </div>
@@ -844,11 +843,10 @@
                                    x-text="t('Auth_Theme')"></label>
                             <div class="wb-select-wrap">
                                 <select :aria-label="t('Auth_Theme')"
-                                        @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
-                                        class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                        x-model="theme">
-                                    <template :key="t.id" x-for="t in themes">
-                                        <option :value="t.id" x-text="t.label"></option>
+                                        @change="theme = $event.target.value; applyTheme(theme); localStorage.setItem('wb_theme', theme)"
+                                        class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                    <template :key="th.id" x-for="th in themes">
+                                        <option :selected="theme === th.id" :value="th.id" x-text="th.label"></option>
                                     </template>
                                 </select>
                             </div>
