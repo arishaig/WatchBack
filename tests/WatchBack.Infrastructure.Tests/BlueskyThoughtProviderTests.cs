@@ -445,6 +445,48 @@ public class BlueskyThoughtProviderTests : IDisposable
         searchedUrls.Should().Contain(u => Uri.UnescapeDataString(u).Contains("Interstellar movie"));
     }
 
+    // Cross-season scoping: the search query sent to Bluesky must be scoped to the specific season
+    // and episode being fetched. If BuildTextQuery ever regressed for episode contexts, Bluesky
+    // would silently search for the wrong content with no other guard to catch it.
+    [Fact]
+    public async Task GetThoughtsAsync_ForSeasonTwoEpisode_SearchUrlContainsSeason2EpisodeCode()
+    {
+        EpisodeContext mediaContext = new(
+            "The Pitt",
+            new DateTimeOffset(2026, 1, 9, 0, 0, 0, TimeSpan.Zero),
+            "Mass Casualty",
+            2,
+            1);
+
+        string tokenJson = """{"accessJwt":"test-token"}""";
+        string searchJson = """{"posts":[]}""";
+
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("createSession", tokenJson)
+            .RespondTo("searchPosts", searchJson)
+            .Default(searchJson);
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        // The search request must contain the S02E01 episode code
+        handler.RecordedUris
+            .Where(u => u.ToString().Contains("searchPosts"))
+            .Should().ContainSingle(u => Uri.UnescapeDataString(u.ToString()).Contains("The Pitt S02E01"),
+                "query must be scoped to season 2 episode 1");
+
+        // Must not accidentally query for a different season
+        handler.RecordedUris
+            .Where(u => u.ToString().Contains("searchPosts"))
+            .Should().NotContain(u => Uri.UnescapeDataString(u.ToString()).Contains("S01E01"));
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_WithSeasonZeroEpisode_WithDate_UsesDateQuery()
     {

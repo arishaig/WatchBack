@@ -517,6 +517,39 @@ public class LemmyThoughtProviderTests : IDisposable
         key.Should().NotMatchRegex(@"S\d{2}E\d{2}");
     }
 
+    // Cross-season scoping: the search query sent to Lemmy must be scoped to the specific season
+    // and episode being fetched. Lemmy has no post-fetch filter — if BuildTextQuery ever regressed
+    // for episode contexts the wrong content would be returned with no other guard to catch it.
+    [Fact]
+    public async Task GetThoughtsAsync_ForSeasonTwoEpisode_SearchUrlContainsSeason2EpisodeCode()
+    {
+        EpisodeContext mediaContext = new(
+            "The Pitt",
+            new DateTimeOffset(2026, 1, 9, 0, 0, 0, TimeSpan.Zero),
+            "Mass Casualty",
+            2,
+            1);
+
+        string searchJson = """{"posts": []}""";
+
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .Default(searchJson);
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://lemmy.world") };
+        LemmyThoughtProvider provider = CreateProvider(client);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        // The search request must contain the S02E01 episode code
+        handler.RecordedUris.Should().Contain(
+            u => Uri.UnescapeDataString(u.ToString()).Contains("The Pitt S02E01"),
+            "query must be scoped to season 2 episode 1");
+
+        // Must not accidentally query for a different season
+        handler.RecordedUris.Should().NotContain(
+            u => Uri.UnescapeDataString(u.ToString()).Contains("S01E01"));
+    }
+
     // ---- Movie context ----
 
     [Fact]

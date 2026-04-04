@@ -322,6 +322,55 @@
     </div>
 </div>
 
+<!-- ─── New providers notification ─── -->
+<div x-cloak x-show="newProvidersActive && configData"
+     role="dialog" aria-modal="true"
+     :aria-label="t('NewProviders_Title')"
+     @keydown.escape.window="dismissNewProviders()"
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto"
+     style="background-color: var(--wb-bg);">
+    <div class="wb-surface wb-border border rounded-xl p-6 sm:p-8 w-full shadow-2xl" style="max-width:32rem">
+        <h2 class="text-lg font-bold wb-accent-text mb-1" x-text="t('NewProviders_Title')"></h2>
+        <p class="text-sm wb-text-secondary mb-5"
+           x-text="t('NewProviders_Body', newProviderKeys.length)"></p>
+
+        <div class="space-y-3">
+            <template x-for="[key, integration] in Object.entries(configData?.integrations || {})
+                             .filter(([k]) => newProviderKeys.includes(k))"
+                      :key="'np-' + key">
+                <div class="wizard-provider-card wb-surface"
+                     :class="{ 'selected': newProviderSelected.has(key) }"
+                     :style="'--card-accent: ' + integration.brandColor"
+                     @click="newProviderToggle(key)">
+                    <div class="flex items-center gap-3">
+                        <span class="integration-logo" :style="'color: ' + integration.brandColor"
+                              x-html="sanitizeSvg(integration.logoSvg)"></span>
+                        <span class="text-sm font-semibold wb-text-secondary" x-text="integration.name"></span>
+                        <span class="ml-auto text-xs wb-accent-text font-medium"
+                              x-show="newProviderSelected.has(key)">&#10003;</span>
+                    </div>
+                    <div @click.stop class="mt-4"
+                         x-providerfields="{ mode: 'wizard', prefix: 'np-' }"
+                         x-show="newProviderSelected.has(key)">
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <div class="flex gap-3 mt-6">
+            <button @click="dismissNewProviders()"
+                    class="flex-1 py-2.5 rounded-lg text-sm font-medium wb-border border wb-surface wb-text-secondary
+                           cursor-pointer wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                    x-text="t('NewProviders_Skip')"></button>
+            <button @click="saveAndDismissNewProviders()"
+                    :disabled="newProviderSaving"
+                    class="flex-1 py-2.5 rounded-lg text-sm font-semibold wb-on-accent wb-bg-accent cursor-pointer
+                           disabled:opacity-50 wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                    x-text="newProviderSaving ? t('Common_Saving') : t('NewProviders_SaveAndDone')"></button>
+        </div>
+    </div>
+</div>
+
 <!-- ─── Onboarding wizard ─── -->
 <div :aria-label="t('Wizard_Welcome')" @keydown.escape.window="wizardSkip()"
      aria-modal="true"

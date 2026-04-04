@@ -71,6 +71,10 @@ export interface AppData {
     wizardSelectedWatch: string | null;
     wizardSelectedComments: Set<string>;
     wizardSaving: boolean;
+    newProviderKeys: string[];
+    newProvidersActive: boolean;
+    newProviderSelected: Set<string>;
+    newProviderSaving: boolean;
     checklistDismissed: boolean;
     checklistAutoComplete: boolean;
     searchQuery: string;
@@ -149,6 +153,9 @@ export interface AppData {
     wizardSaveAndContinue(): Promise<void>;
     dismissChecklist(): void;
     openConfigForItem(type: string): void;
+    newProviderToggle(key: string): void;
+    dismissNewProviders(): void;
+    saveAndDismissNewProviders(): Promise<void>;
 
     // Computed (getters)
     readonly hasWatchProvider: boolean;
