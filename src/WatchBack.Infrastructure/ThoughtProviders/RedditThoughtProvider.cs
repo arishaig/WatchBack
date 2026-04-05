@@ -87,16 +87,29 @@ public sealed class RedditThoughtProvider(
                 return s_empty;
             }
 
+            // Compute date floor: exclude threads posted more than 7 days before this episode aired.
+            // The buffer handles timezone variation and pre-air discussion threads.
+            long? afterEpoch = mediaContext.ReleaseDate?.AddDays(-7).ToUnixTimeSeconds();
+
+            // Scale result count with MaxThreads so higher thread caps have a larger candidate pool.
+            int normalSize = Math.Clamp(_options.MaxThreads * 8, 25, 100);
+            int bypassSize = Math.Clamp(_options.MaxThreads * 4, 10, 100);
+
             // Run all search specs in parallel — PullPush is the bottleneck, so fan-out wins here
             (PullPushSubmissionDto[] Subs, bool IsBypass, bool Ok)[] specResults = await Task.WhenAll(
                 specs.Select(async spec =>
                 {
-                    int size = spec.BypassFilter ? 10 : 25;
+                    int size = spec.BypassFilter ? bypassSize : normalSize;
                     string url =
-                        $"https://api.pullpush.io/reddit/search/submission/?title={Uri.EscapeDataString(spec.Title)}&size={size}&sort_type=score&sort=desc";
+                        $"https://api.pullpush.io/reddit/search/submission/?title={Uri.EscapeDataString(spec.Title)}&size={size}&sort_type=score&sort=desc&num_comments=%3E2";
                     if (spec.Subreddit != null)
                     {
                         url += $"&subreddit={Uri.EscapeDataString(spec.Subreddit)}";
+                    }
+
+                    if (afterEpoch.HasValue)
+                    {
+                        url += $"&after={afterEpoch.Value}";
                     }
 
                     try
@@ -170,7 +183,8 @@ public sealed class RedditThoughtProvider(
                      (episode == null || !MentionsDifferentSeason(s.Title ?? "", episode.SeasonNumber))) ||
                     (episode != null && MatchesEpisode(s.Title ?? "", episode.SeasonNumber,
                         episode.EpisodeNumber))))
-                .OrderByDescending(s => s.Score ?? 0)
+                .OrderByDescending(s => s.Stickied)
+                .ThenByDescending(s => s.Score ?? 0)
                 .ToList();
 
             if (episode != null)
@@ -603,7 +617,11 @@ internal sealed record PullPushSubmissionDto(
     [property: JsonPropertyName("is_self")]
     bool IsSelf,
     [property: JsonPropertyName("selftext")]
-    string? Selftext);
+    string? Selftext,
+    [property: JsonPropertyName("stickied")]
+    bool Stickied = false,
+    [property: JsonPropertyName("num_comments")]
+    int? NumComments = null);
 
 internal sealed record PullPushSubmissionsResponseDto(
     [property: JsonPropertyName("data")] PullPushSubmissionDto[]? Data);
