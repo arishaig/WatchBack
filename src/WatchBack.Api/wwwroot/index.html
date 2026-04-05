@@ -1620,7 +1620,7 @@
                                 <ul :class="groupByThread && group.title ? 'ml-2 border-l-2 reply-border pl-3 space-y-3' : (groupByThread ? 'space-y-3' : '')"
                                     class="list-none">
                                     <template :key="thought.id" x-for="(thought, ci) in group.thoughts">
-                                        <li>
+                                        <li x-data="{ collapsed: false }">
                                             <article
                                                     :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's' + (thought.brandColor ? `;--thread-brand:${thought.brandColor}` : '')"
                                                     class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card">
@@ -1635,7 +1635,19 @@
                                                         </a>
                                                     </div>
                                                     <div :class="groupByThread || !thought.postTitle ? 'ml-auto' : 'shrink-0'"
-                                                         class="flex gap-1">
+                                                         class="flex gap-1 items-center">
+                                                        <template x-if="thought.replies && thought.replies.length > 0">
+                                                            <button :aria-expanded="!collapsed"
+                                                                    :aria-label="collapsed ? t('Comments_ExpandReplies') : t('Comments_CollapseReplies')"
+                                                                    @click.stop="collapsed = !collapsed"
+                                                                    class="p-0.5 rounded wb-text-faint hover:wb-text-muted transition-colors"
+                                                                    type="button">
+                                                                <ion-icon :class="{ '-rotate-90': collapsed }"
+                                                                          aria-hidden="true"
+                                                                          class="text-sm transition-transform block"
+                                                                          name="chevron-down"></ion-icon>
+                                                            </button>
+                                                        </template>
                                                         <template x-if="thought.brandLogoSvg && thought.url">
                                                             <a :aria-label="t('Comments_ViewOn', thought.source)"
                                                                :href="thought.url"
@@ -1698,9 +1710,11 @@
 
                                                 <!-- Level 1 replies -->
                                                 <template x-if="thought.replies && thought.replies.length > 0">
-                                                    <ul class="mt-3 border-l-2 reply-border pl-3 space-y-3 list-none">
+                                                    <ul class="mt-3 border-l-2 reply-border pl-3 space-y-3 list-none"
+                                                        x-show="!collapsed"
+                                                        x-transition>
                                                         <template :key="reply.id" x-for="reply in thought.replies">
-                                                            <li>
+                                                            <li x-data="{ collapsed: false }">
                                                                 <article class="reply-bg p-3 rounded-lg">
                                                                     <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
                                                                          x-html="renderMarkdown(reply.content)">
@@ -1723,6 +1737,18 @@
                                                                             <span
                                                                                     x-text="formatDate(reply.createdAt)">
                                                             </span>
+                                                                            <template x-if="reply.replies && reply.replies.length > 0">
+                                                                                <button :aria-expanded="!collapsed"
+                                                                                        :aria-label="collapsed ? t('Comments_ExpandReplies') : t('Comments_CollapseReplies')"
+                                                                                        @click.stop="collapsed = !collapsed"
+                                                                                        class="p-0.5 rounded wb-text-faint hover:wb-text-muted transition-colors"
+                                                                                        type="button">
+                                                                                    <ion-icon :class="{ '-rotate-90': collapsed }"
+                                                                                              aria-hidden="true"
+                                                                                              class="text-sm transition-transform block"
+                                                                                              name="chevron-down"></ion-icon>
+                                                                                </button>
+                                                                            </template>
                                                                         </div>
                                                                     </div>
                                                                 </article>
@@ -1731,7 +1757,9 @@
                                                                 <template
                                                                         x-if="reply.replies && reply.replies.length > 0">
                                                                     <ul
-                                                                            class="mt-2 ml-3 border-l-2 reply-border pl-3 space-y-2 list-none">
+                                                                            class="mt-2 ml-3 border-l-2 reply-border pl-3 space-y-2 list-none"
+                                                                            x-show="!collapsed"
+                                                                            x-transition>
                                                                         <template :key="subreply.id"
                                                                                   x-for="subreply in reply.replies">
                                                                             <li>

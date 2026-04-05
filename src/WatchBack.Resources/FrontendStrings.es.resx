@@ -114,6 +114,12 @@
     <data name="Comments_MoreReplyInThread" xml:space="preserve">
         <value>{0} respuesta más en el hilo</value>
     </data>
+    <data name="Comments_CollapseReplies" xml:space="preserve">
+        <value>Contraer respuestas</value>
+    </data>
+    <data name="Comments_ExpandReplies" xml:space="preserve">
+        <value>Expandir respuestas</value>
+    </data>
     <data name="Comments_Score" xml:space="preserve">
         <value>Puntuación: {0}</value>
     </data>
