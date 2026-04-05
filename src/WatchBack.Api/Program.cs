@@ -83,6 +83,10 @@ builder.Services
     .BindConfiguration("Reddit");
 
 builder.Services
+    .AddOptions<LemmyOptions>()
+    .BindConfiguration("Lemmy");
+
+builder.Services
     .AddOptions<WatchBackOptions>()
     .BindConfiguration("WatchBack")
     .ValidateDataAnnotations();

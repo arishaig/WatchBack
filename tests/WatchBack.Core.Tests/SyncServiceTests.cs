@@ -1,3 +1,5 @@
+using System.Net.Http;
+
 using FluentAssertions;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -338,5 +340,257 @@ public class SyncServiceTests
             .GetThoughtsAsync(Arg.Any<MediaContext>(), capturedProgress, Arg.Any<CancellationToken>());
         await provider2.Received(1)
             .GetThoughtsAsync(Arg.Any<MediaContext>(), capturedProgress, Arg.Any<CancellationToken>());
+    }
+
+    // ---- Manual provider priority / suppression (T1) ----
+
+    [Fact]
+    public async Task SyncAsync_WithActiveManualProvider_ReturnsManualContext()
+    {
+        // Arrange
+        MediaContext manualContext = new("Manual Movie", DateTimeOffset.UtcNow);
+        IManualWatchStateProvider manual = Substitute.For<IManualWatchStateProvider>();
+        manual.Metadata.Returns(new WatchStateDataProviderMetadata("Manual", "Manual"));
+        manual.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(manualContext);
+
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        SyncService service = new([_watchStateProvider], [manual],
+            Array.Empty<IThoughtProvider>(), Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, _options, NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync();
+
+        // Assert
+        result.Status.Should().Be(SyncStatus.Watching);
+        result.Title.Should().Be("Manual Movie");
+        result.WatchProvider.Should().Be("Manual");
+    }
+
+    [Fact]
+    public async Task SyncAsync_WithBothManualAndConfiguredActive_PopulatesSuppressedFields()
+    {
+        // Arrange
+        MediaContext manualContext = new("Manual Movie", DateTimeOffset.UtcNow);
+        MediaContext configuredContext = new("Jellyfin Show", DateTimeOffset.UtcNow);
+
+        IManualWatchStateProvider manual = Substitute.For<IManualWatchStateProvider>();
+        manual.Metadata.Returns(new WatchStateDataProviderMetadata("Manual", "Manual"));
+        manual.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(manualContext);
+
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(configuredContext);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        SyncService service = new([_watchStateProvider], [manual],
+            Array.Empty<IThoughtProvider>(), Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, _options, NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync();
+
+        // Assert — manual wins, but configured context is surfaced as suppressed
+        result.Title.Should().Be("Manual Movie");
+        result.SuppressedProvider.Should().Be("Jellyfin");
+        result.SuppressedTitle.Should().Be("Jellyfin Show");
+    }
+
+    [Fact]
+    public async Task SyncAsync_WithManualProviderReturningNull_FallsThroughToConfiguredProvider()
+    {
+        // Arrange
+        MediaContext configuredContext = new("Jellyfin Show", DateTimeOffset.UtcNow);
+
+        IManualWatchStateProvider manual = Substitute.For<IManualWatchStateProvider>();
+        manual.Metadata.Returns(new WatchStateDataProviderMetadata("Manual", "Manual"));
+        manual.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
+
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(configuredContext);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        SyncService service = new([_watchStateProvider], [manual],
+            Array.Empty<IThoughtProvider>(), Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, _options, NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync();
+
+        // Assert — manual returned null, configured provider result is used
+        result.Status.Should().Be(SyncStatus.Watching);
+        result.Title.Should().Be("Jellyfin Show");
+        result.SuppressedProvider.Should().BeNull();
+    }
+
+    // ---- Ratings provider integration (T2) ----
+
+    [Fact]
+    public async Task SyncAsync_WithImdbIdAndRatingsProvider_ReturnRatings()
+    {
+        // Arrange
+        EpisodeContext episode = new(
+            "Breaking Bad",
+            new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1,
+            ExternalIds: new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0903747" });
+
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        MediaRating rating = new("IMDb", "9.5");
+        IRatingsProvider ratingsProvider = Substitute.For<IRatingsProvider>();
+        ratingsProvider.Metadata.Returns(new DataProviderMetadata("OMDb", "OMDb ratings"));
+        ratingsProvider.GetRatingsAsync("tt0903747", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<MediaRating>>([rating]));
+
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            Array.Empty<IThoughtProvider>(), [ratingsProvider], _timeMachineFilter,
+            _prefetchService, _options, NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync();
+
+        // Assert
+        result.Ratings.Should().NotBeNull();
+        result.Ratings.Should().ContainSingle(r => r.Source == "IMDb" && r.Value == "9.5");
+        result.RatingsProvider.Should().Be("OMDb");
+    }
+
+    [Fact]
+    public async Task SyncAsync_WithNoExternalIds_DoesNotCallRatingsProvider()
+    {
+        // Arrange
+        EpisodeContext episode = new(
+            "Breaking Bad",
+            DateTimeOffset.UtcNow,
+            "Pilot",
+            1,
+            1);
+
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        IRatingsProvider ratingsProvider = Substitute.For<IRatingsProvider>();
+        ratingsProvider.Metadata.Returns(new DataProviderMetadata("OMDb", "OMDb ratings"));
+
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            Array.Empty<IThoughtProvider>(), [ratingsProvider], _timeMachineFilter,
+            _prefetchService, _options, NullLogger<SyncService>.Instance);
+
+        // Act
+        await service.SyncAsync();
+
+        // Assert — no IMDB ID means ratings provider should never be called
+        await ratingsProvider.DidNotReceive().GetRatingsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SyncAsync_WhenSecondRatingsProviderHasResults_AttributesToSecondProvider()
+    {
+        // Arrange
+        EpisodeContext episode = new(
+            "Breaking Bad",
+            DateTimeOffset.UtcNow,
+            "Pilot",
+            1,
+            1,
+            ExternalIds: new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0903747" });
+
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        IRatingsProvider emptyProvider = Substitute.For<IRatingsProvider>();
+        emptyProvider.Metadata.Returns(new DataProviderMetadata("Empty", "No ratings"));
+        emptyProvider.GetRatingsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<MediaRating>>([]));
+
+        IRatingsProvider secondProvider = Substitute.For<IRatingsProvider>();
+        secondProvider.Metadata.Returns(new DataProviderMetadata("OMDb", "OMDb ratings"));
+        secondProvider.GetRatingsAsync("tt0903747", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<MediaRating>>([new MediaRating("IMDb", "9.5")]));
+
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            Array.Empty<IThoughtProvider>(), [emptyProvider, secondProvider], _timeMachineFilter,
+            _prefetchService, _options, NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync();
+
+        // Assert — attribution should be the first provider that returned results
+        result.RatingsProvider.Should().Be("OMDb");
+    }
+
+    // ---- Throwing thought provider → Error result (T7) ----
+
+    [Fact]
+    public async Task SyncAsync_WhenThoughtProviderThrows_ReturnsErrorStatus()
+    {
+        // Arrange
+        EpisodeContext episode = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+
+        IThoughtProvider throwingProvider = Substitute.For<IThoughtProvider>();
+        throwingProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns<ThoughtResult?>(_ => throw new HttpRequestException("Connection refused"));
+
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [throwingProvider], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, _options, NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync();
+
+        // Assert
+        result.Status.Should().Be(SyncStatus.Error);
+    }
+
+    [Fact]
+    public async Task SyncAsync_DisabledProviders_SkipsTheirTasks()
+    {
+        // Arrange
+        EpisodeContext episode = new(
+            "The Bear",
+            new DateTimeOffset(2022, 6, 23, 0, 0, 0, TimeSpan.Zero),
+            "Brigade",
+            1,
+            3);
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+
+        IThoughtProvider activeProvider = Substitute.For<IThoughtProvider>();
+        activeProvider.ConfigSection.Returns("Reddit");
+        activeProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("Reddit", null, null, null, [], null));
+
+        IThoughtProvider disabledProvider = Substitute.For<IThoughtProvider>();
+        disabledProvider.ConfigSection.Returns("Lemmy");
+
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        IOptionsSnapshot<WatchBackOptions> options = new OptionsSnapshotStub<WatchBackOptions>(new WatchBackOptions
+        {
+            TimeMachineDays = 14,
+            WatchProvider = "jellyfin",
+            DisabledProviders = "Lemmy"
+        });
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [activeProvider, disabledProvider], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, options, NullLogger<SyncService>.Instance);
+
+        // Act
+        await service.SyncAsync();
+
+        // Assert
+        await activeProvider.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
+        await disabledProvider.DidNotReceive().GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
     }
 }

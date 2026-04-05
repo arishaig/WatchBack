@@ -161,3 +161,10 @@ The frontend (`frontend/`) is 100% TypeScript with strict mode enabled. Follows 
 - **E2E**: Playwright + Deque axe-core for accessibility
 - **Convention**: `[ProjectName].Tests` in `/tests/`
 - **Live integration tests** in Infrastructure.Tests are opt-in (require real `.env` config)
+
+### Development Standards
+
+- Before beginning any work, create a new feature branch for each logical feature and constrain all work on that feature to that branch
+- Throughout the development process, make small, targeted commits to the current feature branch impacting as few files per commit as possible
+- Always pull down the latest main and merge it into this feature branch once development is complete
+- Bug fixes must include a regression test in the same commit — never commit a fix without its covering test

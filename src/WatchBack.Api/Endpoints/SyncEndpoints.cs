@@ -3,12 +3,14 @@ using System.Text.Json;
 using System.Threading.Channels;
 
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 using WatchBack.Api.Logging;
 using WatchBack.Api.Models;
 using WatchBack.Api.Serialization;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
+using WatchBack.Core.Options;
 
 namespace WatchBack.Api.Endpoints;
 
@@ -44,6 +46,10 @@ public static class SyncEndpoints
             .Produces(StatusCodes.Status200OK);
     }
 
+    private static HashSet<string> ParseDisabled(string csv) =>
+        csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+           .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
     private static Dictionary<string, BrandData?> BuildBrandLookup(IEnumerable<IThoughtProvider> providers)
     {
         return providers.ToDictionary(
@@ -55,15 +61,18 @@ public static class SyncEndpoints
     private static async Task<SyncResponse> GetSync(
         ISyncService syncService,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
+        IOptionsSnapshot<WatchBackOptions> watchback,
         CancellationToken ct)
     {
+        HashSet<string> disabled = ParseDisabled(watchback.Value.DisabledProviders);
         SyncResult result = await syncService.SyncAsync(null, ct);
-        return MapSyncResult(result, BuildBrandLookup(thoughtProviders));
+        return MapSyncResult(result, BuildBrandLookup(thoughtProviders.Where(p => p.ConfigSection is null || !disabled.Contains(p.ConfigSection))));
     }
 
     private static async Task GetSyncStream(
         ISyncService syncService,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
+        IOptionsSnapshot<WatchBackOptions> watchback,
         SyncHistoryStore syncHistory,
         SyncTrigger syncTrigger,
         SyncGate syncGate,
@@ -74,7 +83,10 @@ public static class SyncEndpoints
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
 
-        List<IThoughtProvider> providerList = thoughtProviders.ToList();
+        HashSet<string> disabled = ParseDisabled(watchback.Value.DisabledProviders);
+        List<IThoughtProvider> providerList = thoughtProviders
+            .Where(p => p.ConfigSection is null || !disabled.Contains(p.ConfigSection))
+            .ToList();
         int totalWeight = providerList.Sum(p => p.ExpectedWeight);
 
         // Pre-build provider metadata for the segmented bar: name → (color, totalWeight)

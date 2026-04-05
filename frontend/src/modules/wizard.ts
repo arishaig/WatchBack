@@ -17,6 +17,8 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
     wizardComplete() {
         this.wizardActive = false;
         localStorage.setItem('wb_wizardCompleted', 'true');
+        const integrations = (this.configData?.['integrations'] as Record<string, unknown> | undefined) ?? {};
+        localStorage.setItem('wb_seenProviders', JSON.stringify(Object.keys(integrations)));
         void this.sync();
     },
 
@@ -53,6 +55,38 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
             this.wizardStep = Math.min(this.wizardStep + 1, 3);
         } finally {
             this.wizardSaving = false;
+        }
+    },
+
+    newProviderToggle(key: string) {
+        if (this.newProviderSelected.has(key)) {
+            this.newProviderSelected.delete(key);
+        } else {
+            this.newProviderSelected.add(key);
+        }
+        this.newProviderSelected = new Set(this.newProviderSelected);
+    },
+
+    dismissNewProviders() {
+        this.newProvidersActive = false;
+        const integrations = (this.configData?.['integrations'] as Record<string, unknown> | undefined) ?? {};
+        localStorage.setItem('wb_seenProviders', JSON.stringify(Object.keys(integrations)));
+    },
+
+    async saveAndDismissNewProviders() {
+        this.newProviderSaving = true;
+        try {
+            for (const key of this.newProviderKeys) {
+                await this.saveConfig(key);
+            }
+            const cRes = await fetch('/api/config');
+            if (cRes.ok) {
+                this.configData = await cRes.json() as Record<string, unknown>;
+                this._initConfigEdits(this.configData);
+            }
+        } finally {
+            this.newProviderSaving = false;
+            this.dismissNewProviders();
         }
     },
 

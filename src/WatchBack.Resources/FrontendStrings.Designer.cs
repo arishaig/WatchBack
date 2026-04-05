@@ -291,6 +291,12 @@ namespace WatchBack.Resources {
             }
         }
         
+        public static string PasswordUpdate_CurrentPassword {
+            get {
+                return ResourceManager.GetString("PasswordUpdate_CurrentPassword", resourceCulture);
+            }
+        }
+        
         public static string PasswordUpdate_ConfirmPassword {
             get {
                 return ResourceManager.GetString("PasswordUpdate_ConfirmPassword", resourceCulture);
@@ -416,7 +422,25 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("Config_NotConfigured", resourceCulture);
             }
         }
-        
+
+        public static string Config_DisableProvider {
+            get {
+                return ResourceManager.GetString("Config_DisableProvider", resourceCulture);
+            }
+        }
+
+        public static string Config_EnableProvider {
+            get {
+                return ResourceManager.GetString("Config_EnableProvider", resourceCulture);
+            }
+        }
+
+        public static string Config_DisabledSection {
+            get {
+                return ResourceManager.GetString("Config_DisabledSection", resourceCulture);
+            }
+        }
+
         public static string Config_CommentsFrom {
             get {
                 return ResourceManager.GetString("Config_CommentsFrom", resourceCulture);

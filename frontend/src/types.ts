@@ -71,6 +71,10 @@ export interface AppData {
     wizardSelectedWatch: string | null;
     wizardSelectedComments: Set<string>;
     wizardSaving: boolean;
+    newProviderKeys: string[];
+    newProvidersActive: boolean;
+    newProviderSelected: Set<string>;
+    newProviderSaving: boolean;
     checklistDismissed: boolean;
     checklistAutoComplete: boolean;
     searchQuery: string;
@@ -110,7 +114,8 @@ export interface AppData {
     _initConfigEdits(configData: Record<string, unknown>): void;
     saveConfig(integrationKey: string): Promise<void>;
     saveAllConfig(): Promise<void>;
-    resetConfigKeys(keys: string[]): Promise<void>;
+    resetConfigKeys(keys: string[], refetch?: boolean): Promise<void>;
+    toggleDisabled(key: string): Promise<void>;
     savePreferences(): Promise<void>;
     testIcon(service: string): { icon: string; cls: string; label: string };
     testService(service: string): Promise<void>;
@@ -149,6 +154,9 @@ export interface AppData {
     wizardSaveAndContinue(): Promise<void>;
     dismissChecklist(): void;
     openConfigForItem(type: string): void;
+    newProviderToggle(key: string): void;
+    dismissNewProviders(): void;
+    saveAndDismissNewProviders(): Promise<void>;
 
     // Computed (getters)
     readonly hasWatchProvider: boolean;
@@ -157,6 +165,7 @@ export interface AppData {
     readonly checklistAllComplete: boolean;
     readonly showChecklist: boolean;
     readonly filteredLogs: unknown[];
+    readonly collapsedSyncHistory: { timestamp: string; status: string; title: string | null; count: number; thoughtCount: number; avgDurationMs: number | null }[];
     readonly showTimeMachine: boolean;
     readonly activeThoughts: unknown[];
     readonly hasThreadGroups: boolean;

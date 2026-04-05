@@ -506,4 +506,62 @@ public class ResetPasswordTests : IAsyncLifetime, IDisposable
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    [Fact]
+    public async Task Login_WhenPasswordHashedWithOldAlgorithm_ReturnsNeedsPasswordChange()
+    {
+        // Arrange — hash with V2 (old) algorithm; verifying with V3 (default) returns SuccessRehashNeeded
+        string tempPath = Path.Combine(Path.GetTempPath(), $"watchback-test-{Guid.NewGuid()}.json");
+
+        PasswordHasher<string> v2Hasher = new(
+            Microsoft.Extensions.Options.Options.Create(
+                new PasswordHasherOptions
+                {
+                    CompatibilityMode = PasswordHasherCompatibilityMode.IdentityV2
+                }));
+        string v2Hash = v2Hasher.HashPassword("", TestPassword);
+
+        string configJson = System.Text.Json.JsonSerializer.Serialize(
+            new Dictionary<string, Dictionary<string, string>>
+            {
+                ["Auth"] = new()
+                {
+                    ["Username"] = TestUsername,
+                    ["PasswordHash"] = v2Hash,
+                    ["OnboardingComplete"] = "True"
+                }
+            });
+        await File.WriteAllTextAsync(tempPath, configJson);
+
+        await using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureAppConfiguration((_, config) =>
+                    config.AddJsonFile(tempPath, false, false));
+
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IWatchStateProvider>();
+                    services.RemoveAll<IThoughtProvider>();
+                    services.AddScoped<IWatchStateProvider>(_ => new AuthTestWatchProvider());
+                    services.AddScoped<IThoughtProvider>(_ => new AuthTestThoughtProvider());
+                    services.RemoveAll<UserConfigFile>();
+                    services.AddSingleton(new UserConfigFile(tempPath));
+                });
+            });
+
+        using HttpClient client = factory.CreateClient();
+
+        // Act
+        var loginBody = new { username = TestUsername, password = TestPassword };
+        HttpResponseMessage response = await client.PostAsJsonAsync("/api/auth/login", loginBody);
+
+        // Assert — login succeeds but flags that password should be changed (hash was upgraded)
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        JsonDocument doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        doc.RootElement.GetProperty("ok").GetBoolean().Should().BeTrue();
+        doc.RootElement.GetProperty("needsPasswordChange").GetBoolean().Should().BeTrue();
+
+        File.Delete(tempPath);
+    }
 }

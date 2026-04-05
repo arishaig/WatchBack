@@ -602,6 +602,44 @@ public class TraktThoughtProviderTests : IDisposable
         requestedUrls.Should().NotContain(u => u.Contains("/search/tvdb/"));
     }
 
+    // Cross-season scoping: Trakt uses season/episode as path parameters in the comments URL,
+    // so a regression in slug resolution or URL construction would silently fetch the wrong episode.
+    [Fact]
+    public async Task GetThoughtsAsync_ForSeasonTwoEpisode_CommentsUrlContainsCorrectSeasonAndEpisodeNumbers()
+    {
+        EpisodeContext mediaContext = new(
+            "The Pitt",
+            new DateTimeOffset(2026, 1, 9, 0, 0, 0, TimeSpan.Zero),
+            "Mass Casualty",
+            2,
+            1);
+
+        string slugSearchJson = """[{"show":{"title":"The Pitt","ids":{"trakt":12345,"slug":"the-pitt"}}}]""";
+        string commentsJson = "[]";
+
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/search/", slugSearchJson)
+            .Default(commentsJson);
+
+        HttpClient client = new(handler);
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        // The comments request must address season 2, episode 1 of the resolved show
+        handler.RecordedUris.Should().Contain(
+            u => u.ToString().Contains("/seasons/2/episodes/1/"),
+            "comments URL must be scoped to season 2 episode 1");
+
+        handler.RecordedUris.Should().NotContain(
+            u => u.ToString().Contains("/seasons/1/"),
+            "must not accidentally request season 1 comments");
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_WithUnknownMovie_ReturnsEmpty()
     {

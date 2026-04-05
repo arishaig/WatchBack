@@ -355,6 +355,22 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
 
     [Theory]
     [MemberData(nameof(ThemeData))]
+    public async Task NewProvidersModal(string theme)
+    {
+        IPage page = await _browser.NewPageAsync();
+        try
+        {
+            await LoadPageWithNewProviders(page, _baseUrl, theme);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
     public async Task WizardWelcome(string theme)
     {
         IPage page = await _browser.NewPageAsync();

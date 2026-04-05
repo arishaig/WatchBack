@@ -83,7 +83,9 @@
 <!-- Loading state (full-screen, shown during initial load) -->
 <div class="wb-overlay" style="background-color:var(--wb-bg,#1a1a2e);z-index:100;"
      x-show="!initialized && authState === 'checking'">
-    <div class="wb-spinner" role="status"></div>
+    <div class="wb-spinner" role="status">
+        <span class="sr-only" x-text="t('Common_Loading')"></span>
+    </div>
 </div>
 
 <!-- SSE sync progress bar -->
@@ -122,6 +124,7 @@
 <div class="fixed inset-0 z-[200] flex items-center justify-center p-4" style="background-color: var(--wb-bg);"
      role="dialog" aria-modal="true" aria-labelledby="login-dialog-title"
      x-cloak
+     x-effect="authState === 'login' && $nextTick(() => document.getElementById('login-username')?.focus())"
      x-show="authState === 'login'">
     <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
         <div class="flex items-center justify-center gap-3 mb-8">
@@ -165,11 +168,10 @@
                 <label class="text-xs font-medium wb-text-faint block mb-1" x-text="t('Auth_Theme')"></label>
                 <div class="wb-select-wrap">
                     <select :aria-label="t('Auth_Theme')"
-                            @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
-                            class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-xs border"
-                            x-model="theme">
-                        <template :key="t.id" x-for="t in themes">
-                            <option :value="t.id" x-text="t.label"></option>
+                            @change="theme = $event.target.value; applyTheme(theme); localStorage.setItem('wb_theme', theme)"
+                            class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-1.5 text-xs border">
+                        <template :key="th.id" x-for="th in themes">
+                            <option :selected="theme === th.id" :value="th.id" x-text="th.label"></option>
                         </template>
                     </select>
                 </div>
@@ -190,6 +192,7 @@
 <div class="fixed inset-0 z-[200] flex items-center justify-center p-4" style="background-color: var(--wb-bg);"
      role="dialog" aria-modal="true" aria-labelledby="onboarding-dialog-title"
      x-cloak
+     x-effect="authState === 'onboarding' && $nextTick(() => $el.querySelector('input,button')?.focus())"
      x-show="authState === 'onboarding'">
     <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
         <div class="flex items-center justify-center gap-3 mb-4">
@@ -254,6 +257,7 @@
 <div class="fixed inset-0 z-[200] flex items-center justify-center p-4" style="background-color: var(--wb-bg);"
      role="dialog" aria-modal="true" aria-labelledby="changepw-dialog-title"
      x-cloak
+     x-effect="authState === 'changePassword' && $nextTick(() => $el.querySelector('input,button')?.focus())"
      x-show="authState === 'changePassword'">
     <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
         <div class="flex items-center justify-center gap-3 mb-4">
@@ -322,12 +326,63 @@
     </div>
 </div>
 
+<!-- ─── New providers notification ─── -->
+<div x-cloak x-show="newProvidersActive && configData"
+     role="dialog" aria-modal="true"
+     :aria-label="t('NewProviders_Title')"
+     @keydown.escape.window="dismissNewProviders()"
+     x-effect="(newProvidersActive && configData) && $nextTick(() => $el.querySelector('button')?.focus())"
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto"
+     style="background-color: var(--wb-bg);">
+    <div class="wb-surface wb-border border rounded-xl p-6 sm:p-8 w-full shadow-2xl" style="max-width:32rem">
+        <h2 class="text-lg font-bold wb-accent-text mb-1" x-text="t('NewProviders_Title')"></h2>
+        <p class="text-sm wb-text-secondary mb-5"
+           x-text="t('NewProviders_Body', newProviderKeys.length)"></p>
+
+        <div class="space-y-3">
+            <template x-for="[key, integration] in Object.entries(configData?.integrations || {})
+                             .filter(([k]) => newProviderKeys.includes(k))"
+                      :key="'np-' + key">
+                <div class="wizard-provider-card wb-surface"
+                     :class="{ 'selected': newProviderSelected.has(key) }"
+                     :style="'--card-accent: ' + integration.brandColor"
+                     @click="newProviderToggle(key)">
+                    <div class="flex items-center gap-3">
+                        <span class="integration-logo" :style="'color: ' + integration.brandColor"
+                              x-html="sanitizeSvg(integration.logoSvg)"></span>
+                        <span class="text-sm font-semibold wb-text-secondary" x-text="integration.name"></span>
+                        <span class="ml-auto text-xs wb-accent-text font-medium"
+                              x-show="newProviderSelected.has(key)">&#10003;</span>
+                    </div>
+                    <div @click.stop class="mt-4"
+                         x-providerfields="{ mode: 'wizard', prefix: 'np-' }"
+                         x-show="newProviderSelected.has(key)">
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <div class="flex gap-3 mt-6">
+            <button @click="dismissNewProviders()"
+                    class="flex-1 py-2.5 rounded-lg text-sm font-medium wb-border border wb-surface wb-text-secondary
+                           cursor-pointer wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                    x-text="t('NewProviders_Skip')"></button>
+            <button @click="saveAndDismissNewProviders()"
+                    :disabled="newProviderSaving"
+                    class="flex-1 py-2.5 rounded-lg text-sm font-semibold wb-on-accent wb-bg-accent cursor-pointer
+                           disabled:opacity-50 wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                    x-text="newProviderSaving ? t('Common_Saving') : t('NewProviders_SaveAndDone')"></button>
+        </div>
+    </div>
+</div>
+
 <!-- ─── Onboarding wizard ─── -->
 <div :aria-label="t('Wizard_Welcome')" @keydown.escape.window="wizardSkip()"
      aria-modal="true"
      class="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto" role="dialog"
      style="background-color: var(--wb-bg);"
      x-cloak
+     x-effect="(wizardActive && configData) && $nextTick(() => $el.querySelector('button')?.focus())"
      x-show="wizardActive && configData">
     <div class="wb-surface wb-border border rounded-xl p-6 sm:p-8 w-full shadow-2xl" style="max-width:32rem">
 
@@ -574,7 +629,9 @@
                             ? 'wb-text-secondary border-current' : 'wb-text-faint border-transparent hover:wb-text-muted'"
                             :style="configTab === 'settings' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
                             @click="configTab = 'settings'; closeLogStream()"
+                            aria-controls="panel-settings"
                             class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                            id="tab-settings"
                             role="tab"
                             style="border-color: configTab === 'settings' ? 'var(--wb-accent)' : undefined"
                             type="button"
@@ -584,7 +641,9 @@
                             ? 'wb-text-secondary' : 'wb-text-faint hover:wb-text-muted'"
                             :style="configTab === 'diagnostics' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
                             @click="switchConfigTab('diagnostics')"
+                            aria-controls="panel-diagnostics"
                             class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                            id="tab-diagnostics"
                             role="tab"
                             type="button"
                             x-text="t('Nav_Diagnostics')">
@@ -603,35 +662,104 @@
             </div>
 
             <!-- ─── Settings tab ─── -->
-            <div :aria-label="t('Nav_Settings')" role="tabpanel" x-show="configTab === 'settings'">
+            <div :aria-label="t('Nav_Settings')" aria-labelledby="tab-settings" id="panel-settings" role="tabpanel" x-show="configTab === 'settings'">
 
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
                 <h2 class="text-sm font-semibold wb-text-secondary mb-3" x-text="t('Config_Integrations')"></h2>
 
+                <!-- Disabled providers section -->
+                <div class="mb-4"
+                     x-show="Object.values(configData?.integrations || {}).some(i => i.disabled)"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0">
+                    <button :aria-expanded="!collapsedSections.disabledProviders"
+                            @click="toggleSection('disabledProviders')"
+                            class="w-full flex items-center justify-between gap-2 mb-2 cursor-pointer"
+                            type="button">
+                        <p class="text-xs font-medium wb-text-faint uppercase tracking-wide"
+                           x-text="t('Config_DisabledSection')"></p>
+                        <ion-icon :name="collapsedSections.disabledProviders ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
+                                  aria-hidden="true" class="wb-text-faint shrink-0 pointer-events-none"></ion-icon>
+                    </button>
+                    <div class="space-y-2"
+                         x-show="!collapsedSections.disabledProviders"
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 -translate-y-2"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100 translate-y-0"
+                         x-transition:leave-end="opacity-0 -translate-y-2">
+                        <template :key="'dis-' + key"
+                                  x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([,i]) => i.disabled)">
+                            <div x-transition:enter="transition ease-out duration-300 transform-gpu"
+                                 x-transition:enter-start="opacity-0 -translate-y-3"
+                                 x-transition:enter-end="opacity-100 translate-y-0"
+                                 x-transition:leave="transition ease-in duration-200 transform-gpu"
+                                 x-transition:leave-start="opacity-100 translate-y-0"
+                                 x-transition:leave-end="opacity-0 translate-y-3">
+                                <div :style="'--card-accent: ' + integration.brandColor"
+                                     class="integration-card rounded-xl overflow-hidden opacity-50">
+                                    <div class="w-full flex items-center gap-2 p-4">
+                                        <span :style="'color: ' + integration.brandColor"
+                                              class="integration-logo"
+                                              x-html="sanitizeSvg(integration.logoSvg)"></span>
+                                        <span class="text-sm font-semibold wb-text-secondary grow"
+                                              x-text="integration.name"></span>
+                                        <button :aria-label="t('Config_EnableProvider') + ' ' + integration.name"
+                                                @click="void toggleDisabled(key)"
+                                                class="p-1 rounded wb-text-faint opacity-50 cursor-pointer shrink-0
+                                                       hover:opacity-90 active:scale-95 transition-all duration-150 transform-gpu"
+                                                type="button">
+                                            <ion-icon aria-hidden="true" class="text-base block pointer-events-none" name="power-sharp"></ion-icon>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Active integrations -->
+                <div x-show="Object.values(configData?.integrations || {}).some(i => i.disabled)"
+                     class="wb-border border-t mb-4"></div>
                 <div class="space-y-3">
-                    <template :key="key" x-for="[key, integration] in Object.entries(configData?.integrations || {})">
+                    <template :key="key"
+                              x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([,i]) => !i.disabled)">
                         <div :style="'--card-accent: ' + integration.brandColor"
-                             class="integration-card rounded-xl overflow-hidden">
-                            <!-- Card header: logo + service name + collapse toggle -->
-                            <button :aria-expanded="!collapsedSections[key]"
-                                    :class="collapsedSections[key] ? '' : 'pb-3'"
-                                    @click="toggleSection(key)"
-                                    class="w-full flex items-center justify-between gap-2 p-4 cursor-pointer text-left"
-                                    type="button">
-                <span class="flex items-center gap-2">
-                    <span :style="'color: ' + integration.brandColor"
-                          class="integration-logo"
-                          x-html="sanitizeSvg(integration.logoSvg)">
-                    </span>
-                    <span class="text-sm font-semibold wb-text-secondary"
-                          x-text="integration.name">
-                    </span>
-                </span>
-                                <ion-icon
-                                        :name="collapsedSections[key] ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
-                                        aria-hidden="true" class="wb-text-faint shrink-0">
-                                </ion-icon>
-                            </button>
+                             class="integration-card rounded-xl overflow-hidden"
+                             x-transition:enter="transition ease-out duration-300 transform-gpu"
+                             x-transition:enter-start="opacity-0 -translate-y-3"
+                             x-transition:enter-end="opacity-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-200 transform-gpu"
+                             x-transition:leave-start="opacity-100 translate-y-0"
+                             x-transition:leave-end="opacity-0 -translate-y-3">
+                            <!-- Card header: logo + service name + collapse toggle + disable button -->
+                            <div :class="collapsedSections[key] ? '' : 'pb-3'"
+                                 class="w-full flex items-center justify-between gap-2 p-4">
+                                <button :aria-expanded="!collapsedSections[key]"
+                                        @click="toggleSection(key)"
+                                        class="flex items-center gap-2 cursor-pointer text-left grow min-w-0"
+                                        type="button">
+                                    <ion-icon :name="collapsedSections[key] ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
+                                              aria-hidden="true" class="wb-text-faint shrink-0 pointer-events-none"></ion-icon>
+                                    <span :style="'color: ' + integration.brandColor"
+                                          class="integration-logo"
+                                          x-html="sanitizeSvg(integration.logoSvg)"></span>
+                                    <span class="text-sm font-semibold wb-text-secondary"
+                                          x-text="integration.name"></span>
+                                </button>
+                                <button :aria-label="t('Config_DisableProvider') + ' ' + integration.name"
+                                        @click="void toggleDisabled(key)"
+                                        class="p-1 rounded wb-text-faint opacity-30 cursor-pointer shrink-0
+                                               hover:opacity-70 active:scale-95 transition-all duration-150 transform-gpu"
+                                        type="button">
+                                    <ion-icon aria-hidden="true" class="text-base block pointer-events-none" name="power-sharp"></ion-icon>
+                                </button>
+                            </div>
                             <!-- Collapsible body: fields + test button -->
                             <div class="px-4 pb-4"
                                  x-providerfields="{ mode: 'config', prefix: 'field-' }"
@@ -664,7 +792,7 @@
                         <ul class="space-y-1.5 text-sm wb-text-muted" role="list">
                             <template
                                     :key="'feat-' + key"
-                                    x-for="[key, integration] in Object.entries(configData?.integrations || {})">
+                                    x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([,i]) => !i.disabled)">
                                 <li class="flex items-start gap-2">
                     <span :aria-label="integration.name + ': ' + testIcon(key).label" :class="testIcon(key).cls"
                           class="mt-0.5" role="img"
@@ -726,11 +854,10 @@
                                    x-text="t('Auth_Theme')"></label>
                             <div class="wb-select-wrap">
                                 <select :aria-label="t('Auth_Theme')"
-                                        @change="applyTheme(theme); localStorage.setItem('wb_theme', theme)"
-                                        class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                        x-model="theme">
-                                    <template :key="t.id" x-for="t in themes">
-                                        <option :value="t.id" x-text="t.label"></option>
+                                        @change="theme = $event.target.value; applyTheme(theme); localStorage.setItem('wb_theme', theme)"
+                                        class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
+                                    <template :key="th.id" x-for="th in themes">
+                                        <option :selected="theme === th.id" :value="th.id" x-text="th.label"></option>
                                     </template>
                                 </select>
                             </div>
@@ -1018,7 +1145,7 @@
             </div><!-- /settings tab -->
 
             <!-- ─── Diagnostics tab ─── -->
-            <div :aria-label="t('Nav_Diagnostics')" role="tabpanel" x-show="configTab === 'diagnostics'">
+            <div :aria-label="t('Nav_Diagnostics')" aria-labelledby="tab-diagnostics" id="panel-diagnostics" role="tabpanel" x-show="configTab === 'diagnostics'">
 
                 <!-- Last sync status -->
                 <div class="mb-5">
@@ -1035,7 +1162,7 @@
                               aria-hidden="true"
                               class="inline-block w-1.5 h-1.5 rounded-full shrink-0">
                         </span>
-                        <span x-text="syncHistory.status"></span>
+                        <span x-text="t('SyncStatus_' + syncHistory.status)"></span>
                     </span>
                             </div>
                             <p class="text-sm wb-text-secondary font-medium" x-show="syncHistory.title"
@@ -1080,46 +1207,62 @@
                         <p class="text-xs wb-text-muted" x-text="t('Diagnostics_NoSyncHistory')"></p>
                     </template>
                     <template x-if="syncHistoryEntries.length > 0">
-                        <div class="wb-surface wb-border border rounded-xl overflow-hidden">
-                            <div class="overflow-y-auto" style="max-height:16rem;">
-                                <table class="w-full text-xs">
-                                    <thead class="wb-surface-alt sticky top-0">
-                                    <tr class="border-b wb-border">
-                                        <th class="text-left px-3 py-2 wb-text-muted font-medium">Time</th>
-                                        <th class="text-left px-3 py-2 wb-text-muted font-medium">Status</th>
-                                        <th class="text-left px-3 py-2 wb-text-muted font-medium">Title</th>
-                                        <th class="text-right px-3 py-2 wb-text-muted font-medium">Thoughts</th>
-                                        <th class="text-right px-3 py-2 wb-text-muted font-medium">Duration</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    <template :key="i" x-for="(entry, i) in syncHistoryEntries">
-                                        <tr class="border-b wb-border last:border-b-0">
-                                            <td class="px-3 py-2 wb-text-muted whitespace-nowrap"
-                                                x-text="formatRelativeTime(entry.timestamp)">
-                                            </td>
-                                            <td class="px-3 py-2 whitespace-nowrap">
-                                    <span class="flex items-center gap-1.5">
-                                        <span :style="entry.status === 'Watching' ? 'background:var(--wb-success-text)' : entry.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint)'"
-                                              aria-hidden="true"
-                                              class="inline-block w-1.5 h-1.5 rounded-full shrink-0">
-                                        </span>
-                                        <span class="wb-text-secondary" x-text="entry.status"></span>
-                                    </span>
-                                            </td>
-                                            <td class="px-3 py-2 wb-text-secondary truncate" style="max-width:12rem;"
-                                                x-text="entry.title || '—'">
-                                            </td>
-                                            <td class="px-3 py-2 wb-text-muted text-right tabular-nums"
-                                                x-text="entry.thoughtCount">
-                                            </td>
-                                            <td class="px-3 py-2 wb-text-muted text-right tabular-nums whitespace-nowrap"
-                                                x-text="entry.durationMs != null ? (entry.durationMs / 1000).toFixed(1) + 's' : '—'">
-                                            </td>
+                        <div>
+                            <!-- Timeline strip: one block per run, width proportional to sync count -->
+                            <div aria-hidden="true" class="flex gap-px h-3 rounded-lg overflow-hidden mb-3">
+                                <template :key="i" x-for="(entry, i) in collapsedSyncHistory.slice().reverse()">
+                                    <div :style="(entry.status === 'Watching' ? 'background:var(--wb-success-text);opacity:0.75' : entry.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint);opacity:0.4') + ';flex-grow:' + entry.count"
+                                         :title="(entry.title ? entry.status + ': ' + entry.title : entry.status) + (entry.count > 1 ? ' ×' + entry.count : '') + (entry.avgDurationMs != null ? ' (' + (entry.avgDurationMs / 1000).toFixed(1) + 's avg)' : '')"
+                                         class="min-w-[2px]">
+                                    </div>
+                                </template>
+                            </div>
+                            <!-- Collapsed table: consecutive identical runs merged into one row -->
+                            <div class="wb-surface wb-border border rounded-xl overflow-hidden">
+                                <div class="overflow-y-auto" style="max-height:16rem;">
+                                    <table class="w-full text-xs">
+                                        <thead class="wb-surface-alt sticky top-0">
+                                        <tr class="border-b wb-border">
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium" x-text="t('Diagnostics_ColTime')"></th>
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium" x-text="t('Diagnostics_ColStatus')"></th>
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium" x-text="t('Diagnostics_ColTitle')"></th>
+                                            <th class="text-right px-3 py-2 wb-text-muted font-medium" x-text="t('Diagnostics_ColThoughts')"></th>
+                                            <th class="text-right px-3 py-2 wb-text-muted font-medium" x-text="t('Diagnostics_ColDuration')"></th>
                                         </tr>
-                                    </template>
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                        <template :key="i" x-for="(entry, i) in collapsedSyncHistory">
+                                            <tr class="border-b wb-border last:border-b-0">
+                                                <td class="px-3 py-2 wb-text-muted whitespace-nowrap"
+                                                    x-text="formatRelativeTime(entry.timestamp)">
+                                                </td>
+                                                <td class="px-3 py-2 whitespace-nowrap">
+                                                    <span class="flex items-center gap-1.5">
+                                                        <span :style="entry.status === 'Watching' ? 'background:var(--wb-success-text)' : entry.status === 'Error' ? 'background:var(--wb-error-text)' : 'background:var(--wb-text-faint)'"
+                                                              aria-hidden="true"
+                                                              class="inline-block w-1.5 h-1.5 rounded-full shrink-0">
+                                                        </span>
+                                                        <span class="wb-text-secondary" x-text="t('SyncStatus_' + entry.status)"></span>
+                                                        <span class="wb-text-faint tabular-nums"
+                                                              x-show="entry.count > 1"
+                                                              x-text="'×' + entry.count">
+                                                        </span>
+                                                    </span>
+                                                </td>
+                                                <td class="px-3 py-2 wb-text-secondary truncate" style="max-width:12rem;"
+                                                    x-text="entry.title || '—'">
+                                                </td>
+                                                <td class="px-3 py-2 wb-text-muted text-right tabular-nums"
+                                                    x-text="entry.thoughtCount">
+                                                </td>
+                                                <td class="px-3 py-2 wb-text-muted text-right tabular-nums whitespace-nowrap"
+                                                    x-text="entry.avgDurationMs != null ? (entry.avgDurationMs / 1000).toFixed(1) + 's' : '—'">
+                                                </td>
+                                            </tr>
+                                        </template>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </template>
@@ -1318,7 +1461,7 @@
                                 class="w-full flex items-center gap-3 px-3 py-2 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn transition-colors"
                                 type="button">
                         <span class="text-xs wb-text-faint shrink-0 w-8 text-right"
-                              x-text="'E' + String(ep.episodeNumber).padStart(2, '0')">
+                              x-text="t('Dashboard_EpisodeNumber', String(ep.episodeNumber).padStart(2, '0'))">
                         </span>
                             <span class="text-sm wb-text-secondary truncate" x-text="ep.title"></span>
                             <span class="text-xs wb-text-faint shrink-0 ml-auto" x-show="ep.airDate"
@@ -1396,17 +1539,14 @@
                      class="mb-4 comment-card"
                      style="animation-delay:0.05s"
                      x-show="data?.metadata?.seasonNumber != null">
-                    <a :href="redditSearchUrl(data.title, data.metadata.seasonNumber, data.metadata.episodeNumber)"
+                    <a :aria-label="t('Comments_ViewOn', 'Reddit')"
+                       :href="redditSearchUrl(data.title, data.metadata.seasonNumber, data.metadata.episodeNumber)"
                        class="w-full py-2 rounded-md text-sm font-medium text-center source-link cursor-pointer wb-btn flex items-center justify-center gap-1.5"
                        rel="noopener noreferrer"
                        target="_blank">
-                        <ion-icon
-                                aria-hidden="true" name="logo-reddit">
-                        </ion-icon>
+                        <ion-icon aria-hidden="true" name="logo-reddit"></ion-icon>
                         Reddit
-                        <ion-icon aria-hidden="true"
-                                  name="search-sharp">
-                        </ion-icon>
+                        <ion-icon aria-hidden="true" name="search-sharp"></ion-icon>
                     </a>
                 </div>
 
@@ -1462,29 +1602,59 @@
                         class="list-none">
                         <template :key="gi" x-for="(group, gi) in renderGroups">
                             <li :class="groupByThread && group.title ? 'thread-group' : ''"
-                                :style="(groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's;' : '') + (group.brandColor ? `--thread-brand:${group.brandColor}` : '')">
+                                :style="(groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's;' : '') + (group.brandColor ? `--thread-brand:${group.brandColor}` : '')"
+                                x-data="{ collapsed: false }">
                                 <template x-if="groupByThread && group.title">
-                                    <div>
-                                        <a :href="group.url"
-                                           class="block text-xs thread-title mb-1 truncate leading-tight font-semibold"
-                                           rel="noopener noreferrer"
-                                           target="_blank"
-                                           x-text="group.title">
-                                        </a>
+                                    <div class="cursor-pointer select-none"
+                                         @click="!$event.target.closest('a, button') && (collapsed = !collapsed)">
+                                        <div class="flex items-center gap-1 mb-1">
+                                            <button :aria-expanded="!collapsed"
+                                                    :aria-label="collapsed ? t('Comments_ExpandThread') : t('Comments_CollapseThread')"
+                                                    @click.stop="collapsed = !collapsed"
+                                                    class="p-0.5 rounded wb-text-faint hover:wb-text-muted transition-colors shrink-0"
+                                                    type="button">
+                                                <ion-icon :class="{ '-rotate-90': collapsed }"
+                                                          aria-hidden="true"
+                                                          class="text-xs transition-transform block"
+                                                          name="chevron-down"></ion-icon>
+                                            </button>
+                                            <a :href="group.url"
+                                               class="block text-xs thread-title truncate leading-tight font-semibold"
+                                               rel="noopener noreferrer"
+                                               target="_blank"
+                                               x-text="group.title">
+                                            </a>
+                                        </div>
                                         <div class="text-xs wb-text-muted leading-relaxed mb-2 wb-md"
                                              x-html="renderMarkdown(group.body || '')"
-                                             x-show="group.body">
+                                             x-show="group.body && !collapsed">
                                         </div>
                                     </div>
                                 </template>
                                 <ul :class="groupByThread && group.title ? 'ml-2 border-l-2 reply-border pl-3 space-y-3' : (groupByThread ? 'space-y-3' : '')"
-                                    class="list-none">
+                                    class="list-none"
+                                    x-show="!(groupByThread && group.title && collapsed)"
+                                    x-transition>
                                     <template :key="thought.id" x-for="(thought, ci) in group.thoughts">
-                                        <li>
+                                        <li x-data="{ collapsed: false }">
                                             <article
                                                     :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's' + (thought.brandColor ? `;--thread-brand:${thought.brandColor}` : '')"
                                                     class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card">
-                                                <div class="flex items-start mb-2 gap-2">
+                                                <div class="flex items-center mb-2 gap-2"
+                                                     :class="thought.replies && thought.replies.length > 0 ? 'cursor-pointer select-none' : ''"
+                                                     @click="thought.replies && thought.replies.length > 0 && !$event.target.closest('a, button') && (collapsed = !collapsed)">
+                                                    <template x-if="thought.replies && thought.replies.length > 0">
+                                                        <button :aria-expanded="!collapsed"
+                                                                :aria-label="collapsed ? t('Comments_ExpandReplies') : t('Comments_CollapseReplies')"
+                                                                @click.stop="collapsed = !collapsed"
+                                                                class="p-0.5 rounded wb-text-faint hover:wb-text-muted transition-colors shrink-0"
+                                                                type="button">
+                                                            <ion-icon :class="{ '-rotate-90': collapsed }"
+                                                                      aria-hidden="true"
+                                                                      class="text-sm transition-transform block"
+                                                                      name="chevron-down"></ion-icon>
+                                                        </button>
+                                                    </template>
                                                     <div class="flex-1 min-w-0"
                                                          x-show="!groupByThread && thought.postTitle">
                                                         <a :href="thought.postUrl"
@@ -1495,7 +1665,7 @@
                                                         </a>
                                                     </div>
                                                     <div :class="groupByThread || !thought.postTitle ? 'ml-auto' : 'shrink-0'"
-                                                         class="flex gap-1">
+                                                         class="flex gap-1 items-center">
                                                         <template x-if="thought.brandLogoSvg && thought.url">
                                                             <a :aria-label="t('Comments_ViewOn', thought.source)"
                                                                :href="thought.url"
@@ -1558,20 +1728,37 @@
 
                                                 <!-- Level 1 replies -->
                                                 <template x-if="thought.replies && thought.replies.length > 0">
-                                                    <ul class="mt-3 border-l-2 reply-border pl-3 space-y-3 list-none">
+                                                    <ul class="mt-3 border-l-2 reply-border pl-3 space-y-3 list-none"
+                                                        x-show="!collapsed"
+                                                        x-transition>
                                                         <template :key="reply.id" x-for="reply in thought.replies">
-                                                            <li>
+                                                            <li x-data="{ collapsed: false }">
                                                                 <article class="reply-bg p-3 rounded-lg">
                                                                     <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
                                                                          x-html="renderMarkdown(reply.content)">
                                                                     </div>
-                                                                    <div
-                                                                            class="flex justify-between items-center text-xs wb-text-faint">
-                                                        <span class="font-medium wb-text-muted">
-                                                            <span class="sr-only"
-                                                                  x-text="t('Comments_By') + ' '"></span>
-                                                            <span x-text="'@' + reply.author"></span>
-                                                        </span>
+                                                                    <div class="flex justify-between items-center text-xs wb-text-faint"
+                                                                         :class="reply.replies && reply.replies.length > 0 ? 'cursor-pointer select-none' : ''"
+                                                                         @click="reply.replies && reply.replies.length > 0 && !$event.target.closest('a, button') && (collapsed = !collapsed)">
+                                                                        <div class="flex items-center gap-1">
+                                                                            <template x-if="reply.replies && reply.replies.length > 0">
+                                                                                <button :aria-expanded="!collapsed"
+                                                                                        :aria-label="collapsed ? t('Comments_ExpandReplies') : t('Comments_CollapseReplies')"
+                                                                                        @click.stop="collapsed = !collapsed"
+                                                                                        class="p-0.5 rounded wb-text-faint hover:wb-text-muted transition-colors"
+                                                                                        type="button">
+                                                                                    <ion-icon :class="{ '-rotate-90': collapsed }"
+                                                                                              aria-hidden="true"
+                                                                                              class="text-sm transition-transform block"
+                                                                                              name="chevron-down"></ion-icon>
+                                                                                </button>
+                                                                            </template>
+                                                                            <span class="font-medium wb-text-muted">
+                                                                                <span class="sr-only"
+                                                                                      x-text="t('Comments_By') + ' '"></span>
+                                                                                <span x-text="'@' + reply.author"></span>
+                                                                            </span>
+                                                                        </div>
                                                                         <div class="flex items-center gap-3">
                                                             <span
                                                                     :aria-label="t('Comments_Score', formatScore(reply.score))"
@@ -1591,7 +1778,9 @@
                                                                 <template
                                                                         x-if="reply.replies && reply.replies.length > 0">
                                                                     <ul
-                                                                            class="mt-2 ml-3 border-l-2 reply-border pl-3 space-y-2 list-none">
+                                                                            class="mt-2 ml-3 border-l-2 reply-border pl-3 space-y-2 list-none"
+                                                                            x-show="!collapsed"
+                                                                            x-transition>
                                                                         <template :key="subreply.id"
                                                                                   x-for="subreply in reply.replies">
                                                                             <li>

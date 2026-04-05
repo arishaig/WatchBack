@@ -13,6 +13,43 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
         return this.logEntries.filter(e => levels.indexOf((e as { level: string }).level) >= minIdx);
     },
 
+    get collapsedSyncHistory(): { timestamp: string; status: string; title: string | null; count: number; thoughtCount: number; avgDurationMs: number | null }[] {
+        type RawEntry = { status: string; title: string | null; timestamp: string; thoughtCount: number; durationMs: number | null };
+        const entries = this.syncHistoryEntries as RawEntry[];
+        if (entries.length === 0) return [];
+
+        const groups: { timestamp: string; status: string; title: string | null; count: number; thoughtCount: number; avgDurationMs: number | null }[] = [];
+        let cur = { ...entries[0], count: 1, totalDurationMs: entries[0].durationMs as number | null };
+
+        for (let i = 1; i < entries.length; i++) {
+            const e = entries[i];
+            if (e.status === cur.status && e.title === cur.title) {
+                cur.count++;
+                if (e.durationMs != null)
+                    cur.totalDurationMs = (cur.totalDurationMs ?? 0) + e.durationMs;
+            } else {
+                groups.push({
+                    timestamp: cur.timestamp,
+                    status: cur.status,
+                    title: cur.title,
+                    count: cur.count,
+                    thoughtCount: cur.thoughtCount,
+                    avgDurationMs: cur.totalDurationMs != null ? Math.round(cur.totalDurationMs / cur.count) : null,
+                });
+                cur = { ...e, count: 1, totalDurationMs: e.durationMs };
+            }
+        }
+        groups.push({
+            timestamp: cur.timestamp,
+            status: cur.status,
+            title: cur.title,
+            count: cur.count,
+            thoughtCount: cur.thoughtCount,
+            avgDurationMs: cur.totalDurationMs != null ? Math.round(cur.totalDurationMs / cur.count) : null,
+        });
+        return groups;
+    },
+
     get showTimeMachine(): boolean {
         if (!this.data) return false;
         const tm = (this.data['timeMachineThoughts'] as unknown[]) ?? [];
@@ -92,13 +129,13 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
     },
 
     get hasWatchProvider(): boolean {
-        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean; providerTypes?: string[] }> | undefined) ?? {};
-        return Object.values(integrations).some(i => i.providerTypes?.includes('watchState') && i.configured);
+        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean; providerTypes?: string[]; disabled?: boolean }> | undefined) ?? {};
+        return Object.values(integrations).some(i => i.providerTypes?.includes('watchState') && i.configured && !i.disabled);
     },
 
     get hasCommentSource(): boolean {
-        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean; providerTypes?: string[] }> | undefined) ?? {};
-        return Object.values(integrations).some(i => i.providerTypes?.includes('thought') && i.configured);
+        const integrations = (this.configData?.['integrations'] as Record<string, { configured?: boolean; providerTypes?: string[]; disabled?: boolean }> | undefined) ?? {};
+        return Object.values(integrations).some(i => i.providerTypes?.includes('thought') && i.configured && !i.disabled);
     },
 
     get hasCompletedSync(): boolean {

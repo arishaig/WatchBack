@@ -86,7 +86,7 @@ public static class DiagnosticsEndpoints
         CancellationToken ct = default)
     {
         var entries = await db.SyncLogs
-            .OrderByDescending(e => e.Timestamp)
+            .OrderByDescending(e => e.Id)
             .Take(Math.Clamp(limit, 1, 500))
             .Select(e => new
             {

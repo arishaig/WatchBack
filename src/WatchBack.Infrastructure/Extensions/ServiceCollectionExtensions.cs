@@ -25,6 +25,8 @@ public static class ServiceCollectionExtensions
             .AddHttpMessageHandler<ResilientHttpHandler>();
         services.AddHttpClient<BlueskyThoughtProvider>().ConfigureHttpClient(ConfigureClient)
             .AddHttpMessageHandler<ResilientHttpHandler>();
+        services.AddHttpClient<LemmyThoughtProvider>().ConfigureHttpClient(ConfigureClient)
+            .AddHttpMessageHandler<ResilientHttpHandler>();
 
         // ManualWatchStateProvider is a singleton so it can hold state across requests.
         // Registered as both IManualWatchStateProvider (for SyncService priority check)
@@ -41,6 +43,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<TraktThoughtProvider>());
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<RedditThoughtProvider>());
         services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<BlueskyThoughtProvider>());
+        services.AddScoped<IThoughtProvider>(sp => sp.GetRequiredService<LemmyThoughtProvider>());
 
         // Register media search and ratings providers — OMDb implements both interfaces.
         // AddHttpClient registers the typed client as transient; the scoped forwarding

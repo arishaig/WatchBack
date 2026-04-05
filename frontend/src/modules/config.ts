@@ -100,16 +100,18 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
         return base + query;
     },
 
-    async resetConfigKeys(keys: string[]) {
+    async resetConfigKeys(keys: string[], refetch = true) {
         await fetch('/api/config', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(keys),
         });
-        const res = await fetch('/api/config');
-        if (res.ok) {
-            this.configData = await res.json() as Record<string, unknown>;
-            this._initConfigEdits(this.configData);
+        if (refetch) {
+            const res = await fetch('/api/config');
+            if (res.ok) {
+                this.configData = await res.json() as Record<string, unknown>;
+                this._initConfigEdits(this.configData);
+            }
         }
     },
 
@@ -195,6 +197,40 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
         const allFailed = anyResult && results.every(r => r?.['status'] === 'error');
         this.testAllStatus = allOk ? 'ok' : allFailed ? 'error' : 'warn';
         setTimeout(() => { this.testAllStatus = null; }, 5000);
+    },
+
+    async toggleDisabled(key: string) {
+        const integrations = (this.configData?.['integrations'] as IntegrationMap | undefined) ?? {};
+        const currentlyDisabled = integrations[key]?.disabled ?? false;
+        const disabledKeys = Object.entries(integrations)
+            .filter(([, v]) => v.disabled)
+            .map(([k]) => k);
+        const newDisabled = currentlyDisabled
+            ? disabledKeys.filter(k => k !== key)
+            : [...disabledKeys, key];
+
+        // Optimistic update — card animates immediately
+        if (this.configData?.['integrations']) {
+            const intMap = this.configData['integrations'] as IntegrationMap;
+            intMap[key] = { ...intMap[key], disabled: !currentlyDisabled };
+        }
+
+        try {
+            if (newDisabled.length === 0) {
+                await this.resetConfigKeys(['WatchBack__DisabledProviders'], false);
+            } else {
+                await postJson('/api/config', { 'WatchBack__DisabledProviders': newDisabled.join(',') });
+            }
+        } catch {
+            // Revert optimistic update on failure
+            if (this.configData?.['integrations']) {
+                const intMap = this.configData['integrations'] as IntegrationMap;
+                intMap[key] = { ...intMap[key], disabled: currentlyDisabled };
+            }
+        }
+        // No re-fetch: IOptionsSnapshot has a debounce delay on file-change reload, so a
+        // GET immediately after the POST returns stale data and reverts the optimistic update.
+        // The local state is already correct; SyncService reads DisabledProviders fresh per-request.
     },
 };
 

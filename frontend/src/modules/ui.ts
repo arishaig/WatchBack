@@ -19,6 +19,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         this.supportedLocales = window._supportedLocales;
         if (!window._allStrings[this.locale]) this.locale = 'en';
         window._currentLocale = this.locale;
+        document.documentElement.lang = this.locale;
         this._stringsReady = true;
 
         this.$watch('locale', (val: unknown) => {
@@ -93,6 +94,30 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         } catch (e) {
             console.warn("[WatchBack] Config load failed:", e);
         }
+        // New-provider discovery notification
+        type IntegrationEntry = { fields?: Array<{ hasValue: boolean }> };
+        const integrations = (this.configData?.['integrations'] as Record<string, IntegrationEntry> | undefined) ?? {};
+        const currentKeys = Object.keys(integrations);
+
+        if (localStorage.getItem('wb_wizardCompleted') || localStorage.getItem('wb_checklistCompleted')) {
+            const raw = localStorage.getItem('wb_seenProviders');
+            let seen: string[];
+            if (raw === null) {
+                // First load after upgrading to this feature.
+                // Seed with providers that have at least one user-provided value (or no fields
+                // at all — e.g. Reddit), so genuinely new providers still trigger the notification.
+                seen = currentKeys.filter(k => {
+                    const fields = integrations[k]?.fields ?? [];
+                    return fields.length === 0 || fields.some(f => f.hasValue);
+                });
+                localStorage.setItem('wb_seenProviders', JSON.stringify(seen));
+            } else {
+                seen = JSON.parse(raw) as string[];
+            }
+            this.newProviderKeys = currentKeys.filter(k => !seen.includes(k));
+            if (this.newProviderKeys.length > 0) this.newProvidersActive = true;
+        }
+
         this.initialized = true;
         this.setupSSE();
         void this.sync();
