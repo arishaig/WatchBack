@@ -1602,29 +1602,59 @@
                         class="list-none">
                         <template :key="gi" x-for="(group, gi) in renderGroups">
                             <li :class="groupByThread && group.title ? 'thread-group' : ''"
-                                :style="(groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's;' : '') + (group.brandColor ? `--thread-brand:${group.brandColor}` : '')">
+                                :style="(groupByThread ? 'animation-delay:' + Math.min(gi * 0.08, 0.6) + 's;' : '') + (group.brandColor ? `--thread-brand:${group.brandColor}` : '')"
+                                x-data="{ collapsed: false }">
                                 <template x-if="groupByThread && group.title">
-                                    <div>
-                                        <a :href="group.url"
-                                           class="block text-xs thread-title mb-1 truncate leading-tight font-semibold"
-                                           rel="noopener noreferrer"
-                                           target="_blank"
-                                           x-text="group.title">
-                                        </a>
+                                    <div class="cursor-pointer select-none"
+                                         @click="!$event.target.closest('a, button') && (collapsed = !collapsed)">
+                                        <div class="flex items-center gap-1 mb-1">
+                                            <button :aria-expanded="!collapsed"
+                                                    :aria-label="collapsed ? t('Comments_ExpandThread') : t('Comments_CollapseThread')"
+                                                    @click.stop="collapsed = !collapsed"
+                                                    class="p-0.5 rounded wb-text-faint hover:wb-text-muted transition-colors shrink-0"
+                                                    type="button">
+                                                <ion-icon :class="{ '-rotate-90': collapsed }"
+                                                          aria-hidden="true"
+                                                          class="text-xs transition-transform block"
+                                                          name="chevron-down"></ion-icon>
+                                            </button>
+                                            <a :href="group.url"
+                                               class="block text-xs thread-title truncate leading-tight font-semibold"
+                                               rel="noopener noreferrer"
+                                               target="_blank"
+                                               x-text="group.title">
+                                            </a>
+                                        </div>
                                         <div class="text-xs wb-text-muted leading-relaxed mb-2 wb-md"
                                              x-html="renderMarkdown(group.body || '')"
-                                             x-show="group.body">
+                                             x-show="group.body && !collapsed">
                                         </div>
                                     </div>
                                 </template>
                                 <ul :class="groupByThread && group.title ? 'ml-2 border-l-2 reply-border pl-3 space-y-3' : (groupByThread ? 'space-y-3' : '')"
-                                    class="list-none">
+                                    class="list-none"
+                                    x-show="!(groupByThread && group.title && collapsed)"
+                                    x-transition>
                                     <template :key="thought.id" x-for="(thought, ci) in group.thoughts">
                                         <li x-data="{ collapsed: false }">
                                             <article
                                                     :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's' + (thought.brandColor ? `;--thread-brand:${thought.brandColor}` : '')"
                                                     class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card">
-                                                <div class="flex items-start mb-2 gap-2">
+                                                <div class="flex items-center mb-2 gap-2"
+                                                     :class="thought.replies && thought.replies.length > 0 ? 'cursor-pointer select-none' : ''"
+                                                     @click="thought.replies && thought.replies.length > 0 && !$event.target.closest('a, button') && (collapsed = !collapsed)">
+                                                    <template x-if="thought.replies && thought.replies.length > 0">
+                                                        <button :aria-expanded="!collapsed"
+                                                                :aria-label="collapsed ? t('Comments_ExpandReplies') : t('Comments_CollapseReplies')"
+                                                                @click.stop="collapsed = !collapsed"
+                                                                class="p-0.5 rounded wb-text-faint hover:wb-text-muted transition-colors shrink-0"
+                                                                type="button">
+                                                            <ion-icon :class="{ '-rotate-90': collapsed }"
+                                                                      aria-hidden="true"
+                                                                      class="text-sm transition-transform block"
+                                                                      name="chevron-down"></ion-icon>
+                                                        </button>
+                                                    </template>
                                                     <div class="flex-1 min-w-0"
                                                          x-show="!groupByThread && thought.postTitle">
                                                         <a :href="thought.postUrl"
@@ -1636,18 +1666,6 @@
                                                     </div>
                                                     <div :class="groupByThread || !thought.postTitle ? 'ml-auto' : 'shrink-0'"
                                                          class="flex gap-1 items-center">
-                                                        <template x-if="thought.replies && thought.replies.length > 0">
-                                                            <button :aria-expanded="!collapsed"
-                                                                    :aria-label="collapsed ? t('Comments_ExpandReplies') : t('Comments_CollapseReplies')"
-                                                                    @click.stop="collapsed = !collapsed"
-                                                                    class="p-0.5 rounded wb-text-faint hover:wb-text-muted transition-colors"
-                                                                    type="button">
-                                                                <ion-icon :class="{ '-rotate-90': collapsed }"
-                                                                          aria-hidden="true"
-                                                                          class="text-sm transition-transform block"
-                                                                          name="chevron-down"></ion-icon>
-                                                            </button>
-                                                        </template>
                                                         <template x-if="thought.brandLogoSvg && thought.url">
                                                             <a :aria-label="t('Comments_ViewOn', thought.source)"
                                                                :href="thought.url"
@@ -1719,24 +1737,10 @@
                                                                     <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
                                                                          x-html="renderMarkdown(reply.content)">
                                                                     </div>
-                                                                    <div
-                                                                            class="flex justify-between items-center text-xs wb-text-faint">
-                                                        <span class="font-medium wb-text-muted">
-                                                            <span class="sr-only"
-                                                                  x-text="t('Comments_By') + ' '"></span>
-                                                            <span x-text="'@' + reply.author"></span>
-                                                        </span>
-                                                                        <div class="flex items-center gap-3">
-                                                            <span
-                                                                    :aria-label="t('Comments_Score', formatScore(reply.score))"
-                                                                    class="wb-text-faint"
-                                                                    x-show="reply.score != null && reply.score !== 0">
-                                                                <span aria-hidden="true"
-                                                                      x-text="'&#9650; ' + formatScore(reply.score)"></span>
-                                                            </span>
-                                                                            <span
-                                                                                    x-text="formatDate(reply.createdAt)">
-                                                            </span>
+                                                                    <div class="flex justify-between items-center text-xs wb-text-faint"
+                                                                         :class="reply.replies && reply.replies.length > 0 ? 'cursor-pointer select-none' : ''"
+                                                                         @click="reply.replies && reply.replies.length > 0 && !$event.target.closest('a, button') && (collapsed = !collapsed)">
+                                                                        <div class="flex items-center gap-1">
                                                                             <template x-if="reply.replies && reply.replies.length > 0">
                                                                                 <button :aria-expanded="!collapsed"
                                                                                         :aria-label="collapsed ? t('Comments_ExpandReplies') : t('Comments_CollapseReplies')"
@@ -1749,6 +1753,23 @@
                                                                                               name="chevron-down"></ion-icon>
                                                                                 </button>
                                                                             </template>
+                                                                            <span class="font-medium wb-text-muted">
+                                                                                <span class="sr-only"
+                                                                                      x-text="t('Comments_By') + ' '"></span>
+                                                                                <span x-text="'@' + reply.author"></span>
+                                                                            </span>
+                                                                        </div>
+                                                                        <div class="flex items-center gap-3">
+                                                            <span
+                                                                    :aria-label="t('Comments_Score', formatScore(reply.score))"
+                                                                    class="wb-text-faint"
+                                                                    x-show="reply.score != null && reply.score !== 0">
+                                                                <span aria-hidden="true"
+                                                                      x-text="'&#9650; ' + formatScore(reply.score)"></span>
+                                                            </span>
+                                                                            <span
+                                                                                    x-text="formatDate(reply.createdAt)">
+                                                            </span>
                                                                         </div>
                                                                     </div>
                                                                 </article>
