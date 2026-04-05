@@ -19,6 +19,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         this.supportedLocales = window._supportedLocales;
         if (!window._allStrings[this.locale]) this.locale = 'en';
         window._currentLocale = this.locale;
+        document.documentElement.lang = this.locale;
         this._stringsReady = true;
 
         this.$watch('locale', (val: unknown) => {

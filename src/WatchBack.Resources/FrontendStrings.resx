@@ -83,6 +83,12 @@
     <data name="Common_Clear" xml:space="preserve">
         <value>Clear</value>
     </data>
+    <data name="Common_Close" xml:space="preserve">
+        <value>Close</value>
+    </data>
+    <data name="Common_Loading" xml:space="preserve">
+        <value>Loading…</value>
+    </data>
     <!-- Auth: Login and Authentication -->
     <data name="Auth_Username" xml:space="preserve">
         <value>Username</value>
@@ -425,6 +431,21 @@
     <data name="Diagnostics_SyncHistory" xml:space="preserve">
         <value>Sync History</value>
     </data>
+    <data name="Diagnostics_ColTime" xml:space="preserve">
+        <value>Time</value>
+    </data>
+    <data name="Diagnostics_ColStatus" xml:space="preserve">
+        <value>Status</value>
+    </data>
+    <data name="Diagnostics_ColTitle" xml:space="preserve">
+        <value>Title</value>
+    </data>
+    <data name="Diagnostics_ColThoughts" xml:space="preserve">
+        <value>Thoughts</value>
+    </data>
+    <data name="Diagnostics_ColDuration" xml:space="preserve">
+        <value>Duration</value>
+    </data>
     <data name="Diagnostics_NoSyncHistory" xml:space="preserve">
         <value>No sync history recorded yet.</value>
     </data>
@@ -483,8 +504,20 @@
     <data name="Dashboard_Aired" xml:space="preserve">
         <value>Aired:</value>
     </data>
+    <data name="Dashboard_EpisodeNumber" xml:space="preserve">
+        <value>E{0}</value>
+    </data>
     <data name="Dashboard_Syncing" xml:space="preserve">
         <value>Syncing</value>
+    </data>
+    <data name="SyncStatus_Watching" xml:space="preserve">
+        <value>Watching</value>
+    </data>
+    <data name="SyncStatus_Idle" xml:space="preserve">
+        <value>Idle</value>
+    </data>
+    <data name="SyncStatus_Error" xml:space="preserve">
+        <value>Error</value>
     </data>
     <data name="Dashboard_NothingPlaying" xml:space="preserve">
         <value>Nothing playing.</value>
