@@ -595,6 +595,12 @@
     <data name="Comments_ExpandReplies" xml:space="preserve">
         <value>Expand replies</value>
     </data>
+    <data name="Comments_CollapseThread" xml:space="preserve">
+        <value>Collapse thread</value>
+    </data>
+    <data name="Comments_ExpandThread" xml:space="preserve">
+        <value>Expand thread</value>
+    </data>
     <data name="Comments_ImageFromPost" xml:space="preserve">
         <value>Image from post</value>
     </data>
