@@ -83,7 +83,9 @@
 <!-- Loading state (full-screen, shown during initial load) -->
 <div class="wb-overlay" style="background-color:var(--wb-bg,#1a1a2e);z-index:100;"
      x-show="!initialized && authState === 'checking'">
-    <div class="wb-spinner" role="status"></div>
+    <div class="wb-spinner" role="status">
+        <span class="sr-only" x-text="t('Common_Loading')"></span>
+    </div>
 </div>
 
 <!-- SSE sync progress bar -->
@@ -122,6 +124,7 @@
 <div class="fixed inset-0 z-[200] flex items-center justify-center p-4" style="background-color: var(--wb-bg);"
      role="dialog" aria-modal="true" aria-labelledby="login-dialog-title"
      x-cloak
+     x-effect="authState === 'login' && $nextTick(() => document.getElementById('login-username')?.focus())"
      x-show="authState === 'login'">
     <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
         <div class="flex items-center justify-center gap-3 mb-8">
@@ -189,6 +192,7 @@
 <div class="fixed inset-0 z-[200] flex items-center justify-center p-4" style="background-color: var(--wb-bg);"
      role="dialog" aria-modal="true" aria-labelledby="onboarding-dialog-title"
      x-cloak
+     x-effect="authState === 'onboarding' && $nextTick(() => $el.querySelector('input,button')?.focus())"
      x-show="authState === 'onboarding'">
     <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
         <div class="flex items-center justify-center gap-3 mb-4">
@@ -253,6 +257,7 @@
 <div class="fixed inset-0 z-[200] flex items-center justify-center p-4" style="background-color: var(--wb-bg);"
      role="dialog" aria-modal="true" aria-labelledby="changepw-dialog-title"
      x-cloak
+     x-effect="authState === 'changePassword' && $nextTick(() => $el.querySelector('input,button')?.focus())"
      x-show="authState === 'changePassword'">
     <div class="wb-surface wb-border border rounded-xl p-8 w-full shadow-2xl" style="max-width:24rem">
         <div class="flex items-center justify-center gap-3 mb-4">
@@ -326,6 +331,7 @@
      role="dialog" aria-modal="true"
      :aria-label="t('NewProviders_Title')"
      @keydown.escape.window="dismissNewProviders()"
+     x-effect="(newProvidersActive && configData) && $nextTick(() => $el.querySelector('button')?.focus())"
      class="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto"
      style="background-color: var(--wb-bg);">
     <div class="wb-surface wb-border border rounded-xl p-6 sm:p-8 w-full shadow-2xl" style="max-width:32rem">
@@ -376,6 +382,7 @@
      class="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto" role="dialog"
      style="background-color: var(--wb-bg);"
      x-cloak
+     x-effect="(wizardActive && configData) && $nextTick(() => $el.querySelector('button')?.focus())"
      x-show="wizardActive && configData">
     <div class="wb-surface wb-border border rounded-xl p-6 sm:p-8 w-full shadow-2xl" style="max-width:32rem">
 
@@ -622,7 +629,9 @@
                             ? 'wb-text-secondary border-current' : 'wb-text-faint border-transparent hover:wb-text-muted'"
                             :style="configTab === 'settings' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
                             @click="configTab = 'settings'; closeLogStream()"
+                            aria-controls="panel-settings"
                             class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                            id="tab-settings"
                             role="tab"
                             style="border-color: configTab === 'settings' ? 'var(--wb-accent)' : undefined"
                             type="button"
@@ -632,7 +641,9 @@
                             ? 'wb-text-secondary' : 'wb-text-faint hover:wb-text-muted'"
                             :style="configTab === 'diagnostics' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
                             @click="switchConfigTab('diagnostics')"
+                            aria-controls="panel-diagnostics"
                             class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                            id="tab-diagnostics"
                             role="tab"
                             type="button"
                             x-text="t('Nav_Diagnostics')">
@@ -651,7 +662,7 @@
             </div>
 
             <!-- ─── Settings tab ─── -->
-            <div :aria-label="t('Nav_Settings')" role="tabpanel" x-show="configTab === 'settings'">
+            <div :aria-label="t('Nav_Settings')" aria-labelledby="tab-settings" id="panel-settings" role="tabpanel" x-show="configTab === 'settings'">
 
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
                 <h2 class="text-sm font-semibold wb-text-secondary mb-3" x-text="t('Config_Integrations')"></h2>
@@ -1134,7 +1145,7 @@
             </div><!-- /settings tab -->
 
             <!-- ─── Diagnostics tab ─── -->
-            <div :aria-label="t('Nav_Diagnostics')" role="tabpanel" x-show="configTab === 'diagnostics'">
+            <div :aria-label="t('Nav_Diagnostics')" aria-labelledby="tab-diagnostics" id="panel-diagnostics" role="tabpanel" x-show="configTab === 'diagnostics'">
 
                 <!-- Last sync status -->
                 <div class="mb-5">
@@ -1151,7 +1162,7 @@
                               aria-hidden="true"
                               class="inline-block w-1.5 h-1.5 rounded-full shrink-0">
                         </span>
-                        <span x-text="syncHistory.status"></span>
+                        <span x-text="t('SyncStatus_' + syncHistory.status)"></span>
                     </span>
                             </div>
                             <p class="text-sm wb-text-secondary font-medium" x-show="syncHistory.title"
@@ -1212,11 +1223,11 @@
                                     <table class="w-full text-xs">
                                         <thead class="wb-surface-alt sticky top-0">
                                         <tr class="border-b wb-border">
-                                            <th class="text-left px-3 py-2 wb-text-muted font-medium">Time</th>
-                                            <th class="text-left px-3 py-2 wb-text-muted font-medium">Status</th>
-                                            <th class="text-left px-3 py-2 wb-text-muted font-medium">Title</th>
-                                            <th class="text-right px-3 py-2 wb-text-muted font-medium">Thoughts</th>
-                                            <th class="text-right px-3 py-2 wb-text-muted font-medium">Duration</th>
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium" x-text="t('Diagnostics_ColTime')"></th>
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium" x-text="t('Diagnostics_ColStatus')"></th>
+                                            <th class="text-left px-3 py-2 wb-text-muted font-medium" x-text="t('Diagnostics_ColTitle')"></th>
+                                            <th class="text-right px-3 py-2 wb-text-muted font-medium" x-text="t('Diagnostics_ColThoughts')"></th>
+                                            <th class="text-right px-3 py-2 wb-text-muted font-medium" x-text="t('Diagnostics_ColDuration')"></th>
                                         </tr>
                                         </thead>
                                         <tbody>
@@ -1231,7 +1242,7 @@
                                                               aria-hidden="true"
                                                               class="inline-block w-1.5 h-1.5 rounded-full shrink-0">
                                                         </span>
-                                                        <span class="wb-text-secondary" x-text="entry.status"></span>
+                                                        <span class="wb-text-secondary" x-text="t('SyncStatus_' + entry.status)"></span>
                                                         <span class="wb-text-faint tabular-nums"
                                                               x-show="entry.count > 1"
                                                               x-text="'×' + entry.count">
@@ -1450,7 +1461,7 @@
                                 class="w-full flex items-center gap-3 px-3 py-2 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn transition-colors"
                                 type="button">
                         <span class="text-xs wb-text-faint shrink-0 w-8 text-right"
-                              x-text="'E' + String(ep.episodeNumber).padStart(2, '0')">
+                              x-text="t('Dashboard_EpisodeNumber', String(ep.episodeNumber).padStart(2, '0'))">
                         </span>
                             <span class="text-sm wb-text-secondary truncate" x-text="ep.title"></span>
                             <span class="text-xs wb-text-faint shrink-0 ml-auto" x-show="ep.airDate"
@@ -1528,17 +1539,14 @@
                      class="mb-4 comment-card"
                      style="animation-delay:0.05s"
                      x-show="data?.metadata?.seasonNumber != null">
-                    <a :href="redditSearchUrl(data.title, data.metadata.seasonNumber, data.metadata.episodeNumber)"
+                    <a :aria-label="t('Comments_ViewOn', 'Reddit')"
+                       :href="redditSearchUrl(data.title, data.metadata.seasonNumber, data.metadata.episodeNumber)"
                        class="w-full py-2 rounded-md text-sm font-medium text-center source-link cursor-pointer wb-btn flex items-center justify-center gap-1.5"
                        rel="noopener noreferrer"
                        target="_blank">
-                        <ion-icon
-                                aria-hidden="true" name="logo-reddit">
-                        </ion-icon>
+                        <ion-icon aria-hidden="true" name="logo-reddit"></ion-icon>
                         Reddit
-                        <ion-icon aria-hidden="true"
-                                  name="search-sharp">
-                        </ion-icon>
+                        <ion-icon aria-hidden="true" name="search-sharp"></ion-icon>
                     </a>
                 </div>
 

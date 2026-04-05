@@ -51,120 +51,131 @@ public sealed class LemmyThoughtProvider(
     public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext,
         IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
     {
+        int reported = 0;
         try
         {
-            string cacheKey = GetCacheKey(mediaContext);
-            if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
+            try
             {
-                return cached;
-            }
-
-            string instance = _options.InstanceUrl.TrimEnd('/');
-
-            // Build query variants to try in order. Community posts often omit leading zeros
-            // (S1E3 vs S01E03), so if the canonical padded query returns nothing we fall back
-            // to the non-padded form before giving up.
-            List<string> queries = [IThoughtProvider.BuildTextQuery(mediaContext)];
-            if (mediaContext is EpisodeContext { SeasonNumber: > 0, EpisodeNumber: > 0 } ep)
-            {
-                string unpadded = $"{mediaContext.Title} S{ep.SeasonNumber}E{ep.EpisodeNumber}";
-                if (unpadded != queries[0])
-                    queries.Add(unpadded);
-            }
-
-            LemmyPostViewDto[] posts = [];
-            string usedQuery = queries[0];
-            foreach (string query in queries)
-            {
-                string searchUrl =
-                    $"{instance}/api/v3/search?q={Uri.EscapeDataString(query)}&type_=Posts&listing_type=All&sort=TopAll&limit={_options.MaxPosts}";
-                if (!string.IsNullOrWhiteSpace(_options.Community))
-                    searchUrl += $"&community_name={Uri.EscapeDataString(_options.Community)}";
-
-                HttpResponseMessage searchResponse = await httpClient.GetAsync(searchUrl, ct);
-                progress?.Report(new SyncProgressTick(1, "Lemmy"));
-
-                if (!searchResponse.IsSuccessStatusCode)
+                string cacheKey = GetCacheKey(mediaContext);
+                if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
                 {
-                    logger.LogWarning("Lemmy search failed: HTTP {Status} for query '{Query}'",
-                        (int)searchResponse.StatusCode, query);
-                    continue;
+                    return cached;
                 }
 
-                string searchContent = await searchResponse.Content.ReadAsStringAsync(ct);
-                LemmySearchResponseDto? searchResult = JsonSerializer.Deserialize(
-                    searchContent, LemmyJsonContext.Default.LemmySearchResponseDto);
+                string instance = _options.InstanceUrl.TrimEnd('/');
 
-                posts = searchResult?.Posts ?? [];
-                usedQuery = query;
-                if (posts.Length > 0)
-                    break;
-            }
-
-            logger.LogInformation("Lemmy: found {Count} post(s) for query '{Query}'", posts.Length, usedQuery);
-
-            if (posts.Length == 0)
-            {
-                ThoughtResult emptyResult = s_empty;
-                cache.Set(cacheKey, emptyResult, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
-                return emptyResult;
-            }
-
-            List<Thought> allThoughts = [];
-            LemmyPostViewDto? topPost = null;
-
-            foreach (LemmyPostViewDto postView in posts)
-            {
-                if (postView.Post is null)
+                // Build query variants to try in order. Community posts often omit leading zeros
+                // (S1E3 vs S01E03), so if the canonical padded query returns nothing we fall back
+                // to the non-padded form before giving up.
+                List<string> queries = [IThoughtProvider.BuildTextQuery(mediaContext)];
+                if (mediaContext is EpisodeContext { SeasonNumber: > 0, EpisodeNumber: > 0 } ep)
                 {
-                    continue;
+                    string unpadded = $"{mediaContext.Title} S{ep.SeasonNumber}E{ep.EpisodeNumber}";
+                    if (unpadded != queries[0])
+                        queries.Add(unpadded);
                 }
 
-                topPost ??= postView;
-
-                string commentsUrl =
-                    $"{instance}/api/v3/comment/list?post_id={postView.Post.Id}&sort=Top&max_depth=8&limit={_options.MaxComments}";
-
-                HttpResponseMessage commentsResponse = await httpClient.GetAsync(commentsUrl, ct);
-                progress?.Report(new SyncProgressTick(1, "Lemmy"));
-
-                if (!commentsResponse.IsSuccessStatusCode)
+                LemmyPostViewDto[] posts = [];
+                string usedQuery = queries[0];
+                foreach (string query in queries)
                 {
-                    logger.LogWarning("Lemmy comment fetch failed: HTTP {Status} for post {PostId}",
-                        (int)commentsResponse.StatusCode, postView.Post.Id);
-                    continue;
+                    string searchUrl =
+                        $"{instance}/api/v3/search?q={Uri.EscapeDataString(query)}&type_=Posts&listing_type=All&sort=TopAll&limit={_options.MaxPosts}";
+                    if (!string.IsNullOrWhiteSpace(_options.Community))
+                        searchUrl += $"&community_name={Uri.EscapeDataString(_options.Community)}";
+
+                    HttpResponseMessage searchResponse = await httpClient.GetAsync(searchUrl, ct);
+                    progress?.Report(new SyncProgressTick(1, "Lemmy"));
+                    reported++;
+
+                    if (!searchResponse.IsSuccessStatusCode)
+                    {
+                        logger.LogWarning("Lemmy search failed: HTTP {Status} for query '{Query}'",
+                            (int)searchResponse.StatusCode, query);
+                        continue;
+                    }
+
+                    string searchContent = await searchResponse.Content.ReadAsStringAsync(ct);
+                    LemmySearchResponseDto? searchResult = JsonSerializer.Deserialize(
+                        searchContent, LemmyJsonContext.Default.LemmySearchResponseDto);
+
+                    posts = searchResult?.Posts ?? [];
+                    usedQuery = query;
+                    if (posts.Length > 0)
+                        break;
                 }
 
-                string commentsContent = await commentsResponse.Content.ReadAsStringAsync(ct);
-                LemmyCommentListResponseDto? commentList = JsonSerializer.Deserialize(
-                    commentsContent, LemmyJsonContext.Default.LemmyCommentListResponseDto);
+                logger.LogInformation("Lemmy: found {Count} post(s) for query '{Query}'", posts.Length, usedQuery);
 
-                LemmyCommentViewDto[] comments = commentList?.Comments ?? [];
-                logger.LogInformation("Lemmy: post {PostId} ({Title}) returned {Count} comment(s)",
-                    postView.Post.Id, postView.Post.Name, comments.Length);
+                if (posts.Length == 0)
+                {
+                    ThoughtResult emptyResult = s_empty;
+                    cache.Set(cacheKey, emptyResult, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+                    return emptyResult;
+                }
 
-                allThoughts.AddRange(comments
-                    .Where(cv => cv.Comment is not null)
-                    .Select(cv => MapCommentToThought(cv, postView.Post.Name, postView.Post.ApId, postView.Post.Body)));
+                List<Thought> allThoughts = [];
+                LemmyPostViewDto? topPost = null;
+
+                foreach (LemmyPostViewDto postView in posts)
+                {
+                    if (postView.Post is null)
+                    {
+                        continue;
+                    }
+
+                    topPost ??= postView;
+
+                    string commentsUrl =
+                        $"{instance}/api/v3/comment/list?post_id={postView.Post.Id}&sort=Top&max_depth=8&limit={_options.MaxComments}";
+
+                    HttpResponseMessage commentsResponse = await httpClient.GetAsync(commentsUrl, ct);
+                    progress?.Report(new SyncProgressTick(1, "Lemmy"));
+                    reported++;
+
+                    if (!commentsResponse.IsSuccessStatusCode)
+                    {
+                        logger.LogWarning("Lemmy comment fetch failed: HTTP {Status} for post {PostId}",
+                            (int)commentsResponse.StatusCode, postView.Post.Id);
+                        continue;
+                    }
+
+                    string commentsContent = await commentsResponse.Content.ReadAsStringAsync(ct);
+                    LemmyCommentListResponseDto? commentList = JsonSerializer.Deserialize(
+                        commentsContent, LemmyJsonContext.Default.LemmyCommentListResponseDto);
+
+                    LemmyCommentViewDto[] comments = commentList?.Comments ?? [];
+                    logger.LogInformation("Lemmy: post {PostId} ({Title}) returned {Count} comment(s)",
+                        postView.Post.Id, postView.Post.Name, comments.Length);
+
+                    allThoughts.AddRange(comments
+                        .Where(cv => cv.Comment is not null)
+                        .Select(cv => MapCommentToThought(cv, postView.Post.Name, postView.Post.ApId, postView.Post.Body)));
+                }
+
+                IReadOnlyList<Thought> treeThoughts = treeBuilder.BuildTree(allThoughts);
+
+                ThoughtResult result = new(
+                    "Lemmy",
+                    topPost?.Post?.Name,
+                    topPost?.Post?.ApId,
+                    null,
+                    treeThoughts,
+                    null);
+
+                cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+                return result;
             }
-
-            IReadOnlyList<Thought> treeThoughts = treeBuilder.BuildTree(allThoughts);
-
-            ThoughtResult result = new(
-                "Lemmy",
-                topPost?.Post?.Name,
-                topPost?.Post?.ApId,
-                null,
-                treeThoughts,
-                null);
-
-            cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
-            return result;
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Lemmy thought fetch failed");
+                return s_empty;
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            logger.LogError(ex, "Lemmy thought fetch failed");
-            return s_empty;
+            for (int i = reported; i < ExpectedWeight; i++)
+                progress?.Report(new SyncProgressTick(1, "Lemmy"));
         }
     }
 
@@ -190,6 +201,9 @@ public sealed class LemmyThoughtProvider(
     }
 
     public string ConfigSection => "Lemmy";
+
+    // Lemmy requires no credentials — the default public instance is always functional.
+    public bool IsConfigured => true;
 
     public IReadOnlyList<ProviderConfigField> GetConfigSchema(
         Func<string, string> envVal,

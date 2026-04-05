@@ -525,4 +525,34 @@ public class BlueskyThoughtProviderTests : IDisposable
         searchedUrls.Should().Contain(u => Uri.UnescapeDataString(u).Contains("January 20, 2026"));
         searchedUrls.Should().NotContain(u => Uri.UnescapeDataString(u).Contains("S00"));
     }
+
+    // ---- Rate-limiting (T8) ----
+
+    [Fact]
+    public async Task GetThoughtsAsync_When429OnSearch_ReturnsEmptyResultWithoutThrowing()
+    {
+        // Arrange — auth succeeds, search returns 429
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+
+        string tokenJson = """{"accessJwt":"test-token"}""";
+
+        Queue<HttpResponseMessage> responses = new(
+        [
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
+            new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+        ]);
+
+        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
+
+        // Act
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        // Assert — must not throw; returns an empty (non-null) result
+        result.Should().NotBeNull();
+        result!.Source.Should().Be("Bluesky");
+        result.Thoughts.Should().BeEmpty();
+    }
 }

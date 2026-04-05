@@ -175,6 +175,20 @@ describe('selectSearchResult', () => {
         expect((ctx.searchDrilldown as Record<string, unknown>)?.imdbId).toBe('tt0306069');
         expect(Array.isArray((ctx.searchDrilldown as Record<string, unknown>)?.seasons)).toBe(true);
     });
+
+    it('falls through to drilldown path when episode title does not match regex', async () => {
+        // If the episode title does not match "Show — Ep Title (SxxExx)", epMatch is null
+        // and execution falls through to the series drilldown path silently.
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+        const ctx = makeCtx();
+        await methods.selectSearchResult.call(ctx, {
+            type: 'episode',
+            title: 'Breaking Bad',
+            imdbId: 'tt0903747',
+        });
+        expect((ctx.setManualWatchState as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+        expect(ctx.searchDrilldown).not.toBeNull();
+    });
 });
 
 // ── setManualWatchState ───────────────────────────────────────────────────────

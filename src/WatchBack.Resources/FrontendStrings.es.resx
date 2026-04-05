@@ -135,8 +135,14 @@
     <data name="Common_Copy" xml:space="preserve">
         <value>Copiar</value>
     </data>
+    <data name="Common_Close" xml:space="preserve">
+        <value>Cerrar</value>
+    </data>
     <data name="Common_Dismiss" xml:space="preserve">
         <value>Descartar</value>
+    </data>
+    <data name="Common_Loading" xml:space="preserve">
+        <value>Cargando…</value>
     </data>
     <data name="Common_Error" xml:space="preserve">
         <value>Error ✗</value>
@@ -358,6 +364,9 @@
     <data name="Dashboard_Aired" xml:space="preserve">
         <value>Fecha de emisión</value>
     </data>
+    <data name="Dashboard_EpisodeNumber" xml:space="preserve">
+        <value>E{0}</value>
+    </data>
     <data name="Dashboard_AllComments" xml:space="preserve">
         <value>Todos los comentarios</value>
     </data>
@@ -460,6 +469,15 @@
     <data name="Dashboard_Syncing" xml:space="preserve">
         <value>Actualizando</value>
     </data>
+    <data name="SyncStatus_Watching" xml:space="preserve">
+        <value>Viendo</value>
+    </data>
+    <data name="SyncStatus_Idle" xml:space="preserve">
+        <value>En reposo</value>
+    </data>
+    <data name="SyncStatus_Error" xml:space="preserve">
+        <value>Error</value>
+    </data>
     <data name="Dashboard_TimeMachine" xml:space="preserve">
         <value>Máquina del tiempo</value>
     </data>
@@ -482,7 +500,7 @@
         <value>Registro de diagnóstico</value>
     </data>
     <data name="Diagnostics_Entries" xml:space="preserve">
-        <value>{0} de [1] entradas</value>
+        <value>{0} de {1} entradas</value>
     </data>
     <data name="Diagnostics_ErrorPlus" xml:space="preserve">
         <value>Error+</value>
@@ -516,6 +534,21 @@
     </data>
     <data name="Diagnostics_Sync" xml:space="preserve">
         <value>Sincronización:</value>
+    </data>
+    <data name="Diagnostics_ColTime" xml:space="preserve">
+        <value>Hora</value>
+    </data>
+    <data name="Diagnostics_ColStatus" xml:space="preserve">
+        <value>Estado</value>
+    </data>
+    <data name="Diagnostics_ColTitle" xml:space="preserve">
+        <value>Título</value>
+    </data>
+    <data name="Diagnostics_ColThoughts" xml:space="preserve">
+        <value>Comentarios</value>
+    </data>
+    <data name="Diagnostics_ColDuration" xml:space="preserve">
+        <value>Duración</value>
     </data>
     <data name="Diagnostics_SyncHistory" xml:space="preserve">
         <value>Registro de sincronización:</value>
