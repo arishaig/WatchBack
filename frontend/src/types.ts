@@ -100,6 +100,7 @@ export interface AppData {
     mappingImportName: string;
     mappingImportStatus: SaveStatus;
     mappingDropActive: boolean;
+    mappingShareCopied: string;
 
     // ── Alpine internals ───────────────────────────────────────────────────
     $watch(prop: string, cb: (val: unknown) => void): void;
@@ -190,6 +191,7 @@ export interface AppData {
 
     // Subreddit mappings
     handleMappingFileDrop(e: DragEvent): void;
+    shareMappingSource(id: string, name: string): Promise<void>;
     fetchMappings(): Promise<void>;
     searchForMapping(): Promise<void>;
     selectMappingSearchResult(result: Record<string, unknown>): void;

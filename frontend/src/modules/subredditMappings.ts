@@ -156,6 +156,23 @@ const subredditMappingsMethods: Record<string, unknown> & ThisType<AppData> = {
             // Silently ignore download failures
         }
     },
+
+    async shareMappingSource(id: string, name: string) {
+        try {
+            const res = await fetch(`/api/subreddit-mappings/sources/${encodeURIComponent(id)}/export`);
+            if (!res.ok) return;
+            const text = await res.text();
+            if (navigator.share) {
+                await navigator.share({ title: `${name} subreddit mappings`, text });
+            } else {
+                await navigator.clipboard.writeText(text);
+                this.mappingShareCopied = id;
+                setTimeout(() => { this.mappingShareCopied = ''; }, 2000);
+            }
+        } catch {
+            // User cancelled share or clipboard unavailable
+        }
+    },
 };
 
 export default subredditMappingsMethods;
