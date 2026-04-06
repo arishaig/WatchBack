@@ -401,6 +401,7 @@ describe('initApp — new-provider discovery', () => {
             newProviderSelected: new Set<string>(),
             newProviderSaving: false,
             _initConfigEdits: vi.fn(),
+            fetchMappings: vi.fn(),
             setupSSE: vi.fn(),
             sync: vi.fn(),
             ...overrides,
