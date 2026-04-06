@@ -1378,7 +1378,7 @@
                              x-show="mappingSearchResults.length > 0">
                             <template :key="r.imdbId" x-for="r in mappingSearchResults">
                                 <button @click="selectMappingSearchResult(r)"
-                                        class="w-full flex gap-3 items-start p-3 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn transition-colors"
+                                        class="w-full flex gap-3 items-start p-3 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                                         type="button">
                                     <img :alt="r.title + ' poster'" :src="r.posterUrl"
                                          class="w-10 h-14 object-cover rounded shrink-0 bg-gray-800"
@@ -1405,7 +1405,8 @@
                                   x-text="'IMDb: ' + newMappingImdbId">
                             </span>
                             <button @click="newMappingImdbId = ''"
-                                    class="text-[10px] wb-text-faint hover:wb-error-text cursor-pointer leading-none"
+                                    class="w-7 h-7 flex items-center justify-center text-[10px] wb-text-faint hover:wb-error-text cursor-pointer wb-btn
+                                           active:scale-90 transition-all duration-200 active:duration-75 transform-gpu"
                                     title="Remove IMDb association"
                                     type="button">✕</button>
                         </div>
@@ -1483,7 +1484,8 @@
                                         <div class="flex items-center shrink-0">
                                             <button :title="mappingShareCopied === src.id ? 'Copied!' : 'Share ' + src.name"
                                                     @click="void shareMappingSource(src.id, src.name)"
-                                                    class="w-11 h-11 flex items-center justify-center wb-text-faint hover:wb-accent-text cursor-pointer transition-colors"
+                                                    class="w-11 h-11 flex items-center justify-center wb-text-faint hover:wb-accent-text cursor-pointer wb-btn
+                                                           hover:scale-110 active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                                                     type="button">
                                                 <ion-icon :name="mappingShareCopied === src.id ? 'checkmark-outline' : 'share-outline'"
                                                           aria-hidden="true">
@@ -1491,14 +1493,16 @@
                                             </button>
                                             <button :title="'Export ' + src.name"
                                                     @click="void exportMappingSource(src.id)"
-                                                    class="w-11 h-11 flex items-center justify-center wb-text-faint hover:wb-text-muted cursor-pointer transition-colors"
+                                                    class="w-11 h-11 flex items-center justify-center wb-text-faint hover:wb-text-muted cursor-pointer wb-btn
+                                                           hover:scale-110 active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                                                     type="button">
                                                 <ion-icon aria-hidden="true" name="download-outline"></ion-icon>
                                             </button>
                                             <button :disabled="src.isBuiltIn"
                                                     :title="src.isBuiltIn ? 'Built-in source cannot be deleted' : 'Delete source'"
                                                     @click="!src.isBuiltIn && void deleteMappingSource(src.id)"
-                                                    class="w-11 h-11 flex items-center justify-center wb-text-faint hover:wb-error-text cursor-pointer transition-colors disabled:opacity-30 disabled:cursor-default"
+                                                    class="w-11 h-11 flex items-center justify-center wb-text-faint hover:wb-error-text cursor-pointer wb-btn
+                                                           hover:scale-110 active:scale-95 transition-all duration-200 active:duration-75 transform-gpu disabled:opacity-30 disabled:cursor-default disabled:transform-none"
                                                     type="button">
                                                 <ion-icon aria-hidden="true" name="trash-outline"></ion-icon>
                                             </button>
@@ -1524,7 +1528,8 @@
                                                 <template x-if="!src.isBuiltIn && src.id !== 'local'">
                                                     <button title="Copy to local"
                                                             @click="void promoteMappingEntry(src.id, entry.index)"
-                                                            class="w-11 h-11 flex items-center justify-center wb-text-faint hover:wb-accent-text cursor-pointer transition-colors"
+                                                            class="w-11 h-11 flex items-center justify-center wb-text-faint hover:wb-accent-text cursor-pointer wb-btn
+                                                                   hover:scale-110 active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                                                             type="button">
                                                         <ion-icon aria-hidden="true" name="copy-outline"></ion-icon>
                                                     </button>
@@ -1532,7 +1537,8 @@
                                                 <template x-if="src.id === 'local'">
                                                     <button :title="'Remove ' + (entry.title ?? 'entry')"
                                                             @click="void deleteLocalMapping(entry.title ?? '')"
-                                                            class="w-11 h-11 flex items-center justify-center wb-text-faint hover:wb-error-text cursor-pointer transition-colors"
+                                                            class="w-11 h-11 flex items-center justify-center wb-text-faint hover:wb-error-text cursor-pointer wb-btn
+                                                                   hover:scale-110 active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                                                             type="button">
                                                         <ion-icon aria-hidden="true" name="close-outline"></ion-icon>
                                                     </button>
