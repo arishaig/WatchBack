@@ -621,9 +621,20 @@
            x-cloak
            x-show="showConfig" x-transition:enter="config-enter"
            x-transition:leave="config-leave">
-        <div class="p-4">
+        <div class="p-4 relative">
+            <!-- ─── Close button — absolutely positioned so it never displaces the tab row ─── -->
+            <button :aria-label="t('Aria_CloseConfigPanel')"
+                    @click="showConfig = false"
+                    class="absolute top-2 right-2 px-3 py-2 flex items-center justify-center cursor-pointer
+                           text-md font-medium transition-all duration-300 ease-out wb-text-faint
+                           transform-gpu rounded-lg
+                           hover:wb-surface-alt hover:wb-text-secondary hover:scale-110
+                           active:scale-95"
+                    type="button">
+                <ion-icon aria-hidden="true" class="block pointer-events-none" name="close-sharp"></ion-icon>
+            </button>
             <!-- ─── Tab navigation ─── -->
-            <div class="flex items-center mb-5 border-b wb-border">
+            <div class="flex items-center mb-5 border-b wb-border pr-10">
                 <nav :aria-label="t('Aria_ConfigSections')" class="flex gap-0" role="tablist">
                     <button :aria-selected="configTab === 'settings'" :class="configTab === 'settings'
                             ? 'wb-text-secondary border-current' : 'wb-text-faint border-transparent hover:wb-text-muted'"
@@ -661,16 +672,6 @@
                             x-text="'Subreddits'">
                     </button>
                 </nav>
-                <button :aria-label="t('Aria_CloseConfigPanel')"
-                        @click="showConfig = false"
-                        class="ml-auto -mb-px px-4 py-2 flex items-center justify-center cursor-pointer
-                               text-md font-medium transition-all duration-300 ease-out
-                               transform-gpu
-                               hover:wb-surface-alt hover:scale-110
-                               active:scale-95"
-                        type="button">
-                    <ion-icon aria-hidden="true" class="block pointer-events-none" name="close-sharp"></ion-icon>
-                </button>
             </div>
 
             <!-- ─── Settings tab ─── -->
