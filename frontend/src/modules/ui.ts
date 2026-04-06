@@ -94,6 +94,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         } catch (e) {
             console.warn("[WatchBack] Config load failed:", e);
         }
+        void this.fetchMappings();
         // New-provider discovery notification
         type IntegrationEntry = { fields?: Array<{ hasValue: boolean }> };
         const integrations = (this.configData?.['integrations'] as Record<string, IntegrationEntry> | undefined) ?? {};

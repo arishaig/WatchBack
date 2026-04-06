@@ -15,6 +15,7 @@ using WatchBack.Api.Endpoints;
 using WatchBack.Api.Logging;
 using WatchBack.Api.Serialization;
 using WatchBack.Core.Interfaces;
+using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 using WatchBack.Core.Services;
 using WatchBack.Infrastructure.Extensions;
@@ -50,6 +51,12 @@ if (dbDirectory != null)
 {
     Directory.CreateDirectory(dbDirectory);
 }
+
+// Register subreddit mapping service
+string mappingsDir = Path.Combine(dbDirectory ?? ".", "subreddit-mappings");
+string builtInMappingsPath = Path.Combine(AppContext.BaseDirectory, "builtin-subreddit-mappings.json");
+builder.Services.AddSingleton(new SubredditMappingPaths(builtInMappingsPath, mappingsDir));
+builder.Services.AddSingleton<ISubredditMappingService, SubredditMappingService>();
 
 // Load user-editable config from the same directory as the database
 string userConfigPath = Path.Combine(dbDirectory ?? ".", "user-settings.json");
@@ -242,6 +249,7 @@ protectedGroup.MapSystemEndpoints();
 protectedGroup.MapDiagnosticsEndpoints();
 protectedGroup.MapManualWatchStateEndpoints();
 protectedGroup.MapSearchEndpoints();
+protectedGroup.MapSubredditMappingEndpoints();
 
 // Map fallback to index.html for SPA
 app.MapFallbackToFile("index.html");

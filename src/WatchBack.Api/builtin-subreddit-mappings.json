@@ -1,0 +1,24 @@
+{
+  "mappings": [
+    { "title": "Saturday Night Live", "subreddits": ["snl", "LiveFromNewYork"] },
+    { "title": "The Late Show with Stephen Colbert", "subreddits": ["lateshow"] },
+    { "title": "Last Week Tonight with John Oliver", "subreddits": ["lastweektonight"] },
+    { "title": "The Tonight Show Starring Jimmy Fallon", "subreddits": ["jimmyfallon"] },
+    { "title": "Succession", "subreddits": ["SuccessionTV"] },
+    { "title": "Severance", "subreddits": ["SeveranceAppleTVPlus"] },
+    { "title": "Silo", "subreddits": ["SiloSeries"] },
+    { "title": "Industry", "subreddits": ["IndustryHBO"] },
+    { "title": "Shogun", "subreddits": ["ShogunFX"] },
+    { "title": "Yellowstone", "subreddits": ["YellowstonePN"] },
+    { "title": "The Rings of Power", "subreddits": ["RingsofPower"] },
+    { "title": "Foundation", "subreddits": ["FoundationTV"] },
+    { "title": "For All Mankind", "subreddits": ["ForAllMankindTV"] },
+    { "title": "Shrinking", "subreddits": ["ShrinkingTVShow"] },
+    { "title": "Only Murders in the Building", "subreddits": ["OnlyMurdersHulu"] },
+    { "title": "Atlanta", "subreddits": ["AtlantaTV"] },
+    { "title": "Curb Your Enthusiasm", "subreddits": ["curb"] },
+    { "title": "It's Always Sunny in Philadelphia", "subreddits": ["IASIP"] },
+    { "title": "The Rehearsal", "subreddits": ["nathanfielder"] },
+    { "title": "Nathan For You", "subreddits": ["nathanfielder"] }
+  ]
+}
