@@ -900,6 +900,203 @@ public class RedditThoughtProviderTests : IDisposable
         result.Thoughts.Should().NotBeEmpty();
     }
 
+    // ---- Search query parameter tests ----
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithReleaseDate_AppendsAfterParameter()
+    {
+        DateTimeOffset releaseDate = new(2024, 3, 15, 0, 0, 0, TimeSpan.Zero);
+        long expectedEpoch = releaseDate.AddDays(-7).ToUnixTimeSeconds();
+
+        EpisodeContext mediaContext = new("Test Show", releaseDate, "Pilot", 1, 1);
+
+        List<string> searchedUrls = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            searchedUrls.Add(req.RequestUri?.ToString() ?? "");
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
+        });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        searchedUrls.Where(u => u.Contains("/submission/")).Should()
+            .OnlyContain(u => u.Contains($"after={expectedEpoch}"));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WithNullReleaseDate_OmitsAfterParameter()
+    {
+        EpisodeContext mediaContext = new("Test Show", null, "Pilot", 1, 1);
+
+        List<string> searchedUrls = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            searchedUrls.Add(req.RequestUri?.ToString() ?? "");
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
+        });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        searchedUrls.Where(u => u.Contains("/submission/")).Should()
+            .NotContain(u => u.Contains("after="));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_SizeScalesWithMaxThreads()
+    {
+        RedditOptions scaledOptions = new() { MaxThreads = 10, MaxComments = 250, CacheTtlSeconds = 86400 };
+
+        EpisodeContext mediaContext = new(
+            "Test Show",
+            new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
+
+        List<string> searchedUrls = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            searchedUrls.Add(req.RequestUri?.ToString() ?? "");
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
+        });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(scaledOptions), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        // Episode-title spec is bypass (size=40), all others are normal (size=80)
+        List<string> submissionUrls = searchedUrls.Where(u => u.Contains("/submission/")).ToList();
+        submissionUrls.Should().Contain(u => u.Contains("size=80"));
+        submissionUrls.Should().Contain(u => u.Contains("size=40"));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_SubmissionUrls_ContainNumCommentsFilter()
+    {
+        EpisodeContext mediaContext = new("Test Show", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+
+        List<string> searchedUrls = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            searchedUrls.Add(Uri.UnescapeDataString(req.RequestUri?.ToString() ?? ""));
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
+        });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        searchedUrls.Where(u => u.Contains("/submission/")).Should()
+            .OnlyContain(u => u.Contains("num_comments=>2"));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_StickiedSubmission_BoostedAboveHigherScore()
+    {
+        EpisodeContext mediaContext = new(
+            "Breaking Bad",
+            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1);
+
+        string submissionsJson = """
+                                 {
+                                     "data": [
+                                         {
+                                             "id": "highscore",
+                                             "title": "Breaking Bad S01E01 - Amazing!",
+                                             "permalink": "/r/breakingbad/comments/highscore",
+                                             "subreddit": "breakingbad",
+                                             "score": 500,
+                                             "stickied": false
+                                         },
+                                         {
+                                             "id": "stickied",
+                                             "title": "Breaking Bad S01E01 Official Discussion",
+                                             "permalink": "/r/breakingbad/comments/stickied",
+                                             "subreddit": "breakingbad",
+                                             "score": 50,
+                                             "stickied": true
+                                         }
+                                     ]
+                                 }
+                                 """;
+
+        string commentsJson = """
+                              {
+                                  "data": [
+                                      {
+                                          "id": "c1",
+                                          "body": "Great episode!",
+                                          "score": 10,
+                                          "created_utc": 1232419200,
+                                          "author": "user1",
+                                          "parent_id": "t3_stickied"
+                                      }
+                                  ]
+                              }
+                              """;
+
+        MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        result.Should().NotBeNull();
+        result.PostTitle.Should().Contain("Official Discussion",
+            "stickied submission should be the featured post despite lower score");
+    }
+
+    [Fact]
+    public void PullPushSubmissionDto_Stickied_DefaultsFalse()
+    {
+        string json = """{"data":[{"id":"abc","title":"Test","score":10}]}""";
+        PullPushSubmissionsResponseDto? result = System.Text.Json.JsonSerializer.Deserialize(
+            json, RedditJsonContext.Default.PullPushSubmissionsResponseDto);
+
+        result.Should().NotBeNull();
+        result!.Data.Should().ContainSingle();
+        result.Data![0].Stickied.Should().BeFalse();
+    }
+
+    [Fact]
+    public void PullPushSubmissionDto_Stickied_DeserializesTrue()
+    {
+        string json = """{"data":[{"id":"abc","title":"Test","score":10,"stickied":true}]}""";
+        PullPushSubmissionsResponseDto? result = System.Text.Json.JsonSerializer.Deserialize(
+            json, RedditJsonContext.Default.PullPushSubmissionsResponseDto);
+
+        result.Should().NotBeNull();
+        result!.Data.Should().ContainSingle();
+        result.Data![0].Stickied.Should().BeTrue();
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_WithSeasonZeroEpisode_NoDateNoTitle_ReturnsEmpty()
     {
