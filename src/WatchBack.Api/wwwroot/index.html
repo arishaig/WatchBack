@@ -1452,6 +1452,7 @@
                                 drag &amp; drop or paste JSON
                             </p>
                         </div>
+                        <p class="text-xs wb-text-faint font-mono">{"mappings":[{"title":"…","subreddits":["snl"]}]}</p>
                         <button :class="mappingImportStatus === 'saved' ? 'test-ok' : mappingImportStatus === 'error' ? 'test-error' : 'wb-text-muted'"
                                 :disabled="!mappingImportJson.trim() || mappingImportStatus === 'saving'"
                                 @click="void importMappingSource()"
