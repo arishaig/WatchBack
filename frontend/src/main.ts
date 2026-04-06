@@ -11,6 +11,7 @@ import systemMethods from './modules/system';
 import wizardMethods from './modules/wizard';
 import computedDescriptors from './modules/computed';
 import uiMethods from './modules/ui';
+import subredditMappingsMethods from './modules/subredditMappings';
 import { sanitizeSvg } from './utils/svg';
 import { renderMarkdown } from './utils/markdown';
 
@@ -107,6 +108,13 @@ Alpine.data('app', (): AppData => {
             { id: 'solarized-light', label: 'Solarized Light' },
             { id: 'monokai', label: 'Monokai' },
         ],
+        mappingSources: [],
+        newMappingTitle: '',
+        newMappingSubreddits: '',
+        mappingSaveStatus: null,
+        mappingImportJson: '',
+        mappingImportName: '',
+        mappingImportStatus: null,
 
         // ── Utility functions exposed to Alpine templates ──────────────────
         sanitizeSvg,
@@ -119,6 +127,7 @@ Alpine.data('app', (): AppData => {
         ...systemMethods,
         ...wizardMethods,
         ...uiMethods,
+        ...subredditMappingsMethods,
     };
 
     // Merge computed getters preserving property descriptor semantics

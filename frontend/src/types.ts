@@ -89,6 +89,13 @@ export interface AppData {
     supportedLocales: string[];
     _stringsReady: boolean;
     themes: { id: string; label: string }[];
+    mappingSources: { id: string; name: string; isBuiltIn: boolean; entries: { index: number; title: string | null; subreddits: string[] }[] }[];
+    newMappingTitle: string;
+    newMappingSubreddits: string;
+    mappingSaveStatus: SaveStatus;
+    mappingImportJson: string;
+    mappingImportName: string;
+    mappingImportStatus: SaveStatus;
 
     // ── Alpine internals ───────────────────────────────────────────────────
     $watch(prop: string, cb: (val: unknown) => void): void;
@@ -176,6 +183,15 @@ export interface AppData {
     readonly renderGroups: unknown[];
     readonly groupedThoughts: unknown[];
     readonly showSearchBox: boolean;
+
+    // Subreddit mappings
+    fetchMappings(): Promise<void>;
+    addLocalMapping(): Promise<void>;
+    deleteLocalMapping(title: string): Promise<void>;
+    importMappingSource(): Promise<void>;
+    deleteMappingSource(id: string): Promise<void>;
+    promoteMappingEntry(sourceId: string, index: number): Promise<void>;
+    exportMappingSource(id: string): Promise<void>;
 
     // UI helpers
     showError(msg: string): void;

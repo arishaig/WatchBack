@@ -24,6 +24,7 @@ public sealed class RedditThoughtProvider(
     IOptionsSnapshot<RedditOptions> options,
     IMemoryCache cache,
     IReplyTreeBuilder treeBuilder,
+    ISubredditMappingService mappingService,
     ILogger<RedditThoughtProvider> logger)
     : IThoughtProvider
 {
@@ -76,11 +77,13 @@ public sealed class RedditThoughtProvider(
                 return cached;
             }
 
-            // Derive subreddit name: strip non-alphanumeric from show title (e.g. "Halt and Catch Fire" → "haltandcatchfire")
-            string derivedSubreddit = Regex.Replace(
-                mediaContext.Title.ToLowerInvariant(), "[^a-z0-9]", "");
+            // Resolve subreddits: use explicit mapping if available, otherwise derive from show title.
+            IReadOnlyList<string> mappedSubreddits = mappingService.GetSubreddits(mediaContext);
+            IReadOnlyList<string> subredditsToSearch = mappedSubreddits.Count > 0
+                ? mappedSubreddits
+                : [Regex.Replace(mediaContext.Title.ToLowerInvariant(), "[^a-z0-9]", "")];
 
-            List<SearchSpec> specs = BuildSearchSpecs(mediaContext, derivedSubreddit, episode);
+            List<SearchSpec> specs = BuildSearchSpecs(mediaContext, subredditsToSearch, episode);
 
             if (specs.Count == 0)
             {
@@ -410,7 +413,7 @@ public sealed class RedditThoughtProvider(
     // already recognize all standard formats (SxxExx, NxNN, "Season N Episode N"), so
     // new search formats just need to be added here to be searched and matched.
     private static List<SearchSpec> BuildSearchSpecs(
-        MediaContext mediaContext, string derivedSubreddit, EpisodeContext? episode)
+        MediaContext mediaContext, IReadOnlyList<string> subreddits, EpisodeContext? episode)
     {
         // Movie: one global text search using the canonical query (bypass — MatchesEpisode not used)
         if (episode is null)
@@ -427,19 +430,20 @@ public sealed class RedditThoughtProvider(
 
         if (episode.SeasonNumber > 0 && episode.EpisodeNumber > 0)
         {
-            specs.AddRange(
-            [
-                // Global: show title + episode code — catches cross-subreddit threads (e.g. r/television)
-                new($"{mediaContext.Title} S{sn}E{en}", null),
-                new($"{mediaContext.Title} S{ss}E{ee}", null),
-                new($"{mediaContext.Title} {sn}x{ee}", null), // NxNN (e.g. "Halt and Catch Fire 3x02")
+            // Global: show title + episode code — catches cross-subreddit threads (e.g. r/television)
+            specs.Add(new($"{mediaContext.Title} S{sn}E{en}", null));
+            specs.Add(new($"{mediaContext.Title} S{ss}E{ee}", null));
+            specs.Add(new($"{mediaContext.Title} {sn}x{ee}", null)); // NxNN (e.g. "Halt and Catch Fire 3x02")
 
-                // Show subreddit: bare episode code — catches terse titles with no show name
-                new($"S{sn}E{en}", derivedSubreddit),
-                new($"S{ss}E{ee}", derivedSubreddit),
-                new($"{sn}x{ee}", derivedSubreddit), // NxNN (e.g. "3x02 Joe's Deposition...")
-                new($"Season {sn} Episode {en}", derivedSubreddit) // long form (e.g. "Season 3 Episode 2 Rewatch")
-            ]);
+            // Subreddit-scoped: bare episode code — catches terse titles with no show name.
+            // Generated for every subreddit in the resolved list (mapped or derived).
+            foreach (string sub in subreddits)
+            {
+                specs.Add(new($"S{sn}E{en}", sub));
+                specs.Add(new($"S{ss}E{ee}", sub));
+                specs.Add(new($"{sn}x{ee}", sub)); // NxNN (e.g. "3x02 Joe's Deposition...")
+                specs.Add(new($"Season {sn} Episode {en}", sub)); // long form (e.g. "Season 3 Episode 2 Rewatch")
+            }
         }
         else
         {
@@ -449,14 +453,20 @@ public sealed class RedditThoughtProvider(
             if (qualifier is not null)
             {
                 specs.Add(new($"{mediaContext.Title} {qualifier}", null, true));
-                specs.Add(new(qualifier, derivedSubreddit, true));
+                foreach (string sub in subreddits)
+                {
+                    specs.Add(new(qualifier, sub, true));
+                }
             }
         }
 
         // Episode title: PullPush already scopes results, so MatchesEpisode is bypassed for these
         if (!string.IsNullOrWhiteSpace(episode.EpisodeTitle))
         {
-            specs.Add(new SearchSpec(episode.EpisodeTitle, derivedSubreddit, true));
+            foreach (string sub in subreddits)
+            {
+                specs.Add(new SearchSpec(episode.EpisodeTitle, sub, true));
+            }
         }
 
         // Deduplicate: when season/episode >= 10, padded == unpadded (e.g. S10E10 == S10E10)
