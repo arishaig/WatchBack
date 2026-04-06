@@ -12,6 +12,29 @@ const subredditMappingsMethods: Record<string, unknown> & ThisType<AppData> = {
         }
     },
 
+    async searchForMapping() {
+        const query = (this.newMappingTitle as string).trim();
+        if (!query) return;
+
+        this.mappingSearchLoading = true;
+        this.mappingSearchResults = [];
+        try {
+            const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+            if (res.ok) {
+                this.mappingSearchResults = await res.json() as unknown[];
+            }
+        } catch {
+            // Silently ignore
+        }
+        this.mappingSearchLoading = false;
+    },
+
+    selectMappingSearchResult(result: Record<string, unknown>) {
+        this.newMappingTitle = (result['title'] as string) ?? '';
+        this.newMappingImdbId = (result['imdbId'] as string) ?? '';
+        this.mappingSearchResults = [];
+    },
+
     async addLocalMapping() {
         const title = (this.newMappingTitle as string).trim();
         const subredditsRaw = (this.newMappingSubreddits as string).trim();
@@ -20,16 +43,24 @@ const subredditMappingsMethods: Record<string, unknown> & ThisType<AppData> = {
         const subreddits = subredditsRaw.split(',').map(s => s.trim()).filter(Boolean);
         if (subreddits.length === 0) return;
 
+        const imdbId = (this.newMappingImdbId as string).trim();
+        const body: Record<string, unknown> = { title, subreddits };
+        if (imdbId) {
+            body['externalIds'] = { imdb: imdbId };
+        }
+
         this.mappingSaveStatus = 'saving';
         try {
             const res = await fetch('/api/subreddit-mappings/local', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, subreddits }),
+                body: JSON.stringify(body),
             });
             if (res.ok) {
                 this.newMappingTitle = '';
                 this.newMappingSubreddits = '';
+                this.newMappingImdbId = '';
+                this.mappingSearchResults = [];
                 this.mappingSaveStatus = 'saved';
                 await this.fetchMappings();
             } else {

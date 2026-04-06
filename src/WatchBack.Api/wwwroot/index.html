@@ -1350,10 +1350,57 @@
                     <!-- Add local entry form -->
                     <div class="space-y-2">
                         <p class="text-xs font-medium wb-text-muted">Add mapping</p>
-                        <input class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                               placeholder="Show title (e.g. Saturday Night Live)"
-                               type="text"
-                               x-model="newMappingTitle">
+
+                        <!-- Title + search button -->
+                        <div class="flex gap-2">
+                            <input class="flex-1 min-w-0 wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
+                                   placeholder="Show title (e.g. Saturday Night Live)"
+                                   type="text"
+                                   @input="newMappingImdbId = ''; mappingSearchResults = []"
+                                   @keydown.enter.prevent="void searchForMapping()"
+                                   x-model="newMappingTitle">
+                            <button :disabled="!newMappingTitle.trim() || mappingSearchLoading"
+                                    @click="void searchForMapping()"
+                                    class="shrink-0 px-2.5 py-2 rounded-lg wb-border border wb-surface-alt wb-text-muted
+                                           cursor-pointer disabled:opacity-40 wb-btn
+                                           hover:scale-[1.02] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    title="Look up show"
+                                    type="button">
+                                <ion-icon :name="mappingSearchLoading ? 'sync-outline' : 'search-outline'"
+                                          :class="mappingSearchLoading ? 'animate-spin' : ''"
+                                          aria-hidden="true">
+                                </ion-icon>
+                            </button>
+                        </div>
+
+                        <!-- Search results dropdown -->
+                        <div class="wb-surface wb-border border rounded-xl overflow-hidden shadow-sm"
+                             @click.outside="mappingSearchResults = []"
+                             x-show="mappingSearchResults.length > 0">
+                            <template :key="r.imdbId" x-for="r in mappingSearchResults">
+                                <button @click="selectMappingSearchResult(r)"
+                                        class="w-full flex items-center justify-between gap-3 px-3 py-2 text-left
+                                               hover:wb-surface-alt transition-colors border-b wb-border last:border-b-0 cursor-pointer"
+                                        type="button">
+                                    <span class="text-xs wb-text-secondary truncate" x-text="r.title"></span>
+                                    <span class="text-[10px] wb-text-faint shrink-0"
+                                          x-text="(r.year ?? '') + (r.type === 'movie' ? ' · film' : '')">
+                                    </span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <!-- IMDb badge (shown when a result was selected) -->
+                        <div class="flex items-center gap-1" x-show="newMappingImdbId">
+                            <span class="text-[10px] px-1.5 py-0.5 rounded wb-surface wb-border border wb-accent-text font-mono"
+                                  x-text="'IMDb: ' + newMappingImdbId">
+                            </span>
+                            <button @click="newMappingImdbId = ''"
+                                    class="text-[10px] wb-text-faint hover:wb-error-text cursor-pointer leading-none"
+                                    title="Remove IMDb association"
+                                    type="button">✕</button>
+                        </div>
+
                         <input class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
                                placeholder="Subreddits, comma-separated (e.g. snl, LiveFromNewYork)"
                                type="text"

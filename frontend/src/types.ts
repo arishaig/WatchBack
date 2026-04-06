@@ -92,6 +92,9 @@ export interface AppData {
     mappingSources: { id: string; name: string; isBuiltIn: boolean; entries: { index: number; title: string | null; subreddits: string[] }[] }[];
     newMappingTitle: string;
     newMappingSubreddits: string;
+    newMappingImdbId: string;
+    mappingSearchResults: unknown[];
+    mappingSearchLoading: boolean;
     mappingSaveStatus: SaveStatus;
     mappingImportJson: string;
     mappingImportName: string;
@@ -188,6 +191,8 @@ export interface AppData {
     // Subreddit mappings
     handleMappingFileDrop(e: DragEvent): void;
     fetchMappings(): Promise<void>;
+    searchForMapping(): Promise<void>;
+    selectMappingSearchResult(result: Record<string, unknown>): void;
     addLocalMapping(): Promise<void>;
     deleteLocalMapping(title: string): Promise<void>;
     importMappingSource(): Promise<void>;
