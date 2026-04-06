@@ -1356,8 +1356,7 @@
                             <input class="flex-1 min-w-0 wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
                                    placeholder="Show title (e.g. Saturday Night Live)"
                                    type="text"
-                                   @input="newMappingImdbId = ''; mappingSearchResults = []"
-                                   @keydown.enter.prevent="void searchForMapping()"
+                                   @input.debounce.400ms="newMappingImdbId = ''; mappingSearchResults = []; void searchForMapping()"
                                    x-model="newMappingTitle">
                             <button :disabled="!newMappingTitle.trim() || mappingSearchLoading"
                                     @click="void searchForMapping()"
@@ -1374,18 +1373,28 @@
                         </div>
 
                         <!-- Search results dropdown -->
-                        <div class="wb-surface wb-border border rounded-xl overflow-hidden shadow-sm"
+                        <div class="space-y-1"
                              @click.outside="mappingSearchResults = []"
                              x-show="mappingSearchResults.length > 0">
                             <template :key="r.imdbId" x-for="r in mappingSearchResults">
                                 <button @click="selectMappingSearchResult(r)"
-                                        class="w-full flex items-center justify-between gap-3 px-3 py-2 text-left
-                                               hover:wb-surface-alt transition-colors border-b wb-border last:border-b-0 cursor-pointer"
+                                        class="w-full flex gap-3 items-start p-3 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn transition-colors"
                                         type="button">
-                                    <span class="text-xs wb-text-secondary truncate" x-text="r.title"></span>
-                                    <span class="text-[10px] wb-text-faint shrink-0"
-                                          x-text="(r.year ?? '') + (r.type === 'movie' ? ' · film' : '')">
-                                    </span>
+                                    <img :alt="r.title + ' poster'" :src="r.posterUrl"
+                                         class="w-10 h-14 object-cover rounded shrink-0 bg-gray-800"
+                                         loading="lazy" x-show="r.posterUrl">
+                                    <div class="w-10 h-14 rounded shrink-0 flex items-center justify-center wb-surface-alt wb-border border"
+                                         x-show="!r.posterUrl">
+                                        <ion-icon aria-hidden="true" class="wb-text-faint" name="film-outline"></ion-icon>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-semibold wb-text-secondary leading-snug" x-text="r.title"></p>
+                                        <p class="text-xs wb-text-muted mt-0.5">
+                                            <span x-text="r.year"></span>
+                                            <span class="mx-1">·</span>
+                                            <span class="capitalize" x-text="r.type"></span>
+                                        </p>
+                                    </div>
                                 </button>
                             </template>
                         </div>
