@@ -114,12 +114,21 @@ public sealed class LemmyThoughtProvider(
                     return emptyResult;
                 }
 
+                DateTimeOffset? dateFloor = IThoughtProvider.GetDateFloor(mediaContext);
                 List<Thought> allThoughts = [];
                 LemmyPostViewDto? topPost = null;
 
                 foreach (LemmyPostViewDto postView in posts)
                 {
                     if (postView.Post is null)
+                    {
+                        continue;
+                    }
+
+                    if (dateFloor.HasValue &&
+                        postView.Post.Published is not null &&
+                        DateTimeOffset.TryParse(postView.Post.Published, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTimeOffset postDate) &&
+                        postDate < dateFloor.Value)
                     {
                         continue;
                     }

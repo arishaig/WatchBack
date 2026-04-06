@@ -1487,10 +1487,11 @@
                         x-text="data?.metadata?.episodeTitle ? data.title + ' - ' + data.metadata.episodeTitle : data?.title">
                     </h2>
                     <p class="text-sm wb-text-muted">
+                        <span x-show="data?.metadata?.seasonNumber && data?.metadata?.episodeNumber"
+                              x-text="t('Dashboard_SeasonEpisodeCode', String(data?.metadata?.seasonNumber ?? 0).padStart(2, '0'), String(data?.metadata?.episodeNumber ?? 0).padStart(2, '0')) + ' · '">
+                        </span>
                         <span x-text="t('Dashboard_Aired')"></span>
-                        <span
-                                x-text="formatDate(data?.metadata?.releaseDate)">
-        </span>
+                        <span x-text="formatDate(data?.metadata?.releaseDate)"></span>
                     </p>
                     <template x-if="(data?.ratings || []).length > 0">
                         <div class="flex gap-2 flex-wrap mt-3">

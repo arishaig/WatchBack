@@ -37,6 +37,15 @@ public interface IThoughtProvider : IDataProvider
         CancellationToken ct = default);
 
     /// <summary>
+    ///     Returns the earliest creation date a post or comment must have to be considered relevant
+    ///     for the given media context. Content older than 7 days before the air date is almost
+    ///     certainly an unrelated false positive. Returns <c>null</c> when no release date is
+    ///     available, meaning no floor is applied.
+    /// </summary>
+    static DateTimeOffset? GetDateFloor(MediaContext context) =>
+        context.ReleaseDate?.AddDays(-7);
+
+    /// <summary>
     ///     Builds the canonical text search query for a media context.
     ///     Encodes the business rules for how movies, normal episodes, and season-0 specials
     ///     are represented in text searches, independently of any specific API:
