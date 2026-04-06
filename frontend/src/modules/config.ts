@@ -216,7 +216,7 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
         }
 
         // If Reddit is being disabled while the mappings tab is active, switch away
-        if (key === 'Reddit' && !currentlyDisabled && this.configTab === 'mappings') {
+        if (key.toLowerCase() === 'reddit' && !currentlyDisabled && this.configTab === 'mappings') {
             this.configTab = 'settings';
         }
 
