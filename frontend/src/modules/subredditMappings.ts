@@ -1,5 +1,13 @@
 import type { AppData } from '../types';
 
+function parseSubreddits(raw: string): string[] {
+    return [...new Set(
+        raw.split(/[\s,]+/)
+            .map(s => s.replace(/^\/?r\//i, '').trim())
+            .filter(s => /^[A-Za-z0-9_]+$/.test(s))
+    )];
+}
+
 const subredditMappingsMethods: Record<string, unknown> & ThisType<AppData> = {
     async fetchMappings() {
         try {
@@ -40,7 +48,7 @@ const subredditMappingsMethods: Record<string, unknown> & ThisType<AppData> = {
         const subredditsRaw = (this.newMappingSubreddits as string).trim();
         if (!title || !subredditsRaw) return;
 
-        const subreddits = subredditsRaw.split(',').map(s => s.trim()).filter(Boolean);
+        const subreddits = parseSubreddits(subredditsRaw);
         if (subreddits.length === 0) return;
 
         const imdbId = (this.newMappingImdbId as string).trim();
