@@ -88,6 +88,20 @@ const subredditMappingsMethods: Record<string, unknown> & ThisType<AppData> = {
         await this.fetchMappings();
     },
 
+    handleMappingFileDrop(e: DragEvent) {
+        this.mappingDropActive = false;
+        const file = e.dataTransfer?.files?.[0];
+        if (!file) return;
+        if (!(this.mappingImportName as string).trim()) {
+            this.mappingImportName = file.name.replace(/\.json$/i, '');
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            this.mappingImportJson = (ev.target?.result as string) ?? '';
+        };
+        reader.readAsText(file);
+    },
+
     async exportMappingSource(id: string) {
         try {
             const res = await fetch(`/api/subreddit-mappings/sources/${encodeURIComponent(id)}/export`);

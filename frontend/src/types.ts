@@ -96,6 +96,7 @@ export interface AppData {
     mappingImportJson: string;
     mappingImportName: string;
     mappingImportStatus: SaveStatus;
+    mappingDropActive: boolean;
 
     // ── Alpine internals ───────────────────────────────────────────────────
     $watch(prop: string, cb: (val: unknown) => void): void;
@@ -185,6 +186,7 @@ export interface AppData {
     readonly showSearchBox: boolean;
 
     // Subreddit mappings
+    handleMappingFileDrop(e: DragEvent): void;
     fetchMappings(): Promise<void>;
     addLocalMapping(): Promise<void>;
     deleteLocalMapping(title: string): Promise<void>;

@@ -1347,75 +1347,8 @@
             <div aria-labelledby="tab-mappings" id="panel-mappings" role="tabpanel" x-show="configTab === 'mappings'">
                 <div class="space-y-4">
 
-                    <!-- Source cards -->
-                    <template :key="src.id" x-for="src in mappingSources">
-                        <div class="wb-surface-alt wb-border border rounded-xl overflow-hidden">
-                            <!-- Card header -->
-                            <div class="flex items-center justify-between gap-2 px-3 py-2 border-b wb-border">
-                                <div class="flex items-center gap-2 min-w-0">
-                                    <span class="text-xs font-semibold wb-text-secondary truncate" x-text="src.name"></span>
-                                    <span class="text-[10px] font-medium px-1.5 py-0.5 rounded wb-border border"
-                                          :class="src.isBuiltIn ? 'wb-accent-text' : src.id === 'local' ? 'wb-text-secondary' : 'wb-text-muted'"
-                                          x-text="src.isBuiltIn ? 'Built-in' : src.id === 'local' ? 'Local' : 'Imported'">
-                                    </span>
-                                </div>
-                                <div class="flex items-center gap-1 shrink-0">
-                                    <button :title="'Export ' + src.name"
-                                            @click="void exportMappingSource(src.id)"
-                                            class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer p-1"
-                                            type="button">
-                                        <ion-icon aria-hidden="true" name="download-outline"></ion-icon>
-                                    </button>
-                                    <button :disabled="src.isBuiltIn"
-                                            :title="src.isBuiltIn ? 'Built-in source cannot be deleted' : 'Delete source'"
-                                            @click="!src.isBuiltIn && void deleteMappingSource(src.id)"
-                                            class="text-xs wb-text-faint hover:wb-error-text cursor-pointer p-1 disabled:opacity-30 disabled:cursor-default"
-                                            type="button">
-                                        <ion-icon aria-hidden="true" name="trash-outline"></ion-icon>
-                                    </button>
-                                </div>
-                            </div>
-                            <!-- Entry list -->
-                            <template x-if="src.entries.length === 0">
-                                <p class="text-xs wb-text-faint px-3 py-2">No entries</p>
-                            </template>
-                            <template :key="entry.index" x-for="entry in src.entries">
-                                <div class="flex items-start justify-between gap-2 px-3 py-2 border-b wb-border last:border-b-0">
-                                    <div class="min-w-0">
-                                        <p class="text-xs wb-text-secondary font-medium truncate" x-text="entry.title ?? '(no title)'"></p>
-                                        <div class="flex flex-wrap gap-1 mt-1">
-                                            <template :key="sub" x-for="sub in entry.subreddits">
-                                                <span class="text-[10px] px-1.5 py-0.5 rounded wb-surface wb-border border wb-text-muted"
-                                                      x-text="'r/' + sub">
-                                                </span>
-                                            </template>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-1 shrink-0 pt-0.5">
-                                        <template x-if="!src.isBuiltIn && src.id !== 'local'">
-                                            <button title="Copy to local"
-                                                    @click="void promoteMappingEntry(src.id, entry.index)"
-                                                    class="text-xs wb-text-faint hover:wb-accent-text cursor-pointer p-1"
-                                                    type="button">
-                                                <ion-icon aria-hidden="true" name="copy-outline"></ion-icon>
-                                            </button>
-                                        </template>
-                                        <template x-if="src.id === 'local'">
-                                            <button :title="'Remove ' + (entry.title ?? 'entry')"
-                                                    @click="void deleteLocalMapping(entry.title ?? '')"
-                                                    class="text-xs wb-text-faint hover:wb-error-text cursor-pointer p-1"
-                                                    type="button">
-                                                <ion-icon aria-hidden="true" name="close-outline"></ion-icon>
-                                            </button>
-                                        </template>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
-
                     <!-- Add local entry form -->
-                    <div class="space-y-2 border-t wb-border pt-4">
+                    <div class="space-y-2">
                         <p class="text-xs font-medium wb-text-muted">Add mapping</p>
                         <input class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
                                placeholder="Show title (e.g. Saturday Night Live)"
@@ -1444,11 +1377,25 @@
                                placeholder="Source name (optional)"
                                type="text"
                                x-model="mappingImportName">
-                        <textarea class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border font-mono resize-y"
-                                  placeholder='{"mappings":[{"title":"My Show","subreddits":["myshow"]}]}'
-                                  rows="4"
-                                  x-model="mappingImportJson">
-                        </textarea>
+                        <!-- Drop zone wrapper; _dc tracks nested dragenter/leave so the highlight
+                             doesn't flicker when the cursor crosses into the child textarea -->
+                        <div :class="mappingDropActive ? 'ring-2 ring-[var(--wb-accent)] opacity-75' : ''"
+                             x-data="{ _dc: 0 }"
+                             @dragenter.prevent="_dc++; mappingDropActive = true"
+                             @dragleave.prevent="_dc--; if (_dc <= 0) { _dc = 0; mappingDropActive = false; }"
+                             @dragover.prevent
+                             @drop.prevent="_dc = 0; handleMappingFileDrop($event)"
+                             class="relative rounded-lg transition-all duration-150">
+                            <textarea :placeholder="mappingDropActive ? 'Drop file here…' : '{\"mappings\":[{\"title\":\"My Show\",\"subreddits\":[\"myshow\"]}]}'"
+                                      class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border font-mono resize-y"
+                                      rows="4"
+                                      x-model="mappingImportJson">
+                            </textarea>
+                            <p class="absolute bottom-2 right-2 text-[10px] wb-text-faint pointer-events-none"
+                               x-show="!mappingImportJson">
+                                drag &amp; drop or paste JSON
+                            </p>
+                        </div>
                         <button :class="mappingImportStatus === 'saved' ? 'test-ok' : mappingImportStatus === 'error' ? 'test-error' : 'wb-text-muted'"
                                 :disabled="!mappingImportJson.trim() || mappingImportStatus === 'saving'"
                                 @click="void importMappingSource()"
@@ -1460,6 +1407,78 @@
                                 x-text="mappingImportStatus === 'saving' ? 'Importing…' : mappingImportStatus === 'saved' ? 'Imported' : mappingImportStatus === 'error' ? 'Error — check JSON format' : 'Import'">
                         </button>
                     </div>
+
+                    <!-- Source cards -->
+                    <template x-if="mappingSources.length > 0">
+                        <div class="space-y-3 border-t wb-border pt-4">
+                            <p class="text-xs font-medium wb-text-muted">Active sources</p>
+                            <template :key="src.id" x-for="src in mappingSources">
+                                <div class="wb-surface-alt wb-border border rounded-xl overflow-hidden">
+                                    <!-- Card header -->
+                                    <div class="flex items-center justify-between gap-2 px-3 py-2 border-b wb-border">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <span class="text-xs font-semibold wb-text-secondary truncate" x-text="src.name"></span>
+                                            <span class="text-[10px] font-medium px-1.5 py-0.5 rounded wb-border border"
+                                                  :class="src.isBuiltIn ? 'wb-accent-text' : src.id === 'local' ? 'wb-text-secondary' : 'wb-text-muted'"
+                                                  x-text="src.isBuiltIn ? 'Built-in' : src.id === 'local' ? 'Local' : 'Imported'">
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <button :title="'Export ' + src.name"
+                                                    @click="void exportMappingSource(src.id)"
+                                                    class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer p-1"
+                                                    type="button">
+                                                <ion-icon aria-hidden="true" name="download-outline"></ion-icon>
+                                            </button>
+                                            <button :disabled="src.isBuiltIn"
+                                                    :title="src.isBuiltIn ? 'Built-in source cannot be deleted' : 'Delete source'"
+                                                    @click="!src.isBuiltIn && void deleteMappingSource(src.id)"
+                                                    class="text-xs wb-text-faint hover:wb-error-text cursor-pointer p-1 disabled:opacity-30 disabled:cursor-default"
+                                                    type="button">
+                                                <ion-icon aria-hidden="true" name="trash-outline"></ion-icon>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <!-- Entry list -->
+                                    <template x-if="src.entries.length === 0">
+                                        <p class="text-xs wb-text-faint px-3 py-2">No entries</p>
+                                    </template>
+                                    <template :key="entry.index" x-for="entry in src.entries">
+                                        <div class="flex items-start justify-between gap-2 px-3 py-2 border-b wb-border last:border-b-0">
+                                            <div class="min-w-0">
+                                                <p class="text-xs wb-text-secondary font-medium truncate" x-text="entry.title ?? '(no title)'"></p>
+                                                <div class="flex flex-wrap gap-1 mt-1">
+                                                    <template :key="sub" x-for="sub in entry.subreddits">
+                                                        <span class="text-[10px] px-1.5 py-0.5 rounded wb-surface wb-border border wb-text-muted"
+                                                              x-text="'r/' + sub">
+                                                        </span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-1 shrink-0 pt-0.5">
+                                                <template x-if="!src.isBuiltIn && src.id !== 'local'">
+                                                    <button title="Copy to local"
+                                                            @click="void promoteMappingEntry(src.id, entry.index)"
+                                                            class="text-xs wb-text-faint hover:wb-accent-text cursor-pointer p-1"
+                                                            type="button">
+                                                        <ion-icon aria-hidden="true" name="copy-outline"></ion-icon>
+                                                    </button>
+                                                </template>
+                                                <template x-if="src.id === 'local'">
+                                                    <button :title="'Remove ' + (entry.title ?? 'entry')"
+                                                            @click="void deleteLocalMapping(entry.title ?? '')"
+                                                            class="text-xs wb-text-faint hover:wb-error-text cursor-pointer p-1"
+                                                            type="button">
+                                                        <ion-icon aria-hidden="true" name="close-outline"></ion-icon>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
 
                 </div>
             </div><!-- /mappings tab -->
