@@ -85,12 +85,18 @@ public sealed class BlueskyThoughtProvider(
                 BlueskyJsonContext.Default.BlueskySearchResponseDto);
 
             BlueskyPostDto[] posts = searchResult?.Posts ?? [];
+            DateTimeOffset? dateFloor = IThoughtProvider.GetDateFloor(mediaContext);
             HashSet<string> seenTexts = new();
             List<Thought> thoughts = new();
 
             foreach (BlueskyPostDto post in posts)
             {
                 if (post.Record?.Text == null)
+                {
+                    continue;
+                }
+
+                if (dateFloor.HasValue && (post.Record.CreatedAt ?? DateTimeOffset.UtcNow) < dateFloor.Value)
                 {
                     continue;
                 }

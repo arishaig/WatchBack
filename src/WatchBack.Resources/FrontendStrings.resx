@@ -501,6 +501,9 @@
     <data name="Dashboard_LoadingEpisodes" xml:space="preserve">
         <value>Loading episodes…</value>
     </data>
+    <data name="Dashboard_SeasonEpisodeCode" xml:space="preserve">
+        <value>S{0}E{1}</value>
+    </data>
     <data name="Dashboard_Aired" xml:space="preserve">
         <value>Aired:</value>
     </data>
