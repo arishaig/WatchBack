@@ -29,6 +29,14 @@ public class RedditThoughtProviderTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    // Returns a mapping service stub that resolves no mappings (uses derived subreddit fallback).
+    private static ISubredditMappingService NoMappings()
+    {
+        ISubredditMappingService svc = Substitute.For<ISubredditMappingService>();
+        svc.GetSubreddits(Arg.Any<MediaContext>()).Returns([]);
+        return svc;
+    }
+
     // Helper: returns submission JSON for any submission search, comment JSON for comment searches.
     private static MockHttpMessageHandler SubmissionAndCommentHandler(
         string submissionsJson, string commentsJson)
@@ -88,7 +96,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         // Act
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
@@ -160,7 +168,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -226,7 +234,7 @@ public class RedditThoughtProviderTests : IDisposable
             .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         // Act
         await provider.GetThoughtsAsync(mediaContext);
@@ -250,7 +258,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         // Act
         ServiceHealth health = await provider.GetServiceHealthAsync();
@@ -266,7 +274,7 @@ public class RedditThoughtProviderTests : IDisposable
         RedditThoughtProvider provider = new(
             new HttpClient(),
             new OptionsSnapshotStub<RedditOptions>(_options),
-            _cache, treeBuilder,
+            _cache, treeBuilder, NoMappings(),
             NullLogger<RedditThoughtProvider>.Instance);
 
         // 7 base specs + 1 episode-title spec (upper bound) + MaxThreads comment fetches, 3 weight each
@@ -337,7 +345,7 @@ public class RedditThoughtProviderTests : IDisposable
             .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         // Act
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
@@ -388,7 +396,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
@@ -436,7 +444,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
@@ -485,7 +493,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
@@ -525,7 +533,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         ConcurrentBag<SyncProgressTick> ticks = new();
         CapturingProgress progress = new(ticks);
@@ -592,7 +600,7 @@ public class RedditThoughtProviderTests : IDisposable
             .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         // Act — must not throw
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
@@ -610,7 +618,7 @@ public class RedditThoughtProviderTests : IDisposable
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
         Func<Task<ThoughtResult?>> act = async () => await provider.GetThoughtsAsync(mediaContext);
@@ -625,7 +633,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         RedditThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder,
+            treeBuilder, NoMappings(),
             NullLogger<RedditThoughtProvider>.Instance);
 
         provider.ConfigSection.Should().Be("Reddit");
@@ -638,7 +646,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         RedditThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder,
+            treeBuilder, NoMappings(),
             NullLogger<RedditThoughtProvider>.Instance);
 
         provider.IsConfigured.Should().BeTrue();
@@ -650,7 +658,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         RedditThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder,
+            treeBuilder, NoMappings(),
             NullLogger<RedditThoughtProvider>.Instance);
 
         IReadOnlyList<ProviderConfigField> fields = provider.GetConfigSchema(_ => "", (_, _) => false);
@@ -666,7 +674,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         RedditThoughtProvider provider = new(
             new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder,
+            treeBuilder, NoMappings(),
             NullLogger<RedditThoughtProvider>.Instance);
 
         // Reddit stores no secrets, so RevealSecret should return null for any key
@@ -713,7 +721,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
@@ -745,7 +753,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         await provider.GetThoughtsAsync(mediaContext);
 
@@ -778,7 +786,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         await provider.GetThoughtsAsync(mediaContext);
 
@@ -825,7 +833,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
@@ -892,7 +900,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
@@ -921,7 +929,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         await provider.GetThoughtsAsync(mediaContext);
 
@@ -945,7 +953,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         await provider.GetThoughtsAsync(mediaContext);
 
@@ -976,7 +984,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(scaledOptions), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         await provider.GetThoughtsAsync(mediaContext);
 
@@ -1002,7 +1010,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         await provider.GetThoughtsAsync(mediaContext);
 
@@ -1064,7 +1072,7 @@ public class RedditThoughtProviderTests : IDisposable
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 
@@ -1098,6 +1106,44 @@ public class RedditThoughtProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task GetThoughtsAsync_WithMappedSubreddits_UsesMappedNotDerived()
+    {
+        EpisodeContext mediaContext = new(
+            "Saturday Night Live",
+            new DateTimeOffset(2026, 4, 5, 0, 0, 0, TimeSpan.Zero),
+            "Cynthia Erivo / Doechii",
+            51,
+            16);
+
+        ISubredditMappingService mappingService = Substitute.For<ISubredditMappingService>();
+        mappingService.GetSubreddits(Arg.Any<MediaContext>()).Returns(["snl", "LiveFromNewYork"]);
+
+        List<string> searchedUrls = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            searchedUrls.Add(Uri.UnescapeDataString(req.RequestUri?.ToString() ?? ""));
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
+        });
+
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            treeBuilder, mappingService, NullLogger<RedditThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        List<string> submissionUrls = searchedUrls.Where(u => u.Contains("/submission/")).ToList();
+
+        // Mapped subreddits appear in subreddit-scoped specs
+        submissionUrls.Should().Contain(u => u.Contains("subreddit=snl"));
+        submissionUrls.Should().Contain(u => u.Contains("subreddit=LiveFromNewYork"));
+
+        // The derived subreddit ("saturdaynightlive") must NOT appear — mapping replaces it
+        submissionUrls.Should().NotContain(u => u.Contains("saturdaynightlive"));
+    }
+
+    [Fact]
     public async Task GetThoughtsAsync_WithSeasonZeroEpisode_NoDateNoTitle_ReturnsEmpty()
     {
         EpisodeContext mediaContext = new(
@@ -1114,7 +1160,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
 

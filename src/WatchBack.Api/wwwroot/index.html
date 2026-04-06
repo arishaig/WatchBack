@@ -648,6 +648,18 @@
                             type="button"
                             x-text="t('Nav_Diagnostics')">
                     </button>
+                    <button :aria-selected="configTab === 'mappings'" :class="configTab === 'mappings'
+                            ? 'wb-text-secondary' : 'wb-text-faint hover:wb-text-muted'"
+                            :style="configTab === 'mappings' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
+                            @click="switchConfigTab('mappings')"
+                            aria-controls="panel-mappings"
+                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                            id="tab-mappings"
+                            role="tab"
+                            type="button"
+                            x-show="!configData?.integrations?.['reddit']?.disabled"
+                            x-text="'Subreddits'">
+                    </button>
                 </nav>
                 <button :aria-label="t('Aria_CloseConfigPanel')"
                         @click="showConfig = false"
@@ -1331,6 +1343,217 @@
 
             </div><!-- /diagnostics tab -->
 
+            <!-- ─── Subreddit Mappings tab ─── -->
+            <div aria-labelledby="tab-mappings" id="panel-mappings" role="tabpanel" x-show="configTab === 'mappings'">
+                <div class="space-y-4">
+
+                    <!-- Add local entry form -->
+                    <div class="space-y-2">
+                        <p class="text-xs font-medium wb-text-muted">Add mapping</p>
+
+                        <!-- Title + search button -->
+                        <div class="flex gap-2">
+                            <input class="flex-1 min-w-0 wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
+                                   placeholder="Show title (e.g. Saturday Night Live)"
+                                   type="text"
+                                   @input.debounce.400ms="newMappingImdbId = ''; mappingSearchResults = []; void searchForMapping()"
+                                   x-model="newMappingTitle">
+                            <button :disabled="!newMappingTitle.trim() || mappingSearchLoading"
+                                    @click="void searchForMapping()"
+                                    class="shrink-0 px-2.5 py-2 rounded-lg wb-border border wb-surface-alt wb-text-muted
+                                           cursor-pointer disabled:opacity-40 wb-btn
+                                           hover:scale-[1.02] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    title="Look up show"
+                                    type="button">
+                                <ion-icon :name="mappingSearchLoading ? 'sync-outline' : 'search-outline'"
+                                          :class="mappingSearchLoading ? 'animate-spin' : ''"
+                                          aria-hidden="true">
+                                </ion-icon>
+                            </button>
+                        </div>
+
+                        <!-- Search results dropdown -->
+                        <div class="space-y-1"
+                             @click.outside="mappingSearchResults = []"
+                             x-show="mappingSearchResults.length > 0">
+                            <template :key="r.imdbId" x-for="r in mappingSearchResults">
+                                <button @click="selectMappingSearchResult(r)"
+                                        class="w-full flex gap-3 items-start p-3 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                        type="button">
+                                    <img :alt="r.title + ' poster'" :src="r.posterUrl"
+                                         class="w-10 h-14 object-cover rounded shrink-0 bg-gray-800"
+                                         loading="lazy" x-show="r.posterUrl">
+                                    <div class="w-10 h-14 rounded shrink-0 flex items-center justify-center wb-surface-alt wb-border border"
+                                         x-show="!r.posterUrl">
+                                        <ion-icon aria-hidden="true" class="wb-text-faint" name="film-outline"></ion-icon>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-semibold wb-text-secondary leading-snug" x-text="r.title"></p>
+                                        <p class="text-xs wb-text-muted mt-0.5">
+                                            <span x-text="r.year"></span>
+                                            <span class="mx-1">·</span>
+                                            <span class="capitalize" x-text="r.type"></span>
+                                        </p>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+
+                        <!-- IMDb badge (shown when a result was selected) -->
+                        <div class="flex items-center gap-1" x-show="newMappingImdbId">
+                            <span class="text-[10px] px-1.5 py-0.5 rounded wb-surface wb-border border wb-accent-text font-mono"
+                                  x-text="'IMDb: ' + newMappingImdbId">
+                            </span>
+                            <button @click="newMappingImdbId = ''"
+                                    class="w-7 h-7 flex items-center justify-center text-[10px] wb-text-faint hover:wb-error-text cursor-pointer wb-btn
+                                           active:scale-90 transition-all duration-200 active:duration-75 transform-gpu"
+                                    title="Remove IMDb association"
+                                    type="button">✕</button>
+                        </div>
+
+                        <input class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
+                               placeholder="Subreddits, comma-separated (e.g. snl, LiveFromNewYork)"
+                               type="text"
+                               x-model="newMappingSubreddits">
+                        <button :class="mappingSaveStatus === 'saved' ? 'test-ok' : mappingSaveStatus === 'error' ? 'test-error' : 'wb-text-muted'"
+                                :disabled="!newMappingTitle.trim() || !newMappingSubreddits.trim() || mappingSaveStatus === 'saving'"
+                                @click="void addLocalMapping()"
+                                aria-live="polite"
+                                class="w-full py-2 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                                       cursor-pointer disabled:opacity-50 wb-btn
+                                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                type="button"
+                                x-text="mappingSaveStatus === 'saving' ? 'Saving…' : mappingSaveStatus === 'saved' ? 'Saved' : mappingSaveStatus === 'error' ? 'Error' : 'Add'">
+                        </button>
+                    </div>
+
+                    <!-- Import form -->
+                    <div class="space-y-2 border-t wb-border pt-4">
+                        <p class="text-xs font-medium wb-text-muted">Import mapping file</p>
+                        <input class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
+                               placeholder="Source name (optional)"
+                               type="text"
+                               x-model="mappingImportName">
+                        <!-- Drop zone wrapper; _dc tracks nested dragenter/leave so the highlight
+                             doesn't flicker when the cursor crosses into the child textarea -->
+                        <div :class="mappingDropActive ? 'ring-2 ring-[var(--wb-accent)] opacity-75' : ''"
+                             x-data="{ _dc: 0 }"
+                             @dragenter.prevent="_dc++; mappingDropActive = true"
+                             @dragleave.prevent="_dc--; if (_dc <= 0) { _dc = 0; mappingDropActive = false; }"
+                             @dragover.prevent
+                             @drop.prevent="_dc = 0; handleMappingFileDrop($event)"
+                             class="relative rounded-lg transition-all duration-150">
+                            <textarea :placeholder="mappingDropActive ? 'Drop file here…' : '{\"mappings\":[{\"title\":\"My Show\",\"subreddits\":[\"myshow\"]}]}'"
+                                      class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border font-mono resize-y"
+                                      rows="4"
+                                      x-model="mappingImportJson">
+                            </textarea>
+                            <p class="absolute bottom-2 right-2 text-[10px] wb-text-faint pointer-events-none"
+                               x-show="!mappingImportJson">
+                                drag &amp; drop or paste JSON
+                            </p>
+                        </div>
+                        <p class="text-xs wb-text-faint font-mono">{"mappings":[{"title":"…","subreddits":["snl"]}]}</p>
+                        <button :class="mappingImportStatus === 'saved' ? 'test-ok' : mappingImportStatus === 'error' ? 'test-error' : 'wb-text-muted'"
+                                :disabled="!mappingImportJson.trim() || mappingImportStatus === 'saving'"
+                                @click="void importMappingSource()"
+                                aria-live="polite"
+                                class="w-full py-2 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                                       cursor-pointer disabled:opacity-50 wb-btn
+                                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                type="button"
+                                x-text="mappingImportStatus === 'saving' ? 'Importing…' : mappingImportStatus === 'saved' ? 'Imported' : mappingImportStatus === 'error' ? 'Error — check JSON format' : 'Import'">
+                        </button>
+                    </div>
+
+                    <!-- Source cards -->
+                    <template x-if="mappingSources.length > 0">
+                        <div class="space-y-3 border-t wb-border pt-4">
+                            <p class="text-xs font-medium wb-text-muted">Active sources</p>
+                            <template :key="src.id" x-for="src in mappingSources">
+                                <div class="wb-surface-alt wb-border border rounded-xl overflow-hidden">
+                                    <!-- Card header -->
+                                    <div class="flex items-center justify-between gap-2 px-3 py-2 border-b wb-border">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <span class="text-xs font-semibold wb-text-secondary truncate" x-text="src.name"></span>
+                                            <span class="text-[10px] font-medium px-1.5 py-0.5 rounded wb-border border"
+                                                  :class="src.isBuiltIn ? 'wb-accent-text' : src.id === 'local' ? 'wb-text-secondary' : 'wb-text-muted'"
+                                                  x-text="src.isBuiltIn ? 'Built-in' : src.id === 'local' ? 'Local' : 'Imported'">
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <button :title="mappingShareCopied === src.id ? 'Copied!' : 'Share ' + src.name"
+                                                    @click="void shareMappingSource(src.id, src.name)"
+                                                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface wb-text-faint wb-border border
+                                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                                    type="button">
+                                                <ion-icon :name="mappingShareCopied === src.id ? 'checkmark-outline' : 'share-social-outline'"
+                                                          aria-hidden="true">
+                                                </ion-icon>
+                                            </button>
+                                            <button :title="'Export ' + src.name"
+                                                    @click="void exportMappingSource(src.id)"
+                                                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface wb-text-faint wb-border border
+                                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                                    type="button">
+                                                <ion-icon aria-hidden="true" name="download-outline"></ion-icon>
+                                            </button>
+                                            <button :disabled="src.isBuiltIn"
+                                                    :title="src.isBuiltIn ? 'Built-in source cannot be deleted' : 'Delete source'"
+                                                    @click="!src.isBuiltIn && void deleteMappingSource(src.id)"
+                                                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface wb-text-faint wb-border border
+                                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu disabled:opacity-30 disabled:cursor-default"
+                                                    type="button">
+                                                <ion-icon aria-hidden="true" name="trash-outline"></ion-icon>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <!-- Entry list -->
+                                    <template x-if="src.entries.length === 0">
+                                        <p class="text-xs wb-text-faint px-3 py-2">No entries</p>
+                                    </template>
+                                    <template :key="entry.index" x-for="entry in src.entries">
+                                        <div class="flex items-start justify-between gap-2 px-3 py-2 border-b wb-border last:border-b-0">
+                                            <div class="min-w-0">
+                                                <p class="text-xs wb-text-secondary font-medium truncate" x-text="entry.title ?? '(no title)'"></p>
+                                                <div class="flex flex-wrap gap-1 mt-1">
+                                                    <template :key="sub" x-for="sub in entry.subreddits">
+                                                        <span class="text-[10px] px-1.5 py-0.5 rounded wb-surface wb-border border wb-text-muted"
+                                                              x-text="'r/' + sub">
+                                                        </span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center shrink-0">
+                                                <template x-if="!src.isBuiltIn && src.id !== 'local'">
+                                                    <button title="Copy to local"
+                                                            @click="void promoteMappingEntry(src.id, entry.index)"
+                                                            class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface wb-text-faint wb-border border
+                                                                   hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                                            type="button">
+                                                        <ion-icon aria-hidden="true" name="copy-outline"></ion-icon>
+                                                    </button>
+                                                </template>
+                                                <template x-if="src.id === 'local'">
+                                                    <button :title="'Remove ' + (entry.title ?? 'entry')"
+                                                            @click="void deleteLocalMapping(entry.title ?? '')"
+                                                            class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface wb-text-faint wb-border border
+                                                                   hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                                            type="button">
+                                                        <ion-icon aria-hidden="true" name="close-outline"></ion-icon>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                </div>
+            </div><!-- /mappings tab -->
+
         </div>
     </aside>
 
@@ -1551,8 +1774,8 @@
                     </a>
                 </div>
 
-                <!-- No discussions found -->
-                <template x-if="(data?.allThoughts || []).length === 0">
+                <!-- No discussions found — only after a completed sync with a media context that returned no thoughts -->
+                <template x-if="data && data.status === 'Watching' && !syncProgress && (data.allThoughts || []).length === 0">
                     <div class="py-16 text-center comment-card" style="animation-delay:0.1s">
                         <p class="wb-text-muted text-base mb-2" x-text="t('Dashboard_NoDiscussions')"></p>
                         <p class="text-xs wb-text-faint" x-text="t('Dashboard_NoDiscussionsDetail')"></p>

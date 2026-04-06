@@ -77,6 +77,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     switchConfigTab(tab: string) {
         this.configTab = tab;
         if (tab === 'diagnostics') void this.loadDiagnostics();
+        else if (tab === 'mappings') void this.fetchMappings();
         else this.closeLogStream();
     },
 

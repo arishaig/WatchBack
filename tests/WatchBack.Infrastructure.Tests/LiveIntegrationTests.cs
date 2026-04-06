@@ -3,6 +3,9 @@ using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using NSubstitute;
+
+using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 using WatchBack.Core.Services;
@@ -195,7 +198,7 @@ public class LiveIntegrationTests : IDisposable
 
         ReplyTreeBuilder treeBuilder = new();
         RedditThoughtProvider provider = new(_httpClient, new OptionsSnapshotStub<RedditOptions>(options), _cache,
-            treeBuilder, NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         // Act
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
@@ -321,7 +324,7 @@ public class LiveIntegrationTests : IDisposable
         RedditOptions redditOpts = new();
         RedditThoughtProvider redditProvider = new(
             _httpClient, new OptionsSnapshotStub<RedditOptions>(redditOpts), _cache, new ReplyTreeBuilder(),
-            NullLogger<RedditThoughtProvider>.Instance);
+            NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
 
         // Act - all providers should handle health checks without throwing
         ServiceHealth jellyfinHealth = await jellyfinProvider.GetServiceHealthAsync();
@@ -336,5 +339,12 @@ public class LiveIntegrationTests : IDisposable
         traktThoughtHealth.Should().NotBeNull();
         blueskyHealth.Should().NotBeNull();
         redditHealth.Should().NotBeNull();
+    }
+
+    private static ISubredditMappingService NoMappings()
+    {
+        ISubredditMappingService svc = Substitute.For<ISubredditMappingService>();
+        svc.GetSubreddits(Arg.Any<MediaContext>()).Returns([]);
+        return svc;
     }
 }
