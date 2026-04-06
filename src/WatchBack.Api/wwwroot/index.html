@@ -1773,8 +1773,8 @@
                     </a>
                 </div>
 
-                <!-- No discussions found -->
-                <template x-if="(data?.allThoughts || []).length === 0">
+                <!-- No discussions found — only after a completed sync with a media context that returned no thoughts -->
+                <template x-if="data && data.status === 'Watching' && !syncProgress && (data.allThoughts || []).length === 0">
                     <div class="py-16 text-center comment-card" style="animation-delay:0.1s">
                         <p class="wb-text-muted text-base mb-2" x-text="t('Dashboard_NoDiscussions')"></p>
                         <p class="text-xs wb-text-faint" x-text="t('Dashboard_NoDiscussionsDetail')"></p>
