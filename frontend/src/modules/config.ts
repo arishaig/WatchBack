@@ -215,6 +215,11 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
             intMap[key] = { ...intMap[key], disabled: !currentlyDisabled };
         }
 
+        // If Reddit is being disabled while the mappings tab is active, switch away
+        if (key === 'Reddit' && !currentlyDisabled && this.configTab === 'mappings') {
+            this.configTab = 'settings';
+        }
+
         try {
             if (newDisabled.length === 0) {
                 await this.resetConfigKeys(['WatchBack__DisabledProviders'], false);
