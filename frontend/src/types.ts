@@ -101,6 +101,7 @@ export interface AppData {
     mappingImportStatus: SaveStatus;
     mappingDropActive: boolean;
     mappingShareCopied: string;
+    sentimentCategory: string;
 
     // ── Alpine internals ───────────────────────────────────────────────────
     $watch(prop: string, cb: (val: unknown) => void): void;

@@ -296,6 +296,24 @@
     <data name="Preferences_SegmentedProgressBar" xml:space="preserve">
         <value>Segmented progress bar</value>
     </data>
+    <data name="Preferences_SentimentAnalysis" xml:space="preserve">
+        <value>Sentiment analysis</value>
+    </data>
+    <data name="Dashboard_FilterByOpinion" xml:space="preserve">
+        <value>Filter by opinion</value>
+    </data>
+    <data name="Dashboard_SentimentAll" xml:space="preserve">
+        <value>All</value>
+    </data>
+    <data name="Dashboard_SentimentPositive" xml:space="preserve">
+        <value>Positive</value>
+    </data>
+    <data name="Dashboard_SentimentMixed" xml:space="preserve">
+        <value>Mixed</value>
+    </data>
+    <data name="Dashboard_SentimentNegative" xml:space="preserve">
+        <value>Negative</value>
+    </data>
     <data name="Preferences_AlwaysShowSearch" xml:space="preserve">
         <value>Always show media search</value>
     </data>
@@ -661,6 +679,12 @@
     </data>
     <data name="Wizard_PickCommentSourcesHint" xml:space="preserve">
         <value>Select at least one source. You can add more later.</value>
+    </data>
+    <data name="Wizard_Preferences" xml:space="preserve">
+        <value>Customize your experience</value>
+    </data>
+    <data name="Wizard_PreferencesHint" xml:space="preserve">
+        <value>These can be changed any time from the preferences panel.</value>
     </data>
     <data name="Wizard_AllSet" xml:space="preserve">
         <value>You're all set!</value>

@@ -3,7 +3,7 @@ import type { IntegrationMap } from '../utils/api';
 
 const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
     async wizardNext() {
-        this.wizardStep = Math.min(this.wizardStep + 1, 3);
+        this.wizardStep = Math.min(this.wizardStep + 1, 4);
     },
 
     wizardBack() {
@@ -45,6 +45,8 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
                 for (const key of this.wizardSelectedComments) {
                     await this.saveConfig(key);
                 }
+            } else if (this.wizardStep === 3) {
+                await this.savePreferences();
             }
             // Reload config to get updated `configured` status
             const cRes = await fetch('/api/config');
@@ -52,7 +54,7 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
                 this.configData = await cRes.json() as Record<string, unknown>;
                 this._initConfigEdits(this.configData);
             }
-            this.wizardStep = Math.min(this.wizardStep + 1, 3);
+            this.wizardStep = Math.min(this.wizardStep + 1, 4);
         } finally {
             this.wizardSaving = false;
         }

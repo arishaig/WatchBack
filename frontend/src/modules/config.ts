@@ -19,6 +19,7 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
             searchEngine: prefs['searchEngine'] ?? 'google',
             customSearchUrl: prefs['customSearchUrl'] ?? '',
             segmentedProgressBar: prefs['segmentedProgressBar'] ?? false,
+            enableSentimentAnalysis: prefs['enableSentimentAnalysis'] ?? false,
         };
     },
 
@@ -127,6 +128,7 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
         if (p['customSearchUrl'])
             payload['WatchBack__CustomSearchUrl'] = p['customSearchUrl'] as string;
         payload['WatchBack__SegmentedProgressBar'] = String(p['segmentedProgressBar'] ?? false);
+        payload['WatchBack__EnableSentimentAnalysis'] = String(p['enableSentimentAnalysis'] ?? false);
 
         this.prefSaveStatus = 'saving';
         try {

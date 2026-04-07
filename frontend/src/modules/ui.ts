@@ -164,9 +164,21 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
 
     sourceCount(src: string): number {
         if (!this.data) return 0;
-        const list = this.mode === 'time'
-            ? ((this.data['timeMachineThoughts'] as { source: string }[]) ?? [])
-            : ((this.data['allThoughts'] as { source: string }[]) ?? []);
+        let list = this.mode === 'time'
+            ? ((this.data['timeMachineThoughts'] as { source: string; sentiment?: number | null }[]) ?? [])
+            : ((this.data['allThoughts'] as { source: string; sentiment?: number | null }[]) ?? []);
+        const sentimentEnabled = (this.configData?.['preferences'] as Record<string, unknown> | undefined)
+            ?.['enableSentimentAnalysis'] as boolean | undefined;
+        if (sentimentEnabled && this.sentimentCategory !== 'all') {
+            list = list.filter(c => {
+                const s = c.sentiment;
+                if (s == null) return false;
+                if (this.sentimentCategory === 'positive') return s >= 0.05;
+                if (this.sentimentCategory === 'negative') return s <= -0.05;
+                if (this.sentimentCategory === 'mixed') return s > -0.05 && s < 0.05;
+                return true;
+            });
+        }
         return list.filter(c => c.source === src).length;
     },
 

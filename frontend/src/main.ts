@@ -120,6 +120,7 @@ Alpine.data('app', (): AppData => {
         mappingImportStatus: null,
         mappingDropActive: false,
         mappingShareCopied: '',
+        sentimentCategory: 'all',
 
         // ── Utility functions exposed to Alpine templates ──────────────────
         sanitizeSvg,

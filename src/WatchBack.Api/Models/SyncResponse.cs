@@ -75,7 +75,8 @@ public record ThoughtResponse(
     string? PostUrl = null,
     string? PostBody = null,
     string? BrandColor = null,
-    string? BrandLogoSvg = null);
+    string? BrandLogoSvg = null,
+    float? Sentiment = null);
 
 /// <summary>
 ///     An image associated with a thought
