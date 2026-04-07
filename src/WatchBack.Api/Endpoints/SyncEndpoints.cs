@@ -5,6 +5,8 @@ using System.Threading.Channels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
+using VaderSharp2;
+
 using WatchBack.Api.Logging;
 using WatchBack.Api.Models;
 using WatchBack.Api.Serialization;
@@ -16,6 +18,8 @@ namespace WatchBack.Api.Endpoints;
 
 public static class SyncEndpoints
 {
+    private static readonly SentimentIntensityAnalyzer s_analyzer = new();
+
     public static void MapSyncEndpoints(this IEndpointRouteBuilder app)
     {
         RouteGroupBuilder group = app.MapGroup("/api")
@@ -66,7 +70,7 @@ public static class SyncEndpoints
     {
         HashSet<string> disabled = ParseDisabled(watchback.Value.DisabledProviders);
         SyncResult result = await syncService.SyncAsync(null, ct);
-        return MapSyncResult(result, BuildBrandLookup(thoughtProviders.Where(p => p.ConfigSection is null || !disabled.Contains(p.ConfigSection))));
+        return MapSyncResult(result, BuildBrandLookup(thoughtProviders.Where(p => p.ConfigSection is null || !disabled.Contains(p.ConfigSection))), watchback.Value.EnableSentimentAnalysis);
     }
 
     private static async Task GetSyncStream(
@@ -161,7 +165,7 @@ public static class SyncEndpoints
                     new SyncSnapshot(DateTimeOffset.UtcNow, result.Status.ToString(), result.Title, sourceRecords),
                     syncStopwatch.ElapsedMilliseconds);
 
-                SyncResponse response = MapSyncResult(result, BuildBrandLookup(providerList));
+                SyncResponse response = MapSyncResult(result, BuildBrandLookup(providerList), watchback.Value.EnableSentimentAnalysis);
                 string json = JsonSerializer.Serialize(response, WatchBackJsonContext.Default.SyncResponse);
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
@@ -201,16 +205,17 @@ public static class SyncEndpoints
 
     private static SyncResponse MapSyncResult(
         SyncResult result,
-        IReadOnlyDictionary<string, BrandData?> brandBySource)
+        IReadOnlyDictionary<string, BrandData?> brandBySource,
+        bool computeSentiment)
     {
         return new SyncResponse(
             result.Status.ToString(),
             result.Title,
             result.Metadata != null ? MapMediaContext(result.Metadata) : null,
-            result.AllThoughts.Select(t => MapThought(t, brandBySource)).ToList(),
-            result.TimeMachineThoughts.Select(t => MapThought(t, brandBySource)).ToList(),
+            result.AllThoughts.Select(t => MapThought(t, brandBySource, computeSentiment)).ToList(),
+            result.TimeMachineThoughts.Select(t => MapThought(t, brandBySource, computeSentiment)).ToList(),
             result.TimeMachineDays,
-            result.SourceResults.Select(r => MapSourceResult(r, brandBySource)).ToList(),
+            result.SourceResults.Select(r => MapSourceResult(r, brandBySource, computeSentiment)).ToList(),
             result.WatchProvider,
             result.SuppressedProvider,
             result.SuppressedTitle,
@@ -241,9 +246,13 @@ public static class SyncEndpoints
 
     private static ThoughtResponse MapThought(
         Thought thought,
-        IReadOnlyDictionary<string, BrandData?> brandBySource)
+        IReadOnlyDictionary<string, BrandData?> brandBySource,
+        bool computeSentiment)
     {
         BrandData? brand = brandBySource.GetValueOrDefault(thought.Source);
+        float? sentiment = computeSentiment && !string.IsNullOrWhiteSpace(thought.Content)
+            ? (float)s_analyzer.PolarityScores(thought.Content).Compound
+            : null;
         return new ThoughtResponse(
             thought.Id,
             thought.ParentId,
@@ -255,17 +264,19 @@ public static class SyncEndpoints
             thought.Score,
             thought.CreatedAt.DateTime,
             thought.Source,
-            thought.Replies.Select(r => MapThought(r, brandBySource)).ToList(),
+            thought.Replies.Select(r => MapThought(r, brandBySource, computeSentiment)).ToList(),
             thought.PostTitle,
             thought.PostUrl,
             thought.PostBody,
             brand?.Color,
-            brand?.LogoSvg);
+            brand?.LogoSvg,
+            Sentiment: sentiment);
     }
 
     private static SourceResultResponse MapSourceResult(
         ThoughtResult result,
-        IReadOnlyDictionary<string, BrandData?> brandBySource)
+        IReadOnlyDictionary<string, BrandData?> brandBySource,
+        bool computeSentiment)
     {
         BrandData? brand = brandBySource.GetValueOrDefault(result.Source);
         return new SourceResultResponse(
@@ -273,7 +284,7 @@ public static class SyncEndpoints
             result.PostTitle,
             result.PostUrl,
             result.ImageUrl,
-            result.Thoughts?.Select(r => MapThought(r, brandBySource)).ToList() ?? [],
+            result.Thoughts?.Select(r => MapThought(r, brandBySource, computeSentiment)).ToList() ?? [],
             result.NextPageToken,
             brand?.Color,
             brand?.LogoSvg);

@@ -388,9 +388,9 @@
 
         <!-- Step indicator -->
         <div class="flex items-center justify-between mb-6">
-            <span class="text-xs wb-text-faint" x-text="t('Wizard_StepOf', wizardStep + 1, 4)"></span>
+            <span class="text-xs wb-text-faint" x-text="t('Wizard_StepOf', wizardStep + 1, 5)"></span>
             <div class="flex gap-1.5">
-                <template :key="i" x-for="i in 4">
+                <template :key="i" x-for="i in 5">
                     <div :class="i - 1 <= wizardStep ? 'wb-bg-accent' : ''"
                          :style="'width:' + (i - 1 <= wizardStep ? '1.5rem' : '0.5rem') + ';' + (i - 1 > wizardStep ? 'background-color:var(--wb-border)' : '')"
                          class="h-1 rounded-full transition-all duration-300">
@@ -522,8 +522,62 @@
             </button>
         </div>
 
-        <!-- Step 3: Done -->
+        <!-- Step 3: Preferences -->
         <div class="wizard-step-enter" x-show="wizardStep === 3">
+            <h2 class="text-lg font-bold wb-text mb-1" x-text="t('Wizard_Preferences')"></h2>
+            <p class="text-xs wb-text-faint mb-5" x-text="t('Wizard_PreferencesHint')"></p>
+
+            <div class="space-y-4">
+                <div class="flex items-center justify-between gap-4">
+                    <label class="text-sm wb-text-secondary cursor-pointer"
+                           for="wz-pref-segmented"
+                           x-text="t('Preferences_SegmentedProgressBar')"></label>
+                    <label class="switch-container">
+                        <input :checked="prefEdits.segmentedProgressBar"
+                               @change="prefEdits.segmentedProgressBar = $event.target.checked"
+                               class="switch-input"
+                               id="wz-pref-segmented"
+                               type="checkbox">
+                        <span class="switch-slider"></span>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                    <label class="text-sm wb-text-secondary cursor-pointer"
+                           for="wz-pref-sentiment"
+                           x-text="t('Preferences_SentimentAnalysis')"></label>
+                    <label class="switch-container">
+                        <input :checked="prefEdits.enableSentimentAnalysis"
+                               @change="prefEdits.enableSentimentAnalysis = $event.target.checked"
+                               class="switch-input"
+                               id="wz-pref-sentiment"
+                               type="checkbox">
+                        <span class="switch-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex gap-3 mt-6">
+                <button @click="wizardBack()"
+                        class="flex-1 py-2.5 rounded-lg text-sm font-medium wb-border border wb-surface wb-text-secondary
+                               cursor-pointer wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                        x-text="t('Wizard_Back')">
+                </button>
+                <button :disabled="wizardSaving"
+                        @click="wizardSaveAndContinue()"
+                        class="flex-1 py-2.5 rounded-lg text-sm font-semibold wb-on-accent wb-bg-accent cursor-pointer
+                               disabled:opacity-50 wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                        x-text="wizardSaving ? t('Common_Saving') : t('Wizard_SaveAndContinue')">
+                </button>
+            </div>
+            <button @click="wizardNext()"
+                    class="w-full mt-2 py-2 text-xs wb-text-faint cursor-pointer hover:wb-text-secondary transition-colors"
+                    x-text="t('Wizard_SkipThisStep')">
+            </button>
+        </div>
+
+        <!-- Step 4: Done -->
+        <div class="wizard-step-enter" x-show="wizardStep === 4">
             <div class="flex items-center justify-center mb-4">
                 <div class="restart-check">&#10003;</div>
             </div>
@@ -979,6 +1033,22 @@
                                        @change="prefEdits.segmentedProgressBar = $event.target.checked"
                                        class="switch-input"
                                        id="segmented-bar-toggle"
+                                       type="checkbox">
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- Sentiment analysis toggle -->
+                        <div class="flex items-center justify-between py-1">
+                            <label class="text-xs font-medium wb-text-muted cursor-pointer"
+                                   for="pref-sentiment"
+                                   x-text="t('Preferences_SentimentAnalysis')"></label>
+                            <label class="switch-container">
+                                <input :aria-label="t('Preferences_SentimentAnalysis')"
+                                       :checked="prefEdits.enableSentimentAnalysis"
+                                       @change="prefEdits.enableSentimentAnalysis = $event.target.checked; if (!$event.target.checked) sentimentCategory = 'all'"
+                                       class="switch-input"
+                                       id="pref-sentiment"
                                        type="checkbox">
                                 <span class="switch-slider"></span>
                             </label>
@@ -1804,21 +1874,72 @@
                     </template>
                 </div>
 
-                <!-- Thread grouping toggle -->
-                <div class="flex justify-center mb-4" x-show="hasThreadGroups">
+                <!-- Thread grouping + sentiment filter row -->
+                <div class="flex justify-center flex-wrap gap-2 mb-4"
+                     x-show="hasThreadGroups || (prefEdits.enableSentimentAnalysis && (data?.allThoughts || []).some(t => t.sentiment != null))">
+                    <!-- Group by thread pill -->
                     <button :aria-pressed="groupByThread"
                             :class="groupByThread ? 'filter-source' : 'filter-inactive'"
                             :style="groupByThread ? `--brand: ${(availableSources.find(s => s.name === 'Reddit') || {}).brandColor || ''}` : ''"
                             @click="handleThreadToggle()"
                             class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase
-                               wb-border border cursor-pointer wb-btn
-                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu">
+                                   wb-border border cursor-pointer wb-btn
+                                   hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                            x-show="hasThreadGroups">
                         <ion-icon aria-hidden="true" name="albums-sharp"></ion-icon>
                         <span x-text="groupByThread ? t('Dashboard_GroupedByThread') : t('Dashboard_GroupByThread')"></span>
-                        <span class="text-xs font-semibold opacity-70 tabular-nums"
-                              x-text="threadCount">
-        </span>
+                        <span class="text-xs font-semibold opacity-70 tabular-nums" x-text="threadCount"></span>
                     </button>
+                    <!-- Filter by opinion pill (master toggle) -->
+                    <button :aria-pressed="sentimentCategory !== 'all'"
+                            :class="sentimentCategory !== 'all' ? 'filter-source' : 'filter-inactive'"
+                            :style="sentimentCategory === 'positive' ? '--brand: #22c55e' : sentimentCategory === 'negative' ? '--brand: #f87171' : ''"
+                            @click="sentimentCategory = sentimentCategory !== 'all' ? 'all' : 'positive'"
+                            class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase
+                                   wb-border border cursor-pointer wb-btn
+                                   hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                            x-show="prefEdits.enableSentimentAnalysis && (data?.allThoughts || []).some(t => t.sentiment != null)">
+                        <ion-icon aria-hidden="true"
+                                  :name="sentimentCategory === 'positive' ? 'happy-outline' : sentimentCategory === 'negative' ? 'sad-outline' : sentimentCategory === 'mixed' ? 'remove-outline' : 'filter-sharp'"></ion-icon>
+                        <span x-text="t('Dashboard_FilterByOpinion')"></span>
+                    </button>
+                    <!-- Three sentiment sub-pills -->
+                    <div class="flex gap-1.5"
+                         x-show="sentimentCategory !== 'all' && prefEdits.enableSentimentAnalysis"
+                         x-transition>
+                        <button :aria-pressed="sentimentCategory === 'positive'"
+                                :aria-label="t('Dashboard_SentimentPositive')"
+                                :class="sentimentCategory === 'positive' ? 'filter-source' : 'filter-inactive'"
+                                :style="sentimentCategory === 'positive' ? '--brand: #22c55e' : ''"
+                                @click="sentimentCategory = 'positive'"
+                                class="inline-flex items-center px-2.5 py-1.5 rounded-full
+                                       wb-border border cursor-pointer wb-btn
+                                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                type="button">
+                            <ion-icon aria-hidden="true" name="happy-outline"></ion-icon>
+                        </button>
+                        <button :aria-pressed="sentimentCategory === 'mixed'"
+                                :aria-label="t('Dashboard_SentimentMixed')"
+                                :class="sentimentCategory === 'mixed' ? 'filter-source' : 'filter-inactive'"
+                                @click="sentimentCategory = 'mixed'"
+                                class="inline-flex items-center px-2.5 py-1.5 rounded-full
+                                       wb-border border cursor-pointer wb-btn
+                                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                type="button">
+                            <ion-icon aria-hidden="true" name="remove-outline"></ion-icon>
+                        </button>
+                        <button :aria-pressed="sentimentCategory === 'negative'"
+                                :aria-label="t('Dashboard_SentimentNegative')"
+                                :class="sentimentCategory === 'negative' ? 'filter-source' : 'filter-inactive'"
+                                :style="sentimentCategory === 'negative' ? '--brand: #f87171' : ''"
+                                @click="sentimentCategory = 'negative'"
+                                class="inline-flex items-center px-2.5 py-1.5 rounded-full
+                                       wb-border border cursor-pointer wb-btn
+                                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                type="button">
+                            <ion-icon aria-hidden="true" name="sad-outline"></ion-icon>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Comments list -->
@@ -1880,6 +2001,16 @@
                                                                       name="chevron-down"></ion-icon>
                                                         </button>
                                                     </template>
+                                                    <div aria-hidden="true"
+                                                         class="shrink-0 text-sm leading-none select-none"
+                                                         x-show="prefEdits.enableSentimentAnalysis && (thought.sentiment >= 0.05 || thought.sentiment <= -0.05)">
+                                                        <ion-icon class="text-green-500 block"
+                                                                  name="happy-outline"
+                                                                  x-show="thought.sentiment >= 0.05"></ion-icon>
+                                                        <ion-icon class="text-red-400 block"
+                                                                  name="sad-outline"
+                                                                  x-show="thought.sentiment <= -0.05"></ion-icon>
+                                                    </div>
                                                     <div class="flex-1 min-w-0"
                                                          x-show="!groupByThread && thought.postTitle">
                                                         <a :href="thought.postUrl"

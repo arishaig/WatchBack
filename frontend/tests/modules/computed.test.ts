@@ -162,6 +162,97 @@ describe('activeThoughts', () => {
         const ctx = makeState({ data: { allThoughts: thoughts }, sourceFilter: new Set() });
         expect(get('activeThoughts', ctx)).toHaveLength(2);
     });
+
+    it('returns all thoughts when sentimentCategory is "all" even with enableSentimentAnalysis true', () => {
+        const thoughts = [
+            { id: 1, source: 'reddit', sentiment: 0.8 },
+            { id: 2, source: 'reddit', sentiment: -0.6 },
+            { id: 3, source: 'reddit', sentiment: null },
+        ];
+        const ctx = makeState({
+            data: { allThoughts: thoughts },
+            sentimentCategory: 'all',
+            configData: { preferences: { enableSentimentAnalysis: true } },
+        });
+        expect(get('activeThoughts', ctx)).toHaveLength(3);
+    });
+
+    it('filters to positive thoughts (>= 0.05) when sentimentCategory is "positive"', () => {
+        const thoughts = [
+            { id: 1, source: 'reddit', sentiment: 0.5 },
+            { id: 2, source: 'reddit', sentiment: 0.04 },
+            { id: 3, source: 'reddit', sentiment: -0.3 },
+            { id: 4, source: 'reddit', sentiment: null },
+        ];
+        const ctx = makeState({
+            data: { allThoughts: thoughts },
+            sentimentCategory: 'positive',
+            configData: { preferences: { enableSentimentAnalysis: true } },
+        });
+        const result = get('activeThoughts', ctx) as { id: number }[];
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe(1);
+    });
+
+    it('filters to negative thoughts (<= -0.05) when sentimentCategory is "negative"', () => {
+        const thoughts = [
+            { id: 1, source: 'reddit', sentiment: 0.5 },
+            { id: 2, source: 'reddit', sentiment: -0.1 },
+            { id: 3, source: 'reddit', sentiment: -0.9 },
+            { id: 4, source: 'reddit', sentiment: null },
+        ];
+        const ctx = makeState({
+            data: { allThoughts: thoughts },
+            sentimentCategory: 'negative',
+            configData: { preferences: { enableSentimentAnalysis: true } },
+        });
+        const result = get('activeThoughts', ctx) as { id: number }[];
+        expect(result).toHaveLength(2);
+        expect(result.map(t => t.id)).toEqual([2, 3]);
+    });
+
+    it('filters to mixed thoughts (-0.05 < s < 0.05) when sentimentCategory is "mixed"', () => {
+        const thoughts = [
+            { id: 1, source: 'reddit', sentiment: 0.0 },
+            { id: 2, source: 'reddit', sentiment: 0.04 },
+            { id: 3, source: 'reddit', sentiment: -0.04 },
+            { id: 4, source: 'reddit', sentiment: 0.5 },
+            { id: 5, source: 'reddit', sentiment: null },
+        ];
+        const ctx = makeState({
+            data: { allThoughts: thoughts },
+            sentimentCategory: 'mixed',
+            configData: { preferences: { enableSentimentAnalysis: true } },
+        });
+        const result = get('activeThoughts', ctx) as { id: number }[];
+        expect(result).toHaveLength(3);
+        expect(result.map(t => t.id)).toEqual([1, 2, 3]);
+    });
+
+    it('ignores sentiment category filter when enableSentimentAnalysis is false', () => {
+        const thoughts = [
+            { id: 1, source: 'reddit', sentiment: 0.8 },
+            { id: 2, source: 'reddit', sentiment: -0.6 },
+        ];
+        const ctx = makeState({
+            data: { allThoughts: thoughts },
+            sentimentCategory: 'positive',
+            configData: { preferences: { enableSentimentAnalysis: false } },
+        });
+        expect(get('activeThoughts', ctx)).toHaveLength(2);
+    });
+
+    it('ignores sentiment category filter when configData is null', () => {
+        const thoughts = [
+            { id: 1, source: 'reddit', sentiment: -0.8 },
+        ];
+        const ctx = makeState({
+            data: { allThoughts: thoughts },
+            sentimentCategory: 'positive',
+            configData: null,
+        });
+        expect(get('activeThoughts', ctx)).toHaveLength(1);
+    });
 });
 
 // ── hasThreadGroups ───────────────────────────────────────────────────────────

@@ -312,6 +312,12 @@
     <data name="Wizard_PickCommentSourcesHint" xml:space="preserve">
         <value>Selecciona al menos una fuente. Puedes agregar más después.</value>
     </data>
+    <data name="Wizard_Preferences" xml:space="preserve">
+        <value>Personaliza tu experiencia</value>
+    </data>
+    <data name="Wizard_PreferencesHint" xml:space="preserve">
+        <value>Puedes cambiar esto en cualquier momento desde el panel de preferencias.</value>
+    </data>
     <data name="Wizard_AllSet" xml:space="preserve">
         <value>¡Todo listo!</value>
     </data>
@@ -627,6 +633,24 @@
     </data>
     <data name="Preferences_SegmentedProgressBar" xml:space="preserve">
         <value>Barra de progreso segmentada</value>
+    </data>
+    <data name="Preferences_SentimentAnalysis" xml:space="preserve">
+        <value>Análisis de sentimiento</value>
+    </data>
+    <data name="Dashboard_FilterByOpinion" xml:space="preserve">
+        <value>Filtrar por opinión</value>
+    </data>
+    <data name="Dashboard_SentimentAll" xml:space="preserve">
+        <value>Todo</value>
+    </data>
+    <data name="Dashboard_SentimentPositive" xml:space="preserve">
+        <value>Positivo</value>
+    </data>
+    <data name="Dashboard_SentimentMixed" xml:space="preserve">
+        <value>Mixto</value>
+    </data>
+    <data name="Dashboard_SentimentNegative" xml:space="preserve">
+        <value>Negativo</value>
     </data>
     <data name="Preferences_TimeMachineWindow" xml:space="preserve">
         <value>Ventana de días de Time Machine</value>

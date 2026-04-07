@@ -164,6 +164,7 @@ public static class ConfigEndpoints
                 searchEngine = w.SearchEngine,
                 customSearchUrl = w.CustomSearchUrl,
                 segmentedProgressBar = w.SegmentedProgressBar,
+                enableSentimentAnalysis = w.EnableSentimentAnalysis,
                 envValues = new Dictionary<string, string>
                 {
                     ["WatchBack__TimeMachineDays"] = EnvVal("WatchBack__TimeMachineDays"),

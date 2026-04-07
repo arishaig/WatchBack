@@ -19,6 +19,8 @@ public class WatchBackOptions
 
     public bool SegmentedProgressBar { get; set; }
 
+    public bool EnableSentimentAnalysis { get; init; }
+
     /// <summary>Comma-separated list of provider config-section names to skip during sync (e.g. "Lemmy,Bluesky").</summary>
     public string DisabledProviders { get; init; } = "";
 }

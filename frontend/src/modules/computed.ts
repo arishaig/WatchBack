@@ -65,11 +65,24 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
 
     get activeThoughts(): unknown[] {
         if (!this.data) return [];
-        const list = this.mode === 'time'
+        let list = this.mode === 'time'
             ? ((this.data['timeMachineThoughts'] as unknown[]) ?? [])
             : ((this.data['allThoughts'] as unknown[]) ?? []);
-        if (this.sourceFilter.size === 0) return list;
-        return list.filter(c => this.sourceFilter.has((c as { source: string }).source));
+        if (this.sourceFilter.size > 0)
+            list = list.filter(c => this.sourceFilter.has((c as { source: string }).source));
+        const sentimentEnabled = (this.configData?.['preferences'] as Record<string, unknown> | undefined)
+            ?.['enableSentimentAnalysis'] as boolean | undefined;
+        if (sentimentEnabled && this.sentimentCategory !== 'all') {
+            list = list.filter(c => {
+                const s = (c as { sentiment?: number | null }).sentiment;
+                if (s == null) return false;
+                if (this.sentimentCategory === 'positive') return s >= 0.05;
+                if (this.sentimentCategory === 'negative') return s <= -0.05;
+                if (this.sentimentCategory === 'mixed') return s > -0.05 && s < 0.05;
+                return true;
+            });
+        }
+        return list;
     },
 
     get hasThreadGroups(): boolean {

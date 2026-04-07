@@ -143,6 +143,115 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task GetSync_SentimentIsNull_WhenFlagDisabled()
+    {
+        // Arrange — flag not set (default false); thought provider returns a thought with content
+        IThoughtProvider mockProvider = Substitute.For<IThoughtProvider>();
+        mockProvider.Metadata.Returns(new DataProviderMetadata("Test", "Test", BrandData: new BrandData("", "")));
+        mockProvider.ExpectedWeight.Returns(1);
+        mockProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("Test", null, null, null,
+                [new Thought("t1", null, null, "Great episode, loved it!", null, [], "user", null,
+                    DateTimeOffset.UtcNow, "Test", [])], null));
+
+        using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                PasswordHasher<string> hasher = new();
+                string hash = hasher.HashPassword("", TestPassword);
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Auth:Username"] = TestUsername,
+                        ["Auth:PasswordHash"] = hash,
+                        ["Auth:OnboardingComplete"] = "true"
+                    });
+                });
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IWatchStateProvider>();
+                    services.RemoveAll<IThoughtProvider>();
+
+                    IWatchStateProvider watch = Substitute.For<IWatchStateProvider>();
+                    watch.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
+                    watch.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>())
+                        .Returns(new EpisodeContext("Test Show", null, "Pilot", 1, 1));
+                    services.AddScoped(_ => watch);
+                    services.AddScoped(_ => mockProvider);
+                });
+            });
+        using HttpClient client = factory.CreateClient();
+        await client.PostAsJsonAsync("/api/auth/login", new { username = TestUsername, password = TestPassword });
+
+        // Act
+        HttpResponseMessage response = await client.GetAsync("/api/sync");
+        string json = await response.Content.ReadAsStringAsync();
+
+        // Assert — sentiment field is present but null when flag is off
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        json.Should().Contain("\"sentiment\":null");
+    }
+
+    [Fact]
+    public async Task GetSync_SentimentIsFloat_WhenFlagEnabled()
+    {
+        // Arrange — flag enabled; thought provider returns a thought with content
+        IThoughtProvider mockProvider = Substitute.For<IThoughtProvider>();
+        mockProvider.Metadata.Returns(new DataProviderMetadata("Test", "Test", BrandData: new BrandData("", "")));
+        mockProvider.ExpectedWeight.Returns(1);
+        mockProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("Test", null, null, null,
+                [new Thought("t1", null, null, "Great episode, loved it!", null, [], "user", null,
+                    DateTimeOffset.UtcNow, "Test", [])], null));
+
+        using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                PasswordHasher<string> hasher = new();
+                string hash = hasher.HashPassword("", TestPassword);
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Auth:Username"] = TestUsername,
+                        ["Auth:PasswordHash"] = hash,
+                        ["Auth:OnboardingComplete"] = "true",
+                        ["WatchBack:EnableSentimentAnalysis"] = "true"
+                    });
+                });
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IWatchStateProvider>();
+                    services.RemoveAll<IThoughtProvider>();
+
+                    IWatchStateProvider watch = Substitute.For<IWatchStateProvider>();
+                    watch.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
+                    watch.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>())
+                        .Returns(new EpisodeContext("Test Show", null, "Pilot", 1, 1));
+                    services.AddScoped(_ => watch);
+                    services.AddScoped(_ => mockProvider);
+                });
+            });
+        using HttpClient client = factory.CreateClient();
+        await client.PostAsJsonAsync("/api/auth/login", new { username = TestUsername, password = TestPassword });
+
+        // Act
+        HttpResponseMessage response = await client.GetAsync("/api/sync");
+        string json = await response.Content.ReadAsStringAsync();
+
+        // Assert
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        json.Should().Contain("\"sentiment\":");
+        // The sentiment value should be a number (not null)
+        int sentimentIdx = json.IndexOf("\"sentiment\":", StringComparison.Ordinal);
+        string afterSentiment = json[(sentimentIdx + "\"sentiment\":".Length)..];
+        afterSentiment.TrimStart()[0].Should().NotBe('n'); // not null
+    }
+
+    [Fact]
     public async Task GetSyncStream_EmitsProgressEventsBeforeSyncResult()
     {
         // Act — read first few lines of the SSE stream
