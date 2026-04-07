@@ -1777,45 +1777,41 @@
         <!-- Skeleton loading (first sync only — data is null until first result arrives) -->
         <div aria-busy="true"
              aria-label="Loading discussions"
-             class="pb-8"
+             class="pb-8 flex flex-col gap-4"
              role="status"
-             x-show="authState === 'app' && data === null"
-            <ul class="list-none flex flex-col gap-4">
-                <template x-for="i in [0,1,2,3,4]">
-                    <li>
-                        <div :style="'animation-delay:' + (i * 0.08) + 's'"
-                             class="wb-surface p-4 rounded-xl shadow wb-border border comment-card">
-                            <div class="flex items-center gap-2 mb-3">
-                                <div :style="'animation-delay:' + (i * 0.08 + 0.04) + 's'"
-                                     class="wb-skeleton-line h-3 rounded"
-                                     style="width:55%"></div>
-                                <div :style="'animation-delay:' + (i * 0.08 + 0.08) + 's'"
-                                     class="wb-skeleton-line h-5 rounded ml-auto"
-                                     style="width:14%"></div>
-                            </div>
-                            <div class="space-y-2 mb-3">
-                                <div :style="'animation-delay:' + (i * 0.08 + 0.10) + 's'"
-                                     class="wb-skeleton-line h-3 rounded"
-                                     style="width:96%"></div>
-                                <div :style="'animation-delay:' + (i * 0.08 + 0.16) + 's'"
-                                     class="wb-skeleton-line h-3 rounded"
-                                     style="width:82%"></div>
-                                <div :style="'animation-delay:' + (i * 0.08 + 0.22) + 's'"
-                                     class="wb-skeleton-line h-3 rounded"
-                                     style="width:64%"></div>
-                            </div>
-                            <div class="flex items-center gap-3">
-                                <div :style="'animation-delay:' + (i * 0.08 + 0.26) + 's'"
-                                     class="wb-skeleton-line h-2.5 rounded"
-                                     style="width:22%"></div>
-                                <div :style="'animation-delay:' + (i * 0.08 + 0.28) + 's'"
-                                     class="wb-skeleton-line h-2.5 rounded"
-                                     style="width:12%"></div>
-                            </div>
-                        </div>
-                    </li>
-                </template>
-            </ul>
+             x-show="authState === 'app' && data === null">
+            <template x-for="i in [0,1,2,3,4]">
+                <div :style="'animation-delay:' + (i * 0.08) + 's'"
+                     class="wb-surface p-4 rounded-xl shadow wb-border border comment-card">
+                    <div class="flex items-center gap-2 mb-3">
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.04) + 's'"
+                             class="wb-skeleton-line h-3 rounded"
+                             style="width:55%"></div>
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.08) + 's'"
+                             class="wb-skeleton-line h-5 rounded ml-auto"
+                             style="width:14%"></div>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.10) + 's'"
+                             class="wb-skeleton-line h-3 rounded"
+                             style="width:96%"></div>
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.16) + 's'"
+                             class="wb-skeleton-line h-3 rounded"
+                             style="width:82%"></div>
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.22) + 's'"
+                             class="wb-skeleton-line h-3 rounded"
+                             style="width:64%"></div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.26) + 's'"
+                             class="wb-skeleton-line h-2.5 rounded"
+                             style="width:22%"></div>
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.28) + 's'"
+                             class="wb-skeleton-line h-2.5 rounded"
+                             style="width:12%"></div>
+                    </div>
+                </div>
+            </template>
         </div>
 
         <template x-if="data?.status === 'Watching'">
