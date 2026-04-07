@@ -63,10 +63,10 @@ describe('wizardNext', () => {
         expect(ctx.wizardStep).toBe(1);
     });
 
-    it('does not exceed step 3', async () => {
-        const ctx = makeCtx({ wizardStep: 3 });
+    it('does not exceed step 4', async () => {
+        const ctx = makeCtx({ wizardStep: 4 });
         await methods.wizardNext.call(ctx);
-        expect(ctx.wizardStep).toBe(3);
+        expect(ctx.wizardStep).toBe(4);
     });
 });
 
