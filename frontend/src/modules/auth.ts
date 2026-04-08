@@ -13,7 +13,7 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
             });
             const data = await res.json() as Record<string, unknown>;
             if (data['ok']) {
-                this.currentUser = { username: this.loginUsername, authMethod: 'cookie' };
+                this.currentUser = { authenticated: true, username: this.loginUsername, authMethod: 'cookie' };
                 if (data['needsOnboarding']) {
                     this.authState = 'onboarding';
                 } else if (data['needsPasswordChange']) {
@@ -42,7 +42,7 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
             });
             const data = await res.json() as Record<string, unknown>;
             if (data['ok']) {
-                this.currentUser = { username: this.setupUsername, authMethod: 'cookie' };
+                this.currentUser = { authenticated: true, username: this.setupUsername, authMethod: 'cookie' };
                 await this.initApp();
             } else {
                 this.setupError = (data['message'] as string) || this.t('Auth_SetupFailed');
