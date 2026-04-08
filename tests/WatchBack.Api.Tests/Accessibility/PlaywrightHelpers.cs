@@ -629,7 +629,12 @@ internal static class PlaywrightHelpers
 
     public static async Task OpenConfigModal(IPage page)
     {
-        await page.ClickAsync("button[title=\"Configuration\"]");
+        // Force the click to bypass Playwright's stability check: the skeleton loading
+        // animation runs indefinitely in tests (SSE is aborted, so data never arrives),
+        // causing the button's bounding box to keep shifting and the stability check to
+        // never pass.  The button is visible and enabled, so Force = true is safe here.
+        await page.ClickAsync("button[title=\"Configuration\"]",
+            new PageClickOptions { Force = true });
         await page.WaitForTimeoutAsync(300); // allow Alpine x-show transition
     }
 
