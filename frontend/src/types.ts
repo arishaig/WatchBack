@@ -50,6 +50,15 @@ export interface AppData {
     showSyncBar: boolean;
     syncSegments: unknown[];
     _progressTickCount: number;
+    // Memoization caches for expensive computed properties
+    _cAtSrc: unknown;
+    _cAtMode: string;
+    _cAtFilter: Set<string>;
+    _cAtSentCat: string;
+    _cAtSentEnabled: boolean | undefined;
+    _cAtResult: unknown[] | null;
+    _cGtInput: unknown[] | null;
+    _cGtResult: unknown[] | null;
     clearCacheStatus: 'loading' | 'ok' | 'error' | null;
     forwardAuthEnabled: boolean;
     forwardAuthHeaderEdit: string;
