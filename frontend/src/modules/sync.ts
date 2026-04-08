@@ -3,6 +3,7 @@ import type { AppData, MediaSearchResult, SeasonSummary, EpisodeResult } from '.
 const syncMethods: Record<string, unknown> & ThisType<AppData> = {
     async sync() {
         console.debug("[WatchBack] Triggering sync...");
+        this.data = null;
         try {
             await fetch('/api/sync/trigger', { method: 'POST' });
         } catch (e) {
@@ -120,26 +121,6 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
                 this.searchDrilldown = null;
                 this.drilldownSeason = null;
                 this.drilldownEpisodes = [];
-                this.data = {
-                    status: 'Watching',
-                    title: context['title'] as string | undefined,
-                    metadata: {
-                        title: context['title'] as string | null | undefined,
-                        releaseDate: context['releaseDate'] as string | null | undefined,
-                        episodeTitle: context['episodeTitle'] as string | null | undefined,
-                        seasonNumber: context['seasonNumber'] as number | null | undefined,
-                        episodeNumber: context['episodeNumber'] as number | null | undefined,
-                    },
-                    allThoughts: [],
-                    timeMachineThoughts: [],
-                    timeMachineDays: this.data?.timeMachineDays ?? 14,
-                    sourceResults: [],
-                    watchProvider: null,
-                    suppressedProvider: null,
-                    suppressedTitle: null,
-                    ratings: null,
-                    ratingsProvider: null,
-                };
                 await this.sync();
             } else {
                 this.searchError = this.t('Dashboard_SetWatchStateFailed');
