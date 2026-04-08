@@ -232,38 +232,33 @@ describe('sourceActive', () => {
 // ── sourceCount ───────────────────────────────────────────────────────────────
 
 describe('sourceCount', () => {
-    it('returns 0 when data is null', () => {
-        const ctx = makeCtx({ data: null });
+    // sourceCount now delegates to this.activeThoughts (which applies mode/filter/sentiment).
+    // These tests verify the count-by-source logic; mode and filter coverage lives in
+    // the activeThoughts tests in computed.test.ts.
+
+    it('returns 0 when activeThoughts is empty', () => {
+        const ctx = makeCtx({ activeThoughts: [] });
         expect(methods.sourceCount.call(ctx, 'reddit')).toBe(0);
     });
 
-    it('counts matching source in allThoughts mode', () => {
+    it('counts thoughts matching the given source', () => {
         const ctx = makeCtx({
-            mode: 'all',
-            data: {
-                allThoughts: [
-                    { source: 'reddit' },
-                    { source: 'reddit' },
-                    { source: 'letterboxd' },
-                ],
-            },
+            activeThoughts: [
+                { source: 'reddit' },
+                { source: 'reddit' },
+                { source: 'letterboxd' },
+            ],
         });
         expect(methods.sourceCount.call(ctx, 'reddit')).toBe(2);
         expect(methods.sourceCount.call(ctx, 'letterboxd')).toBe(1);
         expect(methods.sourceCount.call(ctx, 'other')).toBe(0);
     });
 
-    it('counts matching source in timemachine mode', () => {
+    it('returns 0 when no thoughts match the source', () => {
         const ctx = makeCtx({
-            mode: 'time',
-            data: {
-                timeMachineThoughts: [
-                    { source: 'reddit' },
-                    { source: 'tv' },
-                ],
-            },
+            activeThoughts: [{ source: 'tv' }, { source: 'tv' }],
         });
-        expect(methods.sourceCount.call(ctx, 'reddit')).toBe(1);
+        expect(methods.sourceCount.call(ctx, 'reddit')).toBe(0);
     });
 });
 

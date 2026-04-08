@@ -15,6 +15,7 @@ function makeState(overrides: Record<string, unknown> = {}): Record<string, unkn
         data: null,
         mode: 'all',
         sourceFilter: new Set<string>(),
+        sentimentCategory: 'all',
         logEntries: [],
         logLevel: 'All',
         groupByThread: false,
@@ -32,6 +33,15 @@ function makeState(overrides: Record<string, unknown> = {}): Record<string, unkn
         hasCommentSource: false,
         hasCompletedSync: false,
         checklistAllComplete: false,
+        // Memoization cache fields
+        _cAtSrc: undefined,
+        _cAtMode: '',
+        _cAtFilter: new Set<string>(),
+        _cAtSentCat: '',
+        _cAtSentEnabled: undefined,
+        _cAtResult: null,
+        _cGtInput: null,
+        _cGtResult: null,
         ...overrides,
     };
 }
@@ -676,5 +686,81 @@ describe('showChecklist', () => {
         const ctx = makeState({ authState: 'app' });
         expect(get('showChecklist', ctx)).toBe(false);
         localStorage.removeItem('wb_checklistCompleted');
+    });
+});
+
+// ── Memoization (regression) ──────────────────────────────────────────────────
+
+describe('activeThoughts memoization', () => {
+    it('fast path: returns the source array reference directly when no filters are active', () => {
+        const thoughts = [{ id: 1, source: 'reddit' }, { id: 2, source: 'tv' }];
+        const ctx = makeState({ data: { allThoughts: thoughts }, sourceFilter: new Set() });
+        const result = get('activeThoughts', ctx);
+        expect(result).toBe(thoughts); // same reference — no new array allocated
+    });
+
+    it('returns the same cached reference on repeated calls with unchanged inputs', () => {
+        const thoughts = [{ id: 1, source: 'reddit' }, { id: 2, source: 'tv' }];
+        const filter = new Set(['reddit']);
+        const ctx = makeState({ data: { allThoughts: thoughts }, sourceFilter: filter });
+        const first = get('activeThoughts', ctx);
+        const second = get('activeThoughts', ctx);
+        expect(first).toBe(second); // same reference — cache hit
+    });
+
+    it('recomputes when the source array reference changes', () => {
+        const thoughts1 = [{ id: 1, source: 'reddit' }];
+        const filter = new Set(['reddit']);
+        const ctx = makeState({ data: { allThoughts: thoughts1 }, sourceFilter: filter });
+        const first = get('activeThoughts', ctx);
+
+        const thoughts2 = [{ id: 2, source: 'reddit' }];
+        ctx['data'] = { allThoughts: thoughts2 };
+        const second = get('activeThoughts', ctx);
+
+        expect(first).not.toBe(second);
+        expect((second as { id: number }[])[0].id).toBe(2);
+    });
+
+    it('recomputes when sourceFilter reference changes (as Alpine forces on toggle)', () => {
+        const thoughts = [
+            { id: 1, source: 'reddit' },
+            { id: 2, source: 'tv' },
+        ];
+        const filter1 = new Set(['reddit']);
+        const ctx = makeState({ data: { allThoughts: thoughts }, sourceFilter: filter1 });
+        const first = get('activeThoughts', ctx) as unknown[];
+        expect(first).toHaveLength(1);
+
+        // Simulate Alpine's toggle: sourceFilter is reassigned to a new Set
+        ctx['sourceFilter'] = new Set(['reddit', 'tv']);
+        const second = get('activeThoughts', ctx) as unknown[];
+        expect(second).toHaveLength(2);
+        expect(first).not.toBe(second);
+    });
+});
+
+describe('groupedThoughts memoization', () => {
+    it('returns the same cached reference on repeated calls when activeThoughts is unchanged', () => {
+        const thoughts = [
+            { postTitle: 'Thread A', source: 'reddit' },
+            { postTitle: 'Thread A', source: 'reddit' },
+        ];
+        const ctx = makeState({ activeThoughts: thoughts });
+        const first = get('groupedThoughts', ctx);
+        const second = get('groupedThoughts', ctx);
+        expect(first).toBe(second); // cache hit
+    });
+
+    it('recomputes when the activeThoughts reference changes', () => {
+        const thoughts1 = [{ postTitle: 'A', source: 'reddit' }];
+        const ctx = makeState({ activeThoughts: thoughts1 });
+        const first = get('groupedThoughts', ctx);
+
+        ctx['activeThoughts'] = [{ postTitle: 'B', source: 'reddit' }];
+        const second = get('groupedThoughts', ctx);
+
+        expect(first).not.toBe(second);
+        expect((second as { title: string }[])[0].title).toBe('B');
     });
 });
