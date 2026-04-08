@@ -1,4 +1,4 @@
-import type { AppData } from '../types';
+import type { AppData, MediaSearchResult, SeasonSummary, EpisodeResult } from '../types';
 
 const syncMethods: Record<string, unknown> & ThisType<AppData> = {
     async sync() {
@@ -23,7 +23,7 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
         try {
             const res = await fetch('/api/search?q=' + encodeURIComponent(q));
             if (res.ok) {
-                this.searchResults = await res.json() as unknown[];
+                this.searchResults = await res.json() as MediaSearchResult[];
             } else if (res.status === 503) {
                 this.searchError = this.t('Dashboard_OmdbNotConfigured');
             } else {
@@ -35,67 +35,67 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
         this.searchLoading = false;
     },
 
-    async selectSearchResult(result: Record<string, unknown>) {
-        if (result['type'] === 'episode') {
-            const epMatch = (result['title'] as string).match(/^(.+?) — (.+?) \(S(\d+)E(\d+)\)$/);
+    async selectSearchResult(result: MediaSearchResult) {
+        if (result.type === 'episode') {
+            const epMatch = result.title.match(/^(.+?) — (.+?) \(S(\d+)E(\d+)\)$/);
             if (epMatch) {
                 await this.setManualWatchState({
                     title: epMatch[1],
                     episodeTitle: epMatch[2],
                     seasonNumber: parseInt(epMatch[3], 10),
                     episodeNumber: parseInt(epMatch[4], 10),
-                    releaseDate: result['releaseDate'] ?? null,
-                    externalIds: { imdb: result['imdbId'] },
+                    releaseDate: result.releaseDate ?? null,
+                    externalIds: { imdb: result.imdbId },
                 });
                 return;
             }
         }
-        if (result['type'] === 'movie') {
+        if (result.type === 'movie') {
             await this.setManualWatchState({
-                title: result['title'],
-                releaseDate: result['releaseDate'] ?? (result['year'] ? result['year'] + '-01-01T00:00:00Z' : null),
-                externalIds: { imdb: result['imdbId'] },
+                title: result.title,
+                releaseDate: result.releaseDate ?? (result.year ? result.year + '-01-01T00:00:00Z' : null),
+                externalIds: { imdb: result.imdbId },
             });
             return;
         }
-        this.searchDrilldown = { imdbId: result['imdbId'], title: result['title'], poster: result['posterUrl'], seasons: [] };
+        this.searchDrilldown = { imdbId: result.imdbId, title: result.title, poster: result.posterUrl, seasons: [] };
         this.drilldownSeason = null;
         this.drilldownEpisodes = [];
         this.drilldownLoading = true;
         try {
-            const res = await fetch('/api/search/show/' + encodeURIComponent(result['imdbId'] as string) + '/seasons');
-            if (res.ok) this.searchDrilldown['seasons'] = await res.json() as unknown[];
+            const res = await fetch('/api/search/show/' + encodeURIComponent(result.imdbId) + '/seasons');
+            if (res.ok && this.searchDrilldown) this.searchDrilldown.seasons = await res.json() as SeasonSummary[];
         } catch {
             this.searchError = this.t('Dashboard_LoadSeasonsFailed');
         }
         this.drilldownLoading = false;
     },
 
-    async selectSeason(season: Record<string, unknown>) {
+    async selectSeason(season: SeasonSummary) {
         this.drilldownSeason = season;
         this.drilldownEpisodes = [];
         this.drilldownLoading = true;
         try {
             const res = await fetch(
-                '/api/search/show/' + encodeURIComponent(this.searchDrilldown?.['imdbId'] as string) +
-                '/season/' + String(season['seasonNumber']) + '/episodes');
-            if (res.ok) this.drilldownEpisodes = await res.json() as unknown[];
+                '/api/search/show/' + encodeURIComponent(this.searchDrilldown?.imdbId ?? '') +
+                '/season/' + String(season.seasonNumber) + '/episodes');
+            if (res.ok) this.drilldownEpisodes = await res.json() as EpisodeResult[];
         } catch {
             this.searchError = this.t('Dashboard_LoadEpisodesFailed');
         }
         this.drilldownLoading = false;
     },
 
-    async selectEpisode(ep: Record<string, unknown>) {
+    async selectEpisode(ep: EpisodeResult) {
         await this.setManualWatchState({
-            title: this.searchDrilldown?.['title'],
-            episodeTitle: ep['title'],
-            seasonNumber: ep['seasonNumber'],
-            episodeNumber: ep['episodeNumber'],
-            releaseDate: ep['airDate'],
+            title: this.searchDrilldown?.title,
+            episodeTitle: ep.title,
+            seasonNumber: ep.seasonNumber,
+            episodeNumber: ep.episodeNumber,
+            releaseDate: ep.airDate,
             externalIds: Object.assign(
-                { imdb: this.searchDrilldown?.['imdbId'] },
-                ep['imdbId'] ? { imdbEpisode: ep['imdbId'] } : {}
+                { imdb: this.searchDrilldown?.imdbId },
+                ep.imdbId ? { imdbEpisode: ep.imdbId } : {}
             ),
         });
     },
@@ -122,17 +122,17 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
                 this.drilldownEpisodes = [];
                 this.data = {
                     status: 'Watching',
-                    title: context['title'],
+                    title: context['title'] as string | undefined,
                     metadata: {
-                        title: context['title'],
-                        releaseDate: context['releaseDate'] ?? null,
-                        episodeTitle: context['episodeTitle'] ?? null,
-                        seasonNumber: context['seasonNumber'] ?? null,
-                        episodeNumber: context['episodeNumber'] ?? null,
+                        title: context['title'] as string | null | undefined,
+                        releaseDate: context['releaseDate'] as string | null | undefined,
+                        episodeTitle: context['episodeTitle'] as string | null | undefined,
+                        seasonNumber: context['seasonNumber'] as number | null | undefined,
+                        episodeNumber: context['episodeNumber'] as number | null | undefined,
                     },
                     allThoughts: [],
                     timeMachineThoughts: [],
-                    timeMachineDays: (this.data?.['timeMachineDays'] as number | undefined) ?? 14,
+                    timeMachineDays: this.data?.timeMachineDays ?? 14,
                     sourceResults: [],
                     watchProvider: null,
                     suppressedProvider: null,
