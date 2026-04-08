@@ -373,6 +373,10 @@ internal static class PlaywrightHelpers
             ? """{"authenticated":true,"username":"test","needsOnboarding":true,"authMethod":"cookie","forwardAuthHeader":""}"""
             : """{"authenticated":true,"username":"test","needsOnboarding":false,"authMethod":"cookie","forwardAuthHeader":""}""";
 
+        // Block all external (non-origin) requests so NetworkIdle is not held open by
+        // CDN fetches (e.g. ionicons from unpkg.com) on slow CI runners.
+        await page.RouteAsync("https://**", route => route.AbortAsync());
+
         // Intercept auth check so the app skips the login form and renders content
         await page.RouteAsync("**/api/auth/me", route =>
             route.FulfillAsync(new RouteFulfillOptions
@@ -476,7 +480,7 @@ internal static class PlaywrightHelpers
         await page.EvaluateAsync("localStorage.setItem('wb_checklistCompleted', 'true')");
         await page.ReloadAsync();
 
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 15_000 });
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForTimeoutAsync(500); // allow Alpine init
         await ApplyTheme(page, theme);
     }
@@ -500,7 +504,7 @@ internal static class PlaywrightHelpers
         await page.EvaluateAsync("localStorage.setItem('wb_seenProviders', JSON.stringify(['jellyfin','trakt','bluesky']))");
         await page.ReloadAsync();
 
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 15_000 });
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForTimeoutAsync(500); // allow Alpine init
         await ApplyTheme(page, theme);
     }
@@ -522,7 +526,7 @@ internal static class PlaywrightHelpers
         await page.EvaluateAsync("localStorage.removeItem('wb_wizardCompleted')");
         await page.EvaluateAsync("localStorage.removeItem('wb_checklistCompleted')");
         await page.ReloadAsync();
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 15_000 });
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForTimeoutAsync(500); // allow Alpine init
         await ApplyTheme(page, theme);
     }
@@ -558,6 +562,8 @@ internal static class PlaywrightHelpers
     /// </summary>
     public static async Task LoadPageWithChangePassword(IPage page, string url, string theme)
     {
+        await page.RouteAsync("https://**", route => route.AbortAsync());
+
         // Return unauthenticated so the login screen shows
         await page.RouteAsync("**/api/auth/me", route =>
             route.FulfillAsync(new RouteFulfillOptions
@@ -581,7 +587,7 @@ internal static class PlaywrightHelpers
         await page.RouteAsync("**/api/diagnostics/logs/stream", route => route.AbortAsync());
 
         await page.GotoAsync(url);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 15_000 });
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForTimeoutAsync(500);
         await ApplyTheme(page, theme);
 
@@ -597,6 +603,8 @@ internal static class PlaywrightHelpers
     /// </summary>
     public static async Task LoadLoginPage(IPage page, string url, string theme, bool needsOnboarding = false)
     {
+        await page.RouteAsync("https://**", route => route.AbortAsync());
+
         string authBody = needsOnboarding
             ? """{"authenticated":false,"username":null,"needsOnboarding":true,"authMethod":null,"forwardAuthHeader":""}"""
             : """{"authenticated":false,"username":null,"needsOnboarding":false,"authMethod":null,"forwardAuthHeader":""}""";
@@ -614,7 +622,7 @@ internal static class PlaywrightHelpers
         await page.RouteAsync("**/api/diagnostics/logs/stream", route => route.AbortAsync());
 
         await page.GotoAsync(url);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 15_000 });
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForTimeoutAsync(500);
         await ApplyTheme(page, theme);
     }

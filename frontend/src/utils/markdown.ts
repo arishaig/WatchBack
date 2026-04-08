@@ -100,11 +100,12 @@ function processLinks(text: string): string {
 }
 
 function processSpoilers(text: string, spoilerLabel: string): string {
-    // Uses data-wb-spoiler for event delegation in main.ts (no inline handlers)
+    // Uses data-wb-spoiler for event delegation in main.ts (no inline handlers).
+    // <button> provides native keyboard activation (Enter + Space) and focus management.
     const label = spoilerLabel.replace(/"/g, '&quot;');
     return text.replace(
         /&gt;!(.+?)!&lt;/g,
-        `<span class="wb-md-spoiler" data-wb-spoiler tabindex="0" role="button" aria-label="${label}">$1</span>`
+        `<button type="button" class="wb-md-spoiler" data-wb-spoiler aria-label="${label}">$1</button>`
     );
 }
 

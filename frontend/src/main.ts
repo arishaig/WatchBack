@@ -64,6 +64,14 @@ Alpine.data('app', (): AppData => {
         showSyncBar: false,
         syncSegments: [],
         _progressTickCount: 0,
+        _cAtSrc: undefined,
+        _cAtMode: '',
+        _cAtFilter: new Set<string>(),
+        _cAtSentCat: '',
+        _cAtSentEnabled: undefined as boolean | undefined,
+        _cAtResult: null as unknown[] | null,
+        _cGtInput: null as unknown[] | null,
+        _cGtResult: null as unknown[] | null,
         clearCacheStatus: null,
         forwardAuthEnabled: false,
         forwardAuthHeaderEdit: '',
@@ -142,15 +150,12 @@ Alpine.data('app', (): AppData => {
     return data as unknown as AppData;
 });
 
-// Spoiler reveal — delegated from document so it works with dynamically rendered markdown
+// Spoiler reveal — delegated from document so it works with dynamically rendered markdown.
+// No keydown handler needed: <button> fires click natively on Enter and Space.
 document.addEventListener('click', e => {
     const target = e.target as Element;
     const spoiler = target.closest('[data-wb-spoiler]');
     if (spoiler) spoiler.classList.add('revealed');
-});
-document.addEventListener('keydown', e => {
-    const target = e.target as Element;
-    if (e.key === 'Enter' && target.hasAttribute('data-wb-spoiler')) target.classList.add('revealed');
 });
 
 // ── Reusable provider-fields directive ────────────────────────────────────────
