@@ -1,4 +1,4 @@
-import type { AppData } from '../types';
+import type { AppData, ConfigData } from '../types';
 import type { IntegrationMap } from '../utils/api';
 
 const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
@@ -51,8 +51,8 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
             // Reload config to get updated `configured` status
             const cRes = await fetch('/api/config');
             if (cRes.ok) {
-                this.configData = await cRes.json() as Record<string, unknown>;
-                this._initConfigEdits(this.configData);
+                this.configData = await cRes.json() as ConfigData;
+                if (this.configData) this._initConfigEdits(this.configData);
             }
             this.wizardStep = Math.min(this.wizardStep + 1, 4);
         } finally {
@@ -83,8 +83,8 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
             }
             const cRes = await fetch('/api/config');
             if (cRes.ok) {
-                this.configData = await cRes.json() as Record<string, unknown>;
-                this._initConfigEdits(this.configData);
+                this.configData = await cRes.json() as ConfigData;
+                if (this.configData) this._initConfigEdits(this.configData);
             }
         } finally {
             this.newProviderSaving = false;

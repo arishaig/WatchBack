@@ -1,25 +1,25 @@
-import type { AppData } from '../types';
+import type { AppData, ConfigData } from '../types';
 import { buildFieldPayload, postJson } from '../utils/api';
 import type { IntegrationMap } from '../utils/api';
 
 const configMethods: Record<string, unknown> & ThisType<AppData> = {
-    _initConfigEdits(configData: Record<string, unknown>) {
+    _initConfigEdits(configData: ConfigData) {
         const edits: Record<string, string> = {};
-        const integrations = (configData['integrations'] as IntegrationMap) ?? {};
+        const integrations = configData.integrations;
         for (const integration of Object.values(integrations)) {
             for (const field of integration.fields) {
                 edits[field.key] = field.type === 'password' ? '' : (field.value ?? '');
             }
         }
         this.configEdits = edits;
-        const prefs = (configData['preferences'] as Record<string, unknown>) ?? {};
+        const prefs = configData.preferences;
         this.prefEdits = {
-            timeMachineDays: prefs['timeMachineDays'] ?? 14,
-            watchProvider: prefs['watchProvider'] ?? (prefs['watchProviders'] as { value: string }[] | undefined)?.[0]?.value ?? 'jellyfin',
-            searchEngine: prefs['searchEngine'] ?? 'google',
-            customSearchUrl: prefs['customSearchUrl'] ?? '',
-            segmentedProgressBar: prefs['segmentedProgressBar'] ?? false,
-            enableSentimentAnalysis: prefs['enableSentimentAnalysis'] ?? false,
+            timeMachineDays: prefs.timeMachineDays ?? 14,
+            watchProvider: prefs.watchProvider ?? prefs.watchProviders?.[0]?.value ?? 'jellyfin',
+            searchEngine: prefs.searchEngine ?? 'google',
+            customSearchUrl: prefs.customSearchUrl ?? '',
+            segmentedProgressBar: prefs.segmentedProgressBar ?? false,
+            enableSentimentAnalysis: prefs.enableSentimentAnalysis ?? false,
         };
     },
 
@@ -37,8 +37,8 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
                 this.saveStatus = { ...this.saveStatus, [integrationKey]: 'saved' };
                 const cRes = await fetch('/api/config');
                 if (cRes.ok) {
-                    this.configData = await cRes.json() as Record<string, unknown>;
-                    const updatedIntegrations = (this.configData['integrations'] as IntegrationMap | undefined);
+                    this.configData = await cRes.json() as ConfigData;
+                    const updatedIntegrations = this.configData?.integrations as IntegrationMap | undefined;
                     for (const field of updatedIntegrations?.[integrationKey]?.fields ?? []) {
                         if (field.type !== 'password')
                             this.configEdits[field.key] = field.value ?? '';
@@ -68,7 +68,7 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
                 this.saveAllStatus = 'saved';
                 const cRes = await fetch('/api/config');
                 if (cRes.ok) {
-                    this.configData = await cRes.json() as Record<string, unknown>;
+                    this.configData = await cRes.json() as ConfigData;
                 }
             } else {
                 this.saveAllStatus = 'error';
@@ -110,8 +110,8 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
         if (refetch) {
             const res = await fetch('/api/config');
             if (res.ok) {
-                this.configData = await res.json() as Record<string, unknown>;
-                this._initConfigEdits(this.configData);
+                this.configData = await res.json() as ConfigData;
+                if (this.configData) this._initConfigEdits(this.configData);
             }
         }
     },
@@ -140,7 +140,7 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
             this.prefSaveStatus = res.ok ? 'saved' : 'error';
             if (res.ok) {
                 const cRes = await fetch('/api/config');
-                if (cRes.ok) this.configData = await cRes.json() as Record<string, unknown>;
+                if (cRes.ok) this.configData = await cRes.json() as ConfigData;
             }
         } catch {
             this.prefSaveStatus = 'error';

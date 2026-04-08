@@ -1,6 +1,146 @@
 export type SaveStatus = 'saving' | 'saved' | 'error' | null;
 export type TestStatus = 'testing' | 'ok' | 'error' | 'warn' | null;
 
+// ── API response shapes ────────────────────────────────────────────────────
+
+export interface Thought {
+    source: string;
+    brandColor?: string;
+    brandLogoSvg?: string;
+    postTitle?: string;
+    postUrl?: string;
+    postBody?: string;
+    sentiment?: number | null;
+}
+
+export interface SyncMetadata {
+    title?: string | null;
+    releaseDate?: string | null;
+    episodeTitle?: string | null;
+    seasonNumber?: number | null;
+    episodeNumber?: number | null;
+}
+
+export interface ProviderRating {
+    source: string;
+    value: string;
+    logoSvg?: string;
+    brandColor?: string;
+}
+
+export interface SyncData {
+    status: string;
+    title?: string | null;
+    allThoughts: Thought[];
+    timeMachineThoughts: Thought[];
+    timeMachineDays?: number;
+    metadata?: SyncMetadata;
+    watchProvider?: string | null;
+    suppressedProvider?: string | null;
+    suppressedTitle?: string | null;
+    ratings?: ProviderRating[] | null;
+    ratingsProvider?: string | null;
+    sourceResults?: unknown[];
+}
+
+export interface WatchProviderOption {
+    value: string;
+    label: string;
+    requiresManualInput?: boolean;
+}
+
+export interface ConfigPreferences {
+    timeMachineDays: number;
+    watchProvider: string;
+    watchProviders: WatchProviderOption[];
+    searchConfigured: boolean;
+    searchEngine: string;
+    customSearchUrl: string;
+    segmentedProgressBar: boolean;
+    enableSentimentAnalysis: boolean;
+    envValues: Record<string, string>;
+    overrides: Record<string, boolean>;
+}
+
+export interface ConfigIntegration {
+    name: string;
+    logoSvg?: string;
+    brandColor?: string;
+    fields: { key: string; type: string; value?: string; hasValue?: boolean }[];
+    configured: boolean;
+    providerTypes: string[];
+    disabled: boolean;
+}
+
+export interface ConfigData {
+    integrations: Record<string, ConfigIntegration>;
+    preferences: ConfigPreferences;
+}
+
+export interface SyncHistorySource {
+    source: string;
+    thoughtCount: number;
+}
+
+export interface SyncHistoryEntry {
+    status: string;
+    title: string | null;
+    timestamp: string;
+    thoughtCount: number;
+    durationMs: number | null;
+}
+
+export interface SyncHistoryStatus {
+    status: string;
+    title?: string;
+    sources: SyncHistorySource[];
+}
+
+export interface LogEntry {
+    timestamp: string;
+    level: string;
+    category?: string;
+    message: string;
+    exceptionText?: string;
+}
+
+export interface MediaSearchResult {
+    type: 'movie' | 'series' | 'episode';
+    title: string;
+    year?: string;
+    imdbId: string;
+    posterUrl?: string;
+    releaseDate?: string;
+}
+
+export interface SeasonSummary {
+    seasonNumber: number;
+}
+
+export interface ShowDrilldown {
+    imdbId: string;
+    title: string;
+    poster?: string;
+    seasons: SeasonSummary[];
+}
+
+export interface EpisodeResult {
+    title: string;
+    seasonNumber: number;
+    episodeNumber: number;
+    airDate?: string;
+    imdbId?: string;
+}
+
+export interface AuthMeResponse {
+    authenticated: boolean;
+    needsOnboarding?: boolean;
+    forwardAuthHeader?: string;
+    forwardAuthTrustedHost?: string;
+    username?: string;
+    authMethod?: string;
+}
+
 /**
  * Full shape of the Alpine.js application component.
  * Used as the ThisType<AppData> context for all module method objects.
@@ -8,14 +148,14 @@ export type TestStatus = 'testing' | 'ok' | 'error' | 'warn' | null;
 export interface AppData {
     // ── State ──────────────────────────────────────────────────────────────
     initialized: boolean;
-    data: Record<string, unknown> | null;
+    data: SyncData | null;
     error: string | null;
     errorTimer: ReturnType<typeof setTimeout> | null;
     isLoading: boolean;
     mode: string;
     sourceFilter: Set<string>;
     showConfig: boolean;
-    configData: Record<string, unknown> | null;
+    configData: ConfigData | null;
     configEdits: Record<string, string>;
     saveStatus: Record<string, string>;
     saveAllStatus: SaveStatus;
@@ -43,7 +183,7 @@ export interface AppData {
     changePwError: string | null;
     changePwLoading: boolean;
     passwordStrength: Record<string, unknown> | null;
-    currentUser: Record<string, unknown> | null;
+    currentUser: AuthMeResponse | null;
     restartStatus: string | null;
     resetPasswordStatus: string | null;
     syncProgress: { completed: number; total: number } | null;
@@ -66,11 +206,11 @@ export interface AppData {
     forwardAuthSaveStatus: string | null;
     needsOnboarding: boolean;
     configTab: string;
-    logEntries: unknown[];
+    logEntries: LogEntry[];
     logLevel: string;
     logSse: { close(): void } | null;
-    syncHistory: Record<string, unknown> | null;
-    syncHistoryEntries: unknown[];
+    syncHistory: SyncHistoryStatus | null;
+    syncHistoryEntries: SyncHistoryEntry[];
     appVersion: string | null;
     copyLogsStatus: 'copied' | 'error' | null;
     alwaysShowSearch: boolean;
@@ -87,12 +227,12 @@ export interface AppData {
     checklistDismissed: boolean;
     checklistAutoComplete: boolean;
     searchQuery: string;
-    searchResults: unknown[];
+    searchResults: MediaSearchResult[];
     searchLoading: boolean;
     searchError: string | null;
-    searchDrilldown: Record<string, unknown> | null;
-    drilldownSeason: Record<string, unknown> | null;
-    drilldownEpisodes: unknown[];
+    searchDrilldown: ShowDrilldown | null;
+    drilldownSeason: SeasonSummary | null;
+    drilldownEpisodes: EpisodeResult[];
     drilldownLoading: boolean;
     locale: string;
     supportedLocales: string[];
@@ -120,7 +260,7 @@ export interface AppData {
     init(): Promise<void>;
     t(key: string, ...args: unknown[]): string;
     fetchThemes(): Promise<void>;
-    checkAuth(): Promise<Record<string, unknown>>;
+    checkAuth(): Promise<AuthMeResponse>;
     initApp(): Promise<void>;
 
     // Auth
@@ -133,7 +273,7 @@ export interface AppData {
     saveForwardAuth(): Promise<void>;
 
     // Config
-    _initConfigEdits(configData: Record<string, unknown>): void;
+    _initConfigEdits(configData: ConfigData): void;
     saveConfig(integrationKey: string): Promise<void>;
     saveAllConfig(): Promise<void>;
     resetConfigKeys(keys: string[], refetch?: boolean): Promise<void>;
@@ -147,9 +287,9 @@ export interface AppData {
     // Sync / search
     sync(): Promise<void>;
     searchMedia(): Promise<void>;
-    selectSearchResult(result: Record<string, unknown>): Promise<void>;
-    selectSeason(season: Record<string, unknown>): Promise<void>;
-    selectEpisode(ep: Record<string, unknown>): Promise<void>;
+    selectSearchResult(result: MediaSearchResult): Promise<void>;
+    selectSeason(season: SeasonSummary): Promise<void>;
+    selectEpisode(ep: EpisodeResult): Promise<void>;
     setManualWatchState(context: Record<string, unknown>): Promise<void>;
     clearManualWatchState(): Promise<void>;
 

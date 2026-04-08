@@ -361,6 +361,12 @@ input[type="number"] {
 .wb-md-link:hover { opacity: 0.8; }
 
 .wb-md-spoiler {
+    /* Reset native <button> styles so spoilers render inline like text */
+    display: inline;
+    border: none;
+    font: inherit;
+    line-height: inherit;
+    /* Spoiler appearance */
     background: var(--wb-text-primary, #fff);
     color: transparent;
     border-radius: 0.25rem;

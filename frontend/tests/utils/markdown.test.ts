@@ -184,12 +184,16 @@ describe('renderMarkdown', () => {
     });
 
     describe('spoiler tags', () => {
-        it('>!text!< renders as spoiler span', () => {
+        it('>!text!< renders as spoiler button', () => {
             const result = renderMarkdown('>!spoiler text!<', 'Reveal');
+            expect(result).toContain('<button');
+            expect(result).toContain('type="button"');
             expect(result).toContain('class="wb-md-spoiler"');
+            expect(result).toContain('data-wb-spoiler');
             expect(result).toContain('spoiler text');
-            expect(result).toContain('tabindex="0"');
-            expect(result).toContain('role="button"');
+            // tabindex and role="button" are no longer needed — native <button> provides them
+            expect(result).not.toContain('role="button"');
+            expect(result).not.toContain('tabindex=');
         });
 
         it('uses provided spoilerLabel as aria-label', () => {

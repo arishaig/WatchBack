@@ -1,4 +1,4 @@
-import type { AppData } from '../types';
+import type { AppData, SyncData, LogEntry, SyncHistoryStatus, SyncHistoryEntry } from '../types';
 
 const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     setupSSE() {
@@ -26,7 +26,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                         this._progressTickCount = 0;
                     }, 500);
                     console.debug("[WatchBack] SSE update:", data);
-                    this.data = data;
+                    this.data = data as unknown as SyncData;
                 } catch (err) {
                     console.debug("[WatchBack] SSE parse:", err);
                 }
@@ -85,7 +85,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
         try {
             const res = await fetch('/api/diagnostics/logs?limit=200');
             if (res.ok) {
-                this.logEntries = await res.json() as unknown[];
+                this.logEntries = await res.json() as LogEntry[];
                 this.$nextTick(() => {
                     const el = document.getElementById('log-container');
                     if (el) el.scrollTop = el.scrollHeight;
@@ -97,7 +97,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
             if (res.ok) {
                 const data = await res.json() as Record<string, unknown>;
                 this.appVersion = (data['version'] as string | undefined) ?? null;
-                this.syncHistory = (data['lastSync'] as Record<string, unknown> | undefined) ?? null;
+                this.syncHistory = (data['lastSync'] as SyncHistoryStatus | undefined) ?? null;
             }
         } catch { /* ignore */ }
         this.openLogStream();
@@ -114,7 +114,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                 const entry = JSON.parse(e.data as string) as unknown;
                 const el = document.getElementById('log-container');
                 const nearBottom = !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 80);
-                this.logEntries = [...this.logEntries.slice(-499), entry];
+                this.logEntries = [...this.logEntries.slice(-499), entry as LogEntry];
                 if (nearBottom) {
                     this.$nextTick(() => {
                         const el2 = document.getElementById('log-container');
@@ -139,7 +139,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     async loadSyncHistory() {
         try {
             const res = await fetch('/api/diagnostics/sync-history?limit=100');
-            if (res.ok) this.syncHistoryEntries = await res.json() as unknown[];
+            if (res.ok) this.syncHistoryEntries = await res.json() as SyncHistoryEntry[];
         } catch { /* ignore */ }
     },
 
@@ -160,8 +160,8 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
             `${this.t('Diagnostics_Filter')} ${this.logLevel} (${this.t('Diagnostics_Entries', entries.length, this.logEntries.length)})`,
         ];
         if (this.syncHistory) {
-            meta.push(`${this.t('Diagnostics_Sync')} ${this.syncHistory['status'] as string}${this.syncHistory['title'] ? ` — ${this.syncHistory['title'] as string}` : ''}`);
-            const sources = (this.syncHistory['sources'] as { source: string; thoughtCount: number }[] | undefined) ?? [];
+            meta.push(`${this.t('Diagnostics_Sync')} ${this.syncHistory.status}${this.syncHistory.title ? ` — ${this.syncHistory.title}` : ''}`);
+            const sources = this.syncHistory.sources ?? [];
             if (sources.length > 0) {
                 const providerSummary = sources.map(s => `${s.source} (${s.thoughtCount})`).join(', ');
                 meta.push(`${this.t('Diagnostics_Providers')} ${providerSummary}`);
