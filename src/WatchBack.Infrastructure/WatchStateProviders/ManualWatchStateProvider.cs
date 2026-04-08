@@ -15,6 +15,11 @@ namespace WatchBack.Infrastructure.WatchStateProviders;
 /// </summary>
 public sealed class ManualWatchStateProvider : IManualWatchStateProvider
 {
+    // Lock-free by design: reference assignment is atomic in .NET on all supported
+    // architectures, so no lock is needed for correctness. Interlocked.Exchange ensures
+    // the write is visible to other threads (full memory fence), and Volatile.Read
+    // ensures reads always see the most recently written value without tearing or
+    // stale-cache issues. A lock would be heavier and is unnecessary here.
     private MediaContext? _context;
 
     public DataProviderMetadata Metadata => new WatchStateDataProviderMetadata(
