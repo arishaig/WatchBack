@@ -125,7 +125,7 @@ public sealed class TraktThoughtProvider(
                     null,
                     null,
                     c.Comment ?? "",
-                    null,
+                    c.Id != null ? $"https://trakt.tv/comments/{c.Id}" : null,
                     [],
                     c.User?.Username ?? UiStrings.TraktThoughtProvider_GetThoughtsAsync_Unknown,
                     c.Rating != null ? (int)c.Rating : null,
