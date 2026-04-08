@@ -111,8 +111,8 @@
     <template x-if="configData?.preferences?.segmentedProgressBar && syncSegments.length > 0">
         <div :style="`filter: drop-shadow(0 3px 10px ${syncSegments[syncSegments.length - 1].color})`"
              class="h-full flex wb-segments-glow">
-            <template :key="seg.name" x-for="seg in syncSegments">
-                <div :style="`width:${seg.total > 0 ? (seg.completed / Math.sqrt(seg.total)) / syncSegments.reduce((s, t) => s + Math.sqrt(t.total), 0) * 100 : 0}%;background:${seg.color}`"
+            <template :key="seg.provider" x-for="seg in syncSegments">
+                <div :style="`width:${seg.total > 0 ? (seg.completed / seg.total * Math.log(seg.total + 1)) / syncSegments.reduce((s, t) => s + Math.log(t.total + 1), 0) * 100 : 0}%;background:${seg.color}`"
                      class="wb-segment h-full flex-none">
                 </div>
             </template>
@@ -1774,8 +1774,48 @@
 
         <!-- Success state: show comments -->
 
+        <!-- Skeleton loading (first sync only — data is null until first result arrives) -->
+        <div aria-busy="true"
+             aria-label="Loading discussions"
+             class="pb-8 flex flex-col gap-4"
+             role="status"
+             x-show="authState === 'app' && data === null">
+            <template x-for="i in [0,1,2,3,4]">
+                <div :style="'animation-delay:' + (i * 0.08) + 's'"
+                     class="wb-surface p-4 rounded-xl shadow wb-border border comment-card">
+                    <div class="flex items-center gap-2 mb-3">
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.04) + 's'"
+                             class="wb-skeleton-line h-3 rounded"
+                             style="width:55%"></div>
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.08) + 's'"
+                             class="wb-skeleton-line h-5 rounded ml-auto"
+                             style="width:14%"></div>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.10) + 's'"
+                             class="wb-skeleton-line h-3 rounded"
+                             style="width:96%"></div>
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.16) + 's'"
+                             class="wb-skeleton-line h-3 rounded"
+                             style="width:82%"></div>
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.22) + 's'"
+                             class="wb-skeleton-line h-3 rounded"
+                             style="width:64%"></div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.26) + 's'"
+                             class="wb-skeleton-line h-2.5 rounded"
+                             style="width:22%"></div>
+                        <div :style="'animation-delay:' + (i * 0.08 + 0.28) + 's'"
+                             class="wb-skeleton-line h-2.5 rounded"
+                             style="width:12%"></div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
         <template x-if="data?.status === 'Watching'">
-            <div>
+            <div x-transition.opacity>
                 <div class="wb-surface p-4 rounded-xl mb-6 shadow-md wb-border border comment-card">
                     <h2 class="text-xl font-bold mb-1"
                         x-text="data?.metadata?.episodeTitle ? data.title + ' - ' + data.metadata.episodeTitle : data?.title">
@@ -1984,8 +2024,8 @@
                                     <template :key="thought.id" x-for="(thought, ci) in group.thoughts">
                                         <li x-data="{ collapsed: false }">
                                             <article
-                                                    :style="'animation-delay:' + Math.min((groupByThread ? ci : gi) * 0.04, 0.6) + 's' + (thought.brandColor ? `;--thread-brand:${thought.brandColor}` : '')"
-                                                    class="wb-surface p-4 rounded-xl shadow wb-border border relative group comment-card">
+                                                    :style="thought.brandColor ? `--thread-brand:${thought.brandColor}` : ''"
+                                                    class="wb-surface p-4 rounded-xl shadow wb-border border relative group">
                                                 <div class="flex items-center mb-2 gap-2"
                                                      :class="thought.replies && thought.replies.length > 0 ? 'cursor-pointer select-none' : ''"
                                                      @click="thought.replies && thought.replies.length > 0 && !$event.target.closest('a, button') && (collapsed = !collapsed)">
