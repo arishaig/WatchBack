@@ -65,13 +65,35 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
 
     get activeThoughts(): unknown[] {
         if (!this.data) return [];
-        let list = this.mode === 'time'
+
+        const src = this.mode === 'time'
             ? ((this.data['timeMachineThoughts'] as unknown[]) ?? [])
             : ((this.data['allThoughts'] as unknown[]) ?? []);
-        if (this.sourceFilter.size > 0)
-            list = list.filter(c => this.sourceFilter.has((c as { source: string }).source));
+
         const sentimentEnabled = (this.configData?.['preferences'] as Record<string, unknown> | undefined)
             ?.['enableSentimentAnalysis'] as boolean | undefined;
+
+        // Fast path: no filters active — return the source array directly
+        if (this.sourceFilter.size === 0 && (!sentimentEnabled || this.sentimentCategory === 'all')) {
+            return src;
+        }
+
+        // Cache hit: all inputs match the last computation
+        if (
+            this._cAtResult !== null &&
+            this._cAtSrc === src &&
+            this._cAtMode === this.mode &&
+            this._cAtFilter === this.sourceFilter &&
+            this._cAtSentCat === this.sentimentCategory &&
+            this._cAtSentEnabled === sentimentEnabled
+        ) {
+            return this._cAtResult;
+        }
+
+        // Recompute
+        let list: unknown[] = src;
+        if (this.sourceFilter.size > 0)
+            list = list.filter(c => this.sourceFilter.has((c as { source: string }).source));
         if (sentimentEnabled && this.sentimentCategory !== 'all') {
             list = list.filter(c => {
                 const s = (c as { sentiment?: number | null }).sentiment;
@@ -82,6 +104,14 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
                 return true;
             });
         }
+
+        // Store in cache
+        this._cAtSrc = src;
+        this._cAtMode = this.mode;
+        this._cAtFilter = this.sourceFilter;
+        this._cAtSentCat = this.sentimentCategory;
+        this._cAtSentEnabled = sentimentEnabled;
+        this._cAtResult = list;
         return list;
     },
 
@@ -127,6 +157,12 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
 
     get groupedThoughts(): unknown[] {
         const thoughts = this.activeThoughts as { postTitle?: string; postUrl?: string; postBody?: string; source: string; brandColor?: string }[];
+
+        // Cache hit: activeThoughts reference is stable when its own cache is valid
+        if (this._cGtInput === (thoughts as unknown[]) && this._cGtResult !== null) {
+            return this._cGtResult;
+        }
+
         const groups: { title: string | null; url: string | null; body: string | null; brandColor: string; thoughts: unknown[] }[] = [];
         const map = new Map<string, { title: string | null; url: string | null; body: string | null; brandColor: string; thoughts: unknown[] }>();
         for (const c of thoughts) {
@@ -138,6 +174,9 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
             }
             map.get(key)!.thoughts.push(c);
         }
+
+        this._cGtInput = thoughts as unknown[];
+        this._cGtResult = groups;
         return groups;
     },
 
