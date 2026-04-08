@@ -64,6 +64,14 @@ Alpine.data('app', (): AppData => {
         showSyncBar: false,
         syncSegments: [],
         _progressTickCount: 0,
+        _cAtSrc: undefined,
+        _cAtMode: '',
+        _cAtFilter: new Set<string>(),
+        _cAtSentCat: '',
+        _cAtSentEnabled: undefined as boolean | undefined,
+        _cAtResult: null as unknown[] | null,
+        _cGtInput: null as unknown[] | null,
+        _cGtResult: null as unknown[] | null,
         clearCacheStatus: null,
         forwardAuthEnabled: false,
         forwardAuthHeaderEdit: '',
@@ -154,7 +162,7 @@ document.addEventListener('click', e => {
 // Clones the <template id="provider-fields"> fragment and initialises Alpine
 // directives on the clone so the same field+test-button markup can be used in
 // the config panel and both wizard steps.
-Alpine.directive('providerfields', (el, { expression }, { evaluate, effect, cleanup }) => {
+Alpine.directive('providerfields', (el, { expression }, { evaluate, cleanup }) => {
     const opts = evaluate(expression) as { mode: string; prefix: string };
     const tpl = document.getElementById('provider-fields') as HTMLTemplateElement | null;
     if (!tpl) return;
