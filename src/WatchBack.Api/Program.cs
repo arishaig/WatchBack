@@ -209,6 +209,38 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
+// Security headers — applied to every response before the rest of the pipeline.
+//
+// CSP notes:
+//   script-src: 'unsafe-inline' and 'unsafe-eval' are required by Alpine.js v3, which
+//   evaluates x-on/x-bind expressions via new Function(). The risk is mitigated by the
+//   app never rendering user-controlled content into directive expressions.
+//
+//   style-src: 'unsafe-inline' is required for Alpine.js :style bindings that emit
+//   inline style="" attributes at runtime.
+//
+//   img-src https: is required because provider APIs (OMDb, Reddit) return external
+//   poster/post image URLs from CDNs (e.g. m.media-amazon.com, i.redd.it).
+app.Use(async (ctx, next) =>
+{
+    IHeaderDictionary headers = ctx.Response.Headers;
+    headers["Content-Security-Policy"] =
+        "default-src 'none'; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: https:; " +
+        "connect-src 'self'; " +
+        "font-src 'self'; " +
+        "object-src 'none'; " +
+        "base-uri 'self'; " +
+        "form-action 'self'; " +
+        "frame-ancestors 'none';";
+    headers["X-Frame-Options"] = "DENY";
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
+
 // Enable static files (frontend)
 app.UseDefaultFiles();
 app.UseStaticFiles();
