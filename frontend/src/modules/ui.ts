@@ -1,4 +1,4 @@
-import type { AppData } from '../types';
+import type { AppData, ConfigData, AuthMeResponse } from '../types';
 import { interpolate } from '../strings';
 
 const uiMethods: Record<string, unknown> & ThisType<AppData> = {
@@ -41,13 +41,13 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
 
         await this.fetchThemes();
         const me = await this.checkAuth();
-        if (!me['authenticated']) {
+        if (!me.authenticated) {
             this.authState = 'login';
             this.initialized = true;
             return;
         }
         this.currentUser = me;
-        if (me['needsOnboarding']) {
+        if (me.needsOnboarding) {
             this.authState = 'onboarding';
             this.initialized = true;
             return;
@@ -67,15 +67,15 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         }
     },
 
-    async checkAuth(): Promise<Record<string, unknown>> {
+    async checkAuth(): Promise<AuthMeResponse> {
         try {
             const res = await fetch('/api/auth/me');
-            const me = await res.json() as Record<string, unknown>;
-            this.needsOnboarding = (me['needsOnboarding'] as boolean | undefined) ?? false;
-            if (me['authenticated']) {
-                this.forwardAuthEnabled = !!(me['forwardAuthHeader'] as string | undefined);
-                this.forwardAuthHeaderEdit = (me['forwardAuthHeader'] as string | undefined) || 'X-Remote-User';
-                this.forwardAuthTrustedHostEdit = (me['forwardAuthTrustedHost'] as string | undefined) || '';
+            const me = await res.json() as AuthMeResponse;
+            this.needsOnboarding = me.needsOnboarding ?? false;
+            if (me.authenticated) {
+                this.forwardAuthEnabled = !!(me.forwardAuthHeader);
+                this.forwardAuthHeaderEdit = me.forwardAuthHeader || 'X-Remote-User';
+                this.forwardAuthTrustedHostEdit = me.forwardAuthTrustedHost || '';
             }
             return me;
         } catch {
@@ -88,8 +88,8 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         try {
             const cRes = await fetch('/api/config');
             if (cRes.ok) {
-                this.configData = await cRes.json() as Record<string, unknown>;
-                this._initConfigEdits(this.configData);
+                this.configData = await cRes.json() as ConfigData;
+                if (this.configData) this._initConfigEdits(this.configData);
             }
         } catch (e) {
             console.warn("[WatchBack] Config load failed:", e);
@@ -163,23 +163,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
     },
 
     sourceCount(src: string): number {
-        if (!this.data) return 0;
-        let list = this.mode === 'time'
-            ? ((this.data['timeMachineThoughts'] as { source: string; sentiment?: number | null }[]) ?? [])
-            : ((this.data['allThoughts'] as { source: string; sentiment?: number | null }[]) ?? []);
-        const sentimentEnabled = (this.configData?.['preferences'] as Record<string, unknown> | undefined)
-            ?.['enableSentimentAnalysis'] as boolean | undefined;
-        if (sentimentEnabled && this.sentimentCategory !== 'all') {
-            list = list.filter(c => {
-                const s = c.sentiment;
-                if (s == null) return false;
-                if (this.sentimentCategory === 'positive') return s >= 0.05;
-                if (this.sentimentCategory === 'negative') return s <= -0.05;
-                if (this.sentimentCategory === 'mixed') return s > -0.05 && s < 0.05;
-                return true;
-            });
-        }
-        return list.filter(c => c.source === src).length;
+        return (this.activeThoughts as { source: string }[]).filter(c => c.source === src).length;
     },
 
     toggleSection(key: string) {

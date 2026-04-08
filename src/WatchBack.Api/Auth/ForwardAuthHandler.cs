@@ -22,6 +22,7 @@ public partial class ForwardAuthHandler(
 {
     private static readonly TimeSpan s_dnsCacheDuration = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan s_dnsNegativeCacheDuration = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_dnsTimeout = TimeSpan.FromSeconds(5);
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -91,10 +92,19 @@ public partial class ForwardAuthHandler(
 
             try
             {
-                addresses = await Dns.GetHostAddressesAsync(trustedHost);
+                // Use a dedicated timeout CTS so a slow or unreachable DNS server
+                // does not block the auth pipeline indefinitely.
+                using CancellationTokenSource dnsCts = new(s_dnsTimeout);
+                addresses = await Dns.GetHostAddressesAsync(trustedHost, dnsCts.Token);
                 cache.Set(cacheKey, addresses, s_dnsCacheDuration);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException)
+            {
+                LogDnsTimeout(Logger, trustedHost);
+                cache.Set(negativeCacheKey, true, s_dnsNegativeCacheDuration);
+                return false;
+            }
+            catch (Exception)
             {
                 cache.Set(negativeCacheKey, true, s_dnsNegativeCacheDuration);
                 return false;
@@ -108,6 +118,11 @@ public partial class ForwardAuthHandler(
         Message =
             "ForwardAuth: remote IP {IP} does not match trusted host '{TrustedHost}', falling back to cookie auth")]
     private static partial void LogTrustedHostMismatch(ILogger logger, IPAddress? ip, string trustedHost);
+
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message =
+            "ForwardAuth: DNS lookup for trusted host '{TrustedHost}' timed out after 5 s, treating as untrusted")]
+    private static partial void LogDnsTimeout(ILogger logger, string trustedHost);
 
     [LoggerMessage(Level = LogLevel.Warning,
         Message =

@@ -1835,7 +1835,7 @@
                     <template x-if="r.logoSvg">
                         <span :style="`color: ${r.brandColor}; fill: ${r.brandColor}`"
                               class="inline-flex items-center w-5 h-5 shrink-0"
-                              x-html="r.logoSvg">
+                              x-html="sanitizeSvg(r.logoSvg)">
                         </span>
                     </template>
                     <span x-text="`${r.source}: ${r.value}`"></span>

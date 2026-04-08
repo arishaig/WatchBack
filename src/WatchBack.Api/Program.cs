@@ -87,24 +87,33 @@ builder.Services
 
 builder.Services
     .AddOptions<RedditOptions>()
-    .BindConfiguration("Reddit");
+    .BindConfiguration("Reddit")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 builder.Services
     .AddOptions<LemmyOptions>()
-    .BindConfiguration("Lemmy");
+    .BindConfiguration("Lemmy")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 builder.Services
     .AddOptions<WatchBackOptions>()
     .BindConfiguration("WatchBack")
-    .ValidateDataAnnotations();
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 builder.Services
     .AddOptions<OmdbOptions>()
-    .BindConfiguration("Omdb");
+    .BindConfiguration("Omdb")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 builder.Services
     .AddOptions<AuthOptions>()
-    .BindConfiguration("Auth");
+    .BindConfiguration("Auth")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 // Persist Data Protection keys so session cookies survive restarts
 builder.Services.AddDataProtection()
