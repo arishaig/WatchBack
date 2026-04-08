@@ -205,8 +205,7 @@ describe('setManualWatchState', () => {
         });
         expect(ctx.searchQuery).toBe('');
         expect(ctx.searchResults).toEqual([]);
-        expect((ctx.data as Record<string, unknown>)?.status).toBe('Watching');
-        expect((ctx.data as Record<string, unknown>)?.title).toBe('Inception');
+        expect(ctx.data).toBeNull();
         expect((ctx.sync as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
     });
 
@@ -224,11 +223,11 @@ describe('setManualWatchState', () => {
         expect(ctx.searchError).toBe('Dashboard_ConnectionFailed');
     });
 
-    it('preserves existing timeMachineDays in new data object', async () => {
+    it('calls sync (which clears data for skeleton) on success', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
-        const ctx = makeCtx({ data: { timeMachineDays: 30 } });
+        const ctx = makeCtx({ data: { timeMachineDays: 30, status: 'Watching' } });
         await methods.setManualWatchState.call(ctx, { title: 'Show' });
-        expect((ctx.data as Record<string, unknown>)?.timeMachineDays).toBe(30);
+        expect((ctx.sync as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
     });
 
     it('POSTs all context fields to /api/watchstate/manual', async () => {

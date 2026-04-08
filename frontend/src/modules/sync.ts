@@ -3,6 +3,7 @@ import type { AppData } from '../types';
 const syncMethods: Record<string, unknown> & ThisType<AppData> = {
     async sync() {
         console.debug("[WatchBack] Triggering sync...");
+        this.data = null;
         try {
             await fetch('/api/sync/trigger', { method: 'POST' });
         } catch (e) {
@@ -120,26 +121,6 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
                 this.searchDrilldown = null;
                 this.drilldownSeason = null;
                 this.drilldownEpisodes = [];
-                this.data = {
-                    status: 'Watching',
-                    title: context['title'],
-                    metadata: {
-                        title: context['title'],
-                        releaseDate: context['releaseDate'] ?? null,
-                        episodeTitle: context['episodeTitle'] ?? null,
-                        seasonNumber: context['seasonNumber'] ?? null,
-                        episodeNumber: context['episodeNumber'] ?? null,
-                    },
-                    allThoughts: [],
-                    timeMachineThoughts: [],
-                    timeMachineDays: (this.data?.['timeMachineDays'] as number | undefined) ?? 14,
-                    sourceResults: [],
-                    watchProvider: null,
-                    suppressedProvider: null,
-                    suppressedTitle: null,
-                    ratings: null,
-                    ratingsProvider: null,
-                };
                 await this.sync();
             } else {
                 this.searchError = this.t('Dashboard_SetWatchStateFailed');
