@@ -78,8 +78,8 @@ public static class AuthEndpoints
             username,
             needsOnboarding,
             authMethod,
-            forwardAuthHeader = opts.ForwardAuthHeader,
-            forwardAuthTrustedHost = opts.ForwardAuthTrustedHost
+            forwardAuthHeader = isAuthenticated ? opts.ForwardAuthHeader : null,
+            forwardAuthTrustedHost = isAuthenticated ? opts.ForwardAuthTrustedHost : null
         });
     }
 
