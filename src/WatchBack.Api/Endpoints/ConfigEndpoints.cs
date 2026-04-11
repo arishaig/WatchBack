@@ -12,6 +12,8 @@ namespace WatchBack.Api.Endpoints;
 
 public record UserConfigFile(string Path);
 
+internal sealed record ThemeItem(string? Id, string Label);
+
 public static class ConfigEndpoints
 {
     public static void MapConfigEndpoints(this IEndpointRouteBuilder app)
@@ -354,15 +356,11 @@ public static class ConfigEndpoints
             return Results.Ok(Array.Empty<object>());
         }
 
-        var themes = Directory.GetFiles(themesPath, "*.css")
+        ThemeItem[] themes = Directory.GetFiles(themesPath, "*.css")
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => !string.IsNullOrEmpty(name))
             .Order(StringComparer.OrdinalIgnoreCase)
-            .Select(name => new
-            {
-                id = name,
-                label = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name!.Replace('-', ' '))
-            })
+            .Select(name => new ThemeItem(name, CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name!.Replace('-', ' '))))
             .ToArray();
 
         return Results.Ok(themes);

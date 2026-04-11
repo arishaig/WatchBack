@@ -9,6 +9,14 @@ using WatchBack.Infrastructure.Persistence;
 
 namespace WatchBack.Api.Endpoints;
 
+internal sealed record SyncLogEntry(
+    DateTimeOffset Timestamp,
+    string Status,
+    string? Title,
+    int ThoughtCount,
+    string? ErrorMessage,
+    long? DurationMs);
+
 public static class DiagnosticsEndpoints
 {
     public static void MapDiagnosticsEndpoints(this IEndpointRouteBuilder app)
@@ -85,18 +93,10 @@ public static class DiagnosticsEndpoints
         int limit = 50,
         CancellationToken ct = default)
     {
-        var entries = await db.SyncLogs
+        List<SyncLogEntry> entries = await db.SyncLogs
             .OrderByDescending(e => e.Id)
             .Take(Math.Clamp(limit, 1, 500))
-            .Select(e => new
-            {
-                e.Timestamp,
-                e.Status,
-                e.Title,
-                e.ThoughtCount,
-                e.ErrorMessage,
-                e.DurationMs
-            })
+            .Select(e => new SyncLogEntry(e.Timestamp, e.Status, e.Title, e.ThoughtCount, e.ErrorMessage, e.DurationMs))
             .ToListAsync(ct);
         return Results.Ok(entries);
     }

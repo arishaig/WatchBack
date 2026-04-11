@@ -48,8 +48,8 @@ public sealed class ResilientHttpHandler(
                 {
                     TimeSpan window = RateLimitWindow(response);
                     logger.LogWarning(
-                        "Rate limited (429) by {Host}. Suppressing requests for {Seconds} s.",
-                        host, (int)window.TotalSeconds);
+                        "Rate limited (429) by {Host} ({Uri}). Suppressing requests for {Seconds} s.",
+                        host, RedactSensitiveParams(request.RequestUri), (int)window.TotalSeconds);
                     cache.Set(rateLimitKey, true, window);
                     return response;
                 }
@@ -58,8 +58,8 @@ public sealed class ResilientHttpHandler(
                 {
                     TimeSpan delay = ExponentialDelay(attempt);
                     logger.LogWarning(
-                        "HTTP {Status} from {Host} (attempt {Attempt}/{Max}). Retrying in {Ms} ms.",
-                        (int)response.StatusCode, host, attempt + 1, MaxRetries, (int)delay.TotalMilliseconds);
+                        "HTTP {Status} from {Host} ({Uri}) (attempt {Attempt}/{Max}). Retrying in {Ms} ms.",
+                        (int)response.StatusCode, host, RedactSensitiveParams(request.RequestUri), attempt + 1, MaxRetries, (int)delay.TotalMilliseconds);
                     response.Dispose();
                     await Task.Delay(delay, cancellationToken);
                     request = CloneRequest(request);
@@ -74,8 +74,8 @@ public sealed class ResilientHttpHandler(
                 response?.Dispose();
                 TimeSpan delay = ExponentialDelay(attempt);
                 logger.LogWarning(ex,
-                    "Transient error from {Host} (attempt {Attempt}/{Max}). Retrying in {Ms} ms.",
-                    host, attempt + 1, MaxRetries, (int)delay.TotalMilliseconds);
+                    "Transient error from {Host} ({Uri}) (attempt {Attempt}/{Max}). Retrying in {Ms} ms.",
+                    host, RedactSensitiveParams(request.RequestUri), attempt + 1, MaxRetries, (int)delay.TotalMilliseconds);
                 await Task.Delay(delay, cancellationToken);
                 request = CloneRequest(request);
             }
@@ -134,6 +134,13 @@ public sealed class ResilientHttpHandler(
     /// <summary>Clones a request for retry — HttpRequestMessage is single-use after SendAsync.</summary>
     private static HttpRequestMessage CloneRequest(HttpRequestMessage original)
     {
+        // Content bodies cannot be cloned: the underlying stream is consumed by the first send.
+        // This is safe because IsIdempotent only permits GET, HEAD, OPTIONS, and DELETE — the
+        // last of which may technically carry a body, but none of the application's providers do.
+        System.Diagnostics.Debug.Assert(
+            original.Content == null,
+            "CloneRequest: request body was present but is not preserved across retries.");
+
         HttpRequestMessage clone = new(original.Method, original.RequestUri);
         foreach ((string key, IEnumerable<string> values) in original.Headers)
         {
@@ -141,5 +148,61 @@ public sealed class ResilientHttpHandler(
         }
 
         return clone;
+    }
+
+    /// <summary>
+    ///     Returns a log-safe URI string with the values of sensitive query parameters
+    ///     (apikey, api_key, key, token, secret) replaced by <c>***</c>.
+    /// </summary>
+    internal static string RedactSensitiveParams(Uri? uri)
+    {
+        if (uri == null)
+        {
+            return "(no uri)";
+        }
+
+        string query = uri.Query;
+        if (string.IsNullOrEmpty(query))
+        {
+            return uri.GetLeftPart(UriPartial.Path);
+        }
+
+        System.Text.StringBuilder sb = new(uri.GetLeftPart(UriPartial.Path));
+        sb.Append('?');
+
+        bool first = true;
+        foreach (string part in query.TrimStart('?').Split('&'))
+        {
+            int eq = part.IndexOf('=');
+            string paramName = eq >= 0 ? part[..eq] : part;
+            string paramValue = eq >= 0 ? part[(eq + 1)..] : string.Empty;
+
+            if (!first)
+            {
+                sb.Append('&');
+            }
+
+            first = false;
+
+            if (IsSensitiveParam(paramName))
+            {
+                sb.Append(paramName).Append("=***");
+            }
+            else
+            {
+                sb.Append(part);
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private static bool IsSensitiveParam(string name)
+    {
+        return name.Equals("apikey", StringComparison.OrdinalIgnoreCase)
+               || name.Equals("api_key", StringComparison.OrdinalIgnoreCase)
+               || name.Equals("key", StringComparison.OrdinalIgnoreCase)
+               || name.Equals("token", StringComparison.OrdinalIgnoreCase)
+               || name.Equals("secret", StringComparison.OrdinalIgnoreCase);
     }
 }
