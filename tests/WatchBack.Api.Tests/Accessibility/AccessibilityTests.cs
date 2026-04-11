@@ -448,7 +448,12 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
             // Skip the wizard — click the skip link
             ILocator skip = page.Locator("button:visible:has-text('Skip'), button:visible:has-text('Omitir')").First;
             await skip.ClickAsync();
-            await page.WaitForTimeoutAsync(400); // allow checklist entrance animation
+            // Wait for the checklist panel to be visible rather than using a fixed timeout
+            await page.Locator(".checklist-float").WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = 3000
+            });
             await AssertNoViolations(page);
         }
         finally
