@@ -147,7 +147,10 @@ Alpine.data('app', (): AppData => {
     // Merge computed getters preserving property descriptor semantics
     Object.defineProperties(data, computedDescriptors);
 
-    return data as unknown as AppData;
+    // Object.defineProperties adds the computed getters (filteredLogs, activeThoughts, etc.)
+    // which TypeScript cannot track statically. Cast through the inferred runtime shape
+    // rather than through `unknown` to keep the intermediate type meaningful.
+    return data as Record<string, unknown> as AppData;
 });
 
 // Spoiler reveal — delegated from document so it works with dynamically rendered markdown.
