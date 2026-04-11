@@ -234,14 +234,12 @@ public static class ConfigEndpoints
             Dictionary<string, Dictionary<string, string>> existing =
                 await AuthEndpoints.ReadConfigFile(configFile.Path, ct);
 
-            // Apply updates (key format: "Section__Key")
+            // Apply updates (key format: "Section__Key").
+            // Empty values are allowed and interpreted as "clear this setting".
+            // Password fields are never sent as empty by the client — they are either
+            // omitted (no change) or include a new value.
             foreach ((string flatKey, string value) in body)
             {
-                if (string.IsNullOrEmpty(value))
-                {
-                    continue; // skip empty values — preserve existing
-                }
-
                 int sep = flatKey.IndexOf("__", StringComparison.Ordinal);
                 if (sep < 0)
                 {
