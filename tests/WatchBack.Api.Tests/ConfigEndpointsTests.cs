@@ -354,8 +354,9 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
-    public async Task SaveConfig_SkipsEmptyValues()
+    public async Task SaveConfig_PersistsEmptyValuesAsClearOperation()
     {
+        // Empty string is a valid "clear" operation — it removes the key from config
         Dictionary<string, string> payload = new()
         {
             ["TestWatch__Url"] = "http://test:8096",
@@ -367,7 +368,8 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         string saved = await File.ReadAllTextAsync(_tempConfigPath);
         saved.Should().Contain("Url");
-        saved.Should().NotContain("Secret");
+        // Empty string IS written — the empty value clears the setting
+        saved.Should().Contain("Secret");
     }
 
     // ---- POST /api/test/{service} ----
