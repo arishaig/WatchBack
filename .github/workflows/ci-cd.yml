@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: TypeScript type-check
-        run: npx tsc --noEmit --project frontend/tsconfig.json
+        run: npx tsc --noEmit --project frontend/tsconfig.json && npx tsc --noEmit --project tsconfig.node.json
 
       - name: Frontend tests
         run: npm test

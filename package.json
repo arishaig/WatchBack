@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
+    "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^4.1.4",
     "ionicons": "^8.0.13",
     "jsdom": "^29.0.2",
