@@ -63,14 +63,63 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
         GC.SuppressFinalize(this);
     }
 
+    // Trace file counter — ensures unique names when PW_TRACE=1 is set.
+    private static int s_traceCounter;
+
     // Create pages with prefers-reduced-motion emulation. Combined with the
     // @media (prefers-reduced-motion: reduce) rule in frontend/css/animations.css
     // that zeros all animation/transition durations, this eliminates races where
     // axe captures the page mid-animation and measures transient color-contrast
     // values (e.g. the checklist entrance animation's opacity:0 fill-backward
     // phase, or skeleton-loader color transitions).
-    private Task<IPage> NewPageAsync() =>
-        _browser.NewPageAsync(new BrowserNewPageOptions { ReducedMotion = ReducedMotion.Reduce });
+    //
+    // When PW_TRACE=1 is set (e.g. in CI), a Playwright trace is captured for
+    // every page and saved to TestResults/ on close. Upload the artifacts to
+    // diagnose flakes with `npx playwright show-trace <zip>`.
+    private async Task<IPage> NewPageAsync()
+    {
+        IBrowserContext context = await _browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ReducedMotion = ReducedMotion.Reduce
+        });
+
+        bool tracingEnabled = Environment.GetEnvironmentVariable("PW_TRACE") == "1";
+        if (tracingEnabled)
+        {
+            await context.Tracing.StartAsync(new TracingStartOptions
+            {
+                Screenshots = true,
+                Snapshots = true,
+                Sources = true
+            });
+        }
+
+        IPage page = await context.NewPageAsync();
+
+        // When the page is closed (by the test's finally block), stop tracing and
+        // tear down the context. async void is intentional — this is best-effort
+        // cleanup that must not block the page close call.
+        page.Close += async (_, _) =>
+        {
+            try
+            {
+                if (tracingEnabled)
+                {
+                    int seq = Interlocked.Increment(ref s_traceCounter);
+                    string tracePath = Path.Combine("TestResults", $"trace-{seq:D3}.zip");
+                    Directory.CreateDirectory("TestResults");
+                    await context.Tracing.StopAsync(new TracingStopOptions { Path = tracePath });
+                }
+                await context.CloseAsync();
+            }
+            catch
+            {
+                // Best-effort: swallow so test teardown is never interrupted.
+            }
+        };
+
+        return page;
+    }
 
     private static string? FindChromiumExecutable()
     {

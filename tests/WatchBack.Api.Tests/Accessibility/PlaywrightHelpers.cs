@@ -632,14 +632,59 @@ internal static class PlaywrightHelpers
 
     public static async Task OpenConfigModal(IPage page)
     {
-        // Force the click to bypass Playwright's stability check: the skeleton loading
-        // animation runs indefinitely in tests (SSE is aborted, so data never arrives),
-        // causing the button's bounding box to keep shifting and the stability check to
-        // never pass.  The button is visible and enabled, so Force = true is safe here.
-        await page.ClickAsync("button[title=\"Configuration\"]",
-            new PageClickOptions { Force = true });
-        await page.WaitForSelectorAsync("aside[role=\"region\"]",
-            new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 3_000 });
+        // Collect browser console messages from click through the wait so that if the
+        // modal never opens we can see any JS errors logged at the moment of failure.
+        var consoleLogs = new List<string>();
+        void OnConsole(object? _, IConsoleMessage msg) =>
+            consoleLogs.Add($"[{msg.Type}] {msg.Text}");
+        page.Console += OnConsole;
+
+        try
+        {
+            // Force the click to bypass Playwright's stability check: the skeleton loading
+            // animation runs indefinitely in tests (SSE is aborted, so data never arrives),
+            // causing the button's bounding box to keep shifting and the stability check to
+            // never pass.  The button is visible and enabled, so Force = true is safe here.
+            await page.ClickAsync("button[title=\"Configuration\"]",
+                new PageClickOptions { Force = true });
+            await page.WaitForSelectorAsync("aside[role=\"region\"]",
+                new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 3_000 });
+        }
+        catch (TimeoutException ex)
+        {
+            // Probe Alpine's reactive state to distinguish "click didn't land" (showConfig
+            // still false) from "click landed but aside not visible for another reason".
+            bool showConfig = false;
+            string screenshotPath = "(screenshot failed)";
+            try
+            {
+                showConfig = await page.EvaluateAsync<bool>(
+                    "() => !!(document.querySelector('[x-data]')?._x_dataStack?.[0]?.showConfig)");
+                string dir = Path.Combine("TestResults");
+                Directory.CreateDirectory(dir);
+                screenshotPath = Path.Combine(dir, $"fail-open-config-{DateTime.UtcNow:HHmmssff}.png");
+                await page.ScreenshotAsync(new PageScreenshotOptions { Path = screenshotPath, FullPage = true });
+            }
+            catch
+            {
+                // Probe/screenshot failure must not shadow the original timeout.
+            }
+
+            string consoleDump = consoleLogs.Count > 0
+                ? string.Join("\n  ", consoleLogs.TakeLast(30))
+                : "(none)";
+
+            throw new TimeoutException(
+                $"{ex.Message}\n" +
+                $"showConfig after click = {showConfig}\n" +
+                $"Screenshot: {screenshotPath}\n" +
+                $"Console ({consoleLogs.Count} msgs, last 30):\n  {consoleDump}",
+                ex);
+        }
+        finally
+        {
+            page.Console -= OnConsole;
+        }
     }
 
     public static async Task SwitchToDiagnosticsTab(IPage page)
