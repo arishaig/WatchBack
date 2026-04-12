@@ -463,7 +463,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
             await page.EvaluateAsync(@"async () => {
                 await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
                 const el = document.querySelector('.checklist-float');
-                if (el) await Promise.all(el.getAnimations().map(a => a.finished));
+                if (el) await Promise.allSettled(el.getAnimations().map(a => a.finished));
             }");
             await AssertNoViolations(page);
         }
