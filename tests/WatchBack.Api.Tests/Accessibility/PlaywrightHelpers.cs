@@ -638,17 +638,8 @@ internal static class PlaywrightHelpers
         // never pass.  The button is visible and enabled, so Force = true is safe here.
         await page.ClickAsync("button[title=\"Configuration\"]",
             new PageClickOptions { Force = true });
-        // Yield two animation frames so Alpine has time to apply the config-enter class
-        // (which fills the element backward to opacity:0), then await all running CSS
-        // animations to finish before returning. Checking getComputedStyle().opacity
-        // directly races with the fill-backward phase — Alpine makes the element visible
-        // (opacity:1 default) one frame before the animation class is applied, so a naive
-        // opacity===1 poll can fire too early and let axe run mid-animation.
-        await page.EvaluateAsync(@"async () => {
-            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-            const el = document.querySelector('aside[role=""region""]');
-            if (el) await Promise.allSettled(el.getAnimations().map(a => a.finished));
-        }");
+        await page.WaitForSelectorAsync("aside[role=\"region\"]",
+            new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 3_000 });
     }
 
     public static async Task SwitchToDiagnosticsTab(IPage page)
