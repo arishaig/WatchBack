@@ -647,8 +647,8 @@ internal static class PlaywrightHelpers
 
     public static async Task OpenConfigModal(IPage page)
     {
-        // Collect browser console messages from click through the wait so that if the
-        // modal never opens we can see any JS errors logged at the moment of failure.
+        // Collect browser console messages so that if the modal never opens we can see
+        // any JS errors logged during the open attempt.
         var consoleLogs = new List<string>();
         void OnConsole(object? _, IConsoleMessage msg) =>
             consoleLogs.Add($"[{msg.Type}] {msg.Text}");
@@ -656,19 +656,31 @@ internal static class PlaywrightHelpers
 
         try
         {
-            // Force the click to bypass Playwright's stability check: the skeleton loading
-            // animation runs indefinitely in tests (SSE is aborted, so data never arrives),
-            // causing the button's bounding box to keep shifting and the stability check to
-            // never pass.  The button is visible and enabled, so Force = true is safe here.
-            await page.ClickAsync("button[title=\"Configuration\"]",
-                new PageClickOptions { Force = true });
+            // Wait until Alpine has initialised the root x-data component and showConfig
+            // is present in its reactive data stack. We need this even though LoadPage
+            // already polled _x_dataStack[0]: that poll resolves as soon as Alpine sets the
+            // body's data stack, which happens at the *start* of its synchronous initTree
+            // walk — the @click handler on the config button (deep in the tree) is attached
+            // later in that same walk. By the time OpenConfigModal is called enough time has
+            // usually elapsed, but not always on a loaded CI runner.
+            await page.WaitForFunctionAsync(
+                "() => typeof document.querySelector('[x-data]')?._x_dataStack?.[0]?.showConfig === 'boolean'",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 5_000 });
+
+            // Open the config panel by writing directly to Alpine's reactive data object.
+            // This is timing-safe: it does not depend on when @click is attached to the
+            // button element. Setting the property on the Proxy triggers the same x-show
+            // reactive update that the button click would trigger.
+            await page.EvaluateAsync(
+                "() => { document.querySelector('[x-data]')._x_dataStack[0].showConfig = true; }");
+
             await page.WaitForSelectorAsync("aside[role=\"region\"]",
                 new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 3_000 });
         }
         catch (TimeoutException ex)
         {
-            // Probe Alpine's reactive state to distinguish "click didn't land" (showConfig
-            // still false) from "click landed but aside not visible for another reason".
+            // Probe Alpine's reactive state and capture a screenshot to aid diagnosis.
             bool showConfig = false;
             string screenshotPath = "(screenshot failed)";
             try
@@ -691,7 +703,7 @@ internal static class PlaywrightHelpers
 
             throw new TimeoutException(
                 $"{ex.Message}\n" +
-                $"showConfig after click = {showConfig}\n" +
+                $"showConfig after mutation = {showConfig}\n" +
                 $"Screenshot: {screenshotPath}\n" +
                 $"Console ({consoleLogs.Count} msgs, last 30):\n  {consoleDump}",
                 ex);
