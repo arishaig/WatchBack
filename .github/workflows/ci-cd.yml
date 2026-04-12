@@ -73,7 +73,15 @@ jobs:
         run: pwsh tests/WatchBack.Api.Tests/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
 
       - name: Run accessibility tests
-        run: dotnet test tests/WatchBack.Api.Tests --no-build --filter "Category=Accessibility" --verbosity normal
+        run: dotnet test tests/WatchBack.Api.Tests --no-build --filter "Category=Accessibility" --verbosity normal --logger "trx;LogFileName=accessibility.trx" --results-directory ./TestResults
+
+      - name: Upload accessibility test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-test-results
+          path: ./TestResults/accessibility.trx
+          retention-days: 14
 
   docker-build-check:
     if: github.event_name == 'pull_request'
