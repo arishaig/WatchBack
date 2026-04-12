@@ -60,7 +60,18 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
             const res = await fetch('/api/themes');
             if (res.ok) {
                 const data = await res.json() as unknown;
-                if (Array.isArray(data) && data.length > 0) this.themes = data as { id: string; label: string }[];
+                if (Array.isArray(data) && data.length > 0) {
+                    // Apply localized labels for generic theme names (proper names like
+                    // Solarized and Monokai are left as-is from the server).
+                    const localizedLabels: Record<string, string> = {
+                        dark: this.t('Theme_Dark'),
+                        light: this.t('Theme_Light'),
+                    };
+                    this.themes = (data as { id: string; label: string }[]).map(theme => ({
+                        ...theme,
+                        label: localizedLabels[theme.id] ?? theme.label,
+                    }));
+                }
             }
         } catch {
             // keep default fallback list

@@ -125,8 +125,7 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
             payload['WatchBack__WatchProvider'] = p['watchProvider'] as string;
         if (p['searchEngine'])
             payload['WatchBack__SearchEngine'] = p['searchEngine'] as string;
-        if (p['customSearchUrl'])
-            payload['WatchBack__CustomSearchUrl'] = p['customSearchUrl'] as string;
+        payload['WatchBack__CustomSearchUrl'] = (p['customSearchUrl'] as string) ?? '';
         payload['WatchBack__SegmentedProgressBar'] = String(p['segmentedProgressBar'] ?? false);
         payload['WatchBack__EnableSentimentAnalysis'] = String(p['enableSentimentAnalysis'] ?? false);
 

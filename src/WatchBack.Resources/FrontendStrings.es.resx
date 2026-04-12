@@ -91,10 +91,10 @@
         <value>Tema</value>
     </data>
     <data name="Theme_Dark" xml:space="preserve">
-        <value>Oscuro</value>
+        <value>Dark</value>
     </data>
     <data name="Theme_Light" xml:space="preserve">
-        <value>Claro</value>
+        <value>Light</value>
     </data>
     <data name="Auth_Username" xml:space="preserve">
         <value>Nombre de usuario</value>

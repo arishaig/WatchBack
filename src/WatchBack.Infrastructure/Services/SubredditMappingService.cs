@@ -183,12 +183,9 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
         await _lock.WaitAsync(ct);
         try
         {
-            SubredditMappingSource? source;
-            lock (_sources)
-            {
-                source = _sources.FirstOrDefault(
-                    s => s.Id.Equals(sourceId, StringComparison.OrdinalIgnoreCase));
-            }
+            // _lock is held by this caller — no concurrent writer can modify _sources here.
+            SubredditMappingSource? source = _sources.FirstOrDefault(
+                s => s.Id.Equals(sourceId, StringComparison.OrdinalIgnoreCase));
 
             if (source is null || entryIndex < 0 || entryIndex >= source.Entries.Count)
             {

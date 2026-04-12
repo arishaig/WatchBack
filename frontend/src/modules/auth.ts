@@ -99,7 +99,12 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
                 document.head.appendChild(s);
             });
         }
-        const zxcvbn = (window as unknown as Window & { zxcvbn: (pw: string, userInputs?: string[]) => { score: number; feedback: { warning: string; suggestions: string[] } } }).zxcvbn;
+        type ZxcvbnFn = (pw: string, userInputs?: string[]) => { score: number; feedback: { warning: string; suggestions: string[] } };
+        const zxcvbn = (window as Window & { zxcvbn?: ZxcvbnFn }).zxcvbn;
+        if (typeof zxcvbn !== 'function') {
+            this.passwordStrength = null;
+            return;
+        }
         const result = zxcvbn(password, [this.loginUsername, this.setupUsername, 'watchback'].filter(Boolean));
         const labels = [this.t('Setup_PasswordVeryWeak'), this.t('Setup_PasswordWeak'), this.t('Setup_PasswordFair'), this.t('Setup_PasswordStrong'), this.t('Setup_PasswordVeryStrong')];
         const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#16a34a'];

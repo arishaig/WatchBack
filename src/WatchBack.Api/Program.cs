@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 using Microsoft.AspNetCore.HttpOverrides;
 
@@ -168,8 +169,22 @@ builder.Services
         options.Cookie.Name = "WatchBackSession";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         options.ExpireTimeSpan = TimeSpan.FromDays(30);
         options.SlidingExpiration = true;
+        // When the ForwardAuth header is present, delegate authentication to
+        // the ForwardAuth scheme so that UseAuthentication() populates ctx.User
+        // for all endpoints — including AllowAnonymous ones like GET /api/auth/me.
+        options.ForwardDefaultSelector = ctx =>
+        {
+            AuthOptions authOpts = ctx.RequestServices
+                .GetRequiredService<IOptionsMonitor<AuthOptions>>()
+                .CurrentValue;
+            return !string.IsNullOrEmpty(authOpts.ForwardAuthHeader)
+                   && ctx.Request.Headers.ContainsKey(authOpts.ForwardAuthHeader)
+                ? "ForwardAuth"
+                : null;
+        };
         options.Events.OnRedirectToLogin = ctx =>
         {
             ctx.Response.StatusCode = 401;

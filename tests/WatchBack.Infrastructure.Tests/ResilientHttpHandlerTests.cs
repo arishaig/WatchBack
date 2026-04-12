@@ -140,6 +140,40 @@ public sealed class ResilientHttpHandlerTests : IDisposable
     }
 }
 
+public sealed class RedactSensitiveParamsTests
+{
+    [Theory]
+    [InlineData("https://api.example.com/search?q=test&apikey=secret123", "https://api.example.com/search?q=test&apikey=***")]
+    [InlineData("https://api.example.com/v1?api_key=abc&type=movie", "https://api.example.com/v1?api_key=***&type=movie")]
+    [InlineData("https://api.example.com/data?token=xyz&page=1", "https://api.example.com/data?token=***&page=1")]
+    [InlineData("https://api.example.com/data?secret=pass", "https://api.example.com/data?secret=***")]
+    [InlineData("https://api.example.com/data?key=abc", "https://api.example.com/data?key=***")]
+    [InlineData("https://api.example.com/data", "https://api.example.com/data")]
+    [InlineData("https://api.example.com/data?q=watchback", "https://api.example.com/data?q=watchback")]
+    public void RedactSensitiveParams_RedactsKnownSensitiveQueryParams(string input, string expected)
+    {
+        string result = ResilientHttpHandler.RedactSensitiveParams(new Uri(input));
+
+        result.Should().Be(expected);
+    }
+
+    [Fact]
+    public void RedactSensitiveParams_ReturnsPlaceholderForNullUri()
+    {
+        string result = ResilientHttpHandler.RedactSensitiveParams(null);
+
+        result.Should().Be("(no uri)");
+    }
+
+    [Fact]
+    public void RedactSensitiveParams_IsCaseInsensitiveForParamNames()
+    {
+        string result = ResilientHttpHandler.RedactSensitiveParams(new Uri("https://api.example.com/?APIKEY=val"));
+
+        result.Should().Be("https://api.example.com/?APIKEY=***");
+    }
+}
+
 /// <summary>Minimal stub that wraps a factory into a non-delegating HttpMessageHandler.</summary>
 internal sealed class DelegatingHandlerStub(Func<HttpRequestMessage, HttpResponseMessage> factory)
     : HttpMessageHandler

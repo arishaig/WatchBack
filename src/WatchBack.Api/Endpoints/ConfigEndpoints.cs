@@ -12,6 +12,8 @@ namespace WatchBack.Api.Endpoints;
 
 public record UserConfigFile(string Path);
 
+internal sealed record ThemeItem(string? Id, string Label);
+
 public static class ConfigEndpoints
 {
     public static void MapConfigEndpoints(this IEndpointRouteBuilder app)
@@ -234,14 +236,12 @@ public static class ConfigEndpoints
             Dictionary<string, Dictionary<string, string>> existing =
                 await AuthEndpoints.ReadConfigFile(configFile.Path, ct);
 
-            // Apply updates (key format: "Section__Key")
+            // Apply updates (key format: "Section__Key").
+            // Empty values are allowed and interpreted as "clear this setting".
+            // Password fields are never sent as empty by the client — they are either
+            // omitted (no change) or include a new value.
             foreach ((string flatKey, string value) in body)
             {
-                if (string.IsNullOrEmpty(value))
-                {
-                    continue; // skip empty values — preserve existing
-                }
-
                 int sep = flatKey.IndexOf("__", StringComparison.Ordinal);
                 if (sep < 0)
                 {
@@ -356,15 +356,11 @@ public static class ConfigEndpoints
             return Results.Ok(Array.Empty<object>());
         }
 
-        var themes = Directory.GetFiles(themesPath, "*.css")
+        ThemeItem[] themes = Directory.GetFiles(themesPath, "*.css")
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => !string.IsNullOrEmpty(name))
             .Order(StringComparer.OrdinalIgnoreCase)
-            .Select(name => new
-            {
-                id = name,
-                label = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name!.Replace('-', ' '))
-            })
+            .Select(name => new ThemeItem(name, CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name!.Replace('-', ' '))))
             .ToArray();
 
         return Results.Ok(themes);

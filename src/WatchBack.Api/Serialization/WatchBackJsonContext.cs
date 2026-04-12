@@ -27,5 +27,7 @@ namespace WatchBack.Api.Serialization;
 [JsonSerializable(typeof(SyncEndpoints.ProgressEvent))]
 [JsonSerializable(typeof(SyncEndpoints.ProgressSegment))]
 [JsonSerializable(typeof(SyncEndpoints.ProgressSegment[]))]
+[JsonSerializable(typeof(ThemeItem[]))]
+[JsonSerializable(typeof(List<SyncLogEntry>))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal sealed partial class WatchBackJsonContext : JsonSerializerContext;

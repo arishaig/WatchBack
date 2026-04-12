@@ -147,6 +147,9 @@ Alpine.data('app', (): AppData => {
     // Merge computed getters preserving property descriptor semantics
     Object.defineProperties(data, computedDescriptors);
 
+    // Object.defineProperties adds computed getters that TypeScript cannot track
+    // statically. The double cast through `unknown` is intentional: the object is
+    // structurally correct at runtime even though the static types don't overlap.
     return data as unknown as AppData;
 });
 
