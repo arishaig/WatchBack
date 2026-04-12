@@ -484,7 +484,10 @@ internal static class PlaywrightHelpers
         await page.ReloadAsync();
 
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
-        await page.WaitForTimeoutAsync(500); // allow Alpine init
+        await page.WaitForFunctionAsync(
+            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
     }
 
@@ -508,7 +511,10 @@ internal static class PlaywrightHelpers
         await page.ReloadAsync();
 
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
-        await page.WaitForTimeoutAsync(500); // allow Alpine init
+        await page.WaitForFunctionAsync(
+            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
     }
 
@@ -530,7 +536,10 @@ internal static class PlaywrightHelpers
         await page.EvaluateAsync("localStorage.removeItem('wb_checklistCompleted')");
         await page.ReloadAsync();
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
-        await page.WaitForTimeoutAsync(500); // allow Alpine init
+        await page.WaitForFunctionAsync(
+            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
     }
 
@@ -591,7 +600,10 @@ internal static class PlaywrightHelpers
 
         await page.GotoAsync(url);
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
-        await page.WaitForTimeoutAsync(500);
+        await page.WaitForFunctionAsync(
+            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
 
         // Fill login form and submit to trigger the changePassword state
@@ -626,7 +638,10 @@ internal static class PlaywrightHelpers
 
         await page.GotoAsync(url);
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
-        await page.WaitForTimeoutAsync(500);
+        await page.WaitForFunctionAsync(
+            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
     }
 
