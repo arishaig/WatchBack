@@ -373,9 +373,12 @@ internal static class PlaywrightHelpers
             ? """{"authenticated":true,"username":"test","needsOnboarding":true,"authMethod":"cookie","forwardAuthHeader":""}"""
             : """{"authenticated":true,"username":"test","needsOnboarding":false,"authMethod":"cookie","forwardAuthHeader":""}""";
 
-        // Block all external (non-origin) requests so NetworkIdle is not held open by
-        // CDN fetches (e.g. ionicons from unpkg.com) on slow CI runners.
+        // Block external and static asset requests so NetworkIdle can settle.
+        // ionicons was previously loaded from unpkg.com (blocked by https://**); it is
+        // now self-hosted, so we also block the /ionicons/** static files — the SVG
+        // lazy-fetches would otherwise keep the network open indefinitely on CI.
         await page.RouteAsync("https://**", route => route.AbortAsync());
+        await page.RouteAsync("**/ionicons/**", route => route.AbortAsync());
 
         // Intercept auth check so the app skips the login form and renders content
         await page.RouteAsync("**/api/auth/me", route =>
@@ -635,16 +638,17 @@ internal static class PlaywrightHelpers
         // never pass.  The button is visible and enabled, so Force = true is safe here.
         await page.ClickAsync("button[title=\"Configuration\"]",
             new PageClickOptions { Force = true });
-        // Wait for the config panel entrance animation to fully settle before returning.
-        // WaitForSelectorState.Visible resolves as soon as opacity > 0, but config-enter
-        // starts at opacity:0, so axe can be called mid-animation and compute a blended
-        // (too-light) foreground color that fails color-contrast — identical issue to the
-        // checklist entrance animation fix.
-        await page.WaitForFunctionAsync(
-            "() => { const el = document.querySelector('aside[role=\"region\"]');" +
-            " return el && parseFloat(getComputedStyle(el).opacity) === 1; }",
-            null,
-            new PageWaitForFunctionOptions { Timeout = 5_000 });
+        // Yield two animation frames so Alpine has time to apply the config-enter class
+        // (which fills the element backward to opacity:0), then await all running CSS
+        // animations to finish before returning. Checking getComputedStyle().opacity
+        // directly races with the fill-backward phase — Alpine makes the element visible
+        // (opacity:1 default) one frame before the animation class is applied, so a naive
+        // opacity===1 poll can fire too early and let axe run mid-animation.
+        await page.EvaluateAsync(@"async () => {
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            const el = document.querySelector('aside[role=""region""]');
+            if (el) await Promise.all(el.getAnimations().map(a => a.finished));
+        }");
     }
 
     public static async Task SwitchToDiagnosticsTab(IPage page)

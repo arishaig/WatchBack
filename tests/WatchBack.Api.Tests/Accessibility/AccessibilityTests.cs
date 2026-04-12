@@ -454,15 +454,17 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
                 State = WaitForSelectorState.Visible,
                 Timeout = 3000
             });
-            // Wait for the entrance animation to settle — axe computes contrast against
-            // the currently rendered (post-compositing) color, and a mid-animation opacity
-            // blends the faint text toward the surface background, producing spurious
-            // color-contrast failures.
-            await page.WaitForFunctionAsync(
-                "() => { const el = document.querySelector('.checklist-float');" +
-                " return el && parseFloat(getComputedStyle(el).opacity) === 1; }",
-                null,
-                new PageWaitForFunctionOptions { Timeout = 3000 });
+            // Wait for the checklist entrance animation to fully settle before running axe.
+            // Checking getComputedStyle().opacity races with the fill-backward phase of the
+            // checklist-enter keyframe — the element is visible (opacity:1 default) for one
+            // frame before the animation class is applied and fills backward to opacity:0.
+            // Yielding two frames then awaiting the Web Animations API finished promise is
+            // the reliable fix (same pattern as OpenConfigModal).
+            await page.EvaluateAsync(@"async () => {
+                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+                const el = document.querySelector('.checklist-float');
+                if (el) await Promise.all(el.getAnimations().map(a => a.finished));
+            }");
             await AssertNoViolations(page);
         }
         finally
