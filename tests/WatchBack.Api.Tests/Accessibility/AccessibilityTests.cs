@@ -63,6 +63,64 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
         GC.SuppressFinalize(this);
     }
 
+    // Trace file counter — ensures unique names when PW_TRACE=1 is set.
+    private static int s_traceCounter;
+
+    // Create pages with prefers-reduced-motion emulation. Combined with the
+    // @media (prefers-reduced-motion: reduce) rule in frontend/css/animations.css
+    // that zeros all animation/transition durations, this eliminates races where
+    // axe captures the page mid-animation and measures transient color-contrast
+    // values (e.g. the checklist entrance animation's opacity:0 fill-backward
+    // phase, or skeleton-loader color transitions).
+    //
+    // When PW_TRACE=1 is set (e.g. in CI), a Playwright trace is captured for
+    // every page and saved to TestResults/ on close. Upload the artifacts to
+    // diagnose flakes with `npx playwright show-trace <zip>`.
+    private async Task<IPage> NewPageAsync()
+    {
+        IBrowserContext context = await _browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ReducedMotion = ReducedMotion.Reduce
+        });
+
+        bool tracingEnabled = Environment.GetEnvironmentVariable("PW_TRACE") == "1";
+        if (tracingEnabled)
+        {
+            await context.Tracing.StartAsync(new TracingStartOptions
+            {
+                Screenshots = true,
+                Snapshots = true,
+                Sources = true
+            });
+        }
+
+        IPage page = await context.NewPageAsync();
+
+        // When the page is closed (by the test's finally block), stop tracing and
+        // tear down the context. async void is intentional — this is best-effort
+        // cleanup that must not block the page close call.
+        page.Close += async (_, _) =>
+        {
+            try
+            {
+                if (tracingEnabled)
+                {
+                    int seq = Interlocked.Increment(ref s_traceCounter);
+                    string tracePath = Path.Combine("TestResults", $"trace-{seq:D3}.zip");
+                    Directory.CreateDirectory("TestResults");
+                    await context.Tracing.StopAsync(new TracingStopOptions { Path = tracePath });
+                }
+                await context.CloseAsync();
+            }
+            catch
+            {
+                // Best-effort: swallow so test teardown is never interrupted.
+            }
+        };
+
+        return page;
+    }
+
     private static string? FindChromiumExecutable()
     {
         string cacheDir = Path.Combine(
@@ -170,7 +228,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task IdleState(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
@@ -193,7 +251,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
             TraktThought(1), TraktThought(2, LoremMedium, "bob"), TraktThought(3, LoremLong, "carol")
         ];
 
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
@@ -222,7 +280,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
             RedditThought("r2", LoremLong, "user4", score: 7)
         ];
 
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
@@ -248,7 +306,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
             BlueskyThought("b3", LoremLong, "carol.bsky.social", images: [img, img])
         ];
 
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
@@ -276,7 +334,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
             BlueskyThought("b2", LoremMedium, "another.bsky.social")
         ];
 
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
@@ -294,7 +352,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task ConfigModalEmpty(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
@@ -313,7 +371,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task ConfigModalFilled(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
@@ -333,7 +391,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     public async Task DiagnosticsTabEmpty(string theme)
     {
         // No sync history, no log entries — tests the empty-state UI
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,
@@ -357,7 +415,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task NewProvidersModal(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPageWithNewProviders(page, _baseUrl, theme);
@@ -373,7 +431,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task WizardWelcome(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPageWithWizard(page, _baseUrl, theme, ConfigEmpty);
@@ -389,7 +447,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task WizardWatchProvider(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPageWithWizard(page, _baseUrl, theme, ConfigEmpty);
@@ -406,7 +464,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task WizardCommentSources(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPageWithWizard(page, _baseUrl, theme, ConfigEmpty);
@@ -423,7 +481,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task WizardDone(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPageWithWizard(page, _baseUrl, theme, ConfigEmpty);
@@ -440,7 +498,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task ChecklistVisible(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             // Load with wizard flags cleared, then skip wizard so checklist appears
@@ -454,15 +512,6 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
                 State = WaitForSelectorState.Visible,
                 Timeout = 3000
             });
-            // Wait for the entrance animation to settle — axe computes contrast against
-            // the currently rendered (post-compositing) color, and a mid-animation opacity
-            // blends the faint text toward the surface background, producing spurious
-            // color-contrast failures.
-            await page.WaitForFunctionAsync(
-                "() => { const el = document.querySelector('.checklist-float');" +
-                " return el && parseFloat(getComputedStyle(el).opacity) === 1; }",
-                null,
-                new PageWaitForFunctionOptions { Timeout = 3000 });
             await AssertNoViolations(page);
         }
         finally
@@ -479,7 +528,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task LoginScreen(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadLoginPage(page, _baseUrl, theme);
@@ -495,7 +544,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task LoginScreenWithOnboardingHint(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadLoginPage(page, _baseUrl, theme, needsOnboarding: true);
@@ -511,7 +560,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
     [MemberData(nameof(ThemeData))]
     public async Task ChangePasswordScreen(string theme)
     {
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPageWithChangePassword(page, _baseUrl, theme);
@@ -540,7 +589,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
         ];
         Dictionary<string, object?> sync = MakeSyncSuccess(thoughts);
 
-        IPage page = await _browser.NewPageAsync();
+        IPage page = await NewPageAsync();
         try
         {
             await LoadPage(page, _baseUrl, theme,

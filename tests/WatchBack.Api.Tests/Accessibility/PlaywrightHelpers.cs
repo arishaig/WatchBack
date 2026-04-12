@@ -373,9 +373,12 @@ internal static class PlaywrightHelpers
             ? """{"authenticated":true,"username":"test","needsOnboarding":true,"authMethod":"cookie","forwardAuthHeader":""}"""
             : """{"authenticated":true,"username":"test","needsOnboarding":false,"authMethod":"cookie","forwardAuthHeader":""}""";
 
-        // Block all external (non-origin) requests so NetworkIdle is not held open by
-        // CDN fetches (e.g. ionicons from unpkg.com) on slow CI runners.
+        // Block external and static asset requests so NetworkIdle can settle.
+        // ionicons was previously loaded from unpkg.com (blocked by https://**); it is
+        // now self-hosted, so we also block the /ionicons/** static files — the SVG
+        // lazy-fetches would otherwise keep the network open indefinitely on CI.
         await page.RouteAsync("https://**", route => route.AbortAsync());
+        await page.RouteAsync("**/ionicons/**", route => route.AbortAsync());
 
         // Intercept auth check so the app skips the login form and renders content
         await page.RouteAsync("**/api/auth/me", route =>
@@ -481,7 +484,10 @@ internal static class PlaywrightHelpers
         await page.ReloadAsync();
 
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
-        await page.WaitForTimeoutAsync(500); // allow Alpine init
+        await page.WaitForFunctionAsync(
+            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
     }
 
@@ -505,7 +511,10 @@ internal static class PlaywrightHelpers
         await page.ReloadAsync();
 
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
-        await page.WaitForTimeoutAsync(500); // allow Alpine init
+        await page.WaitForFunctionAsync(
+            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
     }
 
@@ -527,7 +536,10 @@ internal static class PlaywrightHelpers
         await page.EvaluateAsync("localStorage.removeItem('wb_checklistCompleted')");
         await page.ReloadAsync();
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
-        await page.WaitForTimeoutAsync(500); // allow Alpine init
+        await page.WaitForFunctionAsync(
+            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
     }
 
@@ -588,7 +600,10 @@ internal static class PlaywrightHelpers
 
         await page.GotoAsync(url);
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
-        await page.WaitForTimeoutAsync(500);
+        await page.WaitForFunctionAsync(
+            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
 
         // Fill login form and submit to trigger the changePassword state
@@ -623,19 +638,80 @@ internal static class PlaywrightHelpers
 
         await page.GotoAsync(url);
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
-        await page.WaitForTimeoutAsync(500);
+        await page.WaitForFunctionAsync(
+            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
     }
 
     public static async Task OpenConfigModal(IPage page)
     {
-        // Force the click to bypass Playwright's stability check: the skeleton loading
-        // animation runs indefinitely in tests (SSE is aborted, so data never arrives),
-        // causing the button's bounding box to keep shifting and the stability check to
-        // never pass.  The button is visible and enabled, so Force = true is safe here.
-        await page.ClickAsync("button[title=\"Configuration\"]",
-            new PageClickOptions { Force = true });
-        await page.WaitForTimeoutAsync(300); // allow Alpine x-show transition
+        // Collect browser console messages so that if the modal never opens we can see
+        // any JS errors logged during the open attempt.
+        var consoleLogs = new List<string>();
+        void OnConsole(object? _, IConsoleMessage msg) =>
+            consoleLogs.Add($"[{msg.Type}] {msg.Text}");
+        page.Console += OnConsole;
+
+        try
+        {
+            // Wait until Alpine has initialised the root x-data component and showConfig
+            // is present in its reactive data stack. We need this even though LoadPage
+            // already polled _x_dataStack[0]: that poll resolves as soon as Alpine sets the
+            // body's data stack, which happens at the *start* of its synchronous initTree
+            // walk — the @click handler on the config button (deep in the tree) is attached
+            // later in that same walk. By the time OpenConfigModal is called enough time has
+            // usually elapsed, but not always on a loaded CI runner.
+            await page.WaitForFunctionAsync(
+                "() => typeof document.querySelector('[x-data]')?._x_dataStack?.[0]?.showConfig === 'boolean'",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 5_000 });
+
+            // Open the config panel by writing directly to Alpine's reactive data object.
+            // This is timing-safe: it does not depend on when @click is attached to the
+            // button element. Setting the property on the Proxy triggers the same x-show
+            // reactive update that the button click would trigger.
+            await page.EvaluateAsync(
+                "() => { document.querySelector('[x-data]')._x_dataStack[0].showConfig = true; }");
+
+            await page.WaitForSelectorAsync("aside[role=\"region\"]",
+                new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 3_000 });
+        }
+        catch (TimeoutException ex)
+        {
+            // Probe Alpine's reactive state and capture a screenshot to aid diagnosis.
+            bool showConfig = false;
+            string screenshotPath = "(screenshot failed)";
+            try
+            {
+                showConfig = await page.EvaluateAsync<bool>(
+                    "() => !!(document.querySelector('[x-data]')?._x_dataStack?.[0]?.showConfig)");
+                string dir = Path.Combine("TestResults");
+                Directory.CreateDirectory(dir);
+                screenshotPath = Path.Combine(dir, $"fail-open-config-{DateTime.UtcNow:HHmmssff}.png");
+                await page.ScreenshotAsync(new PageScreenshotOptions { Path = screenshotPath, FullPage = true });
+            }
+            catch
+            {
+                // Probe/screenshot failure must not shadow the original timeout.
+            }
+
+            string consoleDump = consoleLogs.Count > 0
+                ? string.Join("\n  ", consoleLogs.TakeLast(30))
+                : "(none)";
+
+            throw new TimeoutException(
+                $"{ex.Message}\n" +
+                $"showConfig after mutation = {showConfig}\n" +
+                $"Screenshot: {screenshotPath}\n" +
+                $"Console ({consoleLogs.Count} msgs, last 30):\n  {consoleDump}",
+                ex);
+        }
+        finally
+        {
+            page.Console -= OnConsole;
+        }
     }
 
     public static async Task SwitchToDiagnosticsTab(IPage page)

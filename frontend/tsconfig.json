@@ -9,5 +9,5 @@
         "noUnusedParameters": true,
         "skipLibCheck": true
     },
-    "include": ["src/**/*", "../vite.config.ts"]
+    "include": ["src/**/*"]
 }

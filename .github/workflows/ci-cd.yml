@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: TypeScript type-check
-        run: npx tsc --noEmit --project frontend/tsconfig.json
+        run: npx tsc --noEmit --project frontend/tsconfig.json && npx tsc --noEmit --project tsconfig.node.json
 
       - name: Frontend tests
         run: npm test
@@ -73,7 +73,26 @@ jobs:
         run: pwsh tests/WatchBack.Api.Tests/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
 
       - name: Run accessibility tests
-        run: dotnet test tests/WatchBack.Api.Tests --no-build --filter "Category=Accessibility" --verbosity normal
+        run: dotnet test tests/WatchBack.Api.Tests --no-build --filter "Category=Accessibility" --verbosity normal --logger "trx;LogFileName=accessibility.trx" --results-directory ./TestResults
+
+      - name: Upload accessibility test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-test-results
+          path: ./TestResults/accessibility.trx
+          retention-days: 14
+
+      - name: Upload accessibility diagnostic artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: accessibility-diagnostics
+          path: |
+            ./TestResults/trace-*.zip
+            ./TestResults/fail-*.png
+          retention-days: 14
+          if-no-files-found: warn
 
   docker-build-check:
     if: github.event_name == 'pull_request'
