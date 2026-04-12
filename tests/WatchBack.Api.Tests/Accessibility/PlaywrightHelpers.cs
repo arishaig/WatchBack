@@ -635,11 +635,16 @@ internal static class PlaywrightHelpers
         // never pass.  The button is visible and enabled, so Force = true is safe here.
         await page.ClickAsync("button[title=\"Configuration\"]",
             new PageClickOptions { Force = true });
-        // Wait for the config panel <aside> to be visible rather than using a fixed
-        // timeout — on slow CI runners 300ms was not enough for the Alpine x-show
-        // transition to complete, leaving tab buttons non-visible for any callers.
-        await page.WaitForSelectorAsync("aside[role=\"region\"]",
-            new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 5_000 });
+        // Wait for the config panel entrance animation to fully settle before returning.
+        // WaitForSelectorState.Visible resolves as soon as opacity > 0, but config-enter
+        // starts at opacity:0, so axe can be called mid-animation and compute a blended
+        // (too-light) foreground color that fails color-contrast — identical issue to the
+        // checklist entrance animation fix.
+        await page.WaitForFunctionAsync(
+            "() => { const el = document.querySelector('aside[role=\"region\"]');" +
+            " return el && parseFloat(getComputedStyle(el).opacity) === 1; }",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 5_000 });
     }
 
     public static async Task SwitchToDiagnosticsTab(IPage page)
