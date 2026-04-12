@@ -454,6 +454,15 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
                 State = WaitForSelectorState.Visible,
                 Timeout = 3000
             });
+            // Wait for the entrance animation to settle — axe computes contrast against
+            // the currently rendered (post-compositing) color, and a mid-animation opacity
+            // blends the faint text toward the surface background, producing spurious
+            // color-contrast failures.
+            await page.WaitForFunctionAsync(
+                "() => { const el = document.querySelector('.checklist-float');" +
+                " return el && parseFloat(getComputedStyle(el).opacity) === 1; }",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 3000 });
             await AssertNoViolations(page);
         }
         finally
