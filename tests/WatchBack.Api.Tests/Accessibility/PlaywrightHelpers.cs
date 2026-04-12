@@ -635,7 +635,11 @@ internal static class PlaywrightHelpers
         // never pass.  The button is visible and enabled, so Force = true is safe here.
         await page.ClickAsync("button[title=\"Configuration\"]",
             new PageClickOptions { Force = true });
-        await page.WaitForTimeoutAsync(300); // allow Alpine x-show transition
+        // Wait for the config panel <aside> to be visible rather than using a fixed
+        // timeout — on slow CI runners 300ms was not enough for the Alpine x-show
+        // transition to complete, leaving tab buttons non-visible for any callers.
+        await page.WaitForSelectorAsync("aside[role=\"region\"]",
+            new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 5_000 });
     }
 
     public static async Task SwitchToDiagnosticsTab(IPage page)
