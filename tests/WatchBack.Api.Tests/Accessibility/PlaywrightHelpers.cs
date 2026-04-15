@@ -488,7 +488,7 @@ internal static class PlaywrightHelpers
             "localStorage.setItem('wb_seenProviders', JSON.stringify(['jellyfin','trakt','bluesky','reddit','lemmy','omdb','manual']))");
         await page.ReloadAsync();
 
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
+        await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
             "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
             null,
@@ -515,7 +515,7 @@ internal static class PlaywrightHelpers
         await page.EvaluateAsync("localStorage.setItem('wb_seenProviders', JSON.stringify(['jellyfin','trakt','bluesky']))");
         await page.ReloadAsync();
 
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
+        await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
             "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
             null,
@@ -540,7 +540,7 @@ internal static class PlaywrightHelpers
         await page.EvaluateAsync("localStorage.removeItem('wb_wizardCompleted')");
         await page.EvaluateAsync("localStorage.removeItem('wb_checklistCompleted')");
         await page.ReloadAsync();
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
+        await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
             "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
             null,
@@ -604,7 +604,7 @@ internal static class PlaywrightHelpers
         await page.RouteAsync("**/api/diagnostics/logs/stream", route => route.AbortAsync());
 
         await page.GotoAsync(url);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
+        await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
             "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
             null,
@@ -642,7 +642,7 @@ internal static class PlaywrightHelpers
         await page.RouteAsync("**/api/diagnostics/logs/stream", route => route.AbortAsync());
 
         await page.GotoAsync(url);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
+        await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
             "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
             null,
