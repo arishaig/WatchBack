@@ -26,7 +26,7 @@ public sealed class RedditThoughtProvider(
     IReplyTreeBuilder treeBuilder,
     ISubredditMappingService mappingService,
     ILogger<RedditThoughtProvider> logger)
-    : IThoughtProvider
+    : IThoughtProvider, IContentNormalizer
 {
     // Upper bound on search spec count (before deduplication) — used for progress estimation.
     // Sync ticks are reported one-per-spec, so over-estimating is fine; the SSE layer forces

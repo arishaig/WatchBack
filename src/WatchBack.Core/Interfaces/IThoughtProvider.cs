@@ -37,15 +37,6 @@ public interface IThoughtProvider : IDataProvider
         CancellationToken ct = default);
 
     /// <summary>
-    ///     Normalizes provider-specific content syntax to the canonical WatchBack format
-    ///     (e.g. convert spoiler syntax, collapse excessive whitespace).
-    ///     Called by <see cref="WatchBack.Core.Services.SyncService" /> on every
-    ///     <see cref="Thought.Content" /> and <see cref="Thought.PostBody" /> after fetching.
-    ///     Default: identity — no transformation applied.
-    /// </summary>
-    string NormalizeContent(string content) => content;
-
-    /// <summary>
     ///     Returns the earliest creation date a post or comment must have to be considered relevant
     ///     for the given media context. Content older than 7 days before the air date is almost
     ///     certainly an unrelated false positive. Returns <c>null</c> when no release date is

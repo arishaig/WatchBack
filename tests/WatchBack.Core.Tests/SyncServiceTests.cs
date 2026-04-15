@@ -563,10 +563,10 @@ public class SyncServiceTests
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
 
         Thought rawThought = new("1", null, null, ">!spoiler!<", null, [], "Author", 0, DateTimeOffset.UtcNow, "Test", []);
-        IThoughtProvider provider = Substitute.For<IThoughtProvider>();
+        IThoughtProvider provider = Substitute.For<IThoughtProvider, IContentNormalizer>();
         provider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Test", null, null, null, [rawThought], null));
-        provider.NormalizeContent(">!spoiler!<").Returns("<spoiler>spoiler</spoiler>");
+        ((IContentNormalizer)provider).NormalizeContent(">!spoiler!<").Returns("<spoiler>spoiler</spoiler>");
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
@@ -589,11 +589,11 @@ public class SyncServiceTests
 
         Thought rawThought = new("1", null, null, "content", null, [], "Author", 0, DateTimeOffset.UtcNow, "Test", [],
             PostBody: ">!body spoiler!<");
-        IThoughtProvider provider = Substitute.For<IThoughtProvider>();
+        IThoughtProvider provider = Substitute.For<IThoughtProvider, IContentNormalizer>();
         provider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Test", null, null, null, [rawThought], null));
-        provider.NormalizeContent("content").Returns("content");
-        provider.NormalizeContent(">!body spoiler!<").Returns("<spoiler>body spoiler</spoiler>");
+        ((IContentNormalizer)provider).NormalizeContent("content").Returns("content");
+        ((IContentNormalizer)provider).NormalizeContent(">!body spoiler!<").Returns("<spoiler>body spoiler</spoiler>");
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
@@ -615,12 +615,11 @@ public class SyncServiceTests
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
 
         Thought rawThought = new("1", null, null, "plain content", null, [], "Author", 0, DateTimeOffset.UtcNow, "Test", []);
-        // NSubstitute's default for NormalizeContent (a default interface method) returns empty string,
-        // so we explicitly configure it to return the input unchanged — matching the interface default.
+        // A provider that does not implement IContentNormalizer gets no normalization applied —
+        // content passes through SyncService unchanged.
         IThoughtProvider provider = Substitute.For<IThoughtProvider>();
         provider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtResult("Test", null, null, null, [rawThought], null));
-        provider.NormalizeContent(Arg.Any<string>()).Returns(x => (string)x[0]);
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),

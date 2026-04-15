@@ -155,7 +155,7 @@ public class SyncService(
 
     private static ThoughtResult NormalizeThoughts(IThoughtProvider provider, ThoughtResult result)
     {
-        if (result.Thoughts is not { Count: > 0 })
+        if (provider is not IContentNormalizer normalizer || result.Thoughts is not { Count: > 0 })
         {
             return result;
         }
@@ -165,8 +165,8 @@ public class SyncService(
             Thoughts = result.Thoughts
                 .Select(t => t with
                 {
-                    Content = provider.NormalizeContent(t.Content),
-                    PostBody = t.PostBody != null ? provider.NormalizeContent(t.PostBody) : null
+                    Content = normalizer.NormalizeContent(t.Content),
+                    PostBody = t.PostBody != null ? normalizer.NormalizeContent(t.PostBody) : null
                 })
                 .ToList()
         };
