@@ -91,26 +91,21 @@ public static class SyncEndpoints
         List<IThoughtProvider> providerList = thoughtProviders
             .Where(p => p.ConfigSection is null || !disabled.Contains(p.ConfigSection))
             .ToList();
-        int totalWeight = providerList.Sum(p => p.ExpectedWeight);
-
-        // Pre-build provider metadata for the segmented bar: name → (color, totalWeight)
-        Dictionary<string, (string Color, int Total)> providerMeta = providerList.ToDictionary(
-            p => p.Metadata.Name,
-            p => (Color: p.Metadata.BrandData?.Color ?? "var(--wb-accent)", Total: p.ExpectedWeight));
 
         int consecutiveErrors = 0;
         while (!ct.IsCancellationRequested)
         {
             try
             {
+                SyncProgressReporter reporter = new(providerList);
+
                 // Channel lets providers report ticks from any thread without blocking
                 Channel<SyncProgressTick> channel = Channel.CreateUnbounded<SyncProgressTick>(
                     new UnboundedChannelOptions { SingleReader = true });
                 Progress<SyncProgressTick> progress = new(tick => channel.Writer.TryWrite(tick));
 
                 // Emit 0% so the bar appears immediately
-                await context.Response.WriteAsync(
-                    BuildProgressEvent(0, totalWeight, []), ct);
+                await context.Response.WriteAsync(reporter.BuildInitialEvent(), ct);
                 await context.Response.Body.FlushAsync(ct);
 
                 // Start sync (gated so only one runs at a time across all SSE clients);
@@ -123,34 +118,16 @@ public static class SyncEndpoints
                     TaskScheduler.Default);
 
                 // Drain progress ticks and forward them to the SSE stream
-                int completed = 0;
-                Dictionary<string, int> providerCompleted = new();
                 await foreach (SyncProgressTick tick in channel.Reader.ReadAllAsync(ct))
                 {
-                    completed += tick.Weight;
-                    providerCompleted[tick.Provider] = providerCompleted.GetValueOrDefault(tick.Provider) + tick.Weight;
-
-                    ProgressSegment[] segments = providerMeta
-                        .OrderBy(kv => kv.Value.Total)
-                        .Select(kv => new ProgressSegment(
-                            kv.Key, kv.Value.Color,
-                            Math.Min(providerCompleted.GetValueOrDefault(kv.Key), kv.Value.Total),
-                            kv.Value.Total)).ToArray();
-
-                    await context.Response.WriteAsync(
-                        BuildProgressEvent(Math.Min(completed, totalWeight), totalWeight, segments), ct);
+                    await context.Response.WriteAsync(reporter.OnTick(tick), ct);
                     await context.Response.Body.FlushAsync(ct);
                 }
 
                 // Force 100% in case providers reported fewer ticks than expected (e.g. cache hits)
-                if (completed < totalWeight)
+                if (reporter.BuildFinalEventIfIncomplete() is { } finalEvent)
                 {
-                    ProgressSegment[] fullSegments = providerMeta
-                        .OrderBy(kv => kv.Value.Total)
-                        .Select(kv => new ProgressSegment(
-                            kv.Key, kv.Value.Color, kv.Value.Total, kv.Value.Total)).ToArray();
-                    await context.Response.WriteAsync(
-                        BuildProgressEvent(totalWeight, totalWeight, fullSegments), ct);
+                    await context.Response.WriteAsync(finalEvent, ct);
                     await context.Response.Body.FlushAsync(ct);
                 }
 
@@ -187,20 +164,12 @@ public static class SyncEndpoints
             }
             catch (Exception)
             {
-                // Provider fault — exponential backoff (5 s → 10 s → 20 s → … capped at 60 s)
+                // Provider fault — exponential backoff
                 consecutiveErrors++;
-                int backoffMs = (int)Math.Min(5000 * Math.Pow(2, consecutiveErrors - 1), 60_000);
-                try { await Task.Delay(backoffMs, ct); }
+                try { await Task.Delay(SyncProgressReporter.ComputeErrorBackoffMs(consecutiveErrors), ct); }
                 catch (OperationCanceledException) { break; }
             }
         }
-    }
-
-    private static string BuildProgressEvent(int completed, int total, ProgressSegment[] segments)
-    {
-        ProgressEvent evt = new(completed, total, segments.Length > 0 ? segments : null);
-        string json = JsonSerializer.Serialize(evt, WatchBackJsonContext.Default.ProgressEvent);
-        return $"data: {json}\n\n";
     }
 
     private static SyncResponse MapSyncResult(
@@ -290,7 +259,4 @@ public static class SyncEndpoints
             brand?.LogoSvg);
     }
 
-    internal sealed record ProgressSegment(string Provider, string Color, int Completed, int Total);
-
-    internal sealed record ProgressEvent(int Completed, int Total, ProgressSegment[]? Providers);
 }
