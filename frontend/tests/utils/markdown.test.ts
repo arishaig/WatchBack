@@ -210,6 +210,31 @@ describe('renderMarkdown', () => {
             const result = renderMarkdown('>!text!<', 'Say "hello"');
             expect(result).toContain('aria-label="Say &quot;hello&quot;"');
         });
+
+        it('<spoiler>text</spoiler> renders as spoiler button', () => {
+            const result = renderMarkdown('<spoiler>hidden content</spoiler>', 'Reveal');
+            expect(result).toContain('<button');
+            expect(result).toContain('class="wb-md-spoiler"');
+            expect(result).toContain('data-wb-spoiler');
+            expect(result).toContain('hidden content');
+        });
+
+        it('<spoiler> tag uses provided spoilerLabel as aria-label', () => {
+            const result = renderMarkdown('<spoiler>text</spoiler>', 'Click to reveal');
+            expect(result).toContain('aria-label="Click to reveal"');
+        });
+
+        it('<spoiler> tag matching is case-insensitive', () => {
+            const result = renderMarkdown('<SPOILER>text</SPOILER>', 'Reveal');
+            expect(result).toContain('class="wb-md-spoiler"');
+            expect(result).toContain('text');
+        });
+
+        it('<spoiler> tag does not pass raw HTML through', () => {
+            const result = renderMarkdown('<spoiler>text</spoiler>');
+            expect(result).not.toContain('<spoiler>');
+            expect(result).not.toContain('</spoiler>');
+        });
     });
 
     describe('links', () => {

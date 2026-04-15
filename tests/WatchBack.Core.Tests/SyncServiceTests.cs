@@ -553,6 +553,86 @@ public class SyncServiceTests
         result.Status.Should().Be(SyncStatus.Error);
     }
 
+    // ---- Content normalization (NormalizeContent) ----
+
+    [Fact]
+    public async Task SyncAsync_CallsNormalizeContentOnThoughtContent()
+    {
+        // Arrange
+        EpisodeContext episode = new("Test", DateTimeOffset.UtcNow, "Ep", 1, 1);
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+
+        Thought rawThought = new("1", null, null, ">!spoiler!<", null, [], "Author", 0, DateTimeOffset.UtcNow, "Test", []);
+        IThoughtProvider provider = Substitute.For<IThoughtProvider, IContentNormalizer>();
+        provider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("Test", null, null, null, [rawThought], null));
+        ((IContentNormalizer)provider).NormalizeContent(">!spoiler!<").Returns("<spoiler>spoiler</spoiler>");
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
+
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [provider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options,
+            NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync();
+
+        // Assert
+        result.SourceResults[0].Thoughts!.Should().ContainSingle(t => t.Content == "<spoiler>spoiler</spoiler>");
+    }
+
+    [Fact]
+    public async Task SyncAsync_CallsNormalizeContentOnPostBody()
+    {
+        // Arrange
+        EpisodeContext episode = new("Test", DateTimeOffset.UtcNow, "Ep", 1, 1);
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+
+        Thought rawThought = new("1", null, null, "content", null, [], "Author", 0, DateTimeOffset.UtcNow, "Test", [],
+            PostBody: ">!body spoiler!<");
+        IThoughtProvider provider = Substitute.For<IThoughtProvider, IContentNormalizer>();
+        provider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("Test", null, null, null, [rawThought], null));
+        ((IContentNormalizer)provider).NormalizeContent("content").Returns("content");
+        ((IContentNormalizer)provider).NormalizeContent(">!body spoiler!<").Returns("<spoiler>body spoiler</spoiler>");
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
+
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [provider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options,
+            NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync();
+
+        // Assert
+        result.SourceResults[0].Thoughts!.Should().ContainSingle(t => t.PostBody == "<spoiler>body spoiler</spoiler>");
+    }
+
+    [Fact]
+    public async Task SyncAsync_DefaultNormalizeContent_LeavesContentUnchanged()
+    {
+        // Arrange
+        EpisodeContext episode = new("Test", DateTimeOffset.UtcNow, "Ep", 1, 1);
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+
+        Thought rawThought = new("1", null, null, "plain content", null, [], "Author", 0, DateTimeOffset.UtcNow, "Test", []);
+        // A provider that does not implement IContentNormalizer gets no normalization applied —
+        // content passes through SyncService unchanged.
+        IThoughtProvider provider = Substitute.For<IThoughtProvider>();
+        provider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("Test", null, null, null, [rawThought], null));
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
+
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [provider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options,
+            NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync();
+
+        // Assert
+        result.SourceResults[0].Thoughts!.Should().ContainSingle(t => t.Content == "plain content");
+    }
+
     [Fact]
     public async Task SyncAsync_DisabledProviders_SkipsTheirTasks()
     {

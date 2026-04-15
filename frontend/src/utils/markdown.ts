@@ -103,10 +103,12 @@ function processSpoilers(text: string, spoilerLabel: string): string {
     // Uses data-wb-spoiler for event delegation in main.ts (no inline handlers).
     // <button> provides native keyboard activation (Enter + Space) and focus management.
     const label = spoilerLabel.replace(/"/g, '&quot;');
-    return text.replace(
-        /&gt;!(.+?)!&lt;/g,
-        `<button type="button" class="wb-md-spoiler" data-wb-spoiler aria-label="${label}">$1</button>`
-    );
+    const btn = `<button type="button" class="wb-md-spoiler" data-wb-spoiler aria-label="${label}">$1</button>`;
+    // Reddit >!...!< syntax (kept for backwards compatibility with cached content)
+    text = text.replace(/&gt;!(.+?)!&lt;/g, btn);
+    // Canonical <spoiler>...</spoiler> tag — after HTML escaping this arrives as &lt;spoiler&gt;...&lt;/spoiler&gt;
+    text = text.replace(/&lt;spoiler&gt;(.+?)&lt;\/spoiler&gt;/gi, btn);
+    return text;
 }
 
 function restoreInlineCode(text: string, spans: string[]): string {

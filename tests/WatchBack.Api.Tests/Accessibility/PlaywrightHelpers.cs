@@ -481,11 +481,16 @@ internal static class PlaywrightHelpers
         // Mark wizard/checklist as completed so the overlay doesn't block non-wizard tests
         await page.EvaluateAsync("localStorage.setItem('wb_wizardCompleted', 'true')");
         await page.EvaluateAsync("localStorage.setItem('wb_checklistCompleted', 'true')");
+        // Mark all known providers as seen so the new-providers modal never fires in non-wizard tests.
+        // The modal (x-show="newProvidersActive") intercepts pointer events across the full viewport
+        // and will block any subsequent click-based navigation (e.g. SwitchToDiagnosticsTab).
+        await page.EvaluateAsync(
+            "localStorage.setItem('wb_seenProviders', JSON.stringify(['jellyfin','trakt','bluesky','reddit','lemmy','omdb','manual']))");
         await page.ReloadAsync();
 
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
+        await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
-            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            "() => document.querySelector('[x-data]')?._x_dataStack?.[0]?.initialized === true",
             null,
             new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
@@ -510,9 +515,9 @@ internal static class PlaywrightHelpers
         await page.EvaluateAsync("localStorage.setItem('wb_seenProviders', JSON.stringify(['jellyfin','trakt','bluesky']))");
         await page.ReloadAsync();
 
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
+        await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
-            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            "() => document.querySelector('[x-data]')?._x_dataStack?.[0]?.initialized === true",
             null,
             new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
@@ -535,9 +540,9 @@ internal static class PlaywrightHelpers
         await page.EvaluateAsync("localStorage.removeItem('wb_wizardCompleted')");
         await page.EvaluateAsync("localStorage.removeItem('wb_checklistCompleted')");
         await page.ReloadAsync();
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
+        await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
-            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            "() => document.querySelector('[x-data]')?._x_dataStack?.[0]?.initialized === true",
             null,
             new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
@@ -599,9 +604,9 @@ internal static class PlaywrightHelpers
         await page.RouteAsync("**/api/diagnostics/logs/stream", route => route.AbortAsync());
 
         await page.GotoAsync(url);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
+        await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
-            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            "() => document.querySelector('[x-data]')?._x_dataStack?.[0]?.initialized === true",
             null,
             new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
@@ -637,9 +642,9 @@ internal static class PlaywrightHelpers
         await page.RouteAsync("**/api/diagnostics/logs/stream", route => route.AbortAsync());
 
         await page.GotoAsync(url);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
+        await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
-            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            "() => document.querySelector('[x-data]')?._x_dataStack?.[0]?.initialized === true",
             null,
             new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);

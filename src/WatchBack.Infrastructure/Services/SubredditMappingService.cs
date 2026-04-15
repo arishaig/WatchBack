@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -29,8 +30,10 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
     private readonly ILogger<SubredditMappingService> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    // Ordered list: built-in first, imported files alphabetically, local last.
-    private List<SubredditMappingSource> _sources = [];
+    // Ordered: built-in first, imported files alphabetically, local last.
+    // Copy-on-write: readers dereference the field (atomic); writers serialize via _lock
+    // and swap the whole array. No separate reader lock needed.
+    private ImmutableArray<SubredditMappingSource> _sources = [];
 
     public SubredditMappingService(
         SubredditMappingPaths paths,
@@ -46,11 +49,7 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
 
     public IReadOnlyList<string> GetSubreddits(MediaContext mediaContext)
     {
-        List<SubredditMappingSource> snapshot;
-        lock (_sources)
-        {
-            snapshot = [.. _sources];
-        }
+        ImmutableArray<SubredditMappingSource> snapshot = _sources;
 
         HashSet<string> result = new(StringComparer.OrdinalIgnoreCase);
         foreach (SubredditMappingSource source in snapshot)
@@ -72,10 +71,7 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
 
     public IReadOnlyList<SubredditMappingSource> GetSources()
     {
-        lock (_sources)
-        {
-            return [.. _sources];
-        }
+        return _sources;
     }
 
     public async Task<SubredditMappingSource> ImportAsync(string name, string json,
@@ -126,10 +122,7 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
                 File.Delete(filePath);
             }
 
-            lock (_sources)
-            {
-                _sources.RemoveAll(s => s.Id.Equals(sourceId, StringComparison.OrdinalIgnoreCase));
-            }
+            _sources = [.. _sources.Where(s => !s.Id.Equals(sourceId, StringComparison.OrdinalIgnoreCase))];
         }
         finally
         {
@@ -142,7 +135,7 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
         await _lock.WaitAsync(ct);
         try
         {
-            List<SubredditMappingEntry> entries = GetLocalEntries();
+            List<SubredditMappingEntry> entries = GetLocalEntriesLocked();
             // Replace if exact title match already exists; otherwise append.
             int existing = entries.FindIndex(e =>
                 string.Equals(e.Title, entry.Title, StringComparison.OrdinalIgnoreCase));
@@ -168,7 +161,7 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
         await _lock.WaitAsync(ct);
         try
         {
-            List<SubredditMappingEntry> entries = GetLocalEntries();
+            List<SubredditMappingEntry> entries = GetLocalEntriesLocked();
             entries.RemoveAll(e => string.Equals(e.Title, title, StringComparison.OrdinalIgnoreCase));
             await PersistLocalAsync(entries, ct);
         }
@@ -183,7 +176,6 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
         await _lock.WaitAsync(ct);
         try
         {
-            // _lock is held by this caller — no concurrent writer can modify _sources here.
             SubredditMappingSource? source = _sources.FirstOrDefault(
                 s => s.Id.Equals(sourceId, StringComparison.OrdinalIgnoreCase));
 
@@ -193,7 +185,7 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
             }
 
             SubredditMappingEntry entryToPromote = source.Entries[entryIndex];
-            List<SubredditMappingEntry> localEntries = GetLocalEntries();
+            List<SubredditMappingEntry> localEntries = GetLocalEntriesLocked();
             int existing = localEntries.FindIndex(e =>
                 string.Equals(e.Title, entryToPromote.Title, StringComparison.OrdinalIgnoreCase));
 
@@ -216,12 +208,8 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
 
     public string ExportSource(string sourceId)
     {
-        SubredditMappingSource? source;
-        lock (_sources)
-        {
-            source = _sources.FirstOrDefault(
-                s => s.Id.Equals(sourceId, StringComparison.OrdinalIgnoreCase));
-        }
+        SubredditMappingSource? source = _sources.FirstOrDefault(
+            s => s.Id.Equals(sourceId, StringComparison.OrdinalIgnoreCase));
 
         if (source is null)
         {
@@ -290,10 +278,7 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
             }
         }
 
-        lock (_sources)
-        {
-            _sources = sources;
-        }
+        _sources = [.. sources];
     }
 
     private SubredditMappingSource? TryLoadFile(string path, string id, string name, bool isBuiltIn)
@@ -361,14 +346,11 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
         return false;
     }
 
-    private List<SubredditMappingEntry> GetLocalEntries()
+    private List<SubredditMappingEntry> GetLocalEntriesLocked()
     {
-        lock (_sources)
-        {
-            SubredditMappingSource? local = _sources.FirstOrDefault(
-                s => s.Id.Equals(LocalSourceId, StringComparison.OrdinalIgnoreCase));
-            return local is not null ? [.. local.Entries] : [];
-        }
+        SubredditMappingSource? local = _sources.FirstOrDefault(
+            s => s.Id.Equals(LocalSourceId, StringComparison.OrdinalIgnoreCase));
+        return local is not null ? [.. local.Entries] : [];
     }
 
     private async Task PersistLocalAsync(List<SubredditMappingEntry> entries, CancellationToken ct)
@@ -386,29 +368,27 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
 
         // Update in-memory local source.
         SubredditMappingSource updated = new(LocalSourceId, "Local", false, entries);
-        lock (_sources)
-        {
-            _sources.RemoveAll(s => s.Id.Equals(LocalSourceId, StringComparison.OrdinalIgnoreCase));
-            _sources.Add(updated);
-        }
+        _sources =
+        [
+            .. _sources.Where(s => !s.Id.Equals(LocalSourceId, StringComparison.OrdinalIgnoreCase)),
+            updated
+        ];
     }
 
     private void AddToSources(SubredditMappingSource source)
     {
-        lock (_sources)
+        // Insert before local, or at end if no local source exists.
+        int localIdx = -1;
+        for (int i = 0; i < _sources.Length; i++)
         {
-            // Insert before local, or at end if no local source exists.
-            int localIdx = _sources.FindIndex(
-                s => s.Id.Equals(LocalSourceId, StringComparison.OrdinalIgnoreCase));
-            if (localIdx >= 0)
+            if (_sources[i].Id.Equals(LocalSourceId, StringComparison.OrdinalIgnoreCase))
             {
-                _sources.Insert(localIdx, source);
-            }
-            else
-            {
-                _sources.Add(source);
+                localIdx = i;
+                break;
             }
         }
+
+        _sources = localIdx >= 0 ? _sources.Insert(localIdx, source) : _sources.Add(source);
     }
 
     private static SubredditMappingEntry MergeEntry(SubredditMappingEntry existing, SubredditMappingEntry incoming)

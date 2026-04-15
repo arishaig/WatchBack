@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 
+using WatchBack.Api;
 using WatchBack.Api.Endpoints;
 using WatchBack.Api.Logging;
 using WatchBack.Api.Models;
@@ -24,9 +25,9 @@ namespace WatchBack.Api.Serialization;
 [JsonSerializable(typeof(IReadOnlyList<EpisodeInfo>))]
 [JsonSerializable(typeof(IReadOnlyList<MediaRatingResponse>))]
 [JsonSerializable(typeof(MediaRatingResponse))]
-[JsonSerializable(typeof(SyncEndpoints.ProgressEvent))]
-[JsonSerializable(typeof(SyncEndpoints.ProgressSegment))]
-[JsonSerializable(typeof(SyncEndpoints.ProgressSegment[]))]
+[JsonSerializable(typeof(ProgressEvent))]
+[JsonSerializable(typeof(ProgressSegment))]
+[JsonSerializable(typeof(ProgressSegment[]))]
 [JsonSerializable(typeof(ThemeItem[]))]
 [JsonSerializable(typeof(List<SyncLogEntry>))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
