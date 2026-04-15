@@ -481,6 +481,11 @@ internal static class PlaywrightHelpers
         // Mark wizard/checklist as completed so the overlay doesn't block non-wizard tests
         await page.EvaluateAsync("localStorage.setItem('wb_wizardCompleted', 'true')");
         await page.EvaluateAsync("localStorage.setItem('wb_checklistCompleted', 'true')");
+        // Mark all known providers as seen so the new-providers modal never fires in non-wizard tests.
+        // The modal (x-show="newProvidersActive") intercepts pointer events across the full viewport
+        // and will block any subsequent click-based navigation (e.g. SwitchToDiagnosticsTab).
+        await page.EvaluateAsync(
+            "localStorage.setItem('wb_seenProviders', JSON.stringify(['jellyfin','trakt','bluesky','reddit','lemmy','omdb','manual']))");
         await page.ReloadAsync();
 
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 25_000 });
