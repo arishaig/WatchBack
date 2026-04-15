@@ -29,6 +29,7 @@ builder.Services.AddSingleton<InMemoryLogBuffer>();
 builder.Services.AddSingleton<SyncHistoryStore>();
 builder.Services.AddSingleton<SyncTrigger>();
 builder.Services.AddSingleton<SyncGate>();
+builder.Services.AddSingleton<SentimentScorer>();
 builder.Services.AddSingleton<ILoggerProvider, InMemoryLoggerProvider>();
 
 // Add services
