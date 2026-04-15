@@ -490,7 +490,7 @@ internal static class PlaywrightHelpers
 
         await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
-            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            "() => document.querySelector('[x-data]')?._x_dataStack?.[0]?.initialized === true",
             null,
             new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
@@ -517,7 +517,7 @@ internal static class PlaywrightHelpers
 
         await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
-            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            "() => document.querySelector('[x-data]')?._x_dataStack?.[0]?.initialized === true",
             null,
             new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
@@ -542,7 +542,7 @@ internal static class PlaywrightHelpers
         await page.ReloadAsync();
         await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
-            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            "() => document.querySelector('[x-data]')?._x_dataStack?.[0]?.initialized === true",
             null,
             new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
@@ -606,7 +606,7 @@ internal static class PlaywrightHelpers
         await page.GotoAsync(url);
         await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
-            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            "() => document.querySelector('[x-data]')?._x_dataStack?.[0]?.initialized === true",
             null,
             new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
@@ -644,7 +644,7 @@ internal static class PlaywrightHelpers
         await page.GotoAsync(url);
         await page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions { Timeout = 25_000 });
         await page.WaitForFunctionAsync(
-            "() => !!document.querySelector('[x-data]')?._x_dataStack?.[0]",
+            "() => document.querySelector('[x-data]')?._x_dataStack?.[0]?.initialized === true",
             null,
             new PageWaitForFunctionOptions { Timeout = 5_000 });
         await ApplyTheme(page, theme);
