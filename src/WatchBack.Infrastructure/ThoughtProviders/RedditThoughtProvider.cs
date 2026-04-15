@@ -35,6 +35,7 @@ public sealed class RedditThoughtProvider(
     private static readonly ThoughtResult s_empty = new("Reddit", null, null, null, [], null);
 
     private static readonly Regex s_excessiveNewlines = new(@"\n{3,}", RegexOptions.Compiled);
+    private static readonly Regex s_spoilerTag = new(@">!(.+?)!<", RegexOptions.Compiled | RegexOptions.Singleline);
 
     // Detects explicit season references in a submission title (SxxEyy, NxYY, or "Season N").
     // Used to reject bypass results that name a different season than the one being fetched.
@@ -229,8 +230,9 @@ public sealed class RedditThoughtProvider(
                         ? $"https://reddit.com{submission.Permalink}"
                         : $"https://reddit.com/r/{submission.Subreddit}/comments/{submission.Id}/";
 
-                    // Capture OP selftext for self-posts (not deleted/removed),
-                    // collapsing runs of 3+ newlines down to 2 (one blank line)
+                    // Capture OP selftext for self-posts (not deleted/removed).
+                    // Content normalization (newline collapsing, spoiler tags) is applied
+                    // by SyncService via NormalizeContent after the result is returned.
                     string? selftext = submission.Selftext;
                     string? thisPostBody = null;
                     if (submission.IsSelf &&
@@ -238,7 +240,7 @@ public sealed class RedditThoughtProvider(
                         !selftext.Equals("[deleted]", StringComparison.Ordinal) &&
                         !selftext.Equals("[removed]", StringComparison.Ordinal))
                     {
-                        thisPostBody = CollapseNewlines(selftext);
+                        thisPostBody = selftext;
                     }
 
                     string commentsUrl =
@@ -323,6 +325,12 @@ public sealed class RedditThoughtProvider(
     // Reddit requires no credentials — always operationally configured.
     public bool IsConfigured => true;
 
+    public string NormalizeContent(string content)
+    {
+        string result = s_excessiveNewlines.Replace(content.Trim(), "\n\n");
+        return s_spoilerTag.Replace(result, "<spoiler>$1</spoiler>");
+    }
+
     public IReadOnlyList<ProviderConfigField> GetConfigSchema(
         Func<string, string> envVal,
         Func<string, string, bool> isOverridden)
@@ -397,11 +405,6 @@ public sealed class RedditThoughtProvider(
         }
 
         return redditId;
-    }
-
-    private static string CollapseNewlines(string text)
-    {
-        return s_excessiveNewlines.Replace(text.Trim(), "\n\n");
     }
 
     // Cache compiled regexes keyed by (season, episode) — small, bounded set in practice

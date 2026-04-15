@@ -83,10 +83,9 @@ public class SyncService(
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            List<Task<ThoughtResult?>> thoughtTasks = thoughtProviders
+            IThoughtProvider[] activeProviders = thoughtProviders
                 .Where(p => p.ConfigSection is null || !disabledSet.Contains(p.ConfigSection))
-                .Select(provider => provider.GetThoughtsAsync(mediaContext, progress, ct))
-                .ToList();
+                .ToArray();
 
             string? imdbId = null;
             mediaContext.ExternalIds?.TryGetValue(Imdb, out imdbId);
@@ -95,9 +94,13 @@ public class SyncService(
                 ? Task.WhenAll(ratingsProviderList.Select(p => p.GetRatingsAsync(imdbId, ct)))
                 : Task.FromResult<IReadOnlyList<MediaRating>[]>([]);
 
-            List<ThoughtResult> sourceResults = (await Task.WhenAll(thoughtTasks))
-                .Where(r => r != null)
-                .Cast<ThoughtResult>()
+            ThoughtResult?[] rawResults = await Task.WhenAll(
+                activeProviders.Select(p => p.GetThoughtsAsync(mediaContext, progress, ct)));
+
+            List<ThoughtResult> sourceResults = activeProviders
+                .Zip(rawResults)
+                .Where(pair => pair.Second != null)
+                .Select(pair => NormalizeThoughts(pair.First, pair.Second!))
                 .ToList();
 
             // Collect top-level thoughts from all providers (replies stay nested inside each thought)
@@ -148,5 +151,24 @@ public class SyncService(
             logger.LogError(ex, "Sync failed");
             return SyncResult.Error(options.Value.TimeMachineDays);
         }
+    }
+
+    private static ThoughtResult NormalizeThoughts(IThoughtProvider provider, ThoughtResult result)
+    {
+        if (result.Thoughts is not { Count: > 0 })
+        {
+            return result;
+        }
+
+        return result with
+        {
+            Thoughts = result.Thoughts
+                .Select(t => t with
+                {
+                    Content = provider.NormalizeContent(t.Content),
+                    PostBody = t.PostBody != null ? provider.NormalizeContent(t.PostBody) : null
+                })
+                .ToList()
+        };
     }
 }
