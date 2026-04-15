@@ -21,8 +21,9 @@ public class ReplyTreeBuilder : IReplyTreeBuilder
             .GroupBy(t => t.ParentId!)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        // Build each node iteratively using an explicit stack (post-order traversal)
-        // to avoid stack overflow on deeply nested reply chains.
+        // Build each node iteratively using the "two-color" iterative post-order DFS:
+        // push (node, false), then on first pop push (node, true) before the children.
+        // Avoids stack overflow on deeply nested reply chains — Reddit threads can be hundreds of levels deep.
         Dictionary<string, Thought> built = new(flatList.Count);
 
         foreach (Thought root in flatList)
