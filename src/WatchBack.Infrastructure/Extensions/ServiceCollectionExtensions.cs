@@ -23,18 +23,12 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddWatchBackInfrastructure(
         this IServiceCollection services)
     {
-        services.AddHttpClient<JellyfinWatchStateProvider>()
-            .AddResilienceHandler("watchback", (p, ctx) => ConfigureResiliencePipeline(p, ctx, TimeSpan.FromSeconds(10)));
-        services.AddHttpClient<TraktWatchStateProvider>()
-            .AddResilienceHandler("watchback", (p, ctx) => ConfigureResiliencePipeline(p, ctx, TimeSpan.FromSeconds(10)));
-        services.AddHttpClient<TraktThoughtProvider>()
-            .AddResilienceHandler("watchback", (p, ctx) => ConfigureResiliencePipeline(p, ctx, TimeSpan.FromSeconds(10)));
-        services.AddHttpClient<RedditThoughtProvider>()
-            .AddResilienceHandler("watchback", (p, ctx) => ConfigureResiliencePipeline(p, ctx, TimeSpan.FromSeconds(30)));
-        services.AddHttpClient<BlueskyThoughtProvider>()
-            .AddResilienceHandler("watchback", (p, ctx) => ConfigureResiliencePipeline(p, ctx, TimeSpan.FromSeconds(10)));
-        services.AddHttpClient<LemmyThoughtProvider>()
-            .AddResilienceHandler("watchback", (p, ctx) => ConfigureResiliencePipeline(p, ctx, TimeSpan.FromSeconds(10)));
+        services.AddWatchBackClient<JellyfinWatchStateProvider>();
+        services.AddWatchBackClient<TraktWatchStateProvider>();
+        services.AddWatchBackClient<TraktThoughtProvider>();
+        services.AddWatchBackClient<RedditThoughtProvider>(TimeSpan.FromSeconds(30));
+        services.AddWatchBackClient<BlueskyThoughtProvider>();
+        services.AddWatchBackClient<LemmyThoughtProvider>();
 
         // ManualWatchStateProvider is a singleton so it can hold state across requests.
         // Registered as both IManualWatchStateProvider (for SyncService priority check)
@@ -56,12 +50,19 @@ public static class ServiceCollectionExtensions
         // Register media search and ratings providers — OMDb implements both interfaces.
         // AddHttpClient registers the typed client as transient; the scoped forwarding
         // registrations ensure the HttpClient handler pipeline rotates correctly.
-        services.AddHttpClient<OmdbMediaSearchProvider>()
-            .AddResilienceHandler("watchback", (p, ctx) => ConfigureResiliencePipeline(p, ctx, TimeSpan.FromSeconds(10)));
+        services.AddWatchBackClient<OmdbMediaSearchProvider>();
         services.AddScoped<IMediaSearchProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
         services.AddScoped<IRatingsProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
 
         return services;
+    }
+
+    private static void AddWatchBackClient<T>(this IServiceCollection services, TimeSpan? timeout = null)
+        where T : class
+    {
+        services.AddHttpClient<T>()
+            .AddResilienceHandler("watchback", (p, ctx) =>
+                ConfigureResiliencePipeline(p, ctx, timeout ?? TimeSpan.FromSeconds(10)));
     }
 
     /// <summary>

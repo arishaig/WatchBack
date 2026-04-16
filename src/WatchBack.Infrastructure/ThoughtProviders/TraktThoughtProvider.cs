@@ -11,8 +11,6 @@ using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 using WatchBack.Resources;
 
-using static WatchBack.Core.Models.ExternalIdType;
-
 namespace WatchBack.Infrastructure.ThoughtProviders;
 
 [JsonSerializable(typeof(TraktShowSearchItemDto[]))]
