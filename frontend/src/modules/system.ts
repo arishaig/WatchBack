@@ -2,10 +2,11 @@ import type { AppData, SyncData, LogEntry, SyncHistoryStatus, SyncHistoryEntry }
 
 const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     setupSSE() {
-        // Bar-visibility is time-debounced rather than tick-counted: fast cached
-        // cycles (only initial + final events) never cross the delay and stay
-        // hidden, while cycles with real provider work show the bar after
-        // SHOW_DELAY_MS and keep it visible through the 100% event.
+        // Bar visibility is driven by intermediate-progress events: the backend
+        // emits 0% at the start and 100% at the end of every cycle, but it only
+        // emits intermediate (0 < completed < total) events when providers
+        // actually do work. Cached cycles report zero ticks, so they skip the
+        // intermediates and never arm the show timer — regardless of wall-time.
         const SHOW_DELAY_MS = 250;
         const HIDE_DELAY_MS = 300;
         const PULSE_DURATION_MS = 600;
@@ -41,18 +42,18 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                 if (data['completed'] !== undefined) {
                     const completed = data['completed'] as number;
                     const total = data['total'] as number;
-                    // First progress event of a cycle — arm the show-after-delay timer.
-                    // A pending clearTimer from the previous cycle means that cycle's
-                    // status has arrived; cancel it since new progress is coming in.
-                    // If the bar isn't visible, also drop the stale syncProgress so
-                    // back-to-back cycles (manual trigger landing within HIDE_DELAY_MS
-                    // of the last status) still arm a fresh show timer.
+                    // Cancel a pending clear from the prior cycle so a quick
+                    // follow-on sync is treated as fresh.
                     const wasClearPending = clearTimer !== null;
                     cancelClearTimer();
                     if (wasClearPending && !this.showSyncBar) {
                         this.syncProgress = null;
                     }
-                    if (this.syncProgress === null && showBarTimer === null && !this.showSyncBar) {
+                    // Only arm the show timer for intermediate progress —
+                    // cached cycles skip straight from 0% to 100% with no ticks
+                    // between and therefore never flash the bar.
+                    const isIntermediate = completed > 0 && completed < total;
+                    if (isIntermediate && showBarTimer === null && !this.showSyncBar) {
                         showBarTimer = setTimeout(() => {
                             this.showSyncBar = true;
                             showBarTimer = null;

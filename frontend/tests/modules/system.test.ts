@@ -5,9 +5,10 @@ const methods = systemMethods as Record<string, Function>;
 
 // ── setupSSE ───────────────────────────────────────────────────────────────────
 // Regression coverage for the sync-bar flake fixes:
-//   1. Fast cached cycles (initial + final + status within a few ms) never
-//      show the bar (no flash).
-//   2. Slow cycles show the bar after SHOW_DELAY_MS.
+//   1. Cached cycles (only 0% and 100% events, no intermediates) never show
+//      the bar — even when the cycle takes longer than SHOW_DELAY_MS.
+//   2. Cycles with intermediate progress (provider ticks) show the bar after
+//      SHOW_DELAY_MS.
 //   3. The final 100% progress event updates syncProgress/syncSegments so the
 //      bar visually completes instead of freezing at a partial value.
 //   4. When a status event reports a new episode but the bar never became
@@ -45,27 +46,33 @@ describe('setupSSE', () => {
     beforeEach(() => { vi.useFakeTimers(); });
     afterEach(() => { vi.useRealTimers(); });
 
-    it('keeps the bar hidden for a fast cached cycle', () => {
+    it('keeps the bar hidden for a cached cycle regardless of wall time', () => {
         const sse = installFakeEventSource();
         const ctx = makeCtx();
         methods.setupSSE.call(ctx);
 
-        // Initial 0% event, immediate 100% event, status — all within a few ms.
+        // Cached cycle: only 0% and 100% events, no intermediates.
         send(sse, { completed: 0, total: 10, providers: [] });
+        // The bar must stay hidden the whole time — even if the cycle
+        // wall-time exceeds SHOW_DELAY_MS — because no provider ticks arrived.
+        vi.advanceTimersByTime(2000);
+        expect(ctx.showSyncBar).toBe(false);
+
         send(sse, { completed: 10, total: 10, providers: [] });
         send(sse, { status: 'Watching', title: 'Show', metadata: null });
 
-        // Advance past SHOW_DELAY_MS to prove the show timer was cancelled.
         vi.advanceTimersByTime(500);
         expect(ctx.showSyncBar).toBe(false);
     });
 
-    it('shows the bar after the debounce when the sync takes time', () => {
+    it('shows the bar after the debounce when intermediate progress arrives', () => {
         const sse = installFakeEventSource();
         const ctx = makeCtx();
         methods.setupSSE.call(ctx);
 
+        // Intermediate event (0 < completed < total) — providers doing real work.
         send(sse, { completed: 0, total: 10, providers: [] });
+        send(sse, { completed: 3, total: 10, providers: [] });
         vi.advanceTimersByTime(300);
         expect(ctx.showSyncBar).toBe(true);
     });
@@ -138,8 +145,9 @@ describe('setupSSE', () => {
         // Cycle 2 starts before HIDE_DELAY_MS elapses (e.g. manual trigger).
         vi.advanceTimersByTime(100);
         send(sse, { completed: 0, total: 10 });
+        send(sse, { completed: 4, total: 10 });
 
-        // This cycle takes real time — show timer must fire.
+        // This cycle reports real intermediate progress — show timer must fire.
         vi.advanceTimersByTime(300);
         expect(ctx.showSyncBar).toBe(true);
     });
