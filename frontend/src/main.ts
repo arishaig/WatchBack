@@ -63,7 +63,6 @@ Alpine.data('app', (): AppData => {
         syncProgress: null,
         showSyncBar: false,
         syncSegments: [],
-        _progressTickCount: 0,
         _cAtSrc: undefined,
         _cAtMode: '',
         _cAtFilter: new Set<string>(),

@@ -2,34 +2,100 @@ import type { AppData, SyncData, LogEntry, SyncHistoryStatus, SyncHistoryEntry }
 
 const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     setupSSE() {
+        // Bar visibility is driven by intermediate-progress events: the backend
+        // emits 0% at the start and 100% at the end of every cycle, but it only
+        // emits intermediate (0 < completed < total) events when providers
+        // actually do work. Cached cycles report zero ticks, so they skip the
+        // intermediates and never arm the show timer — regardless of wall-time.
+        const SHOW_DELAY_MS = 250;
+        const HIDE_DELAY_MS = 300;
+        const PULSE_DURATION_MS = 600;
+        let showBarTimer: ReturnType<typeof setTimeout> | null = null;
+        let clearTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const episodeKey = (d: SyncData | null | undefined): string => {
+            const m = d?.metadata;
+            if (!m) return d?.title ?? '';
+            return `${m.title ?? d?.title ?? ''}|${m.seasonNumber ?? ''}|${m.episodeNumber ?? ''}`;
+        };
+
+        const resetBarState = () => {
+            this.syncProgress = null;
+            this.syncSegments = [];
+            this.showSyncBar = false;
+        };
+
+        const cancelShowTimer = () => {
+            if (showBarTimer !== null) { clearTimeout(showBarTimer); showBarTimer = null; }
+        };
+        const cancelClearTimer = () => {
+            if (clearTimer !== null) { clearTimeout(clearTimer); clearTimer = null; }
+        };
+
         const es = new (window as unknown as Window & { ReconnectingEventSource: new (url: string, opts: Record<string, unknown>) => EventSource }).ReconnectingEventSource(
             '/api/sync/stream', { max_retry_time: 60000 }
         );
         es.onmessage = (e: MessageEvent) => {
-            if (e.data) {
-                try {
-                    const data = JSON.parse((e.data as string).replace(/^data: /, '')) as Record<string, unknown>;
-                    if (data['completed'] !== undefined) {
-                        console.debug("[WatchBack] SSE progress:", data['completed'], "/", data['total']);
-                        this._progressTickCount++;
-                        if (this._progressTickCount >= 5) this.showSyncBar = true;
-                        if ((data['completed'] as number) >= (data['total'] as number)) return;
-                        this.syncProgress = { completed: data['completed'] as number, total: data['total'] as number };
-                        if (data['providers']) this.syncSegments = data['providers'] as unknown[];
-                        return;
-                    }
-                    if (!(data as Record<string, unknown>)?.['status']) return;
-                    setTimeout(() => {
+            if (!e.data) return;
+            try {
+                const data = JSON.parse((e.data as string).replace(/^data: /, '')) as Record<string, unknown>;
+                if (data['completed'] !== undefined) {
+                    const completed = data['completed'] as number;
+                    const total = data['total'] as number;
+                    // Cancel a pending clear from the prior cycle so a quick
+                    // follow-on sync is treated as fresh.
+                    const wasClearPending = clearTimer !== null;
+                    cancelClearTimer();
+                    if (wasClearPending && !this.showSyncBar) {
                         this.syncProgress = null;
-                        this.syncSegments = [];
-                        this.showSyncBar = false;
-                        this._progressTickCount = 0;
-                    }, 500);
-                    console.debug("[WatchBack] SSE update:", data);
-                    this.data = data as unknown as SyncData;
-                } catch (err) {
-                    console.debug("[WatchBack] SSE parse:", err);
+                    }
+                    // Only arm the show timer for intermediate progress —
+                    // cached cycles skip straight from 0% to 100% with no ticks
+                    // between and therefore never flash the bar.
+                    const isIntermediate = completed > 0 && completed < total;
+                    if (isIntermediate && showBarTimer === null && !this.showSyncBar) {
+                        showBarTimer = setTimeout(() => {
+                            this.showSyncBar = true;
+                            showBarTimer = null;
+                        }, SHOW_DELAY_MS);
+                    }
+                    this.syncProgress = { completed, total };
+                    if (data['providers']) this.syncSegments = data['providers'] as unknown[];
+                    return;
                 }
+                if (!data['status']) return;
+
+                const newData = data as unknown as SyncData;
+                const prevKey = episodeKey(this.data);
+                const newKey = episodeKey(newData);
+                const episodeChanged = this.data !== null && prevKey !== newKey;
+                const barWasVisible = this.showSyncBar;
+
+                console.debug("[WatchBack] SSE update:", data);
+                this.data = newData;
+
+                // The cycle is done — cancel any pending show timer so late
+                // cached cycles don't flash the bar after status arrives.
+                cancelShowTimer();
+                cancelClearTimer();
+
+                if (episodeChanged && !barWasVisible) {
+                    // Episode reloaded without a visible loading indicator — pulse
+                    // the bar briefly so the user sees that something changed.
+                    this.syncProgress = this.syncProgress ?? { completed: 1, total: 1 };
+                    this.showSyncBar = true;
+                    clearTimer = setTimeout(() => {
+                        resetBarState();
+                        clearTimer = null;
+                    }, PULSE_DURATION_MS);
+                } else {
+                    clearTimer = setTimeout(() => {
+                        resetBarState();
+                        clearTimer = null;
+                    }, HIDE_DELAY_MS);
+                }
+            } catch (err) {
+                console.debug("[WatchBack] SSE parse:", err);
             }
         };
         es.onerror = () => {
