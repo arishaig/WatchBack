@@ -32,16 +32,13 @@ builder.Services.AddSingleton<SyncGate>();
 builder.Services.AddSingleton<SentimentScorer>();
 builder.Services.AddSingleton<ILoggerProvider, InMemoryLoggerProvider>();
 
-// Add services
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
 
-// Add database
-// Use environment variable or default path
 string? databasePath = Environment.GetEnvironmentVariable("WATCHBACK_DATABASE_PATH");
 if (string.IsNullOrEmpty(databasePath))
 {
-    // Default: use /app/data for Docker, or AppData for local development
+    // /app/data for Docker, AppData for local dev.
     string basePath = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production"
         ? "/app/data"
         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WatchBack");
@@ -54,13 +51,12 @@ if (dbDirectory != null)
     Directory.CreateDirectory(dbDirectory);
 }
 
-// Register subreddit mapping service
 string mappingsDir = Path.Combine(dbDirectory ?? ".", "subreddit-mappings");
 string builtInMappingsPath = Path.Combine(AppContext.BaseDirectory, "builtin-subreddit-mappings.json");
 builder.Services.AddSingleton(new SubredditMappingPaths(builtInMappingsPath, mappingsDir));
 builder.Services.AddSingleton<ISubredditMappingService, SubredditMappingService>();
 
-// Load user-editable config from the same directory as the database
+// User-editable config lives next to the database.
 string userConfigPath = Path.Combine(dbDirectory ?? ".", "user-settings.json");
 builder.Configuration.AddJsonFile(userConfigPath, true, true);
 builder.Services.AddSingleton(new UserConfigFile(userConfigPath));
@@ -68,7 +64,6 @@ builder.Services.AddSingleton(new UserConfigFile(userConfigPath));
 builder.Services.AddDbContext<WatchBackDbContext>(options =>
     options.UseSqlite($"Data Source={databasePath}"));
 
-// Configure options
 builder.Services
     .AddOptions<JellyfinOptions>()
     .BindConfiguration("Jellyfin")
@@ -122,10 +117,8 @@ builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dbDirectory ?? "."))
     .SetApplicationName("WatchBack");
 
-// Add infrastructure providers
 builder.Services.AddWatchBackInfrastructure();
 
-// Add internationalization and localization
 builder.Services.AddLocalization();
 string[] supportedCultures = ["en-US", "es"];
 builder.Services.Configure<RequestLocalizationOptions>(opts =>
@@ -137,13 +130,11 @@ builder.Services.Configure<RequestLocalizationOptions>(opts =>
     opts.FallBackToParentUICultures = true;
 });
 
-// Add core services
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddSingleton<ITimeMachineFilter, TimeMachineFilter>();
 builder.Services.AddSingleton<IReplyTreeBuilder, ReplyTreeBuilder>();
 builder.Services.AddSingleton<IPrefetchService, PrefetchService>();
 
-// Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, WatchBackJsonContext.Default));
 
@@ -162,7 +153,6 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
-// Add authentication / authorization
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -207,13 +197,11 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
-// Add Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 WebApplication app = builder.Build();
 
-// Initialize database
 using (IServiceScope scope = app.Services.CreateScope())
 {
     WatchBackDbContext dbContext = scope.ServiceProvider.GetRequiredService<WatchBackDbContext>();
@@ -224,7 +212,6 @@ using (IServiceScope scope = app.Services.CreateScope())
     await dbContext.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
 }
 
-// Initialize auth — generate initial password if not set
 await InitializeAuthAsync(app);
 
 // Trust X-Forwarded-* headers from reverse proxies so RemoteIpAddress,
@@ -266,7 +253,6 @@ app.Use(async (ctx, next) =>
     await next();
 });
 
-// Enable static files (frontend)
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
@@ -275,7 +261,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
-// Enable Swagger/OpenAPI — require authentication via middleware gate
+// Swagger requires authentication — gated via middleware.
 app.UseWhen(
     ctx => ctx.Request.Path.StartsWithSegments("/swagger"),
     branch => branch.Use(async (ctx, next) =>
@@ -296,9 +282,8 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = "swagger";
 });
 
-// Map endpoints
-app.MapStringsEndpoints(); // public strings endpoint
-app.MapAuthEndpoints(); // public auth endpoints
+app.MapStringsEndpoints();
+app.MapAuthEndpoints();
 RouteGroupBuilder protectedGroup = app.MapGroup("").RequireAuthorization();
 protectedGroup.MapSyncEndpoints();
 protectedGroup.MapConfigEndpoints();
@@ -308,7 +293,6 @@ protectedGroup.MapManualWatchStateEndpoints();
 protectedGroup.MapSearchEndpoints();
 protectedGroup.MapSubredditMappingEndpoints();
 
-// Map fallback to index.html for SPA
 app.MapFallbackToFile("index.html");
 
 app.Run();
@@ -344,5 +328,4 @@ static async Task InitializeAuthAsync(WebApplication webApp)
     Console.WriteLine("╚══════════════════════════════════════════════╝");
 }
 
-// Make Program accessible for tests
 public partial class Program;

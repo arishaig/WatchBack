@@ -139,7 +139,6 @@ internal sealed class InMemoryLogger(string category, InMemoryLogBuffer buffer) 
             _ => logLevel.ToString()
         };
 
-        // Shorten "WatchBack.Infrastructure.Http.ResilientHttpHandler" → "ResilientHttpHandler"
         string cat = category.Contains('.')
             ? category[(category.LastIndexOf('.') + 1)..]
             : category;
