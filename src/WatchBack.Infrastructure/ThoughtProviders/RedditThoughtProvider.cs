@@ -78,7 +78,6 @@ public sealed class RedditThoughtProvider(
                 return cached;
             }
 
-            // Resolve subreddits: use explicit mapping if available, otherwise derive from show title.
             IReadOnlyList<string> mappedSubreddits = mappingService.GetSubreddits(mediaContext);
             IReadOnlyList<string> subredditsToSearch = mappedSubreddits.Count > 0
                 ? mappedSubreddits
@@ -145,7 +144,6 @@ public sealed class RedditThoughtProvider(
 
             bool anySpecSucceeded = specResults.Any(r => r.Ok);
 
-            // Merge deduplicated results from all specs
             Dictionary<string, PullPushSubmissionDto> seenIds = new();
             HashSet<string> bypassIds = new();
             foreach ((PullPushSubmissionDto[] subs, bool isBypass, _) in specResults)
@@ -165,7 +163,6 @@ public sealed class RedditThoughtProvider(
                 }
             }
 
-            // Log raw results before filtering so we can diagnose misses
             foreach ((string id, PullPushSubmissionDto sub) in seenIds)
             {
                 bool passes =
@@ -217,7 +214,6 @@ public sealed class RedditThoughtProvider(
                 return emptyResult;
             }
 
-            // Fetch comments for all selected threads in parallel
             Thought[][] threadResults = await Task.WhenAll(
                 submissions.Take(_options.MaxThreads).Select(async submission =>
                 {
@@ -230,9 +226,7 @@ public sealed class RedditThoughtProvider(
                         ? $"https://reddit.com{submission.Permalink}"
                         : $"https://reddit.com/r/{submission.Subreddit}/comments/{submission.Id}/";
 
-                    // Capture OP selftext for self-posts (not deleted/removed).
-                    // Content normalization (newline collapsing, spoiler tags) is applied
-                    // by SyncService via NormalizeContent after the result is returned.
+                    // Normalization (newlines, spoiler tags) is applied later by SyncService via NormalizeContent.
                     string? selftext = submission.Selftext;
                     string? thisPostBody = null;
                     if (submission.IsSelf &&
@@ -361,7 +355,6 @@ public sealed class RedditThoughtProvider(
     {
         string? parentId = StripRedditPrefix(data.ParentId);
 
-        // Build per-comment permalink: {postUrl}{commentId}/
         string? commentUrl = postUrl != null && data.Id != null
             ? $"{postUrl.TrimEnd('/')}/{Uri.EscapeDataString(data.Id)}/"
             : null;
@@ -407,14 +400,10 @@ public sealed class RedditThoughtProvider(
         return redditId;
     }
 
-    // Cache compiled regexes keyed by (season, episode) — small, bounded set in practice
-    // Builds the ordered list of PullPush search specs for a given episode.
-    // Each spec maps to exactly one API call and one progress tick (weight 3).
-    // Specs are deduplicated so that e.g. S10E10 (padded == unpadded) doesn't run twice.
-    //
-    // Adding a new format: add a new SearchSpec line below.  The MatchesEpisode patterns
-    // already recognize all standard formats (SxxExx, NxNN, "Season N Episode N"), so
-    // new search formats just need to be added here to be searched and matched.
+    // Builds the ordered list of PullPush search specs for a given episode. Each spec maps to
+    // one API call and one progress tick (weight 3). Specs are deduplicated at the bottom so
+    // padded == unpadded (e.g. S10E10) doesn't run twice. To add a format, add a SearchSpec;
+    // MatchesEpisode already recognizes SxxExx, NxNN, and "Season N Episode N".
     private static List<SearchSpec> BuildSearchSpecs(
         MediaContext mediaContext, IReadOnlyList<string> subreddits, EpisodeContext? episode)
     {
@@ -488,16 +477,13 @@ public sealed class RedditThoughtProvider(
             string eStr = e.ToString(CultureInfo.InvariantCulture);
             string eL = e.ToString("D2", CultureInfo.InvariantCulture);
 
+            // SxxExx variants with lookbehind/lookahead to reject partial matches like "S01E12" inside "S01E120".
             List<string> patterns = new[] { $"S{sL}E{eL}", $"S{sStr}E{eL}", $"S{sL}E{eStr}", $"S{sStr}E{eStr}" }
                 .Select(code => $@"(?<!\d){code}(?!\d)").ToList();
 
-            // SxxExx patterns with lookbehind/lookahead to prevent partial matches
-
-            // NxNN patterns
             patterns.Add($@"\b{sStr}X{eL}(?!\d)");
             patterns.Add($@"\b{sStr}X{eStr}(?!\d)");
 
-            // "Season N ... Episode N"
             patterns.Add($@"\bSEASON\s+{sStr}\b.{{0,30}}\bEPISODE\s+{eStr}\b");
 
             return patterns.Select(p => new Regex(p, RegexOptions.Compiled | RegexOptions.IgnoreCase)).ToArray();
@@ -541,8 +527,6 @@ public sealed class RedditThoughtProvider(
 // bypasses MatchesEpisode for results (used for episode-title searches where PullPush already
 // scopes results and the title needn't contain an episode code).
 internal sealed record SearchSpec(string Title, string? Subreddit, bool BypassFilter = false);
-
-// PullPush API returns { "data": [...] } — a flat array, not the Reddit native children wrapper.
 
 // PullPush sometimes returns created_utc as a float (e.g. 1234567890.0) rather than an integer.
 // AllowReadingFromString handles string-encoded numbers but not float-encoded integers, so we

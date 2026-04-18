@@ -15,7 +15,6 @@ public class ReplyTreeBuilder : IReplyTreeBuilder
 
         Dictionary<string, Thought> byId = flatList.ToDictionary(t => t.Id);
 
-        // Group children by parent ID in a single pass, excluding self-referential entries
         Dictionary<string, List<Thought>> byParent = flatList
             .Where(t => t.ParentId != null && t.ParentId != t.Id)
             .GroupBy(t => t.ParentId!)
@@ -49,7 +48,6 @@ public class ReplyTreeBuilder : IReplyTreeBuilder
 
                 if (childrenProcessed || !hasChildren)
                 {
-                    // All children are built — assemble this node
                     List<Thought> replies = hasChildren
                         ? nodeChildren!.Select(c =>
                                 built.TryGetValue(c.Id, out Thought? b) ? b : c with { Replies = [] })
@@ -59,7 +57,6 @@ public class ReplyTreeBuilder : IReplyTreeBuilder
                 }
                 else
                 {
-                    // Re-push this node to be finalized after its children
                     stack.Push((node, true));
                     foreach (Thought child in nodeChildren!)
                     {
@@ -72,7 +69,6 @@ public class ReplyTreeBuilder : IReplyTreeBuilder
             }
         }
 
-        // Top-level: no parent, or parent not in the set
         return flatList
             .Where(t => t.ParentId == null || !byId.ContainsKey(t.ParentId))
             .Select(t => built.TryGetValue(t.Id, out Thought? b) ? b : t)

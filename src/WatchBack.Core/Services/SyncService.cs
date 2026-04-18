@@ -25,7 +25,6 @@ public class SyncService(
     {
         try
         {
-            // Select the configured watch state provider (used as fallback and for suppression check)
             string configuredName = options.Value.WatchProvider;
             IWatchStateProvider? configuredProvider = watchStateProviders
                                                           .FirstOrDefault(p => p.Metadata.Name.Equals(configuredName,
@@ -43,7 +42,6 @@ public class SyncService(
             IManualWatchStateProvider? manual = manualWatchStateProviders.FirstOrDefault();
             bool configuredIsManual = manual != null && configuredProvider == manual;
 
-            // Start the configured provider fetch concurrently (unless it IS the manual provider)
             Task<MediaContext?> configuredTask = configuredProvider != null && !configuredIsManual
                 ? configuredProvider.GetCurrentMediaContextAsync(ct)
                 : Task.FromResult<MediaContext?>(null);
@@ -62,7 +60,6 @@ public class SyncService(
             }
             else
             {
-                // No manual override — use the already-started configured provider result
                 watchStateProvider = configuredProvider;
                 mediaContext = await configuredTask;
             }
@@ -78,7 +75,6 @@ public class SyncService(
                 return SyncResult.Idle(options.Value.TimeMachineDays);
             }
 
-            // Get thoughts and ratings from all providers in parallel, skipping disabled ones
             HashSet<string> disabledSet = options.Value.DisabledProviders
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -103,14 +99,13 @@ public class SyncService(
                 .Select(pair => NormalizeThoughts(pair.First, pair.Second!))
                 .ToList();
 
-            // Collect top-level thoughts from all providers (replies stay nested inside each thought)
+            // Replies stay nested inside each thought — we only flatten the top level.
             List<Thought> allThoughts = sourceResults
                 .Where(r => r.Thoughts is { Count: > 0 })
                 .SelectMany(r => r.Thoughts!)
                 .OrderByDescending(t => t.CreatedAt)
                 .ToList();
 
-            // Apply time machine filter
             IReadOnlyList<Thought> timeMachineThoughts = timeMachineFilter.Apply(
                 allThoughts,
                 mediaContext.ReleaseDate,
@@ -138,7 +133,6 @@ public class SyncService(
                 ratings.Count > 0 ? ratings : null,
                 ratingsProviderName);
 
-            // Proactively warm the cache for the next episode(s) in the background.
             if (mediaContext is EpisodeContext episode)
             {
                 prefetchService.SchedulePrefetch(episode);
