@@ -124,4 +124,23 @@ describe('setupSSE', () => {
         vi.advanceTimersByTime(700);
         expect(ctx.showSyncBar).toBe(false);
     });
+
+    it('arms a fresh show timer for a back-to-back cycle within the hide delay', () => {
+        const sse = installFakeEventSource();
+        const ctx = makeCtx();
+        methods.setupSSE.call(ctx);
+
+        // Cycle 1: fully cached, bar stays hidden, clearTimer armed after status.
+        send(sse, { completed: 0, total: 10 });
+        send(sse, { completed: 10, total: 10 });
+        send(sse, { status: 'Watching', title: 'Show', metadata: null });
+
+        // Cycle 2 starts before HIDE_DELAY_MS elapses (e.g. manual trigger).
+        vi.advanceTimersByTime(100);
+        send(sse, { completed: 0, total: 10 });
+
+        // This cycle takes real time — show timer must fire.
+        vi.advanceTimersByTime(300);
+        expect(ctx.showSyncBar).toBe(true);
+    });
 });

@@ -44,7 +44,14 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                     // First progress event of a cycle — arm the show-after-delay timer.
                     // A pending clearTimer from the previous cycle means that cycle's
                     // status has arrived; cancel it since new progress is coming in.
+                    // If the bar isn't visible, also drop the stale syncProgress so
+                    // back-to-back cycles (manual trigger landing within HIDE_DELAY_MS
+                    // of the last status) still arm a fresh show timer.
+                    const wasClearPending = clearTimer !== null;
                     cancelClearTimer();
+                    if (wasClearPending && !this.showSyncBar) {
+                        this.syncProgress = null;
+                    }
                     if (this.syncProgress === null && showBarTimer === null && !this.showSyncBar) {
                         showBarTimer = setTimeout(() => {
                             this.showSyncBar = true;
