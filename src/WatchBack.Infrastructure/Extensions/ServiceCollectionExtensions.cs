@@ -23,6 +23,9 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddWatchBackInfrastructure(
         this IServiceCollection services)
     {
+        // DelegatingHandlers must be transient — they cannot be shared across HttpClients.
+        services.AddTransient<RequestLoggingHandler>();
+
         services.AddWatchBackClient<JellyfinWatchStateProvider>();
         services.AddWatchBackClient<TraktWatchStateProvider>();
         services.AddWatchBackClient<TraktThoughtProvider>();
@@ -60,7 +63,11 @@ public static class ServiceCollectionExtensions
     private static void AddWatchBackClient<T>(this IServiceCollection services, TimeSpan? timeout = null)
         where T : class
     {
+        // RequestLoggingHandler is registered FIRST so it sits outside the resilience pipeline
+        // — each log entry then represents the end-to-end wall time including retries, waits,
+        // and short-circuits. Individual retry/timeout events log separately from inside the pipeline.
         services.AddHttpClient<T>()
+            .AddHttpMessageHandler<RequestLoggingHandler>()
             .AddResilienceHandler("watchback", (p, ctx) =>
                 ConfigureResiliencePipeline(p, ctx, timeout ?? TimeSpan.FromSeconds(10)));
     }
@@ -80,8 +87,13 @@ public static class ServiceCollectionExtensions
     {
         IServiceProvider sp = ctx.ServiceProvider;
         IMemoryCache cache = sp.GetRequiredService<IMemoryCache>();
-        ILogger<RateLimitSuppressionStrategy> logger =
+        ILogger<RateLimitSuppressionStrategy> rateLimitLogger =
             sp.GetRequiredService<ILogger<RateLimitSuppressionStrategy>>();
+        // Shared category for retry + timeout diagnostics — sits under the same
+        // "WatchBack.Infrastructure.Http" prefix as the rest of the HTTP stack so
+        // a single appsettings entry toggles all request-pipeline logging.
+        ILogger resilienceLogger = sp.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("WatchBack.Infrastructure.Http.Resilience");
 
         HttpRetryStrategyOptions retryOptions = new()
         {
@@ -96,14 +108,51 @@ public static class ServiceCollectionExtensions
                     or HttpStatusCode.BadGateway
                     or HttpStatusCode.ServiceUnavailable
                     or HttpStatusCode.GatewayTimeout
-                    or HttpStatusCode.RequestTimeout)
+                    or HttpStatusCode.RequestTimeout),
+            OnRetry = args =>
+            {
+                if (!resilienceLogger.IsEnabled(LogLevel.Debug))
+                {
+                    return default;
+                }
+
+                string uri = HttpLogging.RedactSensitiveParams(
+                    args.Outcome.Result?.RequestMessage?.RequestUri);
+                string reason = args.Outcome.Exception?.GetType().Name
+                                ?? ((int?)args.Outcome.Result?.StatusCode)?.ToString(
+                                    System.Globalization.CultureInfo.InvariantCulture)
+                                ?? "unknown";
+                resilienceLogger.LogDebug(
+                    "Retry {Attempt} in {Delay}ms for {Uri} ({Reason})",
+                    args.AttemptNumber + 1, (int)args.RetryDelay.TotalMilliseconds, uri, reason);
+                return default;
+            }
         };
         // POST/PATCH/PUT/DELETE/CONNECT are not idempotent and must not be retried
         retryOptions.DisableForUnsafeHttpMethods();
 
+        TimeoutStrategyOptions timeoutOptions = new()
+        {
+            Timeout = attemptTimeout,
+            OnTimeout = args =>
+            {
+                if (!resilienceLogger.IsEnabled(LogLevel.Debug))
+                {
+                    return default;
+                }
+
+                string uri = HttpLogging.RedactSensitiveParams(
+                    args.Context.GetRequestMessage()?.RequestUri);
+                resilienceLogger.LogDebug(
+                    "Timeout after {Seconds}s for {Uri}",
+                    (int)args.Timeout.TotalSeconds, uri);
+                return default;
+            }
+        };
+
         pipeline
-            .AddRateLimitSuppression(cache, logger)  // outermost — short-circuits 429 before retry sees it
+            .AddRateLimitSuppression(cache, rateLimitLogger)  // outermost — short-circuits 429 before retry sees it
             .AddRetry(retryOptions)
-            .AddTimeout(attemptTimeout);
+            .AddTimeout(timeoutOptions);
     }
 }
