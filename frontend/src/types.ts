@@ -189,7 +189,6 @@ export interface AppData {
     syncProgress: { completed: number; total: number } | null;
     showSyncBar: boolean;
     syncSegments: unknown[];
-    _progressTickCount: number;
     // Memoization caches for expensive computed properties
     _cAtSrc: unknown;
     _cAtMode: string;
