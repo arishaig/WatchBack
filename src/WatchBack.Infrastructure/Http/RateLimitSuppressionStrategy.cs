@@ -28,10 +28,17 @@ internal sealed class RateLimitSuppressionStrategy(
     {
         HttpRequestMessage? request = context.GetRequestMessage();
         string host = request?.RequestUri?.Host ?? string.Empty;
+
+        // Without a host we have nothing to key the cache by — pass through.
+        if (string.IsNullOrEmpty(host))
+        {
+            return await callback(context, state);
+        }
+
         string cacheKey = $"ratelimit:{host}";
 
         // Short-circuit during an active rate-limit window — no network call made.
-        if (!string.IsNullOrEmpty(host) && cache.TryGetValue(cacheKey, out _))
+        if (cache.TryGetValue(cacheKey, out _))
         {
             logger.LogDebug("Request to {Host} skipped — rate-limit backoff active.", host);
             return Outcome.FromResult(

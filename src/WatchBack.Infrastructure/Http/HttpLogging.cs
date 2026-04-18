@@ -32,7 +32,6 @@ internal static class HttpLogging
         {
             int eq = part.IndexOf('=');
             string paramName = eq >= 0 ? part[..eq] : part;
-            string paramValue = eq >= 0 ? part[(eq + 1)..] : string.Empty;
 
             if (!first)
             {
