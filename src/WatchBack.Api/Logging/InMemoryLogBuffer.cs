@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Threading.Channels;
 
 namespace WatchBack.Api.Logging;
@@ -16,15 +17,19 @@ public sealed class InMemoryLogBuffer
 {
     private const int Capacity = 500;
 
-    private static readonly string[] s_levelOrder = ["Trace", "Debug", "Information", "Warning", "Error", "Critical"];
+    private static readonly Dictionary<string, int> s_levelRank = new(StringComparer.Ordinal)
+    {
+        ["Trace"] = 0, ["Debug"] = 1, ["Information"] = 2,
+        ["Warning"] = 3, ["Error"] = 4, ["Critical"] = 5
+    };
 
     private readonly Queue<LogEntry> _entries = new(Capacity + 1);
     private readonly Lock _lock = new();
-    private readonly List<ChannelWriter<LogEntry>> _subscribers = [];
+    // Immutable snapshot so Add can broadcast without holding the lock; writers copy-on-write.
+    private ImmutableArray<ChannelWriter<LogEntry>> _subscribers = ImmutableArray<ChannelWriter<LogEntry>>.Empty;
 
     public void Add(LogEntry entry)
     {
-        List<ChannelWriter<LogEntry>> subscribers;
         lock (_lock)
         {
             if (_entries.Count >= Capacity)
@@ -33,7 +38,12 @@ public sealed class InMemoryLogBuffer
             }
 
             _entries.Enqueue(entry);
-            subscribers = [.. _subscribers];
+        }
+
+        ImmutableArray<ChannelWriter<LogEntry>> subscribers = _subscribers;
+        if (subscribers.IsEmpty)
+        {
+            return;
         }
 
         foreach (ChannelWriter<LogEntry> writer in subscribers)
@@ -44,15 +54,26 @@ public sealed class InMemoryLogBuffer
 
     public IReadOnlyList<LogEntry> GetEntries(string? minLevel = null, int limit = 200)
     {
+        int minRank = minLevel != null && s_levelRank.TryGetValue(minLevel, out int r) ? r : -1;
+
         lock (_lock)
         {
-            IEnumerable<LogEntry> source = _entries;
-            if (minLevel != null)
+            List<LogEntry> filtered = new(Math.Min(_entries.Count, limit));
+            foreach (LogEntry entry in _entries)
             {
-                source = source.Where(e => IsAtOrAbove(e.Level, minLevel));
+                if (minRank < 0
+                    || (s_levelRank.TryGetValue(entry.Level, out int entryRank) && entryRank >= minRank))
+                {
+                    filtered.Add(entry);
+                }
             }
 
-            return source.TakeLast(limit).ToList();
+            if (filtered.Count <= limit)
+            {
+                return filtered;
+            }
+
+            return filtered.GetRange(filtered.Count - limit, limit);
         }
     }
 
@@ -71,7 +92,7 @@ public sealed class InMemoryLogBuffer
             new BoundedChannelOptions(500) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true });
         lock (_lock)
         {
-            _subscribers.Add(channel.Writer);
+            _subscribers = _subscribers.Add(channel.Writer);
         }
 
         reader = channel.Reader;
@@ -82,17 +103,10 @@ public sealed class InMemoryLogBuffer
     {
         lock (_lock)
         {
-            _subscribers.Remove(writer);
+            _subscribers = _subscribers.Remove(writer);
         }
 
         writer.TryComplete();
-    }
-
-    private static bool IsAtOrAbove(string level, string minLevel)
-    {
-        int li = Array.IndexOf(s_levelOrder, level);
-        int mi = Array.IndexOf(s_levelOrder, minLevel);
-        return li >= 0 && li >= mi;
     }
 
     private sealed class Subscription(InMemoryLogBuffer buffer, ChannelWriter<LogEntry> writer) : IDisposable

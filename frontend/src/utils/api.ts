@@ -1,10 +1,13 @@
 export type IntegrationField = { key: string; type: string; value?: string; hasValue?: boolean };
 export type IntegrationMap = Record<string, { fields: IntegrationField[]; configured?: boolean; disabled?: boolean }>;
 
+// Must stay in sync with FormValueExtensions.ExistingSentinel on the server
+export const EXISTING_SENTINEL = '__EXISTING__';
+
 /**
  * Build the flat config payload from integration fields + current edits.
  * For password fields with no new input, the field is omitted by default.
- * When includeExistingPlaceholder=true (for test calls), sends '__EXISTING__'
+ * When includeExistingPlaceholder=true (for test calls), sends EXISTING_SENTINEL
  * for password fields that have a saved value but no new input.
  */
 export function buildFieldPayload(
@@ -19,7 +22,7 @@ export function buildFieldPayload(
             if (val && val.trim() !== '') {
                 payload[field.key] = val;
             } else if (opts.includeExistingPlaceholder && field.hasValue) {
-                payload[field.key] = '__EXISTING__';
+                payload[field.key] = EXISTING_SENTINEL;
             }
         } else {
             payload[field.key] = val ?? '';

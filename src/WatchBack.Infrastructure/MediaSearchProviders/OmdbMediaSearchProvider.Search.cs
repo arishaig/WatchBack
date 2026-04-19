@@ -44,7 +44,7 @@ public sealed partial class OmdbMediaSearchProvider
             return cached;
         }
 
-        string url = $"https://www.omdbapi.com/?s={Uri.EscapeDataString(query)}&apikey={apiKey}";
+        string url = $"https://www.omdbapi.com/?s={Uri.EscapeDataString(query)}&apikey={Uri.EscapeDataString(apiKey)}";
         OmdbSearchResponse? response = await FetchJsonAsync<OmdbSearchResponse>(url, ct);
         if (response?.Search == null)
         {
@@ -79,7 +79,7 @@ public sealed partial class OmdbMediaSearchProvider
         }
 
         // OMDb doesn't have a "list seasons" endpoint — fetch season 1 to get totalSeasons
-        string url = $"https://www.omdbapi.com/?i={Uri.EscapeDataString(externalId)}&Season=1&apikey={apiKey}";
+        string url = $"https://www.omdbapi.com/?i={Uri.EscapeDataString(externalId)}&Season=1&apikey={Uri.EscapeDataString(apiKey)}";
         OmdbSeasonResponse? response = await FetchJsonAsync<OmdbSeasonResponse>(url, ct);
         if (response?.TotalSeasons == null || !int.TryParse(response.TotalSeasons, out int total))
         {
@@ -113,7 +113,7 @@ public sealed partial class OmdbMediaSearchProvider
         }
 
         string url =
-            $"https://www.omdbapi.com/?i={Uri.EscapeDataString(externalId)}&Season={seasonNumber}&apikey={apiKey}";
+            $"https://www.omdbapi.com/?i={Uri.EscapeDataString(externalId)}&Season={seasonNumber}&apikey={Uri.EscapeDataString(apiKey)}";
         OmdbSeasonResponse? response = await FetchJsonAsync<OmdbSeasonResponse>(url, ct);
         if (response?.Episodes == null)
         {
@@ -145,7 +145,7 @@ public sealed partial class OmdbMediaSearchProvider
     private async Task<IReadOnlyList<MediaSearchResult>> SearchWithEpisodeAsync(
         string titleQuery, int seasonNumber, int episodeNumber, string apiKey, CancellationToken ct)
     {
-        string searchUrl = $"https://www.omdbapi.com/?s={Uri.EscapeDataString(titleQuery)}&type=series&apikey={apiKey}";
+        string searchUrl = $"https://www.omdbapi.com/?s={Uri.EscapeDataString(titleQuery)}&type=series&apikey={Uri.EscapeDataString(apiKey)}";
         OmdbSearchResponse? searchResponse = await FetchJsonAsync<OmdbSearchResponse>(searchUrl, ct);
         OmdbSearchItem? show = searchResponse?.Search?.FirstOrDefault();
         if (show == null)
@@ -154,7 +154,7 @@ public sealed partial class OmdbMediaSearchProvider
         }
 
         string episodeUrl =
-            $"https://www.omdbapi.com/?i={Uri.EscapeDataString(show.ImdbId)}&Season={seasonNumber}&Episode={episodeNumber}&apikey={apiKey}";
+            $"https://www.omdbapi.com/?i={Uri.EscapeDataString(show.ImdbId)}&Season={seasonNumber}&Episode={episodeNumber}&apikey={Uri.EscapeDataString(apiKey)}";
         OmdbEpisodeDetailResponse? episodeResponse = await FetchJsonAsync<OmdbEpisodeDetailResponse>(episodeUrl, ct);
         if (episodeResponse?.ImdbId == null || episodeResponse.Response == "False")
         {

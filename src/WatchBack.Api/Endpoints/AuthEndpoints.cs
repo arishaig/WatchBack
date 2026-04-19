@@ -19,6 +19,11 @@ public static class AuthEndpoints
     private static readonly JsonSerializerOptions s_jsonOptions = new() { WriteIndented = true };
     internal static readonly SemaphoreSlim ConfigFileLock = new(1, 1);
 
+    // Cached PBKDF2 hash used to equalise Login timing when the username is unknown.
+    // Without this, attackers can distinguish "valid user, bad password" from
+    // "unknown user" by the presence/absence of the PBKDF2 verify cost.
+    private static readonly string s_dummyHash = new PasswordHasher<string>().HashPassword("", "dummy");
+
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
         RouteGroupBuilder group = app.MapGroup("/api/auth")
@@ -102,13 +107,17 @@ public static class AuthEndpoints
             return Results.BadRequest(new { ok = false, message = "Username and password are required." });
         }
 
-        if (!string.Equals(body.Username, opts.Username, StringComparison.OrdinalIgnoreCase))
+        bool usernameMatches = string.Equals(body.Username, opts.Username, StringComparison.OrdinalIgnoreCase);
+
+        // Always run PBKDF2 verify, even on username mismatch, to keep response time uniform
+        PasswordHasher<string> hasher = new();
+        string hashToCheck = usernameMatches ? opts.PasswordHash : s_dummyHash;
+        PasswordVerificationResult result = hasher.VerifyHashedPassword("", hashToCheck, body.Password);
+
+        if (!usernameMatches)
         {
             return Results.Json(new { ok = false, message = "Invalid credentials." }, statusCode: 401);
         }
-
-        PasswordHasher<string> hasher = new();
-        PasswordVerificationResult result = hasher.VerifyHashedPassword("", opts.PasswordHash, body.Password);
 
         switch (result)
         {
@@ -406,9 +415,14 @@ public static class AuthEndpoints
             RandomIndex(digits),
             RandomIndex(special)
         ];
-        // Place required chars at random distinct positions
-        int[] positions = Enumerable.Range(0, length).OrderBy(_ => RandomNumberGenerator.GetInt32(length)).Take(4)
-            .ToArray();
+        // Partial Fisher-Yates to pick 4 distinct positions uniformly (OrderBy-with-random-key is biased)
+        int[] positions = new int[length];
+        for (int i = 0; i < length; i++) positions[i] = i;
+        for (int i = 0; i < 4; i++)
+        {
+            int j = RandomNumberGenerator.GetInt32(i, length);
+            (positions[i], positions[j]) = (positions[j], positions[i]);
+        }
         string[] categories = [upper, lower, digits, special];
         for (int i = 0; i < 4; i++)
         {
