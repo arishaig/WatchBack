@@ -90,7 +90,6 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
             return this._cAtResult;
         }
 
-        // Recompute
         let list: unknown[] = src;
         if (this.sourceFilter.size > 0)
             list = list.filter(c => this.sourceFilter.has((c as { source: string }).source));
