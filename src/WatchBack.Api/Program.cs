@@ -263,6 +263,9 @@ app.Use(async (ctx, next) =>
     headers["X-Frame-Options"] = "DENY";
     headers["X-Content-Type-Options"] = "nosniff";
     headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    // Disable browser APIs the app never uses so a future XSS can't abuse them
+    headers["Permissions-Policy"] = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), " +
+                                     "magnetometer=(), microphone=(), payment=(), usb=()";
     await next();
 });
 
