@@ -48,9 +48,10 @@ public sealed class TraktThoughtProvider(
 
     public string GetCacheKey(MediaContext mediaContext)
     {
+        string baseKey = BuildSlugCacheKey("trakt:thoughts", mediaContext);
         return mediaContext is EpisodeContext episode
-            ? $"trakt:thoughts:{mediaContext.Title}:s{episode.SeasonNumber}e{episode.EpisodeNumber}"
-            : $"trakt:thoughts:{mediaContext.Title}";
+            ? $"{baseKey}:s{episode.SeasonNumber}e{episode.EpisodeNumber}"
+            : baseKey;
     }
 
     public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext,
@@ -196,12 +197,43 @@ public sealed class TraktThoughtProvider(
     }
 
     /// <summary>
+    ///     Builds a stable slug cache key using the best available external ID, falling back
+    ///     to title + release year. Title alone is not globally unique (e.g. "The Office" US/UK,
+    ///     multiple "Avatar" movies), so a title-only key lets one show's slug bleed into
+    ///     another's for the whole 24 h TTL.
+    /// </summary>
+    private static string BuildSlugCacheKey(string prefix, MediaContext mediaContext)
+    {
+        IReadOnlyDictionary<string, string>? ids = mediaContext.ExternalIds;
+        if (ids is not null)
+        {
+            if (ids.TryGetValue(ExternalIdType.Imdb, out string? imdb))
+            {
+                return $"{prefix}:imdb:{imdb}";
+            }
+
+            if (ids.TryGetValue(ExternalIdType.Tvdb, out string? tvdb))
+            {
+                return $"{prefix}:tvdb:{tvdb}";
+            }
+
+            if (ids.TryGetValue(ExternalIdType.Tmdb, out string? tmdb))
+            {
+                return $"{prefix}:tmdb:{tmdb}";
+            }
+        }
+
+        int? year = mediaContext.ReleaseDate?.Year;
+        return $"{prefix}:title:{mediaContext.Title}:{year?.ToString(CultureInfo.InvariantCulture) ?? ""}";
+    }
+
+    /// <summary>
     ///     Resolves a Trakt show slug from the media context. Tries external ID lookups in order
     ///     (IMDB → TVDB → TMDB) before falling back to a title text search. Result is cached for 24 h.
     /// </summary>
     private async Task<string?> ResolveSlugAsync(MediaContext mediaContext, CancellationToken ct)
     {
-        string slugCacheKey = $"trakt:slug:{mediaContext.Title}";
+        string slugCacheKey = BuildSlugCacheKey("trakt:slug", mediaContext);
         if (cache.TryGetValue(slugCacheKey, out string? cached) && cached != null)
         {
             return cached;
@@ -269,7 +301,7 @@ public sealed class TraktThoughtProvider(
     /// </summary>
     private async Task<string?> ResolveMovieSlugAsync(MediaContext mediaContext, CancellationToken ct)
     {
-        string slugCacheKey = $"trakt:movie-slug:{mediaContext.Title}";
+        string slugCacheKey = BuildSlugCacheKey("trakt:movie-slug", mediaContext);
         if (cache.TryGetValue(slugCacheKey, out string? cached) && cached != null)
         {
             return cached;

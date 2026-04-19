@@ -657,4 +657,42 @@ public class TraktThoughtProviderTests : IDisposable
         result.Should().NotBeNull();
         result.Thoughts.Should().BeEmpty();
     }
+
+    // Regression: the slug cache key used only Title, so two shows with the same
+    // title but different IMDB IDs (e.g. "The Office" US vs UK) would cross-contaminate
+    // each other's cached slug for the whole 24 h TTL.
+    [Fact]
+    public async Task ResolveSlugAsync_TwoShowsWithSameTitleDifferentImdbIds_DoNotShareCache()
+    {
+        EpisodeContext officeUs = new(
+            "The Office",
+            new DateTimeOffset(2005, 3, 24, 0, 0, 0, TimeSpan.Zero),
+            "Pilot", 1, 1,
+            new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0386676" });
+        EpisodeContext officeUk = new(
+            "The Office",
+            new DateTimeOffset(2001, 7, 9, 0, 0, 0, TimeSpan.Zero),
+            "Downsize", 1, 1,
+            new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0290978" });
+
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/search/imdb/tt0386676",
+                """[{"show":{"title":"The Office","ids":{"trakt":1,"slug":"the-office-us"}}}]""")
+            .RespondTo("/search/imdb/tt0290978",
+                """[{"show":{"title":"The Office","ids":{"trakt":2,"slug":"the-office-uk"}}}]""")
+            .Default("[]");
+
+        HttpClient client = new(handler);
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(officeUs);
+        await provider.GetThoughtsAsync(officeUk);
+
+        // Each show must fetch comments under its own slug — no cache bleed
+        handler.RecordedUris.Should().Contain(u => u.ToString().Contains("/shows/the-office-us/"));
+        handler.RecordedUris.Should().Contain(u => u.ToString().Contains("/shows/the-office-uk/"));
+    }
 }
