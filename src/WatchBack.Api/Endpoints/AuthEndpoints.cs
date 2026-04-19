@@ -406,9 +406,14 @@ public static class AuthEndpoints
             RandomIndex(digits),
             RandomIndex(special)
         ];
-        // Place required chars at random distinct positions
-        int[] positions = Enumerable.Range(0, length).OrderBy(_ => RandomNumberGenerator.GetInt32(length)).Take(4)
-            .ToArray();
+        // Partial Fisher-Yates to pick 4 distinct positions uniformly (OrderBy-with-random-key is biased)
+        int[] positions = new int[length];
+        for (int i = 0; i < length; i++) positions[i] = i;
+        for (int i = 0; i < 4; i++)
+        {
+            int j = RandomNumberGenerator.GetInt32(i, length);
+            (positions[i], positions[j]) = (positions[j], positions[i]);
+        }
         string[] categories = [upper, lower, digits, special];
         for (int i = 0; i < 4; i++)
         {
