@@ -14,7 +14,7 @@ using WatchBack.Core.Options;
 
 namespace WatchBack.Api.Endpoints;
 
-public static class SyncEndpoints
+public static partial class SyncEndpoints
 {
     public static void MapSyncEndpoints(this IEndpointRouteBuilder app)
     {
@@ -78,6 +78,7 @@ public static class SyncEndpoints
         SyncTrigger syncTrigger,
         SyncGate syncGate,
         SentimentScorer scorer,
+        ILoggerFactory loggerFactory,
         HttpContext context,
         CancellationToken ct)
     {
@@ -89,6 +90,8 @@ public static class SyncEndpoints
         List<IThoughtProvider> providerList = thoughtProviders
             .Where(p => p.ConfigSection is null || !disabled.Contains(p.ConfigSection))
             .ToList();
+        Dictionary<string, BrandData?> brandLookup = BuildBrandLookup(providerList);
+        ILogger logger = loggerFactory.CreateLogger("WatchBack.Api.Endpoints.SyncEndpoints");
 
         int consecutiveErrors = 0;
         while (!ct.IsCancellationRequested)
@@ -140,7 +143,7 @@ public static class SyncEndpoints
                     new SyncSnapshot(DateTimeOffset.UtcNow, result.Status.ToString(), result.Title, sourceRecords),
                     syncStopwatch.ElapsedMilliseconds);
 
-                SyncResponse response = MapSyncResult(result, BuildBrandLookup(providerList), watchback.Value.EnableSentimentAnalysis, scorer);
+                SyncResponse response = MapSyncResult(result, brandLookup, watchback.Value.EnableSentimentAnalysis, scorer);
                 string json = JsonSerializer.Serialize(response, WatchBackJsonContext.Default.SyncResponse);
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
@@ -160,10 +163,11 @@ public static class SyncEndpoints
             {
                 break;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Provider fault — exponential backoff
+                // Provider fault — log and back off exponentially
                 consecutiveErrors++;
+                LogSyncStreamIterationFailed(logger, consecutiveErrors, ex);
                 try { await Task.Delay(SyncProgressReporter.ComputeErrorBackoffMs(consecutiveErrors), ct); }
                 catch (OperationCanceledException) { break; }
             }
@@ -258,4 +262,7 @@ public static class SyncEndpoints
             brand?.LogoSvg);
     }
 
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "Sync stream iteration failed (consecutive errors: {ConsecutiveErrors}); backing off")]
+    private static partial void LogSyncStreamIterationFailed(ILogger logger, int consecutiveErrors, Exception ex);
 }
