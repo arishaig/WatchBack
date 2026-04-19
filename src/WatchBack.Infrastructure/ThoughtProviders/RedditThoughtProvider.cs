@@ -166,14 +166,17 @@ public sealed class RedditThoughtProvider(
             }
 
             // Log raw results before filtering so we can diagnose misses
-            foreach ((string id, PullPushSubmissionDto sub) in seenIds)
+            if (logger.IsEnabled(LogLevel.Debug))
             {
-                bool passes =
-                    (bypassIds.Contains(id) &&
-                     (episode == null || !MentionsDifferentSeason(sub.Title ?? "", episode.SeasonNumber))) ||
-                    (episode != null && MatchesEpisode(sub.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber));
-                logger.LogInformation("PullPush raw: [{Id}] r/{Sub} \"{Title}\" → {Result}",
-                    id, sub.Subreddit, sub.Title, passes ? "KEEP" : "SKIP");
+                foreach ((string id, PullPushSubmissionDto sub) in seenIds)
+                {
+                    bool passes =
+                        (bypassIds.Contains(id) &&
+                         (episode == null || !MentionsDifferentSeason(sub.Title ?? "", episode.SeasonNumber))) ||
+                        (episode != null && MatchesEpisode(sub.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber));
+                    logger.LogDebug("PullPush raw: [{Id}] r/{Sub} \"{Title}\" → {Result}",
+                        id, sub.Subreddit, sub.Title, passes ? "KEEP" : "SKIP");
+                }
             }
 
             // Keep submissions whose title matches this episode, or that came from a bypass search
