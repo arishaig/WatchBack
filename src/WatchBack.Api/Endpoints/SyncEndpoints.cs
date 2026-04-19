@@ -115,7 +115,6 @@ public static class SyncEndpoints
                     t => channel.Writer.Complete(t.IsFaulted ? t.Exception : null),
                     TaskScheduler.Default);
 
-                // Drain progress ticks and forward them to the SSE stream
                 await foreach (SyncProgressTick tick in channel.Reader.ReadAllAsync(ct))
                 {
                     await context.Response.WriteAsync(reporter.OnTick(tick), ct);
@@ -132,7 +131,6 @@ public static class SyncEndpoints
                 SyncResult result = await syncTask;
                 syncStopwatch.Stop();
 
-                // Record sync history for the diagnostics panel and persist to database
                 List<ProviderSyncRecord> sourceRecords = result.SourceResults
                     .Select(sr => new ProviderSyncRecord(sr.Source, sr.Thoughts?.Count ?? 0))
                     .ToList();

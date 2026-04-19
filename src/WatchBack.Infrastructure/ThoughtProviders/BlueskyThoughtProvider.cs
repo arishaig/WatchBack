@@ -307,7 +307,6 @@ public sealed class BlueskyThoughtProvider(
             return null;
         }
 
-        // Extract the rkey (last path segment) from the AT URI
         int lastSlash = atUri.LastIndexOf('/');
         if (lastSlash < 0)
         {
@@ -320,7 +319,6 @@ public sealed class BlueskyThoughtProvider(
             return atUri;
         }
 
-        // Use handle if available, otherwise extract the DID from the URI
         string? authority = handle;
         if (string.IsNullOrEmpty(authority) && atUri.StartsWith("at://", StringComparison.Ordinal))
         {
