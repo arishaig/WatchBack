@@ -73,11 +73,9 @@ public sealed class TraktThoughtProvider(
                 return cached;
             }
 
-            // Resolve Trakt slug and build the comments URL
             string commentsUrl;
             if (episode == null)
             {
-                // Movie: resolve via external IDs (IMDB → TMDB; TVDB is TV-only) then title search
                 string? movieId = await ResolveMovieSlugAsync(mediaContext, ct);
                 if (movieId == null)
                 {
@@ -89,7 +87,6 @@ public sealed class TraktThoughtProvider(
             }
             else
             {
-                // TV show: resolve via external IDs (IMDB → TVDB → TMDB) then title search
                 string? showId = await ResolveSlugAsync(mediaContext, ct);
                 if (showId == null)
                 {
@@ -250,7 +247,6 @@ public sealed class TraktThoughtProvider(
             }
         }
 
-        // Fall back to title text search
         string textSearchUrl = $"https://api.trakt.tv/search/show?query={Uri.EscapeDataString(mediaContext.Title)}";
         string? textSlug = await TryResolveSlugFromSearchUrlAsync(textSearchUrl, mediaContext.Title, ct);
         if (textSlug != null)
@@ -318,7 +314,6 @@ public sealed class TraktThoughtProvider(
             }
         }
 
-        // Fall back to title text search
         string textSearchUrl =
             $"https://api.trakt.tv/search/movie?query={Uri.EscapeDataString(mediaContext.Title)}";
         string? textSlug = await TryResolveMovieSlugFromSearchUrlAsync(textSearchUrl, mediaContext.Title, ct);

@@ -1,8 +1,6 @@
 export type SaveStatus = 'saving' | 'saved' | 'error' | null;
 export type TestStatus = 'testing' | 'ok' | 'error' | 'warn' | null;
 
-// ── API response shapes ────────────────────────────────────────────────────
-
 export interface Thought {
     source: string;
     brandColor?: string;
@@ -146,7 +144,6 @@ export interface AuthMeResponse {
  * Used as the ThisType<AppData> context for all module method objects.
  */
 export interface AppData {
-    // ── State ──────────────────────────────────────────────────────────────
     initialized: boolean;
     data: SyncData | null;
     error: string | null;
@@ -213,7 +210,6 @@ export interface AppData {
     appVersion: string | null;
     copyLogsStatus: 'copied' | 'error' | null;
     alwaysShowSearch: boolean;
-    // Wizard & checklist
     wizardStep: number;
     wizardActive: boolean;
     wizardSelectedWatch: string | null;
@@ -251,18 +247,15 @@ export interface AppData {
     mappingShareCopied: string;
     sentimentCategory: string;
 
-    // ── Alpine internals ───────────────────────────────────────────────────
     $watch(prop: string, cb: (val: unknown) => void): void;
     $nextTick(cb: () => void): void;
 
-    // ── Methods ────────────────────────────────────────────────────────────
     init(): Promise<void>;
     t(key: string, ...args: unknown[]): string;
     fetchThemes(): Promise<void>;
     checkAuth(): Promise<AuthMeResponse>;
     initApp(): Promise<void>;
 
-    // Auth
     login(): Promise<void>;
     setupAccount(): Promise<void>;
     changePassword(): Promise<void>;
@@ -271,7 +264,6 @@ export interface AppData {
     resetPassword(): Promise<void>;
     saveForwardAuth(): Promise<void>;
 
-    // Config
     _initConfigEdits(configData: ConfigData): void;
     saveConfig(integrationKey: string): Promise<void>;
     saveAllConfig(): Promise<void>;
@@ -283,7 +275,6 @@ export interface AppData {
     testAll(): Promise<void>;
     redditSearchUrl(title: string, season: number, episode: number): string;
 
-    // Sync / search
     sync(): Promise<void>;
     searchMedia(): Promise<void>;
     selectSearchResult(result: MediaSearchResult): Promise<void>;
@@ -292,7 +283,6 @@ export interface AppData {
     setManualWatchState(context: Record<string, unknown>): Promise<void>;
     clearManualWatchState(): Promise<void>;
 
-    // System
     setupSSE(): void;
     clearCache(): Promise<void>;
     restart(): Promise<void>;
@@ -305,7 +295,6 @@ export interface AppData {
     loadSyncHistory(): Promise<void>;
     clearSyncHistory(): Promise<void>;
 
-    // Wizard
     wizardNext(): Promise<void>;
     wizardBack(): void;
     wizardSkip(): void;
@@ -319,7 +308,6 @@ export interface AppData {
     dismissNewProviders(): void;
     saveAndDismissNewProviders(): Promise<void>;
 
-    // Computed (getters)
     readonly hasWatchProvider: boolean;
     readonly hasCommentSource: boolean;
     readonly hasCompletedSync: boolean;
@@ -338,7 +326,6 @@ export interface AppData {
     readonly groupedThoughts: unknown[];
     readonly showSearchBox: boolean;
 
-    // Subreddit mappings
     handleMappingFileDrop(e: DragEvent): void;
     shareMappingSource(id: string, name: string): Promise<void>;
     fetchMappings(): Promise<void>;
@@ -351,7 +338,6 @@ export interface AppData {
     promoteMappingEntry(sourceId: string, index: number): Promise<void>;
     exportMappingSource(id: string): Promise<void>;
 
-    // UI helpers
     showError(msg: string): void;
     applyTheme(mode: string): void;
     handleThreadToggle(): void;

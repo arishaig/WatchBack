@@ -136,7 +136,6 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
         try
         {
             List<SubredditMappingEntry> entries = GetLocalEntriesLocked();
-            // Replace if exact title match already exists; otherwise append.
             int existing = entries.FindIndex(e =>
                 string.Equals(e.Title, entry.Title, StringComparison.OrdinalIgnoreCase));
             if (existing >= 0)
@@ -224,13 +223,10 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
         return JsonSerializer.Serialize(dto, SubredditMappingJsonContext.Default.SubredditMappingFileDto);
     }
 
-    // ---- Private helpers ----
-
     private void LoadAll()
     {
         List<SubredditMappingSource> sources = [];
 
-        // 1. Built-in file
         if (File.Exists(_builtInFilePath))
         {
             SubredditMappingSource? builtin = TryLoadFile(_builtInFilePath, BuiltInSourceId, "Built-in", isBuiltIn: true);
@@ -240,7 +236,7 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
             }
         }
 
-        // 2. User files (alphabetical, local.json last)
+        // User files loaded alphabetically, with local.json last so manual entries win on overlap.
         IEnumerable<string> userFiles = Directory.EnumerateFiles(_userMappingsDirectory, "*.json")
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase);
 
@@ -337,7 +333,6 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
             }
         }
 
-        // Title match (case-insensitive).
         if (!string.IsNullOrEmpty(entry.Title))
         {
             return string.Equals(entry.Title, context.Title, StringComparison.OrdinalIgnoreCase);
@@ -366,7 +361,6 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
         string filePath = Path.Combine(_userMappingsDirectory, $"{LocalSourceId}.json");
         await WriteFileAtomicAsync(filePath, json, ct);
 
-        // Update in-memory local source.
         SubredditMappingSource updated = new(LocalSourceId, "Local", false, entries);
         _sources =
         [
@@ -399,7 +393,6 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
             merged.Add(sub);
         }
 
-        // Prefer incoming external IDs, fall back to existing.
         IReadOnlyDictionary<string, string>? mergedIds = incoming.ExternalIds ?? existing.ExternalIds;
 
         return new SubredditMappingEntry(existing.Title ?? incoming.Title, mergedIds, [.. merged]);
@@ -407,7 +400,6 @@ public sealed class SubredditMappingService : ISubredditMappingService, IDisposa
 
     private static string SanitizeName(string name)
     {
-        // Produce a safe filename: lowercase alphanumeric + hyphens, max 64 chars.
         string safe = new([.. name.ToLowerInvariant()
             .Select(c => char.IsLetterOrDigit(c) ? c : '-')]);
         safe = System.Text.RegularExpressions.Regex.Replace(safe, "-{2,}", "-").Trim('-');

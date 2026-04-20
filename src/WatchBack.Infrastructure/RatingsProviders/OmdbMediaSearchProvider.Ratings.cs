@@ -51,8 +51,6 @@ public sealed partial class OmdbMediaSearchProvider
     }
 }
 
-// --- Ratings DTOs ---
-
 internal sealed record OmdbRatingItem(
     [property: JsonPropertyName("Source")] string Source,
     [property: JsonPropertyName("Value")] string Value);

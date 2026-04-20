@@ -177,8 +177,6 @@ public sealed partial class OmdbMediaSearchProvider
     }
 }
 
-// --- Search DTOs ---
-
 internal sealed record OmdbSearchResponse(
     [property: JsonPropertyName("Search")] OmdbSearchItem[]? Search,
     [property: JsonPropertyName("Response")]

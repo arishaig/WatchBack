@@ -106,7 +106,6 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
             console.warn("[WatchBack] Config load failed:", e);
         }
         void this.fetchMappings();
-        // New-provider discovery notification
         type IntegrationEntry = { fields?: Array<{ hasValue: boolean }> };
         const integrations = (this.configData?.['integrations'] as Record<string, IntegrationEntry> | undefined) ?? {};
         const currentKeys = Object.keys(integrations);
@@ -134,7 +133,6 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         this.setupSSE();
         void this.sync();
 
-        // Launch wizard for first-time users
         if (!localStorage.getItem('wb_wizardCompleted') && !localStorage.getItem('wb_checklistCompleted')) {
             this.wizardActive = true;
         }

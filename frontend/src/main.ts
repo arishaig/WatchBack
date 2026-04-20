@@ -17,7 +17,6 @@ import { renderMarkdown } from './utils/markdown';
 
 Alpine.data('app', (): AppData => {
     const data = {
-        // ── State ──────────────────────────────────────────────────────────
         initialized: false,
         data: null,
         error: null,
@@ -129,11 +128,9 @@ Alpine.data('app', (): AppData => {
         mappingShareCopied: '',
         sentimentCategory: 'all',
 
-        // ── Utility functions exposed to Alpine templates ──────────────────
         sanitizeSvg,
         renderMarkdown,
 
-        // ── Methods from modules ───────────────────────────────────────────
         ...authMethods,
         ...configMethods,
         ...syncMethods,
@@ -160,7 +157,6 @@ document.addEventListener('click', e => {
     if (spoiler) spoiler.classList.add('revealed');
 });
 
-// ── Reusable provider-fields directive ────────────────────────────────────────
 // Clones the <template id="provider-fields"> fragment and initialises Alpine
 // directives on the clone so the same field+test-button markup can be used in
 // the config panel and both wizard steps.
