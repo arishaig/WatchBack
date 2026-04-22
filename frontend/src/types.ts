@@ -133,6 +133,7 @@ export interface EpisodeResult {
 export interface AuthMeResponse {
     authenticated: boolean;
     needsOnboarding?: boolean;
+    containerName?: string;
     forwardAuthHeader?: string;
     forwardAuthTrustedHost?: string;
     username?: string;
@@ -201,6 +202,7 @@ export interface AppData {
     forwardAuthTrustedHostEdit: string;
     forwardAuthSaveStatus: string | null;
     needsOnboarding: boolean;
+    containerName: string;
     configTab: string;
     logEntries: LogEntry[];
     logLevel: string;
