@@ -43,6 +43,8 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
             const data = await res.json() as Record<string, unknown>;
             if (data['ok']) {
                 this.currentUser = { authenticated: true, username: this.setupUsername, authMethod: 'cookie' };
+                localStorage.removeItem('wb_wizardCompleted');
+                localStorage.removeItem('wb_checklistCompleted');
                 await this.initApp();
             } else {
                 this.setupError = (data['message'] as string) || this.t('Auth_SetupFailed');
