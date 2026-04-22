@@ -14,8 +14,8 @@
     "@vitest/coverage-v8": "^4.1.4",
     "ionicons": "^8.0.13",
     "jsdom": "^29.0.2",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.8",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.9",
     "vitest": "^4.1.4"
   },
   "dependencies": {
