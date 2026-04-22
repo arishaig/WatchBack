@@ -67,13 +67,17 @@ public sealed class BlueskyThoughtProvider(
             string searchUrl =
                 $"https://bsky.social/xrpc/app.bsky.feed.searchPosts?q={Uri.EscapeDataString(query)}&limit=100";
 
-            HttpRequestMessage request = new(HttpMethod.Get, searchUrl);
-            if (!string.IsNullOrEmpty(token))
+            HttpResponseMessage response = await SendSearchAsync(searchUrl, token, ct);
+
+            // If the cached JWT expired mid-TTL, evict and retry once with a fresh token
+            if (response.StatusCode == HttpStatusCode.Unauthorized && !string.IsNullOrEmpty(token))
             {
-                request.Headers.Add("Authorization", $"Bearer {token}");
+                response.Dispose();
+                InvalidateCachedToken();
+                token = await GetAccessTokenAsync(ct);
+                response = await SendSearchAsync(searchUrl, token, ct);
             }
 
-            HttpResponseMessage response = await httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
                 return s_empty;
@@ -242,6 +246,35 @@ public sealed class BlueskyThoughtProvider(
         return key == "Bluesky__AppPassword" ? _options.AppPassword : null;
     }
 
+    private Task<HttpResponseMessage> SendSearchAsync(string url, string? token, CancellationToken ct)
+    {
+        HttpRequestMessage request = new(HttpMethod.Get, url);
+        if (!string.IsNullOrEmpty(token))
+        {
+            request.Headers.Add("Authorization", $"Bearer {token}");
+        }
+
+        return httpClient.SendAsync(request, ct);
+    }
+
+    private void InvalidateCachedToken()
+    {
+        if (string.IsNullOrEmpty(_options.Handle) || string.IsNullOrEmpty(_options.AppPassword))
+        {
+            return;
+        }
+
+        cache.Remove(GetTokenCacheKey());
+    }
+
+    private string GetTokenCacheKey()
+    {
+        string credentialHash = Convert.ToHexString(
+            SHA256.HashData(
+                Encoding.UTF8.GetBytes($"{_options.Handle}:{_options.AppPassword}")))[..16];
+        return $"bluesky:auth:token:{credentialHash}";
+    }
+
     private async Task<string?> GetAccessTokenAsync(CancellationToken ct)
     {
         if (string.IsNullOrEmpty(_options.Handle) || string.IsNullOrEmpty(_options.AppPassword))
@@ -249,11 +282,7 @@ public sealed class BlueskyThoughtProvider(
             return null; // Use public API
         }
 
-        // Key by credential hash so a credential change immediately invalidates the cached token
-        string credentialHash = Convert.ToHexString(
-            SHA256.HashData(
-                Encoding.UTF8.GetBytes($"{_options.Handle}:{_options.AppPassword}")))[..16];
-        string cacheKey = $"bluesky:auth:token:{credentialHash}";
+        string cacheKey = GetTokenCacheKey();
         if (cache.TryGetValue(cacheKey, out string? cachedToken))
         {
             return cachedToken;

@@ -35,7 +35,7 @@ public sealed partial class OmdbMediaSearchProvider
             return cached;
         }
 
-        string url = $"https://www.omdbapi.com/?i={Uri.EscapeDataString(imdbId)}&apikey={apiKey}";
+        string url = $"https://www.omdbapi.com/?i={Uri.EscapeDataString(imdbId)}&apikey={Uri.EscapeDataString(apiKey)}";
         OmdbTitleDetailResponse? response = await FetchJsonAsync<OmdbTitleDetailResponse>(url, ct);
         if (response?.Ratings == null || response.Response == "False")
         {

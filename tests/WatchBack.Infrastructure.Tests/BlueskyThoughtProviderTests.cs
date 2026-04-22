@@ -555,4 +555,63 @@ public class BlueskyThoughtProviderTests : IDisposable
         result!.Source.Should().Be("Bluesky");
         result.Thoughts.Should().BeEmpty();
     }
+
+    // Regression: if Bluesky rotates/invalidates a cached JWT before TokenCacheTtlSeconds
+    // expires, the search returns 401 and we previously dropped results entirely. We should
+    // evict the cached token and retry once with a fresh session.
+    [Fact]
+    public async Task GetThoughtsAsync_When401OnSearch_EvictsTokenAndRetriesOnce()
+    {
+        DateTimeOffset releaseDate = new(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        EpisodeContext mediaContext = new("Breaking Bad", releaseDate, "Pilot", 1, 1);
+
+        string tokenJsonA = """{"accessJwt":"stale-token"}""";
+        string tokenJsonB = """{"accessJwt":"fresh-token"}""";
+        string searchJson = """
+                            {
+                                "posts": [
+                                    {
+                                        "uri": "at://did/app.bsky.feed.post/123",
+                                        "author": { "handle": "u.bsky.social", "displayName": "U" },
+                                        "record": { "text": "Great!", "createdAt": "2020-02-01T00:00:00Z" },
+                                        "likeCount": 1
+                                    }
+                                ]
+                            }
+                            """;
+
+        Queue<HttpResponseMessage> responses = new(
+        [
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJsonA) },
+            new HttpResponseMessage(HttpStatusCode.Unauthorized),
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJsonB) },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
+        ]);
+
+        List<(string? Method, string? Url, string? Auth)> recorded = new();
+        MockHttpMessageHandler handler = new(req =>
+        {
+            recorded.Add((req.Method.Method, req.RequestUri?.ToString(),
+                req.Headers.Authorization?.Parameter));
+            return responses.Dequeue();
+        });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+
+        result.Should().NotBeNull();
+        result!.Thoughts.Should().HaveCount(1);
+        // Sequence: createSession (stale) → search (401) → createSession (fresh) → search (200)
+        recorded.Should().HaveCount(4);
+        recorded[0].Url.Should().Contain("createSession");
+        recorded[1].Url.Should().Contain("searchPosts");
+        recorded[1].Auth.Should().Be("stale-token");
+        recorded[2].Url.Should().Contain("createSession");
+        recorded[3].Url.Should().Contain("searchPosts");
+        recorded[3].Auth.Should().Be("fresh-token");
+    }
 }
