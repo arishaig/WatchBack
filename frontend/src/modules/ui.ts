@@ -83,6 +83,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
             const res = await fetch('/api/auth/me');
             const me = await res.json() as AuthMeResponse;
             this.needsOnboarding = me.needsOnboarding ?? false;
+            this.containerName = me.containerName ?? 'watchback';
             if (me.authenticated) {
                 this.forwardAuthEnabled = !!(me.forwardAuthHeader);
                 this.forwardAuthHeaderEdit = me.forwardAuthHeader || 'X-Remote-User';

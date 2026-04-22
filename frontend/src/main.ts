@@ -76,6 +76,7 @@ Alpine.data('app', (): AppData => {
         forwardAuthTrustedHostEdit: '',
         forwardAuthSaveStatus: null,
         needsOnboarding: false,
+        containerName: 'watchback',
         configTab: 'settings',
         logEntries: [],
         logLevel: 'Information',

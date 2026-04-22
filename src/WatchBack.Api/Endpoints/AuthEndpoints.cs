@@ -78,6 +78,7 @@ public static class AuthEndpoints
             username,
             needsOnboarding,
             authMethod,
+            containerName = Environment.MachineName,
             forwardAuthHeader = isAuthenticated ? opts.ForwardAuthHeader : null,
             forwardAuthTrustedHost = isAuthenticated ? opts.ForwardAuthTrustedHost : null
         });

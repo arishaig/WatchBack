@@ -179,10 +179,8 @@
             <!-- Docker log hint -->
             <div class="text-xs wb-text-faint space-y-1.5">
                 <p x-text="t('Auth_InitialCredentials')"></p>
-                <code class="block wb-surface-alt wb-border border rounded px-2.5 py-2 wb-text-muted font-mono text-[11px] select-all">
-                    docker
-                    logs &lt;container-name&gt;
-                </code>
+                <code class="block wb-surface-alt wb-border border rounded px-2.5 py-2 wb-text-muted font-mono text-[11px] select-all"
+                     x-text="'docker logs ' + containerName"></code>
             </div>
         </div>
     </div>
