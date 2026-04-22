@@ -191,3 +191,14 @@ Alpine.directive('providerfields', (el, { expression }, { evaluate, cleanup }) =
 
 (window as unknown as Window & { Alpine: typeof Alpine }).Alpine = Alpine;
 Alpine.start();
+
+// BFCache restores DOM+JS state without re-running init(); any fetch pending at
+// suspend time is dead, so a stuck loading spinner would never resolve. Reload
+// if we come back mid-init so the user sees the login prompt instead.
+window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    const appEl = document.querySelector('[x-data="app()"]') as HTMLElement | null;
+    if (!appEl) return;
+    const app = (Alpine as unknown as { $data: (el: HTMLElement) => { initialized?: boolean } | null }).$data(appEl);
+    if (app && !app.initialized) window.location.reload();
+});

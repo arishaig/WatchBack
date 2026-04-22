@@ -508,6 +508,116 @@ describe('initApp — new-provider discovery', () => {
     });
 });
 
+// ── checkAuth — fetch timeout (regression: loading spinner hangs when auth expired) ─
+
+describe('checkAuth — fetch timeout', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('passes an AbortSignal to fetch so a stalled request cannot hang init forever', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ authenticated: false }),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const ctx = makeCtx({ needsOnboarding: false });
+        await methods.checkAuth.call(ctx);
+        expect(fetchMock).toHaveBeenCalledWith(
+            '/api/auth/me',
+            expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
+    });
+
+    it('returns { authenticated: false } when fetch rejects (timeout/abort/network)', async () => {
+        const abortError = Object.assign(new Error('timeout'), { name: 'AbortError' });
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError));
+        const ctx = makeCtx({ needsOnboarding: false });
+        const result = await methods.checkAuth.call(ctx);
+        expect(result).toEqual({ authenticated: false });
+    });
+});
+
+// ── fetchThemes — fetch timeout ───────────────────────────────────────────────
+
+describe('fetchThemes — fetch timeout', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('passes an AbortSignal to fetch so the init flow can time out', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => [{ id: 'dark', label: 'Dark' }],
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const ctx = makeCtx({ themes: [] });
+        await methods.fetchThemes.call(ctx);
+        expect(fetchMock).toHaveBeenCalledWith(
+            '/api/themes',
+            expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
+    });
+});
+
+// ── init — login surfaces even when /api/auth/me hangs forever ────────────────
+
+describe('init — hanging fetch surfaces login prompt (regression)', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('transitions to authState=login and initialized=true when /api/auth/me times out', async () => {
+        window._allStrings = { en: {} };
+        window._supportedLocales = ['en'];
+        window.loadAllStrings = vi.fn().mockResolvedValue(undefined);
+
+        // /api/themes resolves fine; /api/auth/me rejects with AbortError (the
+        // outcome of AbortSignal.timeout firing) — proves the init flow survives
+        // a hung auth probe instead of sitting in the loading state forever.
+        const abortError = Object.assign(new Error('aborted'), { name: 'AbortError' });
+        vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+            if (url === '/api/themes') {
+                return Promise.resolve({ ok: true, json: async () => [] });
+            }
+            if (url === '/api/auth/me') {
+                return Promise.reject(abortError);
+            }
+            return Promise.reject(new Error('unexpected url ' + url));
+        }));
+
+        const ctx: Record<string, unknown> = {
+            theme: 'dark',
+            locale: 'en',
+            supportedLocales: [],
+            _stringsReady: false,
+            authState: 'checking',
+            initialized: false,
+            needsOnboarding: false,
+            forwardAuthEnabled: false,
+            forwardAuthHeaderEdit: '',
+            forwardAuthTrustedHostEdit: '',
+            themes: [],
+            currentUser: null,
+            checklistAutoComplete: false,
+            applyTheme: vi.fn(),
+            $watch: vi.fn(),
+            initApp: vi.fn(),
+            fetchThemes: methods.fetchThemes,
+            checkAuth: methods.checkAuth,
+            t: (k: string) => k,
+        };
+
+        // Run init against real timers — AbortSignal.timeout(8000) will fire and
+        // checkAuth's catch returns { authenticated: false }, so init sets login.
+        await methods.init.call(ctx);
+
+        expect(ctx.authState).toBe('login');
+        expect(ctx.initialized).toBe(true);
+        expect(ctx.initApp).not.toHaveBeenCalled();
+    });
+});
+
 // ── formatRelativeTime ────────────────────────────────────────────────────────
 
 describe('formatRelativeTime', () => {
