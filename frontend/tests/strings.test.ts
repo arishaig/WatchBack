@@ -127,4 +127,19 @@ describe('window.loadAllStrings', () => {
         expect(window._allStrings).toEqual({});
         expect(window._supportedLocales).toEqual([]);
     });
+
+    it('passes an AbortSignal to fetch so a hung server cannot stall the init flow', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ strings: {}, supportedLocales: [] }),
+        } as unknown as Response);
+        global.fetch = fetchMock;
+
+        await window.loadAllStrings();
+
+        expect(fetchMock).toHaveBeenCalledWith(
+            '/api/strings/all',
+            expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
+    });
 });

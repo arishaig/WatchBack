@@ -19,7 +19,7 @@ window._supportedLocales = [];
 
 window.loadAllStrings = async function () {
     try {
-        const res = await fetch('/api/strings/all');
+        const res = await fetch('/api/strings/all', { signal: AbortSignal.timeout(8000) });
         if (!res.ok) throw new Error('Failed to load strings: ' + res.statusText);
         const data = await res.json() as { strings?: Record<string, Record<string, string>>; supportedLocales?: string[] };
         window._allStrings = data.strings ?? {};

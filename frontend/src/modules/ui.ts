@@ -57,7 +57,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
 
     async fetchThemes() {
         try {
-            const res = await fetch('/api/themes');
+            const res = await fetch('/api/themes', { signal: AbortSignal.timeout(8000) });
             if (res.ok) {
                 const data = await res.json() as unknown;
                 if (Array.isArray(data) && data.length > 0) {
@@ -79,8 +79,10 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
     },
 
     async checkAuth(): Promise<AuthMeResponse> {
+        // Timeout: fetch has no default timeout; a stale HTTP/2 connection would
+        // otherwise leave init() waiting forever and hide the login prompt.
         try {
-            const res = await fetch('/api/auth/me');
+            const res = await fetch('/api/auth/me', { signal: AbortSignal.timeout(8000) });
             const me = await res.json() as AuthMeResponse;
             this.needsOnboarding = me.needsOnboarding ?? false;
             this.containerName = me.containerName ?? 'watchback';
