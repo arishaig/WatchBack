@@ -15,7 +15,7 @@ public sealed record LogEntry(
 /// </summary>
 public sealed class InMemoryLogBuffer
 {
-    private const int Capacity = 500;
+    private const int Capacity = 2000;
 
     private static readonly Dictionary<string, int> s_levelRank = new(StringComparer.Ordinal)
     {

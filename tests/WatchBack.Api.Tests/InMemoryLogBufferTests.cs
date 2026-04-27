@@ -18,22 +18,22 @@ public sealed class InMemoryLogBufferTests
     {
         InMemoryLogBuffer buffer = new();
 
-        for (int i = 0; i < 500; i++)
+        for (int i = 0; i < 2000; i++)
         {
             buffer.Add(MakeEntry(message: $"msg-{i}"));
         }
 
         // Use limit > capacity so we get all stored entries, not just the default 200
-        buffer.GetEntries(limit: 500).Count.Should().Be(500);
-        buffer.GetEntries(limit: 500)[0].Message.Should().Be("msg-0");
+        buffer.GetEntries(limit: 2000).Count.Should().Be(2000);
+        buffer.GetEntries(limit: 2000)[0].Message.Should().Be("msg-0");
 
         // Adding one more should evict msg-0
-        buffer.Add(MakeEntry(message: "msg-500"));
+        buffer.Add(MakeEntry(message: "msg-2000"));
 
-        IReadOnlyList<LogEntry> entries = buffer.GetEntries(limit: 500);
-        entries.Count.Should().Be(500);
+        IReadOnlyList<LogEntry> entries = buffer.GetEntries(limit: 2000);
+        entries.Count.Should().Be(2000);
         entries[0].Message.Should().Be("msg-1");
-        entries[^1].Message.Should().Be("msg-500");
+        entries[^1].Message.Should().Be("msg-2000");
     }
 
     // ── Level filtering ───────────────────────────────────────────────────────
