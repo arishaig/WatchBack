@@ -1,5 +1,6 @@
 import type { AppData, ConfigData, AuthMeResponse } from '../types';
 import { interpolate } from '../strings';
+import { uiLog } from '../utils/uiLogger';
 
 const uiMethods: Record<string, unknown> & ThisType<AppData> = {
     t(key: string, ...args: unknown[]): string {
@@ -12,6 +13,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
 
     async init() {
         console.log("[WatchBack] Initializing");
+        uiLog("app.init", "App initializing", undefined, "Information");
         this.applyTheme(this.theme);
         this.$watch('showConfig', (v: unknown) => { if (!v) this.closeLogStream(); });
 
@@ -42,12 +44,14 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         await this.fetchThemes();
         const me = await this.checkAuth();
         if (!me.authenticated) {
+            uiLog("app.init.noauth", "Not authenticated — showing login", undefined, "Information");
             this.authState = 'login';
             this.initialized = true;
             return;
         }
         this.currentUser = me;
         if (me.needsOnboarding) {
+            uiLog("app.init.onboarding", "Account needs onboarding", undefined, "Information");
             this.authState = 'onboarding';
             this.initialized = true;
             return;
@@ -81,9 +85,16 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
     async checkAuth(): Promise<AuthMeResponse> {
         // Timeout: fetch has no default timeout; a stale HTTP/2 connection would
         // otherwise leave init() waiting forever and hide the login prompt.
+        uiLog("auth.check", "Checking auth state");
         try {
             const res = await fetch('/api/auth/me', { signal: AbortSignal.timeout(8000) });
+            uiLog("auth.check.response", "Auth check response", { status: res.status });
             const me = await res.json() as AuthMeResponse;
+            uiLog("auth.check.result", "Auth check complete", {
+                authenticated: me.authenticated,
+                needsOnboarding: me.needsOnboarding,
+                authMethod: me.authMethod,
+            }, "Information");
             this.needsOnboarding = me.needsOnboarding ?? false;
             this.containerName = me.containerName ?? 'watchback';
             if (me.authenticated) {
@@ -92,21 +103,25 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
                 this.forwardAuthTrustedHostEdit = me.forwardAuthTrustedHost || '';
             }
             return me;
-        } catch {
+        } catch (e) {
+            uiLog("auth.check.error", "Auth check failed (timeout or network error)", { error: String(e) }, "Warning");
             return { authenticated: false };
         }
     },
 
     async initApp() {
+        uiLog("app.initApp", "Entering app state", undefined, "Information");
         this.authState = 'app';
         try {
             const cRes = await fetch('/api/config');
+            uiLog("app.initApp.config", "Config fetch response", { status: cRes.status });
             if (cRes.ok) {
                 this.configData = await cRes.json() as ConfigData;
                 if (this.configData) this._initConfigEdits(this.configData);
             }
         } catch (e) {
             console.warn("[WatchBack] Config load failed:", e);
+            uiLog("app.initApp.configFailed", "Config load failed", { error: String(e) }, "Warning");
         }
         void this.fetchMappings();
         type IntegrationEntry = { fields?: Array<{ hasValue: boolean }> };
@@ -133,15 +148,18 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         }
 
         this.initialized = true;
+        uiLog("app.initApp.ready", "App initialized, starting SSE and sync", undefined, "Information");
         this.setupSSE();
         void this.sync();
 
         if (!localStorage.getItem('wb_wizardCompleted') && !localStorage.getItem('wb_checklistCompleted')) {
+            uiLog("app.initApp.wizard", "No wizard/checklist completion flag — showing wizard", undefined, "Information");
             this.wizardActive = true;
         }
     },
 
     showError(msg: string) {
+        uiLog("ui.error", msg, undefined, "Warning");
         this.error = msg;
         clearTimeout(this.errorTimer ?? undefined);
         this.errorTimer = setTimeout(() => { this.error = null; }, 8000);

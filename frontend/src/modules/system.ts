@@ -1,4 +1,5 @@
 import type { AppData, SyncData, LogEntry, SyncHistoryStatus, SyncHistoryEntry } from '../types';
+import { uiLog } from '../utils/uiLogger';
 
 const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     setupSSE() {
@@ -32,6 +33,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
             if (clearTimer !== null) { clearTimeout(clearTimer); clearTimer = null; }
         };
 
+        uiLog("sse.open", "Sync SSE connecting", undefined, "Information");
         const es = new (window as unknown as Window & { ReconnectingEventSource: new (url: string, opts: Record<string, unknown>) => EventSource }).ReconnectingEventSource(
             '/api/sync/stream', { max_retry_time: 60000 }
         );
@@ -53,8 +55,11 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                     // cached cycles skip straight from 0% to 100% with no ticks
                     // between and therefore never flash the bar.
                     const isIntermediate = completed > 0 && completed < total;
+                    uiLog("sse.progress", "Sync progress event", { completed, total, isIntermediate, showBarTimerArmed: showBarTimer !== null, showSyncBar: this.showSyncBar });
                     if (isIntermediate && showBarTimer === null && !this.showSyncBar) {
+                        uiLog("sse.bar.arm", "Progress bar show timer armed", { delayMs: SHOW_DELAY_MS });
                         showBarTimer = setTimeout(() => {
+                            uiLog("sse.bar.show", "Progress bar shown", undefined, "Information");
                             this.showSyncBar = true;
                             showBarTimer = null;
                         }, SHOW_DELAY_MS);
@@ -72,6 +77,13 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                 const barWasVisible = this.showSyncBar;
 
                 console.debug("[WatchBack] SSE update:", data);
+                uiLog("sse.status", "Sync status received", {
+                    status: newData.status,
+                    title: newData.title,
+                    episodeChanged,
+                    barWasVisible,
+                    showBarTimerArmed: showBarTimer !== null,
+                }, "Information");
                 this.data = newData;
 
                 // The cycle is done — cancel any pending show timer so late
@@ -82,6 +94,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                 if (episodeChanged && !barWasVisible) {
                     // Episode reloaded without a visible loading indicator — pulse
                     // the bar briefly so the user sees that something changed.
+                    uiLog("sse.bar.pulse", "Pulsing bar for silent episode change", { durationMs: PULSE_DURATION_MS });
                     this.syncProgress = this.syncProgress ?? { completed: 1, total: 1 };
                     this.showSyncBar = true;
                     clearTimer = setTimeout(() => {
@@ -89,6 +102,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                         clearTimer = null;
                     }, PULSE_DURATION_MS);
                 } else {
+                    uiLog("sse.bar.hide", "Progress bar hide timer armed", { delayMs: HIDE_DELAY_MS, barWasVisible });
                     clearTimer = setTimeout(() => {
                         resetBarState();
                         clearTimer = null;
@@ -96,10 +110,12 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                 }
             } catch (err) {
                 console.debug("[WatchBack] SSE parse:", err);
+                uiLog("sse.parseError", "SSE message parse failed", { error: String(err) }, "Warning");
             }
         };
         es.onerror = () => {
             console.warn("[WatchBack] SSE connection lost");
+            uiLog("sse.error", "Sync SSE connection lost or reconnecting", undefined, "Warning");
         };
     },
 
@@ -116,6 +132,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     },
 
     async restart() {
+        uiLog("system.restart", "Server restart triggered", undefined, "Information");
         this.showConfig = false;
         this.restartStatus = 'loading';
         try {
@@ -130,11 +147,16 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
             await new Promise(r => setTimeout(r, 1000));
             try {
                 const res = await fetch('/api/auth/me');
-                if (res.ok) { await this.init(); return; }
+                if (res.ok) {
+                    uiLog("system.restart.online", "Server back online after restart", { attempt: i + 1 }, "Information");
+                    await this.init();
+                    return;
+                }
             } catch {
                 // still down — keep polling
             }
         }
+        uiLog("system.restart.timeout", "Server did not come back online after restart", { maxRetries }, "Error");
         this.restartStatus = 'error';
         this.initialized = true;
         this.authState = 'login';

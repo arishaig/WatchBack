@@ -148,4 +148,49 @@ public class DiagnosticsEndpointTests : IAsyncLifetime, IDisposable
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    [Fact]
+    public async Task PostClientLog_ReturnsOk()
+    {
+        var entries = new[] { new { @event = "test.event", message = "hello", level = "Debug" } };
+
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/diagnostics/client-log", entries);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task PostClientLog_Unauthenticated_ReturnsOk()
+    {
+        // AllowAnonymous so pre-auth events (session expiry etc.) can be captured
+        using HttpClient unauthClient = _factory.CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var entries = new[] { new { @event = "test.event", message = "hello", level = "Debug" } };
+
+        HttpResponseMessage response = await unauthClient.PostAsJsonAsync("/api/diagnostics/client-log", entries);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task PostClientLog_EmptyBatch_ReturnsOk()
+    {
+        HttpResponseMessage response = await _client.PostAsJsonAsync(
+            "/api/diagnostics/client-log", Array.Empty<object>());
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task PostClientLog_EntryAppearsInLogBuffer()
+    {
+        string uniqueEvent = $"test.regression.{Guid.NewGuid():N}";
+        var entries = new[] { new { @event = uniqueEvent, message = "regression marker", level = "Debug" } };
+
+        await _client.PostAsJsonAsync("/api/diagnostics/client-log", entries);
+
+        HttpResponseMessage logResponse = await _client.GetAsync("/api/diagnostics/logs?limit=500");
+        string body = await logResponse.Content.ReadAsStringAsync();
+        body.Should().Contain(uniqueEvent);
+    }
 }

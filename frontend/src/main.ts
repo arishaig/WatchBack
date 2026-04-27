@@ -2,6 +2,7 @@ import Alpine from 'alpinejs';
 import './strings';
 import '../css/tw.css';
 import '../css/app.css';
+import { uiLog, flushNow } from './utils/uiLogger';
 
 import type { AppData } from './types';
 import authMethods from './modules/auth';
@@ -201,5 +202,9 @@ window.addEventListener('pageshow', (event) => {
     const appEl = document.querySelector('[x-data="app()"]') as HTMLElement | null;
     if (!appEl) return;
     const app = (Alpine as unknown as { $data: (el: HTMLElement) => { initialized?: boolean } | null }).$data(appEl);
-    if (app && !app.initialized) window.location.reload();
+    if (app && !app.initialized) {
+        uiLog("app.bfcacheReload", "BFCache restore while uninitialized — reloading page", undefined, "Warning");
+        flushNow();
+        window.location.reload();
+    }
 });
