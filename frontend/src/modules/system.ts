@@ -171,7 +171,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
 
     async loadDiagnostics() {
         try {
-            const res = await fetch('/api/diagnostics/logs?limit=200');
+            const res = await fetch('/api/diagnostics/logs?limit=500');
             if (res.ok) {
                 this.logEntries = await res.json() as LogEntry[];
                 this.$nextTick(() => {
@@ -237,15 +237,12 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     },
 
     async copyLogs() {
-        const entries = (this.filteredLogs as unknown[]).slice(-200);
         const ver = this.appVersion ? ` v${this.appVersion}` : '';
-
         const meta = [
             `Version:   ${this.appVersion ?? 'unknown'}`,
             `${this.t('Diagnostics_Captured')} ${new Date().toUTCString()}`,
             `${this.t('Diagnostics_Browser')} ${navigator.userAgent}`,
             `Theme:     ${this.theme}`,
-            `${this.t('Diagnostics_Filter')} ${this.logLevel} (${this.t('Diagnostics_Entries', entries.length, this.logEntries.length)})`,
         ];
         if (this.syncHistory) {
             meta.push(`${this.t('Diagnostics_Sync')} ${this.syncHistory.status}${this.syncHistory.title ? ` — ${this.syncHistory.title}` : ''}`);
@@ -255,25 +252,12 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                 meta.push(`${this.t('Diagnostics_Providers')} ${providerSummary}`);
             }
         }
-
         const header = `=== WatchBack${ver} ${this.t('Diagnostics_DiagnosticLog')} ===`;
         const separator = '='.repeat(header.length);
-        const logLines = (entries as { timestamp: string; level: string; category?: string; message: string; exceptionText?: string }[]).map(e => {
-            const time = this.formatLogTime(e.timestamp);
-            const lvl  = this.logLevelAbbr(e.level).padEnd(3);
-            const cat  = (e.category || '').padEnd(24);
-            const line = `${time} ${lvl} ${cat} ${e.message}`;
-            return e.exceptionText ? `${line}\n              ${e.exceptionText}` : line;
-        });
-
-        const sections = [
-            header,
-            meta.join('\n'),
-            separator,
-            ...(logLines.length > 0 ? logLines : [this.t('Diagnostics_NoEntriesMatchingFilter')]),
-        ];
-        const text = sections.join('\n');
         try {
+            const res = await fetch('/api/diagnostics/logs/raw');
+            const logText = res.ok ? await res.text() : '';
+            const text = [header, meta.join('\n'), separator, logText].join('\n');
             await navigator.clipboard.writeText(text);
             this.copyLogsStatus = 'copied';
         } catch {
