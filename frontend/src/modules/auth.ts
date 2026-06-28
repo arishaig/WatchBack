@@ -1,8 +1,10 @@
 import type { AppData } from '../types';
+import { uiLog } from '../utils/uiLogger';
 
 const authMethods: Record<string, unknown> & ThisType<AppData> = {
     async login() {
         if (this.loginLoading) return;
+        uiLog("auth.login", "Login attempt", undefined, "Information");
         this.loginLoading = true;
         this.loginError = null;
         try {
@@ -11,8 +13,13 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: this.loginUsername, password: this.loginPassword }),
             });
+            uiLog("auth.login.response", "Login response", { status: res.status });
             const data = await res.json() as Record<string, unknown>;
             if (data['ok']) {
+                uiLog("auth.login.success", "Login succeeded", {
+                    needsOnboarding: data['needsOnboarding'],
+                    needsPasswordChange: data['needsPasswordChange'],
+                }, "Information");
                 this.currentUser = { authenticated: true, username: this.loginUsername, authMethod: 'cookie' };
                 if (data['needsOnboarding']) {
                     this.authState = 'onboarding';
@@ -22,9 +29,11 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
                     await this.initApp();
                 }
             } else {
+                uiLog("auth.login.failed", "Login rejected", { message: data['message'] }, "Warning");
                 this.loginError = (data['message'] as string) || this.t('Auth_InvalidCredentials');
             }
-        } catch {
+        } catch (e) {
+            uiLog("auth.login.error", "Login request failed", { error: String(e) }, "Error");
             this.loginError = this.t('Auth_ConnectionFailed');
         }
         this.loginLoading = false;
@@ -32,6 +41,7 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
 
     async setupAccount() {
         if (this.setupLoading) return;
+        uiLog("auth.setup", "Account setup attempt", undefined, "Information");
         this.setupLoading = true;
         this.setupError = null;
         try {
@@ -40,14 +50,20 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ newUsername: this.setupUsername, newPassword: this.setupPassword }),
             });
+            uiLog("auth.setup.response", "Setup response", { status: res.status });
             const data = await res.json() as Record<string, unknown>;
             if (data['ok']) {
+                uiLog("auth.setup.success", "Account setup succeeded", undefined, "Information");
                 this.currentUser = { authenticated: true, username: this.setupUsername, authMethod: 'cookie' };
+                localStorage.removeItem('wb_wizardCompleted');
+                localStorage.removeItem('wb_checklistCompleted');
                 await this.initApp();
             } else {
+                uiLog("auth.setup.failed", "Account setup rejected", { message: data['message'] }, "Warning");
                 this.setupError = (data['message'] as string) || this.t('Auth_SetupFailed');
             }
-        } catch {
+        } catch (e) {
+            uiLog("auth.setup.error", "Account setup request failed", { error: String(e) }, "Error");
             this.setupError = this.t('Auth_ConnectionFailed');
         }
         this.setupLoading = false;
@@ -67,6 +83,7 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
             this.changePwError = this.t('Auth_PasswordsDoNotMatch');
             return;
         }
+        uiLog("auth.changePassword", "Password change attempt", undefined, "Information");
         this.changePwLoading = true;
         this.changePwError = null;
         try {
@@ -75,13 +92,17 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ currentPassword: this.changePwCurrent, newPassword: this.changePwNew }),
             });
+            uiLog("auth.changePassword.response", "Change-password response", { status: res.status });
             const data = await res.json() as Record<string, unknown>;
             if (data['ok']) {
+                uiLog("auth.changePassword.success", "Password changed successfully", undefined, "Information");
                 await this.initApp();
             } else {
+                uiLog("auth.changePassword.failed", "Password change rejected", { message: data['message'] }, "Warning");
                 this.changePwError = (data['message'] as string) || this.t('Auth_PasswordChangeFailed');
             }
-        } catch {
+        } catch (e) {
+            uiLog("auth.changePassword.error", "Password change request failed", { error: String(e) }, "Error");
             this.changePwError = this.t('Auth_ConnectionFailed');
         }
         this.changePwLoading = false;
@@ -119,6 +140,7 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
     },
 
     async logout() {
+        uiLog("auth.logout", "Logout triggered", undefined, "Information");
         await fetch('/api/auth/logout', { method: 'POST' });
         this.authState = 'login';
         this.currentUser = null;

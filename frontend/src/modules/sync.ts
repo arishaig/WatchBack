@@ -1,13 +1,17 @@
 import type { AppData, MediaSearchResult, SeasonSummary, EpisodeResult } from '../types';
+import { uiLog } from '../utils/uiLogger';
 
 const syncMethods: Record<string, unknown> & ThisType<AppData> = {
     async sync() {
         console.debug("[WatchBack] Triggering sync...");
+        uiLog("sync.trigger", "Sync trigger sent", undefined, "Information");
         this.data = null;
         try {
-            await fetch('/api/sync/trigger', { method: 'POST' });
+            const res = await fetch('/api/sync/trigger', { method: 'POST' });
+            uiLog("sync.trigger.response", "Sync trigger response", { status: res.status });
         } catch (e) {
             console.error("[WatchBack] Trigger failed:", e);
+            uiLog("sync.trigger.error", "Sync trigger failed", { error: String(e) }, "Error");
             this.showError(this.t('Auth_ConnectionFailed'));
         }
     },
@@ -15,6 +19,7 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
     async searchMedia() {
         const q = this.searchQuery.trim();
         if (!q) return;
+        uiLog("search.media", "Media search started", { query: q });
         this.searchLoading = true;
         this.searchError = null;
         this.searchResults = [];
@@ -25,12 +30,16 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
             const res = await fetch('/api/search?q=' + encodeURIComponent(q));
             if (res.ok) {
                 this.searchResults = await res.json() as MediaSearchResult[];
+                uiLog("search.media.result", "Media search complete", { count: this.searchResults.length });
             } else if (res.status === 503) {
+                uiLog("search.media.notConfigured", "Search not configured (503)", undefined, "Warning");
                 this.searchError = this.t('Dashboard_OmdbNotConfigured');
             } else {
+                uiLog("search.media.error", "Media search error", { status: res.status }, "Warning");
                 this.searchError = this.t('Dashboard_SearchFailed');
             }
-        } catch {
+        } catch (e) {
+            uiLog("search.media.networkError", "Media search network error", { error: String(e) }, "Error");
             this.searchError = this.t('Dashboard_ConnectionFailed');
         }
         this.searchLoading = false;
@@ -102,6 +111,7 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
     },
 
     async setManualWatchState(context: Record<string, unknown>) {
+        uiLog("sync.manualState.set", "Setting manual watch state", { title: context['title'] }, "Information");
         try {
             const res = await fetch('/api/watchstate/manual', {
                 method: 'POST',
@@ -116,6 +126,7 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
                 }),
             });
             if (res.ok) {
+                uiLog("sync.manualState.ok", "Manual watch state set", { title: context['title'] }, "Information");
                 this.searchQuery = '';
                 this.searchResults = [];
                 this.searchDrilldown = null;
@@ -123,18 +134,22 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
                 this.drilldownEpisodes = [];
                 await this.sync();
             } else {
+                uiLog("sync.manualState.error", "Set manual watch state failed", { status: res.status }, "Warning");
                 this.searchError = this.t('Dashboard_SetWatchStateFailed');
             }
-        } catch {
+        } catch (e) {
+            uiLog("sync.manualState.networkError", "Set manual watch state network error", { error: String(e) }, "Error");
             this.searchError = this.t('Dashboard_ConnectionFailed');
         }
     },
 
     async clearManualWatchState() {
+        uiLog("sync.manualState.clear", "Clearing manual watch state", undefined, "Information");
         try {
             await fetch('/api/watchstate/manual', { method: 'DELETE' });
             await this.sync();
-        } catch {
+        } catch (e) {
+            uiLog("sync.manualState.clearError", "Clear manual watch state failed", { error: String(e) }, "Error");
             this.showError(this.t('Dashboard_ClearWatchStateFailed'));
         }
     },
