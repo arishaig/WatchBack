@@ -20,6 +20,6 @@
   },
   "dependencies": {
     "@types/alpinejs": "^3.13.11",
-    "alpinejs": "^3.15.11"
+    "alpinejs": "^3.15.12"
   }
 }
