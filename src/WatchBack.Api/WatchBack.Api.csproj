@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog.Formatting.Compact" Version="3.*" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
     <PackageReference Include="ThisAssembly.AssemblyInfo" Version="2.1.2">
