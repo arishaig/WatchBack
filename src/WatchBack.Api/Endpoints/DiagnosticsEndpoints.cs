@@ -1,7 +1,10 @@
 using System.Text.Json;
 using System.Threading.Channels;
 
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
+using Serilog.Events;
 
 using WatchBack.Api.Logging;
 using WatchBack.Api.Serialization;
@@ -23,6 +26,12 @@ public static class DiagnosticsEndpoints
     {
         RouteGroupBuilder group = app.MapGroup("/api/diagnostics")
             .WithTags("Diagnostics");
+
+        group.MapPost("/client-log", PostClientLog)
+            .WithName("PostClientLog")
+            .WithSummary("Ingest a batch of UI-originated log entries into the log buffer")
+            .AllowAnonymous()
+            .RequireRateLimiting("client-log");
 
         group.MapGet("/logs", GetLogs)
             .WithName("GetLogs")
@@ -107,5 +116,46 @@ public static class DiagnosticsEndpoints
     {
         await db.SyncLogs.ExecuteDeleteAsync(ct);
         return Results.Ok(new { ok = true });
+    }
+
+    private sealed record ClientLogEntry(string? Event, string? Message, string? Level, string? Data);
+    private const int MaxClientBatch = 50;
+
+    private static IResult PostClientLog(
+        [FromBody] ClientLogEntry[] entries,
+        InMemoryLogBuffer buffer,
+        Serilog.ILogger fileLogger)
+    {
+        foreach (ClientLogEntry entry in entries.Take(MaxClientBatch))
+        {
+            string level = entry.Level switch
+            {
+                "Information" or "Warning" or "Error" => entry.Level,
+                _ => "Debug"
+            };
+            LogEventLevel serilogLevel = level switch
+            {
+                "Information" => LogEventLevel.Information,
+                "Warning" => LogEventLevel.Warning,
+                "Error" => LogEventLevel.Error,
+                _ => LogEventLevel.Debug
+            };
+            string ev = Sanitize(entry.Event);
+            string msg = Sanitize(entry.Message);
+            string fullMessage = string.IsNullOrEmpty(entry.Data)
+                ? $"[{ev}] {msg}"
+                : $"[{ev}] {msg} | {entry.Data}";
+
+            buffer.Add(new LogEntry(DateTimeOffset.UtcNow, level, "UI", fullMessage, null));
+            fileLogger.Write(serilogLevel, "[UI] [{UiEvent}] {UiMessage}", ev, msg);
+        }
+        return Results.Ok();
+    }
+
+    private static string Sanitize(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        string s = value.Replace('\n', ' ').Replace('\r', ' ').Trim();
+        return s.Length > 1000 ? s[..1000] : s;
     }
 }

@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authentication;
+using Serilog;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -50,6 +51,25 @@ if (dbDirectory != null)
 {
     Directory.CreateDirectory(dbDirectory);
 }
+
+// File logging — Serilog writes every log entry to a rolling 1 GB file alongside the database.
+// The filter ensures WatchBack.* and UI (frontend) categories are captured at Debug level.
+string logFilePath = Path.Combine(dbDirectory ?? ".", "watchback.log");
+Serilog.Core.Logger serilogFileLogger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .WriteTo.File(
+        logFilePath,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}",
+        formatProvider: System.Globalization.CultureInfo.InvariantCulture,
+        fileSizeLimitBytes: 1_073_741_824L,
+        rollOnFileSizeLimit: true,
+        retainedFileCountLimit: 2,
+        shared: true)
+    .CreateLogger();
+builder.Logging.AddSerilog(serilogFileLogger, dispose: true);
+builder.Services.AddSingleton<Serilog.ILogger>(serilogFileLogger);
+builder.Logging.AddFilter("WatchBack", LogLevel.Debug);
+builder.Logging.AddFilter("UI", LogLevel.Debug);
 
 string mappingsDir = Path.Combine(dbDirectory ?? ".", "subreddit-mappings");
 string builtInMappingsPath = Path.Combine(AppContext.BaseDirectory, "builtin-subreddit-mappings.json");
@@ -148,6 +168,15 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+    options.AddPolicy("client-log", ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
