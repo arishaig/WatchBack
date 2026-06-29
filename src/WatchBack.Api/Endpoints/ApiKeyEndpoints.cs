@@ -38,7 +38,7 @@ public static class ApiKeyEndpoints
     private static async Task<IResult> ListKeys(WatchBackDbContext db, CancellationToken ct)
     {
         List<object> keys = await db.ApiKeys
-            .OrderBy(k => k.CreatedAt)
+            .OrderBy(k => k.Id)
             .Select(k => (object)new { k.Id, k.Name, k.Prefix, k.CreatedAt })
             .ToListAsync(ct);
 

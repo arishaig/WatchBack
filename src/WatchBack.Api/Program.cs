@@ -267,9 +267,17 @@ using (IServiceScope scope = app.Services.CreateScope())
     WatchBackDbContext dbContext = scope.ServiceProvider.GetRequiredService<WatchBackDbContext>();
     await dbContext.Database.MigrateAsync();
 
-    // Enable WAL mode for better concurrent read/write performance (especially
-    // fire-and-forget sync history writes alongside foreground queries).
-    await dbContext.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+    // WAL journal mode breaks on NFS-backed storage (production) because SQLite
+    // WAL relies on mmap of the .shm index file which NFS cannot provide reliable
+    // locking for — cross-connection WAL reads silently return stale data. DELETE
+    // mode serialises writes via advisory locks that NFSv4 does support and is
+    // safe for a single-instance deployment. In development and CI the database
+    // lives on local disk where WAL is fine; using DELETE there causes lock
+    // contention when parallel test factories all share the same SQLite file.
+    if (app.Environment.IsProduction())
+    {
+        await dbContext.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=DELETE;");
+    }
 }
 
 await InitializeAuthAsync(app);

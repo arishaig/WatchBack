@@ -97,6 +97,30 @@ public class McpEndpointTests
     }
 
     [Fact]
+    public async Task ApiKeys_AfterGenerate_ListContainsNewKey()
+    {
+        // Regression test: key created via POST must be immediately visible in
+        // GET /api/keys from the next request (different DbContext scope / connection).
+        // This guards against cross-connection read inconsistency when WAL journal
+        // mode is active on storage that does not support mmap locking (e.g. NFS).
+        using WebApplicationFactory<Program> factory = BuildFactory();
+        using HttpClient client = factory.CreateClient();
+        await LoginAsync(client);
+
+        HttpResponseMessage genRes = await client.PostAsJsonAsync("/api/keys", new { name = "listed-key" });
+        genRes.EnsureSuccessStatusCode();
+        JsonElement genBody = JsonDocument.Parse(await genRes.Content.ReadAsStringAsync()).RootElement;
+        int newKeyId = genBody.GetProperty("id").GetInt32();
+
+        HttpResponseMessage listRes = await client.GetAsync("/api/keys");
+        listRes.EnsureSuccessStatusCode();
+        JsonElement listBody = JsonDocument.Parse(await listRes.Content.ReadAsStringAsync()).RootElement;
+
+        listBody.EnumerateArray().Should().ContainSingle(k => k.GetProperty("id").GetInt32() == newKeyId,
+            because: "the newly generated key must be visible in the list from the next request");
+    }
+
+    [Fact]
     public async Task ApiKeys_WithApiKeyBearer_Returns401()
     {
         // API keys must not be usable to manage other API keys (privilege escalation guard)
