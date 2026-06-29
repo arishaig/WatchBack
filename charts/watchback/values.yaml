@@ -24,6 +24,9 @@ persistence:
   size: 512Mi
   storageClass: ""
   accessMode: ReadWriteOnce
+  # Mount a subdirectory of the PVC instead of the root. Useful when migrating
+  # from an existing deployment that used subPath (e.g. app-template's subPath: data).
+  subPath: ""
 
 service:
   type: ClusterIP
