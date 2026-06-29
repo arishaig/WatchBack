@@ -374,10 +374,10 @@
         <value>¡Todo listo!</value>
     </data>
     <data name="DangerZone_TrustedHost" xml:space="preserve">
-        <value>Host de confianza (opcional)</value>
+        <value>Host de confianza</value>
     </data>
     <data name="DangerZone_TrustedHostHelp" xml:space="preserve">
-        <value>Introduzca la IP o el nombre de host de su proxy inverso. Solo se aceptarán solicitudes de este host. Déjelo vacío para aceptar solicitudes de cualquier origen.</value>
+        <value>Introduzca la IP o el nombre de host de su proxy inverso. Solo se aceptarán solicitudes de este host. Escriba "any" para aceptar solicitudes de cualquier origen.</value>
     </data>
     <data name="Dashboard_SeasonEpisodeCode" xml:space="preserve">
         <value>T{0}E{1}</value>
