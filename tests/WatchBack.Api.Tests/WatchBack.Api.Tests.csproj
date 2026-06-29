@@ -21,7 +21,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.*"/>
     <PackageReference Include="Microsoft.Playwright" Version="1.61.*"/>
-    <PackageReference Include="Deque.AxeCore.Playwright" Version="4.11.*"/>
+    <PackageReference Include="Deque.AxeCore.Playwright" Version="4.12.*"/>
   </ItemGroup>
 
   <ItemGroup>
