@@ -8,6 +8,8 @@ public class WatchBackDbContext(DbContextOptions<WatchBackDbContext> options) : 
 {
     public DbSet<SyncLogEntity> SyncLogs { get; set; } = null!;
 
+    public DbSet<ApiKeyEntity> ApiKeys { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -18,5 +20,12 @@ public class WatchBackDbContext(DbContextOptions<WatchBackDbContext> options) : 
         modelBuilder.Entity<SyncLogEntity>()
             .HasIndex(e => e.Timestamp)
             .IsDescending();
+
+        modelBuilder.Entity<ApiKeyEntity>()
+            .HasKey(e => e.Id);
+
+        modelBuilder.Entity<ApiKeyEntity>()
+            .HasIndex(e => e.KeyHash)
+            .IsUnique();
     }
 }

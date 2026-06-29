@@ -17,6 +17,7 @@ using WatchBack.Api;
 using WatchBack.Api.Auth;
 using WatchBack.Api.Endpoints;
 using WatchBack.Api.Logging;
+using WatchBack.Api.Mcp;
 using WatchBack.Api.Serialization;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
@@ -233,7 +234,8 @@ builder.Services
             return Task.CompletedTask;
         };
     })
-    .AddScheme<ForwardAuthOptions, ForwardAuthHandler>("ForwardAuth", _ => { });
+    .AddScheme<ForwardAuthOptions, ForwardAuthHandler>("ForwardAuth", _ => { })
+    .AddScheme<BearerApiKeyOptions, BearerApiKeyAuthHandler>("ApiKey", _ => { });
 
 builder.Services.AddAuthorization(options =>
 {
@@ -241,10 +243,22 @@ builder.Services.AddAuthorization(options =>
         .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, "ForwardAuth")
         .RequireAuthenticatedUser()
         .Build();
+
+    // The MCP endpoint also accepts bearer API keys in addition to the default auth schemes.
+    // Key management endpoints (/api/mcp/keys) remain under the default policy only —
+    // an API key cannot mint, list, or revoke other keys.
+    options.AddPolicy("mcp", new AuthorizationPolicyBuilder()
+        .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, "ForwardAuth", "ApiKey")
+        .RequireAuthenticatedUser()
+        .Build());
 });
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddMcpServer()
+    .WithHttpTransport(o => o.Stateless = true)
+    .WithTools<WatchBackMcpTools>();
 
 WebApplication app = builder.Build();
 
@@ -341,6 +355,9 @@ protectedGroup.MapDiagnosticsEndpoints();
 protectedGroup.MapManualWatchStateEndpoints();
 protectedGroup.MapSearchEndpoints();
 protectedGroup.MapSubredditMappingEndpoints();
+protectedGroup.MapApiKeyEndpoints();
+
+app.MapMcp("/mcp").RequireAuthorization("mcp");
 
 app.MapFallbackToFile("index.html");
 

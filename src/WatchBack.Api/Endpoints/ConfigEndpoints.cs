@@ -188,7 +188,7 @@ public static class ConfigEndpoints
     }
 
     /// <summary>Flattens all provider collections into a single IDataProvider sequence.</summary>
-    private static IEnumerable<IDataProvider> GetAllDataProviders(
+    internal static IEnumerable<IDataProvider> GetAllDataProviders(
         IEnumerable<IWatchStateProvider> watchStateProviders,
         IEnumerable<IThoughtProvider> thoughtProviders,
         IEnumerable<IRatingsProvider> ratingsProviders,
@@ -201,7 +201,7 @@ public static class ConfigEndpoints
     }
 
     /// <summary>Derives the set of allowable config sections from registered providers plus WatchBack itself.</summary>
-    private static HashSet<string> GetAllowedSections(IEnumerable<IDataProvider> providers)
+    internal static HashSet<string> GetAllowedSections(IEnumerable<IDataProvider> providers)
     {
         HashSet<string> sections = providers
             .Select(p => p.ConfigSection)

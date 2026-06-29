@@ -697,6 +697,43 @@
     <data name="Setup_Title" xml:space="preserve">
         <value>Configurar cuenta</value>
     </data>
+    <!-- MCP: API Key Management -->
+    <data name="Mcp_ApiKeys" xml:space="preserve">
+        <value>Claves API</value>
+    </data>
+    <data name="Mcp_Help" xml:space="preserve">
+        <value>Las claves API autentican solicitudes mediante un token de portador (Authorization: Bearer &lt;clave&gt;). Las claves no se vuelven a mostrar después de generarse.</value>
+    </data>
+    <data name="Mcp_NoKeys" xml:space="preserve">
+        <value>Aún no hay claves API. Genera una a continuación.</value>
+    </data>
+    <data name="Mcp_KeyName" xml:space="preserve">
+        <value>Nombre de la clave</value>
+    </data>
+    <data name="Mcp_KeyNamePlaceholder" xml:space="preserve">
+        <value>p. ej. Claude Desktop</value>
+    </data>
+    <data name="Mcp_Generate" xml:space="preserve">
+        <value>Generar clave</value>
+    </data>
+    <data name="Mcp_Revoke" xml:space="preserve">
+        <value>Revocar</value>
+    </data>
+    <data name="Mcp_KeyReady" xml:space="preserve">
+        <value>Clave generada — cópiala ahora. No se mostrará de nuevo.</value>
+    </data>
+    <data name="Mcp_CopyKey" xml:space="preserve">
+        <value>Copiar clave</value>
+    </data>
+    <data name="Mcp_Copied" xml:space="preserve">
+        <value>¡Copiado!</value>
+    </data>
+    <data name="Mcp_Dismiss" xml:space="preserve">
+        <value>Listo</value>
+    </data>
+    <data name="Mcp_CreatedOn" xml:space="preserve">
+        <value>Creado</value>
+    </data>
     <data name="Time_HoursAgo" xml:space="preserve">
         <value>Hace {0} horas</value>
     </data>

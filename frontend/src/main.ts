@@ -13,6 +13,7 @@ import wizardMethods from './modules/wizard';
 import computedDescriptors from './modules/computed';
 import uiMethods from './modules/ui';
 import subredditMappingsMethods from './modules/subredditMappings';
+import mcpMethods from './modules/mcp';
 import { sanitizeSvg } from './utils/svg';
 import { renderMarkdown } from './utils/markdown';
 
@@ -129,6 +130,11 @@ Alpine.data('app', (): AppData => {
         mappingDropActive: false,
         mappingShareCopied: '',
         sentimentCategory: 'all',
+        apiKeys: [],
+        newApiKeyName: '',
+        apiKeySaveStatus: null,
+        newlyGeneratedKey: null,
+        apiKeyCopied: false,
 
         sanitizeSvg,
         renderMarkdown,
@@ -140,6 +146,7 @@ Alpine.data('app', (): AppData => {
         ...wizardMethods,
         ...uiMethods,
         ...subredditMappingsMethods,
+        ...mcpMethods,
     };
 
     // Merge computed getters preserving property descriptor semantics
