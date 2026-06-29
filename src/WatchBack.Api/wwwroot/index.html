@@ -723,6 +723,17 @@
                             x-show="!configData?.integrations?.['reddit']?.disabled"
                             x-text="'Subreddits'">
                     </button>
+                    <button :aria-selected="configTab === 'apikeys'" :class="configTab === 'apikeys'
+                            ? 'wb-text-secondary' : 'wb-text-faint hover:wb-text-muted'"
+                            :style="configTab === 'apikeys' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
+                            @click="switchConfigTab('apikeys')"
+                            aria-controls="panel-apikeys"
+                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                            id="tab-apikeys"
+                            role="tab"
+                            type="button"
+                            x-text="t('Mcp_ApiKeys')">
+                    </button>
                 </nav>
             </div>
 
@@ -1622,6 +1633,91 @@
 
                 </div>
             </div><!-- /mappings tab -->
+
+            <!-- ─── API Keys tab ─── -->
+            <div :aria-label="t('Mcp_ApiKeys')" aria-labelledby="tab-apikeys" id="panel-apikeys" role="tabpanel" x-show="configTab === 'apikeys'">
+
+                <h2 class="text-sm font-semibold wb-text-secondary mb-1" x-text="t('Mcp_ApiKeys')"></h2>
+                <p class="text-xs wb-text-faint mb-5" x-text="t('Mcp_Help')"></p>
+
+                <!-- One-time key reveal banner -->
+                <template x-if="newlyGeneratedKey">
+                    <div class="rounded-xl p-4 mb-5 space-y-3"
+                         style="background:var(--wb-success-bg);border:1px solid var(--wb-success-text)">
+                        <p class="text-xs font-medium" style="color:var(--wb-success-text)" x-text="t('Mcp_KeyReady')"></p>
+                        <code class="block text-xs font-mono break-all wb-text-secondary"
+                              x-text="newlyGeneratedKey"></code>
+                        <div class="flex gap-2">
+                            <button @click="void copyApiKey(newlyGeneratedKey)"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer wb-btn wb-surface wb-border border
+                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    type="button"
+                                    x-text="apiKeyCopied ? t('Mcp_Copied') : t('Mcp_CopyKey')">
+                            </button>
+                            <button @click="dismissGeneratedKey()"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer wb-btn wb-surface wb-border border
+                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    type="button"
+                                    x-text="t('Mcp_Dismiss')">
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Existing keys list -->
+                <div class="mb-5 space-y-2">
+                    <template x-if="!apiKeys.length && !newlyGeneratedKey">
+                        <p class="text-xs wb-text-faint" x-text="t('Mcp_NoKeys')"></p>
+                    </template>
+                    <template x-for="key in apiKeys" :key="key.id">
+                        <div class="flex items-center justify-between wb-surface wb-border border rounded-xl px-4 py-3">
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium wb-text-secondary truncate" x-text="key.name"></p>
+                                <p class="text-xs wb-text-faint font-mono mt-0.5">
+                                    <span x-text="key.prefix"></span><span>…</span>
+                                    &nbsp;·&nbsp;
+                                    <span x-text="t('Mcp_CreatedOn')"></span>&nbsp;<span x-text="formatDate(key.createdAt)"></span>
+                                </p>
+                            </div>
+                            <button :aria-label="t('Mcp_Revoke') + ' ' + key.name"
+                                    @click="void revokeApiKey(key.id)"
+                                    class="ml-4 px-3 py-1.5 shrink-0 rounded-lg text-xs font-medium cursor-pointer wb-btn wb-surface wb-border border
+                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                                    style="color:var(--wb-error-text);border-color:var(--wb-error-border)"
+                                    type="button"
+                                    x-text="t('Mcp_Revoke')">
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Generate new key -->
+                <div class="flex gap-2 items-end">
+                    <div class="flex-1">
+                        <label class="text-xs font-medium wb-text-muted block mb-1"
+                               for="new-api-key-name"
+                               x-text="t('Mcp_KeyName')">
+                        </label>
+                        <input :placeholder="t('Mcp_KeyNamePlaceholder')"
+                               @keydown.enter="void generateApiKey()"
+                               class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
+                               id="new-api-key-name"
+                               type="text"
+                               x-model="newApiKeyName">
+                    </div>
+                    <button :class="apiKeySaveStatus === 'saved' ? 'test-ok' : apiKeySaveStatus === 'error' ? 'test-error' : ''"
+                            :disabled="!newApiKeyName.trim() || apiKeySaveStatus === 'saving'"
+                            @click="void generateApiKey()"
+                            aria-live="polite"
+                            class="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer wb-btn
+                                   disabled:opacity-50 hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                            style="border:1px solid var(--wb-accent);color:var(--wb-accent)"
+                            type="button"
+                            x-text="apiKeySaveStatus === 'saving' ? t('Common_Saving') : apiKeySaveStatus === 'error' ? t('Common_Error') : t('Mcp_Generate')">
+                    </button>
+                </div>
+
+            </div><!-- /api keys tab -->
 
         </div>
     </aside>

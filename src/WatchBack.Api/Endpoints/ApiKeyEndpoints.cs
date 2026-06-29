@@ -13,8 +13,8 @@ public static class ApiKeyEndpoints
 {
     public static void MapApiKeyEndpoints(this IEndpointRouteBuilder app)
     {
-        RouteGroupBuilder group = app.MapGroup("/api/mcp/keys")
-            .WithTags("MCP API Keys");
+        RouteGroupBuilder group = app.MapGroup("/api/keys")
+            .WithTags("API Keys");
 
         group.MapGet("/", ListKeys)
             .WithName("ListApiKeys")
@@ -79,7 +79,7 @@ public static class ApiKeyEndpoints
         db.ApiKeys.Add(entity);
         await db.SaveChangesAsync(ct);
 
-        return Results.Created($"/api/mcp/keys/{entity.Id}", new
+        return Results.Created($"/api/keys/{entity.Id}", new
         {
             entity.Id,
             entity.Name,

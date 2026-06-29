@@ -130,6 +130,13 @@ export interface EpisodeResult {
     imdbId?: string;
 }
 
+export interface ApiKeyEntry {
+    id: number;
+    name: string;
+    prefix: string;
+    createdAt: string;
+}
+
 export interface AuthMeResponse {
     authenticated: boolean;
     needsOnboarding?: boolean;
@@ -248,6 +255,11 @@ export interface AppData {
     mappingDropActive: boolean;
     mappingShareCopied: string;
     sentimentCategory: string;
+    apiKeys: ApiKeyEntry[];
+    newApiKeyName: string;
+    apiKeySaveStatus: SaveStatus;
+    newlyGeneratedKey: string | null;
+    apiKeyCopied: boolean;
 
     $watch(prop: string, cb: (val: unknown) => void): void;
     $nextTick(cb: () => void): void;
@@ -327,6 +339,12 @@ export interface AppData {
     readonly renderGroups: unknown[];
     readonly groupedThoughts: unknown[];
     readonly showSearchBox: boolean;
+
+    loadApiKeys(): Promise<void>;
+    generateApiKey(): Promise<void>;
+    revokeApiKey(id: number): Promise<void>;
+    copyApiKey(key: string): Promise<void>;
+    dismissGeneratedKey(): void;
 
     handleMappingFileDrop(e: DragEvent): void;
     shareMappingSource(id: string, name: string): Promise<void>;

@@ -378,6 +378,43 @@
     <data name="DangerZone_ForwardAuthWarning" xml:space="preserve">
         <value>Only enable this behind a trusted reverse proxy that performs authentication. If this application is directly accessible from the internet, any user can bypass authentication by spoofing this header.</value>
     </data>
+    <!-- MCP: API Key Management -->
+    <data name="Mcp_ApiKeys" xml:space="preserve">
+        <value>API Keys</value>
+    </data>
+    <data name="Mcp_Help" xml:space="preserve">
+        <value>API keys authenticate requests using a bearer token (Authorization: Bearer &lt;key&gt;). Keys are never shown again after generation.</value>
+    </data>
+    <data name="Mcp_NoKeys" xml:space="preserve">
+        <value>No API keys yet. Generate one below.</value>
+    </data>
+    <data name="Mcp_KeyName" xml:space="preserve">
+        <value>Key name</value>
+    </data>
+    <data name="Mcp_KeyNamePlaceholder" xml:space="preserve">
+        <value>e.g. Claude Desktop</value>
+    </data>
+    <data name="Mcp_Generate" xml:space="preserve">
+        <value>Generate key</value>
+    </data>
+    <data name="Mcp_Revoke" xml:space="preserve">
+        <value>Revoke</value>
+    </data>
+    <data name="Mcp_KeyReady" xml:space="preserve">
+        <value>Key generated — copy it now. It won't be shown again.</value>
+    </data>
+    <data name="Mcp_CopyKey" xml:space="preserve">
+        <value>Copy key</value>
+    </data>
+    <data name="Mcp_Copied" xml:space="preserve">
+        <value>Copied!</value>
+    </data>
+    <data name="Mcp_Dismiss" xml:space="preserve">
+        <value>Done</value>
+    </data>
+    <data name="Mcp_CreatedOn" xml:space="preserve">
+        <value>Created</value>
+    </data>
     <!-- Time: Relative Time Formatting -->
     <data name="Time_SecondsAgo" xml:space="preserve">
         <value>{0}s ago</value>

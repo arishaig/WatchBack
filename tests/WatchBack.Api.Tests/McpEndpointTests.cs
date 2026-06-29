@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 using FluentAssertions;
 
@@ -67,6 +68,54 @@ public class McpEndpointTests
         body.Should().Contain("reset_config");
         body.Should().Contain("set_manual_watch_state");
         body.Should().Contain("clear_manual_watch_state");
+    }
+
+    [Fact]
+    public async Task Mcp_WithApiKey_ReturnsSuccessfulInitialize()
+    {
+        using WebApplicationFactory<Program> factory = BuildFactory();
+        using HttpClient client = factory.CreateClient();
+        await LoginAsync(client);
+
+        // Generate a key via the API
+        HttpResponseMessage genRes = await client.PostAsJsonAsync("/api/keys", new { name = "test-key" });
+        genRes.EnsureSuccessStatusCode();
+        JsonElement genBody = JsonDocument.Parse(await genRes.Content.ReadAsStringAsync()).RootElement;
+        string apiKey = genBody.GetProperty("key").GetString()!;
+
+        // Make an unauthenticated client (no cookie) and use the API key as bearer
+        using HttpClient bearerClient = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        HttpRequestMessage req = McpRequest(1, "initialize",
+            """{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1"}}""");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        HttpResponseMessage response = await bearerClient.SendAsync(req);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        string body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("\"result\"");
+    }
+
+    [Fact]
+    public async Task ApiKeys_WithApiKeyBearer_Returns401()
+    {
+        // API keys must not be usable to manage other API keys (privilege escalation guard)
+        using WebApplicationFactory<Program> factory = BuildFactory();
+        using HttpClient sessionClient = factory.CreateClient();
+        await LoginAsync(sessionClient);
+
+        HttpResponseMessage genRes = await sessionClient.PostAsJsonAsync("/api/keys", new { name = "guard-test" });
+        genRes.EnsureSuccessStatusCode();
+        JsonElement genBody = JsonDocument.Parse(await genRes.Content.ReadAsStringAsync()).RootElement;
+        string apiKey = genBody.GetProperty("key").GetString()!;
+
+        using HttpClient bearerClient = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        HttpRequestMessage req = new(HttpMethod.Get, "/api/keys");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        HttpResponseMessage response = await bearerClient.SendAsync(req);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     private static HttpRequestMessage McpRequest(int id, string method, string paramsJson)
