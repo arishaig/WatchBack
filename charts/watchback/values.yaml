@@ -1,0 +1,72 @@
+image:
+  repository: ghcr.io/arishaig/watchback
+  # Defaults to the chart's appVersion when unset
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Extra environment variables — all WatchBack config is optional and
+# can also be set in the UI after first launch.
+# Example:
+#   env:
+#     Jellyfin__BaseUrl: http://jellyfin:8096
+#     Jellyfin__ApiKey: your-api-key
+env: {}
+
+# Extra environment variables sourced from Secrets or ConfigMaps
+envFrom: []
+# - secretRef:
+#     name: watchback-secrets
+
+persistence:
+  enabled: true
+  # Bind an existing PVC instead of creating one
+  existingClaim: ""
+  size: 512Mi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+service:
+  type: ClusterIP
+  port: 8484
+  # Only used when type=NodePort
+  nodePort: ""
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: watchback.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # - hosts:
+  #     - watchback.example.com
+  #   secretName: watchback-tls
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+# Recreate ensures the old pod releases the ReadWriteOnce PVC before the
+# new pod starts.
+strategy:
+  type: Recreate
+
+podAnnotations: {}
+podLabels: {}
+
+# The entrypoint chowns /app/data then drops to the 'watchback' user via
+# su-exec, so the container must start as root.
+podSecurityContext: {}
+
+securityContext:
+  runAsUser: 0
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
