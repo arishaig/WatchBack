@@ -193,4 +193,24 @@ public class DiagnosticsEndpointTests : IAsyncLifetime, IDisposable
         string body = await logResponse.Content.ReadAsStringAsync();
         body.Should().Contain(uniqueEvent);
     }
+
+    [Fact]
+    public async Task GetRawLogs_ReturnsOkWithTextPlainContentType()
+    {
+        HttpResponseMessage response = await _client.GetAsync("/api/diagnostics/logs/raw");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("text/plain");
+    }
+
+    [Fact]
+    public async Task GetRawLogs_Unauthenticated_Returns401()
+    {
+        using HttpClient unauthClient = _factory.CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        HttpResponseMessage response = await unauthClient.GetAsync("/api/diagnostics/logs/raw");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
 }

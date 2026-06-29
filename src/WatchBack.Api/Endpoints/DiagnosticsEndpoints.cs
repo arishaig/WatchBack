@@ -12,6 +12,8 @@ using WatchBack.Infrastructure.Persistence;
 
 namespace WatchBack.Api.Endpoints;
 
+public sealed record LogFileConfig(string Directory);
+
 internal sealed record SyncLogEntry(
     DateTimeOffset Timestamp,
     string Status,
@@ -44,6 +46,10 @@ public static class DiagnosticsEndpoints
         group.MapGet("/status", GetStatus)
             .WithName("GetDiagnosticsStatus")
             .WithSummary("Get last sync result summary");
+
+        group.MapGet("/logs/raw", GetRawLogs)
+            .WithName("GetRawLogs")
+            .WithSummary("Get today's raw log file content");
 
         group.MapDelete("/logs", ClearLogs)
             .WithName("ClearLogs")
@@ -89,6 +95,20 @@ public static class DiagnosticsEndpoints
     private static IResult GetStatus(SyncHistoryStore store)
     {
         return Results.Ok(new DiagnosticsStatusResponse(ThisAssembly.Info.InformationalVersion, store.GetLatest()));
+    }
+
+    private static async Task<IResult> GetRawLogs(LogFileConfig logConfig, CancellationToken ct)
+    {
+        string? path = Directory.GetFiles(logConfig.Directory, "watchback????????.log")
+            .OrderDescending()
+            .FirstOrDefault();
+
+        if (path is null)
+            return Results.Text(string.Empty, "text/plain");
+
+        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using StreamReader reader = new(stream);
+        return Results.Text(await reader.ReadToEndAsync(ct), "text/plain");
     }
 
     private static IResult ClearLogs(InMemoryLogBuffer buffer)

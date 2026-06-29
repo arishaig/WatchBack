@@ -2,6 +2,8 @@ using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authentication;
 using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -53,24 +55,39 @@ if (dbDirectory != null)
     Directory.CreateDirectory(dbDirectory);
 }
 
-// File logging — Serilog writes every log entry to a rolling 1 GB file alongside the database.
-// The filter ensures WatchBack.* and UI (frontend) categories are captured at Debug level.
-string logFilePath = Path.Combine(dbDirectory ?? ".", "watchback.log");
+// File logging — two rolling sinks in a logs/ subdirectory alongside the database:
+//   watchback<date>.log   — human-readable text for tailing/grepping
+//   watchback<date>.jsonl — compact JSON lines for Promtail/Loki ingestion
+// Framework namespaces are suppressed to Warning to avoid EF Core / Polly noise.
+string logDirectory = Path.Combine(dbDirectory ?? ".", "logs");
+Directory.CreateDirectory(logDirectory);
 Serilog.Core.Logger serilogFileLogger = new LoggerConfiguration()
     .MinimumLevel.Debug()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .MinimumLevel.Override("System", LogEventLevel.Warning)
+    .MinimumLevel.Override("Polly", LogEventLevel.Warning)
     .WriteTo.File(
-        logFilePath,
+        Path.Combine(logDirectory, "watchback.log"),
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}",
         formatProvider: System.Globalization.CultureInfo.InvariantCulture,
-        fileSizeLimitBytes: 1_073_741_824L,
-        rollOnFileSizeLimit: true,
-        retainedFileCountLimit: 2,
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 7,
+        shared: true)
+    .WriteTo.File(
+        new CompactJsonFormatter(),
+        Path.Combine(logDirectory, "watchback.jsonl"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 7,
         shared: true)
     .CreateLogger();
 builder.Logging.AddSerilog(serilogFileLogger, dispose: true);
 builder.Services.AddSingleton<Serilog.ILogger>(serilogFileLogger);
+builder.Services.AddSingleton(new LogFileConfig(logDirectory));
 builder.Logging.AddFilter("WatchBack", LogLevel.Debug);
 builder.Logging.AddFilter("UI", LogLevel.Debug);
+builder.Logging.AddFilter<InMemoryLoggerProvider>("Microsoft", LogLevel.Warning);
+builder.Logging.AddFilter<InMemoryLoggerProvider>("System", LogLevel.Warning);
+builder.Logging.AddFilter<InMemoryLoggerProvider>("Polly", LogLevel.Warning);
 
 string mappingsDir = Path.Combine(dbDirectory ?? ".", "subreddit-mappings");
 string builtInMappingsPath = Path.Combine(AppContext.BaseDirectory, "builtin-subreddit-mappings.json");
