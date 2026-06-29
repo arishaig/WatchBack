@@ -26,7 +26,13 @@ const mcpMethods: Record<string, unknown> & ThisType<AppData> = {
                 this.newlyGeneratedKey = data.key;
                 this.newApiKeyName = '';
                 this.apiKeySaveStatus = 'saved';
-                await this.loadApiKeys();
+                // Optimistically add the new key to the list immediately from
+                // the POST response, so the list doesn't depend on the GET
+                // succeeding (WAL visibility on some storage backends is unreliable).
+                this.apiKeys = [...(this.apiKeys as ApiKeyEntry[]), {
+                    id: data.id, name: data.name, prefix: data.prefix, createdAt: data.createdAt,
+                }];
+                void this.loadApiKeys();
             } else {
                 this.apiKeySaveStatus = 'error';
             }
