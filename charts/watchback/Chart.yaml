@@ -1,0 +1,17 @@
+apiVersion: v2
+name: watchback
+description: Self-hosted "what are you watching?" tracker with community discussion aggregation
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+home: https://github.com/arishaig/WatchBack
+sources:
+  - https://github.com/arishaig/WatchBack
+maintainers:
+  - name: arishaig
+    url: https://github.com/arishaig
+keywords:
+  - media
+  - self-hosted
+  - jellyfin
+  - trakt

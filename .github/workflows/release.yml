@@ -57,6 +57,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Publish Helm chart to GHCR
+        run: |
+          sed -i "s/^version:.*/version: ${{ steps.version.outputs.version }}/" charts/watchback/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${{ steps.version.outputs.version }}\"/" charts/watchback/Chart.yaml
+          helm package charts/watchback
+          helm push watchback-${{ steps.version.outputs.version }}.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.6.1
         with:
