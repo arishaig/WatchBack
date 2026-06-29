@@ -86,6 +86,9 @@ public sealed class WatchBackMcpTools(
     public async Task<string> GetConfig(CancellationToken cancellationToken)
     {
         WatchBackOptions w = watchback.Value;
+
+        // Read only to discover which keys are overridden — never return values, as
+        // user-settings.json holds plaintext API keys and the Auth password hash.
         Dictionary<string, Dictionary<string, string>> userSettings =
             await AuthEndpoints.ReadConfigFile(configFile.Path, cancellationToken);
 
@@ -110,6 +113,14 @@ public sealed class WatchBackMcpTools(
                     disabled = disabledProviders.Contains(g.Key)
                 });
 
+        // Expose only the key names that have been overridden in user-settings.json,
+        // never their values. Values may contain API keys and other secrets.
+        Dictionary<string, string[]> overriddenKeys = userSettings
+            .Where(s => !s.Key.Equals("Auth", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(
+                s => s.Key,
+                s => s.Value.Keys.ToArray());
+
         object response = new
         {
             preferences = new
@@ -124,7 +135,7 @@ public sealed class WatchBackMcpTools(
                 disabledProviders = w.DisabledProviders
             },
             integrations,
-            userOverrides = userSettings
+            overriddenKeys
         };
 
         return JsonSerializer.Serialize(response, s_jsonOptions);
