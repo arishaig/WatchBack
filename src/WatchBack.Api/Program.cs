@@ -15,6 +15,7 @@ using WatchBack.Api;
 using WatchBack.Api.Auth;
 using WatchBack.Api.Endpoints;
 using WatchBack.Api.Logging;
+using WatchBack.Api.Mcp;
 using WatchBack.Api.Serialization;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
@@ -229,6 +230,10 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddMcpServer()
+    .WithHttpTransport(o => o.Stateless = true)
+    .WithTools<WatchBackMcpTools>();
+
 WebApplication app = builder.Build();
 
 using (IServiceScope scope = app.Services.CreateScope())
@@ -324,6 +329,8 @@ protectedGroup.MapDiagnosticsEndpoints();
 protectedGroup.MapManualWatchStateEndpoints();
 protectedGroup.MapSearchEndpoints();
 protectedGroup.MapSubredditMappingEndpoints();
+
+app.MapMcp("/mcp").RequireAuthorization();
 
 app.MapFallbackToFile("index.html");
 
