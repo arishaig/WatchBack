@@ -9,14 +9,14 @@
     "coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.0",
-    "@types/node": "^25.6.0",
-    "@vitest/coverage-v8": "^4.1.5",
+    "@tailwindcss/vite": "^4.3.1",
+    "@types/node": "^26.0.1",
+    "@vitest/coverage-v8": "^4.1.9",
     "ionicons": "^8.0.13",
     "jsdom": "^29.1.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.11",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.9"
   },
   "dependencies": {
     "@types/alpinejs": "^3.13.11",
