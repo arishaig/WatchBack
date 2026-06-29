@@ -26,6 +26,8 @@ RUN npm run build
 # ──────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
+ARG VERSION=0.0.0-dev
+
 WORKDIR /src
 
 # Copy project files first so the restore layer is cached independently
@@ -55,7 +57,8 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
     dotnet publish src/WatchBack.Api/WatchBack.Api.csproj \
         -c Release \
         -o /app/publish \
-        -p:SkipFrontendBuild=true
+        -p:SkipFrontendBuild=true \
+        -p:Version=${VERSION}
 
 # ──────────────────────────────────────────
 # Stage 3: Runtime image
