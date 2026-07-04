@@ -223,6 +223,13 @@ builder.Services
                 ? "ForwardAuth"
                 : null;
         };
+        // ForwardDefaultSelector would otherwise also apply to SignIn/SignOut,
+        // routing /api/auth/login's SignInAsync call into ForwardAuthHandler
+        // (which doesn't implement sign-in) whenever the header happens to be
+        // present. Pin those two operations back to this scheme itself so
+        // password login always works regardless of the header.
+        options.ForwardSignIn = CookieAuthenticationDefaults.AuthenticationScheme;
+        options.ForwardSignOut = CookieAuthenticationDefaults.AuthenticationScheme;
         options.Events.OnRedirectToLogin = ctx =>
         {
             ctx.Response.StatusCode = 401;
