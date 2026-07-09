@@ -686,14 +686,14 @@
                 <ion-icon aria-hidden="true" class="block pointer-events-none" name="close-sharp"></ion-icon>
             </button>
             <!-- ─── Tab navigation ─── -->
-            <div class="flex items-center mb-5 border-b wb-border pr-10">
-                <nav :aria-label="t('Aria_ConfigSections')" class="flex gap-0" role="tablist">
+            <div class="flex items-center mb-5 border-b wb-border pr-10 overflow-x-auto">
+                <nav :aria-label="t('Aria_ConfigSections')" class="flex gap-0 flex-nowrap" role="tablist">
                     <button :aria-selected="configTab === 'settings'" :class="configTab === 'settings'
                             ? 'wb-text-secondary border-current' : 'wb-text-faint border-transparent hover:wb-text-muted'"
                             :style="configTab === 'settings' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
                             @click="configTab = 'settings'; closeLogStream()"
                             aria-controls="panel-settings"
-                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap"
                             id="tab-settings"
                             role="tab"
                             style="border-color: configTab === 'settings' ? 'var(--wb-accent)' : undefined"
@@ -705,7 +705,7 @@
                             :style="configTab === 'diagnostics' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
                             @click="switchConfigTab('diagnostics')"
                             aria-controls="panel-diagnostics"
-                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap"
                             id="tab-diagnostics"
                             role="tab"
                             type="button"
@@ -716,7 +716,7 @@
                             :style="configTab === 'mappings' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
                             @click="switchConfigTab('mappings')"
                             aria-controls="panel-mappings"
-                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap"
                             id="tab-mappings"
                             role="tab"
                             type="button"
@@ -728,7 +728,7 @@
                             :style="configTab === 'apikeys' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
                             @click="switchConfigTab('apikeys')"
                             aria-controls="panel-apikeys"
-                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors"
+                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap"
                             id="tab-apikeys"
                             role="tab"
                             type="button"
