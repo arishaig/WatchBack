@@ -357,6 +357,9 @@
     <data name="DangerZone_RestartHelp" xml:space="preserve">
         <value>Gracefully stop the server. Your host (Docker, systemd) should restart it automatically.</value>
     </data>
+    <data name="DangerZone_Restarting" xml:space="preserve">
+        <value>Restarting…</value>
+    </data>
     <data name="DangerZone_ForwardAuth" xml:space="preserve">
         <value>Forward auth</value>
     </data>
@@ -377,6 +380,9 @@
     </data>
     <data name="DangerZone_ForwardAuthWarning" xml:space="preserve">
         <value>Only enable this behind a trusted reverse proxy that performs authentication. If this application is directly accessible from the internet, any user can bypass authentication by spoofing this header.</value>
+    </data>
+    <data name="DangerZone_ForwardAuthRestartHelp" xml:space="preserve">
+        <value>The trusted host is applied at startup, so the server is restarting to pick up this change.</value>
     </data>
     <!-- MCP: API Key Management -->
     <data name="Mcp_ApiKeys" xml:space="preserve">

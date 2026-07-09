@@ -565,3 +565,110 @@ public class ResetPasswordTests : IAsyncLifetime, IDisposable
         File.Delete(tempPath);
     }
 }
+
+// ---------------------------------------------------------------------------
+// SaveForwardAuth tests — ForwardedHeadersMiddleware only reads
+// Auth:ForwardAuthTrustedHost (via KnownProxies/KnownNetworks) once at
+// startup, so a change to that setting can't take effect for X-Forwarded-For
+// trust until the process restarts. Verifies the endpoint triggers a restart
+// only when the trusted host actually changes, not on every save.
+// ---------------------------------------------------------------------------
+
+public class SaveForwardAuthTests : IAsyncLifetime, IDisposable
+{
+    private const string TestUsername = "testadmin";
+    private const string TestPassword = "TestPass1!@#456";
+    private const string InitialTrustedHost = "203.0.113.5";
+
+    private HttpClient _client = null!;
+    private WebApplicationFactory<Program> _factory = null!;
+    private string _tempConfigPath = null!;
+
+    public async Task InitializeAsync()
+    {
+        _tempConfigPath = Path.Combine(Path.GetTempPath(), $"watchback-test-{Guid.NewGuid()}.json");
+
+        PasswordHasher<string> hasher = new();
+        string hash = hasher.HashPassword("", TestPassword);
+
+        _factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureAppConfiguration((_, config) =>
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Auth:Username"] = TestUsername,
+                        ["Auth:PasswordHash"] = hash,
+                        ["Auth:OnboardingComplete"] = "true",
+                        ["Auth:ForwardAuthTrustedHost"] = InitialTrustedHost
+                    }));
+
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IWatchStateProvider>();
+                    services.RemoveAll<IThoughtProvider>();
+                    services.AddScoped<IWatchStateProvider>(_ => new AuthTestWatchProvider());
+                    services.AddScoped<IThoughtProvider>(_ => new AuthTestThoughtProvider());
+                    services.RemoveAll<UserConfigFile>();
+                    services.AddSingleton(new UserConfigFile(_tempConfigPath));
+                });
+            });
+
+        _client = _factory.CreateClient();
+        var loginBody = new { username = TestUsername, password = TestPassword };
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public Task DisposeAsync()
+    {
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        _client.Dispose();
+        _factory.Dispose();
+        if (File.Exists(_tempConfigPath))
+        {
+            File.Delete(_tempConfigPath);
+        }
+
+        GC.SuppressFinalize(this);
+    }
+
+    [Fact]
+    public async Task SaveForwardAuth_TriggersRestart_WhenTrustedHostChanges()
+    {
+        var body = new { header = "X-Remote-User", trustedHost = "198.51.100.9" };
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/forward-auth", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        JsonDocument doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        doc.RootElement.GetProperty("ok").GetBoolean().Should().BeTrue();
+        doc.RootElement.GetProperty("restarting").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SaveForwardAuth_DoesNotTriggerRestart_WhenTrustedHostUnchanged()
+    {
+        // Only the header name changes — trustedHost matches what's already configured.
+        var body = new { header = "X-Different-Header", trustedHost = InitialTrustedHost };
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/forward-auth", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        JsonDocument doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        doc.RootElement.GetProperty("ok").GetBoolean().Should().BeTrue();
+        doc.RootElement.GetProperty("restarting").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SaveForwardAuth_RequiresAuthentication()
+    {
+        using HttpClient unauthClient = _factory.CreateClient();
+        var body = new { header = "X-Remote-User", trustedHost = "198.51.100.9" };
+        HttpResponseMessage response = await unauthClient.PostAsJsonAsync("/api/auth/forward-auth", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+}

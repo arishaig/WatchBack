@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Options;
@@ -275,8 +276,19 @@ public static class AuthEndpoints
     private static async Task<IResult> SaveForwardAuth(
         [FromBody] ForwardAuthSettingsRequest body,
         UserConfigFile configFile,
+        IOptionsSnapshot<AuthOptions> authOptions,
+        IHostApplicationLifetime lifetime,
         CancellationToken ct)
     {
+        string newTrustedHost = body.TrustedHost?.Trim() ?? "";
+
+        // The trusted host feeds ForwardedHeadersOptions.KnownProxies/KnownNetworks
+        // (Program.cs), which ForwardedHeadersMiddleware only reads once at startup —
+        // a change here can't take effect for X-Forwarded-For trust until the process
+        // restarts.
+        bool trustedHostChanged = !string.Equals(
+            authOptions.Value.ForwardAuthTrustedHost, newTrustedHost, StringComparison.Ordinal);
+
         await ConfigFileLock.WaitAsync(ct);
         try
         {
@@ -289,7 +301,7 @@ public static class AuthEndpoints
             }
 
             authSection["ForwardAuthHeader"] = body.Header?.Trim() ?? "";
-            authSection["ForwardAuthTrustedHost"] = body.TrustedHost?.Trim() ?? "";
+            authSection["ForwardAuthTrustedHost"] = newTrustedHost;
 
             await WriteConfigFile(configFile.Path, existing, ct);
         }
@@ -298,7 +310,20 @@ public static class AuthEndpoints
             ConfigFileLock.Release();
         }
 
-        return Results.Ok(new { ok = true });
+        if (trustedHostChanged)
+        {
+            // Respond before stopping so the client receives the 200 first. Not tied to
+            // the request's cancellation token — the restart must proceed even if the
+            // client disconnects immediately after receiving the response.
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(200, CancellationToken.None);
+                lifetime.StopApplication();
+            }, CancellationToken.None);
+            return Results.Ok(new { ok = true, restarting = true });
+        }
+
+        return Results.Ok(new { ok = true, restarting = false });
     }
 
     private static Task SignInUser(HttpContext ctx, string username)
