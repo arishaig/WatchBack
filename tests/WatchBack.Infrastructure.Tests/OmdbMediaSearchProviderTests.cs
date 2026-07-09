@@ -200,6 +200,51 @@ public sealed class OmdbMediaSearchProviderTests : IDisposable
         ratings.Should().BeEmpty();
     }
 
+    // Regression: definitive "no ratings" responses must be cached. The sync loop
+    // polls every few seconds, and an uncached empty result meant one OMDb API
+    // request per cycle for as long as that title stayed on screen.
+    [Fact]
+    public async Task GetRatingsAsync_WhenNoRatings_CachesEmptyResult()
+    {
+        string json = """{"Response": "False", "Error": "Movie not found!"}""";
+
+        int requestCount = 0;
+        MockHttpMessageHandler handler = new(() =>
+        {
+            requestCount++;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) };
+        });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://www.omdbapi.com") };
+
+        OmdbMediaSearchProvider provider = CreateProvider(client);
+
+        await provider.GetRatingsAsync("tt9999999");
+        IReadOnlyList<MediaRating> ratings = await provider.GetRatingsAsync("tt9999999");
+
+        ratings.Should().BeEmpty();
+        requestCount.Should().Be(1, "the empty result from the first call must be served from cache");
+    }
+
+    [Fact]
+    public async Task GetRatingsAsync_WhenHttpFails_DoesNotCache()
+    {
+        int requestCount = 0;
+        MockHttpMessageHandler handler = new(() =>
+        {
+            requestCount++;
+            return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://www.omdbapi.com") };
+
+        OmdbMediaSearchProvider provider = CreateProvider(client);
+
+        await provider.GetRatingsAsync("tt0903747");
+        IReadOnlyList<MediaRating> ratings = await provider.GetRatingsAsync("tt0903747");
+
+        ratings.Should().BeEmpty();
+        requestCount.Should().Be(2, "transient failures must not be cached so the next cycle retries");
+    }
+
     // ---- TestConnectionAsync ----
 
     [Fact]

@@ -53,14 +53,17 @@ public sealed class BlueskyThoughtProvider(
     public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext,
         IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
     {
+        // Cache hits must not report progress ticks: the frontend shows the sync
+        // bar whenever it sees intermediate progress, so a fully cached poll
+        // cycle has to stay silent or the bar flashes every few seconds.
+        string cacheKey = GetCacheKey(mediaContext);
+        if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
+        {
+            return cached;
+        }
+
         try
         {
-            string cacheKey = GetCacheKey(mediaContext);
-            if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
-            {
-                return cached;
-            }
-
             string? token = await GetAccessTokenAsync(ct);
 
             string query = IThoughtProvider.BuildTextQuery(mediaContext);

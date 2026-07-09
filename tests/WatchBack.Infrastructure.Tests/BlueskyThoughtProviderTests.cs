@@ -281,6 +281,39 @@ public class BlueskyThoughtProviderTests : IDisposable
         ticks.Should().ContainSingle(t => t.Weight == 1 && t.Provider == "Bluesky");
     }
 
+    // Regression: the SSE loop polls every few seconds and the frontend shows the
+    // loading bar whenever it sees intermediate progress ticks. A cache hit must
+    // report zero ticks, or the bar flashes on every poll cycle.
+    [Fact]
+    public async Task GetThoughtsAsync_OnCacheHit_ReportsNoTicks()
+    {
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+
+        string tokenJson = """{"accessJwt":"test-token"}""";
+        string searchJson = """{"posts":[]}""";
+
+        Queue<HttpResponseMessage> responses = new(
+        [
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
+        ]);
+
+        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        ConcurrentBag<SyncProgressTick> ticks = new();
+        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
+
+        ticks.Should().BeEmpty("a cached cycle does no work and must not arm the frontend loading bar");
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_NullProgress_DoesNotThrow()
     {

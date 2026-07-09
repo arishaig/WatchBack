@@ -254,6 +254,56 @@ public class TraktThoughtProviderTests : IDisposable
         ticks.Should().ContainSingle(t => t.Weight == 1 && t.Provider == "Trakt");
     }
 
+    // Regression: the SSE loop polls every few seconds and the frontend shows the
+    // loading bar whenever it sees intermediate progress ticks. A cache hit must
+    // report zero ticks, or the bar flashes on every poll cycle.
+    [Fact]
+    public async Task GetThoughtsAsync_OnCacheHit_ReportsNoTicks()
+    {
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+
+        string searchJson = """[{"show":{"ids":{"trakt":1},"title":"Breaking Bad"}}]""";
+        string commentsJson = """[]""";
+
+        Queue<HttpResponseMessage> responses = new(
+        [
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(commentsJson) }
+        ]);
+
+        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        ConcurrentBag<SyncProgressTick> ticks = new();
+        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
+
+        ticks.Should().BeEmpty("a cached cycle does no work and must not arm the frontend loading bar");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_WhenNotConfigured_ReportsNoTicks()
+    {
+        TraktOptions unconfigured = new() { ClientId = "" };
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+
+        TraktThoughtProvider provider = new(new HttpClient(), new OptionsSnapshotStub<TraktOptions>(unconfigured),
+            _cache, Substitute.For<IReplyTreeBuilder>(), NullLogger<TraktThoughtProvider>.Instance);
+
+        ConcurrentBag<SyncProgressTick> ticks = new();
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
+
+        result.Should().NotBeNull();
+        result!.Thoughts.Should().BeEmpty();
+        ticks.Should().BeEmpty("an unconfigured provider does no work and must not arm the frontend loading bar");
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_WithImdbId_UsesIdLookupInsteadOfTitleSearch()
     {

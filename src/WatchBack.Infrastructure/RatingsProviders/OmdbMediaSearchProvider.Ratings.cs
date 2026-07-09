@@ -37,15 +37,21 @@ public sealed partial class OmdbMediaSearchProvider
 
         string url = $"https://www.omdbapi.com/?i={Uri.EscapeDataString(imdbId)}&apikey={Uri.EscapeDataString(apiKey)}";
         OmdbTitleDetailResponse? response = await FetchJsonAsync<OmdbTitleDetailResponse>(url, ct);
-        if (response?.Ratings == null || response.Response == "False")
+        if (response == null)
         {
+            // Transient HTTP failure — don't cache, so the next sync cycle retries.
             return [];
         }
 
-        List<MediaRating> ratings = response.Ratings
-            .Select(r => new MediaRating(r.Source, r.Value, s_sourceBrands.GetValueOrDefault(r.Source)))
-            .ToList();
+        List<MediaRating> ratings = response.Ratings == null || response.Response == "False"
+            ? []
+            : response.Ratings
+                .Select(r => new MediaRating(r.Source, r.Value, s_sourceBrands.GetValueOrDefault(r.Source)))
+                .ToList();
 
+        // Cache definitive empty results too: the sync loop polls every few
+        // seconds, and a title with no OMDb ratings would otherwise trigger an
+        // OMDb request on every cycle.
         cache.Set<IReadOnlyList<MediaRating>>(cacheKey, ratings, s_episodeCacheDuration);
         return ratings;
     }

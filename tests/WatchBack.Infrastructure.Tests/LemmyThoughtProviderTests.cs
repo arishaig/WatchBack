@@ -478,6 +478,30 @@ public class LemmyThoughtProviderTests : IDisposable
         ticks.Should().OnlyContain(t => t.Provider == "Lemmy" && t.Weight == 1);
     }
 
+    // Regression: the SSE loop polls every few seconds and the frontend shows the
+    // loading bar whenever it sees intermediate progress ticks. A cache hit must
+    // report zero ticks — including the finally-block padding up to ExpectedWeight —
+    // or the bar flashes on every poll cycle.
+    [Fact]
+    public async Task GetThoughtsAsync_OnCacheHit_ReportsNoTicks()
+    {
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+
+        string searchJson = """{"posts": []}""";
+        MockHttpMessageHandler handler = new(() =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://lemmy.world") };
+
+        LemmyThoughtProvider provider = CreateProvider(client);
+
+        await provider.GetThoughtsAsync(mediaContext);
+
+        ConcurrentBag<SyncProgressTick> ticks = new();
+        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
+
+        ticks.Should().BeEmpty("a cached cycle does no work and must not arm the frontend loading bar");
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_NullProgress_DoesNotThrow()
     {
