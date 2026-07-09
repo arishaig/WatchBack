@@ -51,17 +51,21 @@ public sealed class LemmyThoughtProvider(
     public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext,
         IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
     {
+        // Cache hits must not report progress ticks (not even the finally-block
+        // padding below): the frontend shows the sync bar whenever it sees
+        // intermediate progress, so a fully cached poll cycle has to stay silent
+        // or the bar flashes every few seconds.
+        string cacheKey = GetCacheKey(mediaContext);
+        if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
+        {
+            return cached;
+        }
+
         int reported = 0;
         try
         {
             try
             {
-                string cacheKey = GetCacheKey(mediaContext);
-                if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
-                {
-                    return cached;
-                }
-
                 string instance = _options.InstanceUrl.TrimEnd('/');
 
                 // Build query variants to try in order. Community posts often omit leading zeros

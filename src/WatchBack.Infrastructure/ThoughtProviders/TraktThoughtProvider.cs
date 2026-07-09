@@ -57,21 +57,25 @@ public sealed class TraktThoughtProvider(
     public async Task<ThoughtResult?> GetThoughtsAsync(MediaContext mediaContext,
         IProgress<SyncProgressTick>? progress = null, CancellationToken ct = default)
     {
+        // Unconfigured and cache-hit calls must not report progress ticks: the
+        // frontend shows the sync bar whenever it sees intermediate progress, so
+        // a poll cycle that does no network work has to stay silent or the bar
+        // flashes every few seconds.
+        if (string.IsNullOrEmpty(_options.ClientId))
+        {
+            logger.LogDebug("Trakt: skipping — no Client ID configured");
+            return s_empty;
+        }
+
+        string cacheKey = GetCacheKey(mediaContext);
+        if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
+        {
+            return cached;
+        }
+
         try
         {
-            if (string.IsNullOrEmpty(_options.ClientId))
-            {
-                logger.LogDebug("Trakt: skipping — no Client ID configured");
-                return s_empty;
-            }
-
             EpisodeContext? episode = mediaContext as EpisodeContext;
-            string cacheKey = GetCacheKey(mediaContext);
-
-            if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
-            {
-                return cached;
-            }
 
             string commentsUrl;
             if (episode == null)
