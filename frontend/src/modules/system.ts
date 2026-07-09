@@ -140,6 +140,13 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
         } catch {
             // Network error is expected as the server shuts down — continue polling
         }
+        await this.waitForServerRestart();
+    },
+
+    // Polls /api/auth/me until the server responds again, then re-runs init().
+    // Shared by any flow that triggers a server restart (manual restart button,
+    // saving a config change that requires one to take effect).
+    async waitForServerRestart() {
         this.initialized = false;
         this.authState = 'checking';
         const maxRetries = 60;

@@ -175,6 +175,13 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
                 body: JSON.stringify({ header, trustedHost }),
             });
             const data = await res.json() as Record<string, unknown>;
+            if (data['ok'] && data['restarting']) {
+                // The trusted-proxy network is only resolved at startup, so a change
+                // to it can't take effect until the process restarts.
+                this.forwardAuthSaveStatus = 'restarting';
+                await this.waitForServerRestart();
+                return;
+            }
             this.forwardAuthSaveStatus = data['ok'] ? 'saved' : 'error';
         } catch {
             this.forwardAuthSaveStatus = 'error';

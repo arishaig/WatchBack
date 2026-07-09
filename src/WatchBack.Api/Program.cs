@@ -1,3 +1,4 @@
+using System.Net;
 using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authentication;
@@ -207,7 +208,13 @@ builder.Services
         options.Cookie.Name = "WatchBackSession";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        // Always in Production: the app itself is only ever served over plain HTTP
+        // (TLS terminates at the reverse proxy), so SameAsRequest would never mark
+        // the cookie Secure unless X-Forwarded-Proto is trusted — see the
+        // ForwardedHeaders configuration below.
+        options.Cookie.SecurePolicy = builder.Environment.IsProduction()
+            ? CookieSecurePolicy.Always
+            : CookieSecurePolicy.SameAsRequest;
         options.ExpireTimeSpan = TimeSpan.FromDays(30);
         options.SlidingExpiration = true;
         // When the ForwardAuth header is present, delegate authentication to
@@ -289,12 +296,31 @@ using (IServiceScope scope = app.Services.CreateScope())
 
 await InitializeAuthAsync(app);
 
-// Trust X-Forwarded-* headers from reverse proxies so RemoteIpAddress,
-// Scheme, and Host reflect the real client rather than the proxy itself.
+// X-Forwarded-Proto is trusted unconditionally, from any peer, with no KnownProxies
+// restriction. Spoofing it only makes an attacker's own request look like HTTPS when
+// it isn't — a browser won't store or send a Secure cookie over a connection it knows
+// is plain HTTP, so this can't be used to steal another client's session. Trusting it
+// is what lets CookieSecurePolicy.Always (above) work correctly behind a reverse proxy
+// that terminates TLS, since the app itself only ever sees a plain HTTP connection.
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+    ForwardedHeaders = ForwardedHeaders.XForwardedProto,
+    KnownIPNetworks = { new System.Net.IPNetwork(IPAddress.Any, 0), new System.Net.IPNetwork(IPAddress.IPv6Any, 0) }
 });
+
+// X-Forwarded-For feeds RemoteIpAddress, which in turn feeds the login rate limiter's
+// partition key and ForwardAuthHandler's trusted-host IP check — unlike the proto
+// header, trusting it from an arbitrary peer would let that peer spoof its own IP for
+// both of those checks. So it's only trusted from the reverse proxy configured via
+// Auth:ForwardAuthTrustedHost — the same "which proxy do I trust" setting
+// ForwardAuthHandler already uses. KnownProxies/KnownNetworks are read once when this
+// middleware is constructed, so changing the trusted host requires an app restart;
+// SaveForwardAuth triggers one automatically when this setting changes.
+ForwardedHeadersOptions? xForwardedForOptions = await BuildTrustedForwardedForOptionsAsync(app);
+if (xForwardedForOptions != null)
+{
+    app.UseForwardedHeaders(xForwardedForOptions);
+}
 
 // Security headers — applied to every response before the rest of the pipeline.
 //
@@ -378,6 +404,49 @@ app.MapFallbackToFile("index.html");
 
 app.Run();
 
+static async Task<ForwardedHeadersOptions?> BuildTrustedForwardedForOptionsAsync(WebApplication webApp)
+{
+    string trustedHost = webApp.Services.GetRequiredService<IOptionsMonitor<AuthOptions>>()
+        .CurrentValue.ForwardAuthTrustedHost;
+    if (string.IsNullOrEmpty(trustedHost))
+    {
+        // No trusted proxy configured — leave X-Forwarded-For untrusted (default
+        // loopback-only KnownNetworks), matching the previous safe-by-default behavior.
+        return null;
+    }
+
+    ForwardedHeadersOptions options = new() { ForwardedHeaders = ForwardedHeaders.XForwardedFor };
+
+    if (trustedHost.Equals("any", StringComparison.OrdinalIgnoreCase) || trustedHost == "*")
+    {
+        options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Any, 0));
+        options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.IPv6Any, 0));
+        return options;
+    }
+
+    if (IPAddress.TryParse(trustedHost, out IPAddress? trustedIp))
+    {
+        options.KnownProxies.Add(trustedIp);
+        return options;
+    }
+
+    try
+    {
+        IPAddress[] addresses = await Dns.GetHostAddressesAsync(trustedHost);
+        foreach (IPAddress address in addresses)
+        {
+            options.KnownProxies.Add(address);
+        }
+    }
+    catch (Exception ex)
+    {
+        LogTrustedHostResolutionFailed(webApp.Logger, ex, trustedHost);
+        return null;
+    }
+
+    return options.KnownProxies.Count > 0 ? options : null;
+}
+
 static async Task InitializeAuthAsync(WebApplication webApp)
 {
     string passwordHash = webApp.Configuration["Auth:PasswordHash"] ?? "";
@@ -409,4 +478,11 @@ static async Task InitializeAuthAsync(WebApplication webApp)
     Console.WriteLine("╚══════════════════════════════════════════════╝");
 }
 
-public partial class Program;
+public partial class Program
+{
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "Forward-auth trusted host '{TrustedHost}' could not be resolved at startup — " +
+                  "X-Forwarded-For will not be trusted until this is fixed and the app restarts")]
+    private static partial void LogTrustedHostResolutionFailed(
+        Microsoft.Extensions.Logging.ILogger logger, Exception ex, string trustedHost);
+}

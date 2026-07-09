@@ -300,6 +300,7 @@ export interface AppData {
     setupSSE(): void;
     clearCache(): Promise<void>;
     restart(): Promise<void>;
+    waitForServerRestart(): Promise<void>;
     switchConfigTab(tab: string): void;
     loadDiagnostics(): Promise<void>;
     openLogStream(): void;

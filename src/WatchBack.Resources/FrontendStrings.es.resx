@@ -264,6 +264,9 @@
     <data name="DangerZone_ForwardAuthWarning" xml:space="preserve">
         <value>Activar solo detrás de un proxy inverso de confianza que realice la autenticación. Si la aplicación es accesible directamente desde internet, cualquiera podría eludir la autenticación mediante la suplantación de este encabezado.</value>
     </data>
+    <data name="DangerZone_ForwardAuthRestartHelp" xml:space="preserve">
+        <value>El host de confianza se aplica al iniciar, por lo que el servidor se está reiniciando para aplicar este cambio.</value>
+    </data>
     <data name="DangerZone_HeaderName" xml:space="preserve">
         <value>Yes, Nombre del encabezado</value>
     </data>
@@ -284,6 +287,9 @@
     </data>
     <data name="DangerZone_RestartHelp" xml:space="preserve">
         <value>Detener el servidor de forma controlada. El host (Docker, systemd) debería reiniciarlo automáticamente.</value>
+    </data>
+    <data name="DangerZone_Restarting" xml:space="preserve">
+        <value>Reiniciando…</value>
     </data>
     <data name="DangerZone_Title" xml:space="preserve">
         <value>Zona de peligro</value>
