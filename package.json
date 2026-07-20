@@ -9,7 +9,7 @@
     "coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.2",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.1.1",
     "@vitest/coverage-v8": "^4.1.10",
     "ionicons": "^8.0.13",
