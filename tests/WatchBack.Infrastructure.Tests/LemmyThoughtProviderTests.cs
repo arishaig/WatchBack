@@ -39,7 +39,7 @@ public class LemmyThoughtProviderTests : IDisposable
     private LemmyThoughtProvider CreateProvider(HttpClient client, LemmyOptions? options = null)
     {
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         return new LemmyThoughtProvider(client, new OptionsSnapshotStub<LemmyOptions>(options ?? _options),
             _cache, treeBuilder, NullLogger<LemmyThoughtProvider>.Instance);
     }
@@ -48,7 +48,7 @@ public class LemmyThoughtProviderTests : IDisposable
         LemmyOptions? options = null)
     {
         treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         return new LemmyThoughtProvider(client, new OptionsSnapshotStub<LemmyOptions>(options ?? _options),
             _cache, treeBuilder, NullLogger<LemmyThoughtProvider>.Instance);
     }
@@ -306,7 +306,7 @@ public class LemmyThoughtProviderTests : IDisposable
         List<Thought> capturedThoughts = [];
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => capturedThoughts.AddRange(x)))
-            .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+            .Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         LemmyThoughtProvider provider = new(client, new OptionsSnapshotStub<LemmyOptions>(_options),
             _cache, treeBuilder, NullLogger<LemmyThoughtProvider>.Instance);
@@ -354,7 +354,7 @@ public class LemmyThoughtProviderTests : IDisposable
         List<Thought> capturedThoughts = [];
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => capturedThoughts.AddRange(x)))
-            .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+            .Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         LemmyThoughtProvider provider = new(client, new OptionsSnapshotStub<LemmyOptions>(_options),
             _cache, treeBuilder, NullLogger<LemmyThoughtProvider>.Instance);

@@ -30,7 +30,7 @@ public sealed class PrefetchServiceTests : IDisposable
         {
             // Use season + episode in the key so different episodes don't collide,
             // matching what a real provider would produce.
-            MediaContext m = (MediaContext)ci[0];
+            MediaContext m = ci.ArgAt<MediaContext>(0);
             return m is EpisodeContext ep
                 ? $"key:{ep.Title}:S{ep.SeasonNumber}E{ep.EpisodeNumber}"
                 : $"key:{m.Title}";
@@ -89,7 +89,7 @@ public sealed class PrefetchServiceTests : IDisposable
         // Manually verify the predicted next episode is NOT yet in cache (prefetch populates it)
         // by checking GetThoughtsAsync was called for the predicted episodes
         await _provider.Received().GetThoughtsAsync(
-            Arg.Is<MediaContext>(c => c.Title == "Show A"),
+            Arg.Is<MediaContext>(c => c!.Title == "Show A"),
             null,
             Arg.Any<CancellationToken>());
 

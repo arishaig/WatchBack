@@ -80,7 +80,7 @@ public class BlueskyThoughtProviderTests : IDisposable
         MockHttpMessageHandler handler = new(() => responses.Dequeue());
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
@@ -149,7 +149,7 @@ public class BlueskyThoughtProviderTests : IDisposable
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         List<Thought> capturedThoughts = new();
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => capturedThoughts.AddRange(x)))
-            .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+            .Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
@@ -185,7 +185,7 @@ public class BlueskyThoughtProviderTests : IDisposable
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) });
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(optionsWithoutCreds),
             _cache, treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
@@ -253,7 +253,7 @@ public class BlueskyThoughtProviderTests : IDisposable
         MockHttpMessageHandler handler = new(() => responses.Dequeue());
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
@@ -301,7 +301,7 @@ public class BlueskyThoughtProviderTests : IDisposable
         MockHttpMessageHandler handler = new(() => responses.Dequeue());
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
@@ -467,7 +467,7 @@ public class BlueskyThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
@@ -501,7 +501,7 @@ public class BlueskyThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
@@ -548,7 +548,7 @@ public class BlueskyThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
@@ -630,7 +630,7 @@ public class BlueskyThoughtProviderTests : IDisposable
         });
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
 
