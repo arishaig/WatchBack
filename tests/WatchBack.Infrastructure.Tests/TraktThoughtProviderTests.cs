@@ -77,7 +77,7 @@ public class TraktThoughtProviderTests : IDisposable
         MockHttpMessageHandler handler = new(() => responses.Dequeue());
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
@@ -163,7 +163,7 @@ public class TraktThoughtProviderTests : IDisposable
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>())
-            .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+            .Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
@@ -224,7 +224,7 @@ public class TraktThoughtProviderTests : IDisposable
         MockHttpMessageHandler handler = new(() => responses.Dequeue());
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
@@ -274,7 +274,7 @@ public class TraktThoughtProviderTests : IDisposable
         MockHttpMessageHandler handler = new(() => responses.Dequeue());
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
@@ -325,7 +325,7 @@ public class TraktThoughtProviderTests : IDisposable
         });
         HttpClient client = new(handler);
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
@@ -367,7 +367,7 @@ public class TraktThoughtProviderTests : IDisposable
         });
         HttpClient client = new(handler);
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
@@ -407,7 +407,7 @@ public class TraktThoughtProviderTests : IDisposable
         });
         HttpClient client = new(handler);
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
@@ -442,7 +442,7 @@ public class TraktThoughtProviderTests : IDisposable
         });
         HttpClient client = new(handler);
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
@@ -567,7 +567,7 @@ public class TraktThoughtProviderTests : IDisposable
         });
         HttpClient client = new(handler);
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
@@ -604,7 +604,7 @@ public class TraktThoughtProviderTests : IDisposable
         });
         HttpClient client = new(handler);
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
@@ -642,7 +642,7 @@ public class TraktThoughtProviderTests : IDisposable
         });
         HttpClient client = new(handler);
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 
@@ -673,7 +673,7 @@ public class TraktThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler);
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
@@ -734,7 +734,7 @@ public class TraktThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler);
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
         TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
             treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
 

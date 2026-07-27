@@ -200,7 +200,7 @@ public class SyncServiceTests
         result.AllThoughts.Should().HaveCount(2);
         result.TimeMachineThoughts.Should().HaveCount(1);
         _timeMachineFilter.Received(1).Apply(
-            Arg.Is<IEnumerable<Thought>>(t => t.Count() == 2),
+            Arg.Is<IEnumerable<Thought>>(t => t!.Count() == 2),
             episode.ReleaseDate,
             14);
     }

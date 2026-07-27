@@ -93,7 +93,7 @@ public class RedditThoughtProviderTests : IDisposable
         MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -165,7 +165,7 @@ public class RedditThoughtProviderTests : IDisposable
         MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -175,7 +175,7 @@ public class RedditThoughtProviderTests : IDisposable
 
         // Assert
         treeBuilder.Received(1).BuildTree(Arg.Is<IEnumerable<Thought>>(t =>
-            t.All(th => th.Content != "[deleted]" && th.Content != "[removed]")));
+            t!.All(th => th.Content != "[deleted]" && th.Content != "[removed]")));
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public class RedditThoughtProviderTests : IDisposable
         List<Thought> capturedThoughts = new();
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => capturedThoughts.AddRange(x)))
-            .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+            .Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -342,7 +342,7 @@ public class RedditThoughtProviderTests : IDisposable
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         List<Thought> capturedThoughts = new();
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(t => capturedThoughts.AddRange(t)))
-            .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+            .Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -393,7 +393,7 @@ public class RedditThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -441,7 +441,7 @@ public class RedditThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -490,7 +490,7 @@ public class RedditThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -530,7 +530,7 @@ public class RedditThoughtProviderTests : IDisposable
         MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -597,7 +597,7 @@ public class RedditThoughtProviderTests : IDisposable
 
         List<Thought> capturedThoughts = new();
         treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(t => capturedThoughts.AddRange(t)))
-            .Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+            .Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -718,7 +718,7 @@ public class RedditThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -750,7 +750,7 @@ public class RedditThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -783,7 +783,7 @@ public class RedditThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -830,7 +830,7 @@ public class RedditThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -897,7 +897,7 @@ public class RedditThoughtProviderTests : IDisposable
 
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
@@ -1069,7 +1069,7 @@ public class RedditThoughtProviderTests : IDisposable
         MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
         HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
         IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => ((IEnumerable<Thought>)x[0]).ToList());
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
 
         RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
             treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
