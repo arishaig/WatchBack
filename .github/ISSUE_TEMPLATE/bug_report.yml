@@ -1,0 +1,74 @@
+name: Bug report
+description: Report something that isn't working the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please do **not** use this
+        form for security issues — see the
+        [security policy](https://github.com/arishaig/WatchBack/security/policy).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: When I sync while watching an episode, ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: WatchBack version
+      description: Release tag, image tag, or commit SHA.
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How are you running WatchBack?
+      options:
+        - Docker / Docker Compose
+        - Helm chart
+        - dotnet run (local)
+        - Other (describe below)
+    validations:
+      required: true
+  - type: dropdown
+    id: watch-provider
+    attributes:
+      label: Active watch provider
+      options:
+        - Jellyfin
+        - Trakt
+        - Manual
+        - Not sure
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: >
+        Paste log output from around the time of the problem. Redact API keys,
+        passwords, and app passwords.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Browser, screenshots, config snippets (secrets redacted), anything else.
+    validations:
+      required: false
