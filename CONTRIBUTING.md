@@ -29,8 +29,9 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5000` and you'll be prompted to set a username and
-password on first run.
+Kestrel prints the listen URL on startup (the default is
+`http://localhost:5000`). Open it and you'll be prompted to set a username and
+password on first run. The container image instead listens on port 8484.
 
 ### Tests
 
@@ -121,8 +122,11 @@ Look at the existing implementations and the interface XML docs in
 3. Fill out the pull request template.
 4. Link any related issue.
 
-CI runs build, tests, CodeQL, dependency audit, and container scanning on every
-PR. Please keep the build green.
+On every PR, CI runs the .NET build, the unit/integration and accessibility
+tests, a TypeScript type-check, the frontend tests, a multi-arch Docker build,
+CodeQL, a dependency audit (npm + NuGet), and a Dockerfile lint. Please keep the
+build green. (Trivy container scanning runs on pushes to `main` and on a
+weekly schedule, not on PRs.)
 
 ## Reporting security issues
 

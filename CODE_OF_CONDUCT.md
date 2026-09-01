@@ -60,8 +60,9 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement by opening a
-[private security advisory / confidential report](https://github.com/arishaig/WatchBack/security/advisories/new)
-on this repository, or by opening a normal issue if the matter is not sensitive.
+[private report](https://github.com/arishaig/WatchBack/security/advisories/new)
+through this repository's private vulnerability reporting form (it accepts
+conduct reports as well as security reports, and is not publicly visible).
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the
