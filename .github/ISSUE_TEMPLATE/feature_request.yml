@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest an idea or enhancement for WatchBack
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case or frustration behind the request.
+      placeholder: I'm always trying to ... but WatchBack doesn't ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like WatchBack to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, and why they fall short.
+    validations:
+      required: false
+  - type: input
+    id: provider
+    attributes:
+      label: Related provider or area
+      description: e.g. Reddit, Trakt, Bluesky, Jellyfin, Time Machine, config UI, auth.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mockups, links, examples from other tools, anything else.
+    validations:
+      required: false
