@@ -1,9 +1,11 @@
 # syntax=docker/dockerfile:1
 
 # ──────────────────────────────────────────
-# Stage 1: Frontend build (Vite / npm)
+# Stage 1: Frontend build (Vite / npm) — runs on the build host's native
+# platform; the output (JS/CSS) is architecture-independent, and avoiding QEMU
+# emulation here prevents intermittent "Illegal instruction" crashes on arm64.
 # ──────────────────────────────────────────
-FROM node:22-alpine AS frontend
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 
 WORKDIR /app
 
