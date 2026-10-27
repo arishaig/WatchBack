@@ -29,6 +29,10 @@ public sealed class TraktThoughtProvider(
     private static readonly ThoughtResult s_empty =
         new("Trakt", null, null, null, [], null);
 
+    // Failed lookups (429s, unresolved slugs, transient errors) are cached briefly so
+    // the 5-second poll loop doesn't redo the work, and re-tick, every cycle.
+    private static readonly TimeSpan s_failureCacheTtl = TimeSpan.FromSeconds(60);
+
     private readonly TraktOptions _options = options.Value;
 
     public DataProviderMetadata Metadata => new(
@@ -84,7 +88,7 @@ public sealed class TraktThoughtProvider(
                 if (movieId == null)
                 {
                     logger.LogWarning("Trakt: no movie found for '{Title}'", mediaContext.Title);
-                    return s_empty;
+                    return CacheFailure(cacheKey);
                 }
 
                 commentsUrl = $"https://api.trakt.tv/movies/{movieId}/comments/newest";
@@ -95,7 +99,7 @@ public sealed class TraktThoughtProvider(
                 if (showId == null)
                 {
                     logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
-                    return s_empty;
+                    return CacheFailure(cacheKey);
                 }
 
                 commentsUrl =
@@ -110,7 +114,7 @@ public sealed class TraktThoughtProvider(
             {
                 logger.LogWarning("Trakt comments failed: HTTP {Status} for '{Title}'",
                     (int)commentsResponse.StatusCode, mediaContext.Title);
-                return s_empty;
+                return CacheFailure(cacheKey);
             }
 
             string commentsContent = await commentsResponse.Content.ReadAsStringAsync(ct);
@@ -148,12 +152,18 @@ public sealed class TraktThoughtProvider(
         catch (Exception ex)
         {
             logger.LogError(ex, "Trakt thought fetch failed");
-            return s_empty;
+            return CacheFailure(cacheKey);
         }
         finally
         {
             progress?.Report(new SyncProgressTick(1, "Trakt"));
         }
+    }
+
+    private ThoughtResult CacheFailure(string cacheKey)
+    {
+        cache.Set(cacheKey, s_empty, s_failureCacheTtl);
+        return s_empty;
     }
 
     public async Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)

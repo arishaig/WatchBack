@@ -287,6 +287,33 @@ public class TraktThoughtProviderTests : IDisposable
         ticks.Should().BeEmpty("a cached cycle does no work and must not arm the frontend loading bar");
     }
 
+    // Regression: when Trakt rate-limits (429) slug resolution, the failed lookup used to
+    // go uncached, so every poll cycle retried it and re-ticked, flashing the loading bar.
+    [Fact]
+    public async Task GetThoughtsAsync_AfterRateLimitedLookup_ReportsNoTicksOnNextCall()
+    {
+        EpisodeContext mediaContext = new("Love Is Blind", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        int requestCount = 0;
+        MockHttpMessageHandler handler = new(() =>
+        {
+            requestCount++;
+            return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(), NullLogger<TraktThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+        int requestsAfterFirst = requestCount;
+
+        ConcurrentBag<SyncProgressTick> ticks = new();
+        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
+
+        ticks.Should().BeEmpty("a cached failure does no work and must not arm the frontend loading bar");
+        requestCount.Should().Be(requestsAfterFirst);
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_WhenNotConfigured_ReportsNoTicks()
     {
