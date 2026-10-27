@@ -61,6 +61,8 @@ public sealed class LemmyThoughtProvider(
             return cached;
         }
 
+        progress = InitialLoadProgress.ForFetch(cache, cacheKey, progress);
+
         int reported = 0;
         try
         {

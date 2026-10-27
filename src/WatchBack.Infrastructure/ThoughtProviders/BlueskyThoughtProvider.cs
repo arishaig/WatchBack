@@ -62,6 +62,8 @@ public sealed class BlueskyThoughtProvider(
             return cached;
         }
 
+        progress = InitialLoadProgress.ForFetch(cache, cacheKey, progress);
+
         try
         {
             string? token = await GetAccessTokenAsync(ct);
