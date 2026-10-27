@@ -314,6 +314,36 @@ public class TraktThoughtProviderTests : IDisposable
         requestCount.Should().Be(requestsAfterFirst);
     }
 
+    // The loading bar is for the initial bulk load only: once a fetch has been attempted for an
+    // episode, a retry after the cached failure expires must run without reporting progress.
+    [Fact]
+    public async Task GetThoughtsAsync_RetryAfterFailureExpires_ReportsNoTicks()
+    {
+        EpisodeContext mediaContext = new("Love Is Blind", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        int requestCount = 0;
+        MockHttpMessageHandler handler = new(() =>
+        {
+            requestCount++;
+            return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.trakt.tv") };
+        TraktThoughtProvider provider = new(client, new OptionsSnapshotStub<TraktOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(), NullLogger<TraktThoughtProvider>.Instance);
+
+        ConcurrentBag<SyncProgressTick> initialTicks = new();
+        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(initialTicks));
+        initialTicks.Should().ContainSingle("the initial load reports progress");
+        int requestsAfterFirst = requestCount;
+
+        _cache.Remove(provider.GetCacheKey(mediaContext)); // simulate the failure entry's TTL expiring
+
+        ConcurrentBag<SyncProgressTick> retryTicks = new();
+        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(retryTicks));
+
+        requestCount.Should().BeGreaterThan(requestsAfterFirst, "the retry still hits the network");
+        retryTicks.Should().BeEmpty("retries are background work and must not arm the loading bar");
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_WhenNotConfigured_ReportsNoTicks()
     {

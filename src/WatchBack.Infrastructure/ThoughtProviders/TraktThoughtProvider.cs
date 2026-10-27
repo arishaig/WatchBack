@@ -77,6 +77,8 @@ public sealed class TraktThoughtProvider(
             return cached;
         }
 
+        progress = InitialLoadProgress.ForFetch(cache, cacheKey, progress);
+
         try
         {
             EpisodeContext? episode = mediaContext as EpisodeContext;
