@@ -611,6 +611,32 @@ public class RedditThoughtProviderTests : IDisposable
         capturedThoughts.Single().CreatedAt.Should().Be(DateTimeOffset.FromUnixTimeSeconds(1401753700));
     }
 
+    // Regression: when every PullPush search fails (e.g. 429), the empty result used to go
+    // uncached, so each poll cycle redid the searches and re-ticked, flashing the loading bar.
+    [Fact]
+    public async Task GetThoughtsAsync_AfterAllSearchesFail_ReportsNoTicksOnNextCall()
+    {
+        int requestCount = 0;
+        MockHttpMessageHandler handler = new(() =>
+        {
+            requestCount++;
+            return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        });
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
+        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(), NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
+
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        await provider.GetThoughtsAsync(mediaContext);
+        int requestsAfterFirst = requestCount;
+
+        ConcurrentBag<SyncProgressTick> ticks = new();
+        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
+
+        ticks.Should().BeEmpty("a cached failure does no work and must not arm the frontend loading bar");
+        requestCount.Should().Be(requestsAfterFirst);
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_NullProgress_DoesNotThrow()
     {
