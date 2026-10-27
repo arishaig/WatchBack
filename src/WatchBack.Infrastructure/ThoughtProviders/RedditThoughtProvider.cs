@@ -43,6 +43,8 @@ public sealed class RedditThoughtProvider(
         @"\bS(\d{1,2})E\d+\b|\b(\d{1,2})x\d+\b|\bSeason\s+(\d+)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly TimeSpan s_failureCacheTtl = TimeSpan.FromSeconds(60);
+
     private static readonly ConcurrentDictionary<(int, int), Regex[]> s_episodeRegexCache = new();
 
     private readonly RedditOptions _options = options.Value;
@@ -77,6 +79,8 @@ public sealed class RedditThoughtProvider(
             {
                 return cached;
             }
+
+            progress = InitialLoadProgress.ForFetch(cache, cacheKey, progress);
 
             IReadOnlyList<string> mappedSubreddits = mappingService.GetSubreddits(mediaContext);
             IReadOnlyList<string> subredditsToSearch = mappedSubreddits.Count > 0
@@ -208,12 +212,12 @@ public sealed class RedditThoughtProvider(
             if (submissions.Count == 0)
             {
                 ThoughtResult emptyResult = s_empty;
-                // Only cache confirmed archive misses (at least one 2xx from PullPush).
-                // Timeout/network failures are transient — don't prevent future retries.
-                if (anySpecSucceeded)
-                {
-                    cache.Set(cacheKey, emptyResult, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
-                }
+                // Confirmed archive misses (at least one 2xx from PullPush) get the full TTL.
+                // Timeout/network/429 failures are transient, so they're only cached briefly:
+                // retrying every poll cycle would re-report progress ticks and flash the
+                // frontend loading bar for as long as PullPush keeps failing.
+                cache.Set(cacheKey, emptyResult,
+                    anySpecSucceeded ? TimeSpan.FromSeconds(_options.CacheTtlSeconds) : s_failureCacheTtl);
 
                 return emptyResult;
             }
