@@ -80,6 +80,8 @@ public sealed class RedditThoughtProvider(
                 return cached;
             }
 
+            progress = InitialLoadProgress.ForFetch(cache, cacheKey, progress);
+
             IReadOnlyList<string> mappedSubreddits = mappingService.GetSubreddits(mediaContext);
             IReadOnlyList<string> subredditsToSearch = mappedSubreddits.Count > 0
                 ? mappedSubreddits
