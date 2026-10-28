@@ -13,5 +13,10 @@ public interface IPrefetchService
     ///     prefetch for the episode(s) most likely to be watched next.
     ///     Returns immediately; all work is fire-and-forget.
     /// </summary>
-    void SchedulePrefetch(EpisodeContext current);
+    /// <param name="current">The episode the viewer is on</param>
+    /// <param name="viewerKey">
+    ///     Which viewer is watching (see <see cref="Models.WatchViewer" />). Prefetch state is kept per viewer so
+    ///     one viewer moving on never evicts what another viewer still needs.
+    /// </param>
+    void SchedulePrefetch(EpisodeContext current, string? viewerKey = null);
 }

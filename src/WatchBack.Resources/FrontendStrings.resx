@@ -784,4 +784,13 @@
     <data name="Checklist_AllDone" xml:space="preserve">
         <value>All done!</value>
     </data>
+    <data name="WatchUser_PickTitle" xml:space="preserve">
+        <value>Who's watching?</value>
+    </data>
+    <data name="WatchUser_PickPrompt" xml:space="preserve">
+        <value>Choose the user whose playback WatchBack should follow on this device.</value>
+    </data>
+    <data name="WatchUser_Change" xml:space="preserve">
+        <value>Switch user</value>
+    </data>
 </root>

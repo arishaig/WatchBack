@@ -174,6 +174,122 @@ public class JellyfinWatchStateProviderTests : IDisposable
         result2.Should().NotBeNull();
     }
 
+    private const string TwoUserSessionsJson = """
+                                                [
+                                                    {
+                                                        "Id": "s1",
+                                                        "UserId": "aaaa1111aaaa1111aaaa1111aaaa1111",
+                                                        "NowPlayingItem": { "Name": "Pilot", "SeriesName": "Show A", "ParentIndexNumber": 1, "IndexNumber": 1 }
+                                                    },
+                                                    {
+                                                        "Id": "s2",
+                                                        "UserId": "bbbb2222bbbb2222bbbb2222bbbb2222",
+                                                        "NowPlayingItem": { "Name": "Finale", "SeriesName": "Show B", "ParentIndexNumber": 2, "IndexNumber": 9 }
+                                                    },
+                                                    {
+                                                        "Id": "s3",
+                                                        "UserId": "cccc3333cccc3333cccc3333cccc3333"
+                                                    }
+                                                ]
+                                                """;
+
+    private JellyfinWatchStateProvider CreateProvider(string body, Action? onRequest = null)
+    {
+        MockHttpMessageHandler handler = new(() =>
+        {
+            onRequest?.Invoke();
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
+        });
+        HttpClient client = new(handler) { BaseAddress = new Uri(_options.BaseUrl) };
+        return new JellyfinWatchStateProvider(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache,
+            NullLogger<JellyfinWatchStateProvider>.Instance);
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_WithUserId_FollowsThatUsersSession()
+    {
+        JellyfinWatchStateProvider provider = CreateProvider(TwoUserSessionsJson);
+
+        MediaContext? result = await provider.GetCurrentMediaContextAsync("bbbb2222bbbb2222bbbb2222bbbb2222");
+
+        result.Should().BeOfType<EpisodeContext>().Which.Title.Should().Be("Show B");
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_WithDashedUpperCaseUserId_StillMatches()
+    {
+        JellyfinWatchStateProvider provider = CreateProvider(TwoUserSessionsJson);
+
+        MediaContext? result = await provider.GetCurrentMediaContextAsync("AAAA1111-AAAA-1111-AAAA-1111AAAA1111");
+
+        result.Should().BeOfType<EpisodeContext>().Which.Title.Should().Be("Show A");
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_WithUserNotPlaying_ReturnsNullInsteadOfAnotherUsersSession()
+    {
+        JellyfinWatchStateProvider provider = CreateProvider(TwoUserSessionsJson);
+
+        MediaContext? result = await provider.GetCurrentMediaContextAsync("cccc3333cccc3333cccc3333cccc3333");
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_WithoutUserId_KeepsFirstPlayingSession()
+    {
+        JellyfinWatchStateProvider provider = CreateProvider(TwoUserSessionsJson);
+
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
+
+        result.Should().BeOfType<EpisodeContext>().Which.Title.Should().Be("Show A");
+    }
+
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_CachesPerUser()
+    {
+        int calls = 0;
+        JellyfinWatchStateProvider provider = CreateProvider(TwoUserSessionsJson, () => calls++);
+
+        MediaContext? a = await provider.GetCurrentMediaContextAsync("aaaa1111aaaa1111aaaa1111aaaa1111");
+        MediaContext? b = await provider.GetCurrentMediaContextAsync("bbbb2222bbbb2222bbbb2222bbbb2222");
+        MediaContext? aAgain = await provider.GetCurrentMediaContextAsync("aaaa1111aaaa1111aaaa1111aaaa1111");
+
+        a.Should().BeOfType<EpisodeContext>().Which.Title.Should().Be("Show A");
+        b.Should().BeOfType<EpisodeContext>().Which.Title.Should().Be("Show B");
+        aAgain.Should().BeSameAs(a);
+        calls.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GetUsersAsync_ReturnsNormalizedUsersSortedByName()
+    {
+        JellyfinWatchStateProvider provider = CreateProvider("""
+                                                            [
+                                                                { "Id": "BBBB2222-bbbb-2222-bbbb-2222bbbb2222", "Name": "zoe" },
+                                                                { "Id": "aaaa1111aaaa1111aaaa1111aaaa1111", "Name": "Alice" },
+                                                                { "Id": "", "Name": "Broken" }
+                                                            ]
+                                                            """);
+
+        IReadOnlyList<WatchUser> users = await provider.GetUsersAsync();
+
+        users.Should().Equal(
+            new WatchUser("aaaa1111aaaa1111aaaa1111aaaa1111", "Alice"),
+            new WatchUser("bbbb2222bbbb2222bbbb2222bbbb2222", "zoe"));
+    }
+
+    [Fact]
+    public async Task GetUsersAsync_WhenServerErrors_ReturnsEmpty()
+    {
+        MockHttpMessageHandler handler = new(new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        HttpClient client = new(handler) { BaseAddress = new Uri(_options.BaseUrl) };
+        JellyfinWatchStateProvider provider = new(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache,
+            NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        (await provider.GetUsersAsync()).Should().BeEmpty();
+    }
+
     [Fact]
     public void Metadata_SupportedExternalIds_ContainsImdbTmdbTvdb()
     {

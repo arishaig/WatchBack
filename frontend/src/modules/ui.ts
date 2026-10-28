@@ -149,6 +149,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
 
         this.initialized = true;
         uiLog("app.initApp.ready", "App initialized, starting SSE and sync", undefined, "Information");
+        await this.loadWatchUsers();
         this.setupSSE();
         void this.sync();
 

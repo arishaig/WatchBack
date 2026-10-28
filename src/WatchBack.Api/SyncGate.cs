@@ -1,29 +1,36 @@
+using System.Collections.Concurrent;
+
 namespace WatchBack.Api;
 
 /// <summary>
-///     Limits concurrent <c>SyncAsync</c> calls to one at a time across all SSE
-///     clients. Because provider results are cached in <c>IMemoryCache</c>, the
-///     second sync through after a cache-warming call is essentially free.
+///     Limits concurrent <c>SyncAsync</c> calls to one at a time <i>per viewer</i> (see <c>WatchViewer</c>),
+///     so several browsers of the same viewer don't pile up while different viewers never wait on each other.
+///     Because provider results are cached in <c>IMemoryCache</c>, the second sync through after a
+///     cache-warming call is essentially free.
 /// </summary>
 public sealed class SyncGate : IDisposable
 {
-    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _semaphores = new();
 
-    public async Task<T> ExecuteAsync<T>(Func<Task<T>> factory, CancellationToken ct)
+    public async Task<T> ExecuteAsync<T>(Func<Task<T>> factory, CancellationToken ct, string? viewerKey = null)
     {
-        await _semaphore.WaitAsync(ct);
+        SemaphoreSlim semaphore = _semaphores.GetOrAdd(viewerKey ?? "", _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync(ct);
         try
         {
             return await factory();
         }
         finally
         {
-            _semaphore.Release();
+            semaphore.Release();
         }
     }
 
     public void Dispose()
     {
-        _semaphore.Dispose();
+        foreach (SemaphoreSlim semaphore in _semaphores.Values)
+        {
+            semaphore.Dispose();
+        }
     }
 }

@@ -1,6 +1,9 @@
 import type { AppData, SyncData, LogEntry, SyncHistoryStatus, SyncHistoryEntry } from '../types';
 import { uiLog } from '../utils/uiLogger';
 
+// Held outside Alpine's reactive state: proxying an EventSource breaks its internals.
+let syncStream: EventSource | null = null;
+
 const systemMethods: Record<string, unknown> & ThisType<AppData> = {
     setupSSE() {
         // Bar visibility is driven by intermediate-progress events: the backend
@@ -33,10 +36,16 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
             if (clearTimer !== null) { clearTimeout(clearTimer); clearTimer = null; }
         };
 
+        // Reconnecting (e.g. after switching user) must not leave the old stream feeding this view.
+        syncStream?.close();
+        resetBarState();
+
         uiLog("sse.open", "Sync SSE connecting", undefined, "Information");
+        const streamUrl = '/api/sync/stream' + this.viewerQuery();
         const es = new (window as unknown as Window & { ReconnectingEventSource: new (url: string, opts: Record<string, unknown>) => EventSource }).ReconnectingEventSource(
-            '/api/sync/stream', { max_retry_time: 60000 }
+            streamUrl, { max_retry_time: 60000 }
         );
+        syncStream = es;
         es.onmessage = (e: MessageEvent) => {
             if (!e.data) return;
             try {
@@ -189,7 +198,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
             }
         } catch { /* ignore */ }
         try {
-            const res = await fetch('/api/diagnostics/status');
+            const res = await fetch('/api/diagnostics/status' + this.viewerQuery());
             if (res.ok) {
                 const data = await res.json() as Record<string, unknown>;
                 this.appVersion = (data['version'] as string | undefined) ?? null;

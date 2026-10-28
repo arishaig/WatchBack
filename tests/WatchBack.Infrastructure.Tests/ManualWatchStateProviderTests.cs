@@ -150,4 +150,67 @@ public class ManualWatchStateProviderTests
         IReadOnlyList<ProviderConfigField> fields = ((IDataProvider)provider).GetConfigSchema(_ => "", (_, _) => false);
         fields.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task ClientContext_IsIsolatedBetweenClients()
+    {
+        ManualWatchStateProvider provider = CreateProvider();
+
+        provider.SetCurrentContext("client-a", new MediaContext("Alien", null));
+        provider.SetCurrentContext("client-b", new MediaContext("Heat", null));
+
+        (await provider.GetCurrentMediaContextForClientAsync("client-a"))!.Title.Should().Be("Alien");
+        (await provider.GetCurrentMediaContextForClientAsync("client-b"))!.Title.Should().Be("Heat");
+        (await provider.GetCurrentMediaContextForClientAsync("client-c")).Should().BeNull();
+        (await provider.GetCurrentMediaContextAsync()).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ClientWithoutOwnContext_FallsBackToSharedContext()
+    {
+        ManualWatchStateProvider provider = CreateProvider();
+        provider.SetCurrentContext(new MediaContext("Shared Pick", null));
+        provider.SetCurrentContext("client-a", new MediaContext("Mine", null));
+
+        (await provider.GetCurrentMediaContextForClientAsync("client-a"))!.Title.Should().Be("Mine");
+        (await provider.GetCurrentMediaContextForClientAsync("client-b"))!.Title.Should().Be("Shared Pick");
+        (await provider.GetCurrentMediaContextForClientAsync(null))!.Title.Should().Be("Shared Pick");
+    }
+
+    [Fact]
+    public async Task ClearingClientContext_LeavesOtherClientsAndSharedContextAlone()
+    {
+        ManualWatchStateProvider provider = CreateProvider();
+        provider.SetCurrentContext("client-a", new MediaContext("A", null));
+        provider.SetCurrentContext("client-b", new MediaContext("B", null));
+
+        provider.SetCurrentContext("client-a", null);
+
+        (await provider.GetCurrentMediaContextForClientAsync("client-a")).Should().BeNull();
+        (await provider.GetCurrentMediaContextForClientAsync("client-b"))!.Title.Should().Be("B");
+    }
+
+    [Fact]
+    public async Task OversizedViewerKey_TargetsTheSharedContext()
+    {
+        ManualWatchStateProvider provider = CreateProvider();
+
+        provider.SetCurrentContext(new string('x', 500), new MediaContext("Shared", null));
+
+        (await provider.GetCurrentMediaContextAsync())!.Title.Should().Be("Shared");
+    }
+
+    [Fact]
+    public async Task ClientContexts_AreBounded_EvictingTheStalest()
+    {
+        ManualWatchStateProvider provider = CreateProvider();
+
+        for (int i = 0; i < 250; i++)
+        {
+            provider.SetCurrentContext($"client-{i}", new MediaContext($"Title {i}", null));
+        }
+
+        (await provider.GetCurrentMediaContextForClientAsync("client-0")).Should().BeNull();
+        (await provider.GetCurrentMediaContextForClientAsync("client-249"))!.Title.Should().Be("Title 249");
+    }
 }

@@ -42,4 +42,22 @@ public interface IWatchStateProvider : IDataProvider
     ///     Returns the media currently being watched, or null if nothing is playing.
     /// </summary>
     Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default);
+
+    /// <summary>
+    ///     Returns the media currently being watched by <paramref name="userId" />, or null if that user
+    ///     is not playing anything. Providers that cannot distinguish users ignore the id.
+    /// </summary>
+    Task<MediaContext?> GetCurrentMediaContextAsync(string? userId, CancellationToken ct = default)
+    {
+        return GetCurrentMediaContextAsync(ct);
+    }
+}
+
+/// <summary>
+///     Implemented by watch state providers that can list the users whose playback may be followed,
+///     so the UI can offer a picker when more than one user exists.
+/// </summary>
+public interface IWatchUserDirectory
+{
+    Task<IReadOnlyList<WatchUser>> GetUsersAsync(CancellationToken ct = default);
 }
