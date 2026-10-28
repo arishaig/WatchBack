@@ -58,6 +58,12 @@ internal static class ArcticShiftSource
             }
 
             cursor = last;
+            if (page == MaxPages - 1)
+            {
+                logger.LogDebug(
+                    "Arctic Shift window for r/{Subreddit} hit the {Pages}-page cap before reaching the end; later posts were not searched",
+                    subreddit, MaxPages);
+            }
         }
 
         return [.. all];
