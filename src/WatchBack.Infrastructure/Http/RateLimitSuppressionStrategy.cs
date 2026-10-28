@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 
@@ -65,7 +66,7 @@ internal sealed class RateLimitSuppressionStrategy(
         TimeSpan window = retryAfter?.Delta
                           ?? (retryAfter?.Date is { } date
                               ? date - DateTimeOffset.UtcNow
-                              : TimeSpan.FromSeconds(60));
+                              : ResetHeaderWindow(response) ?? TimeSpan.FromSeconds(60));
 
         if (window <= TimeSpan.Zero)
         {
@@ -73,6 +74,16 @@ internal sealed class RateLimitSuppressionStrategy(
         }
 
         return window > s_maxWindow ? s_maxWindow : window;
+    }
+
+    // Some APIs (Arctic Shift, Reddit) send seconds-until-reset in X-RateLimit-Reset instead of Retry-After.
+    private static TimeSpan? ResetHeaderWindow(HttpResponseMessage response)
+    {
+        return response.Headers.TryGetValues("X-RateLimit-Reset", out IEnumerable<string>? values) &&
+               double.TryParse(values.FirstOrDefault(), NumberStyles.Float, CultureInfo.InvariantCulture,
+                   out double seconds)
+            ? TimeSpan.FromSeconds(seconds)
+            : null;
     }
 }
 

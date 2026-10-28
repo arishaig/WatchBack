@@ -98,6 +98,36 @@ public sealed class RateLimitStrategyTests : IDisposable
         second.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         callCount.Should().Be(1, "only the first request should reach the network");
     }
+
+    [Fact]
+    public async Task ExecuteAsync_After429WithRateLimitResetHeader_HonorsResetInsteadOfDefaultWindow()
+    {
+        // Arrange — Arctic Shift sends X-RateLimit-Reset (seconds) rather than Retry-After
+        int callCount = 0;
+        ResiliencePipeline<HttpResponseMessage> pipeline = BuildPipeline();
+        HttpRequestMessage request = new(HttpMethod.Get, "https://example.com/api/data");
+
+        // Act
+        await ExecuteAsync(pipeline, request, () =>
+        {
+            callCount++;
+            HttpResponseMessage msg = new(HttpStatusCode.TooManyRequests);
+            msg.Headers.Add("X-RateLimit-Reset", "1");
+            return msg;
+        });
+
+        await Task.Delay(TimeSpan.FromMilliseconds(1500));
+
+        HttpResponseMessage second = await ExecuteAsync(pipeline, request, () =>
+        {
+            callCount++;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        // Assert — the 1 s window has expired, so the second request reaches the network
+        second.StatusCode.Should().Be(HttpStatusCode.OK);
+        callCount.Should().Be(2);
+    }
 }
 
 public sealed class HttpLoggingTests
