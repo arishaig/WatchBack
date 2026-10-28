@@ -469,11 +469,15 @@ public sealed class RedditThoughtProvider(
 
         PullPushSubmissionDto[] byCode = window
             .Where(s => MatchesEpisode(s.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber)).ToArray();
-        PullPushSubmissionDto[] byTitle = string.IsNullOrWhiteSpace(episode.EpisodeTitle)
+        // Whole-word match: a generic "Episode 1" title must not pull in "Episode 12" (a spoiler), nor
+        // "Pilot" match "Copilot". Lookarounds rather than \b so titles ending in punctuation still work.
+        Regex? titlePattern = string.IsNullOrWhiteSpace(episode.EpisodeTitle)
+            ? null
+            : new Regex($"(?<![A-Za-z0-9]){Regex.Escape(episode.EpisodeTitle)}(?![A-Za-z0-9])",
+                RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+        PullPushSubmissionDto[] byTitle = titlePattern is null
             ? []
-            : window.Except(byCode)
-                .Where(s => (s.Title ?? "").Contains(episode.EpisodeTitle, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
+            : window.Except(byCode).Where(s => titlePattern.IsMatch(s.Title ?? "")).ToArray();
         return (byCode, byTitle);
     }
 

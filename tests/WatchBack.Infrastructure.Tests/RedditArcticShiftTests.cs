@@ -245,4 +245,34 @@ public sealed class RedditArcticShiftTests : IDisposable
 
         health.IsHealthy.Should().BeFalse();
     }
+
+    // Regression: the episode-title match was a substring check, so a generic Jellyfin title like
+    // "Episode 1" matched "Season 11 Episode 12 Discussion" and surfaced later-episode spoilers.
+    [Fact]
+    public async Task GetThoughtsAsync_GenericEpisodeTitle_DoesNotMatchLaterEpisodeThreads()
+    {
+        const string window = """
+                              {"data":[
+                                {"id":"e12","title":"Season 11 Episode 12 Discussion","subreddit":"LoveIsBlindNetflix","created_utc":1791971000,"score":90},
+                                {"id":"e1x","title":"Episode 1 reactions (no spoilers)","subreddit":"LoveIsBlindNetflix","created_utc":1791971100,"score":10}
+                              ]}
+                              """;
+        EpisodeContext episode = new("Love Is Blind", s_episode.ReleaseDate, "Episode 1", 11, 1);
+        List<string> commentThreads = [];
+        RedditThoughtProvider provider = CreateProvider(req =>
+        {
+            if (req.RequestUri!.AbsolutePath.Contains("comments"))
+            {
+                commentThreads.Add(req.RequestUri.Query);
+                return Json("""{"data":[]}""");
+            }
+
+            return Json(window);
+        }, TooManyRequests);
+
+        await provider.GetThoughtsAsync(episode);
+
+        commentThreads.Should().ContainSingle().Which.Should().Contain("t3_e1x")
+            .And.NotContain("e12", "an \"Episode 12\" thread is a later episode");
+    }
 }
