@@ -282,28 +282,42 @@ public sealed class RedditThoughtProvider(
         }
     }
 
+    // Healthy while at least one enabled archive answers: the provider keeps working with either.
     public async Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
     {
-        try
+        List<(string Name, string Url)> probes = [];
+        if (_options.UsePullPush)
         {
-            using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(5));
-
-            HttpResponseMessage response =
-                await httpClient.GetAsync("https://api.pullpush.io/reddit/search/comment/?size=0", cts.Token);
-
-            return new ServiceHealth(
-                response.IsSuccessStatusCode,
-                response.IsSuccessStatusCode ? "OK" : response.StatusCode.ToString(),
-                DateTimeOffset.UtcNow);
+            probes.Add(("PullPush", "https://api.pullpush.io/reddit/search/comment/?size=0"));
         }
-        catch (Exception ex)
+
+        if (_options.UseArcticShift)
         {
-            return new ServiceHealth(
-                false,
-                ex.Message,
-                DateTimeOffset.UtcNow);
+            probes.Add(("Arctic Shift", ArcticShiftSource.HealthUrl));
         }
+
+        (string Name, string Status)[] results = await Task.WhenAll(probes.Select(async probe =>
+        {
+            try
+            {
+                using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                HttpResponseMessage response = await httpClient.GetAsync(probe.Url, cts.Token);
+                return (probe.Name, response.IsSuccessStatusCode ? "OK" : response.StatusCode.ToString());
+            }
+            catch (Exception ex)
+            {
+                return (probe.Name, ex.Message);
+            }
+        }));
+
+        bool anyHealthy = results.Any(r => r.Status == "OK");
+        string message = results.All(r => r.Status == "OK")
+            ? "OK"
+            : string.Join("; ", results.Where(r => r.Status != "OK").Select(r => $"{r.Name}: {r.Status}"));
+
+        return new ServiceHealth(anyHealthy, message, DateTimeOffset.UtcNow);
     }
 
     public string ConfigSection => "Reddit";

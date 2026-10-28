@@ -21,6 +21,8 @@ internal static class ArcticShiftSource
 {
     private const string BaseUrl = "https://arctic-shift.photon-reddit.com";
     private const int PageSize = 100;
+
+    public const string HealthUrl = BaseUrl + "/api/posts/search?subreddit=announcements&limit=1&fields=id";
     private const int MaxPages = 3;
 
     // Arctic Shift rate limits are "calculated dynamically based on server load", and the heavy

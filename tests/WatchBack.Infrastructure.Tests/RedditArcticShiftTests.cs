@@ -224,4 +224,25 @@ public sealed class RedditArcticShiftTests : IDisposable
         pullPushRequests.Should().Be(0);
         result!.Thoughts!.Should().NotBeEmpty();
     }
+
+    [Fact]
+    public async Task GetServiceHealthAsync_PullPushDownButArcticShiftUp_IsHealthyAndNamesTheOutage()
+    {
+        RedditThoughtProvider provider = CreateProvider(_ => Json("""{"data":[]}"""), TooManyRequests);
+
+        ServiceHealth health = await provider.GetServiceHealthAsync();
+
+        health.IsHealthy.Should().BeTrue("one working archive is enough");
+        health.Message.Should().Contain("PullPush").And.Contain("TooManyRequests");
+    }
+
+    [Fact]
+    public async Task GetServiceHealthAsync_BothArchivesDown_IsUnhealthy()
+    {
+        RedditThoughtProvider provider = CreateProvider(TooManyRequests, TooManyRequests);
+
+        ServiceHealth health = await provider.GetServiceHealthAsync();
+
+        health.IsHealthy.Should().BeFalse();
+    }
 }
