@@ -21,7 +21,7 @@ public class RedditThoughtProviderTests : IDisposable
 {
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
 
-    private readonly RedditOptions _options = new() { MaxThreads = 3, MaxComments = 250, CacheTtlSeconds = 86400 };
+    private readonly RedditOptions _options = new() { MaxThreads = 3, MaxComments = 250, CacheTtlSeconds = 86400, UseArcticShift = false };
 
     public void Dispose()
     {
@@ -277,8 +277,8 @@ public class RedditThoughtProviderTests : IDisposable
             _cache, treeBuilder, NoMappings(),
             NullLogger<RedditThoughtProvider>.Instance);
 
-        // 7 base specs + 1 episode-title spec (upper bound) + MaxThreads comment fetches, 3 weight each
-        provider.ExpectedWeight.Should().Be((8 + _options.MaxThreads) * 3);
+        // 8 PullPush specs (upper bound) + ~2 Arctic Shift subreddit lookups + MaxThreads comment fetches, 3 weight each
+        provider.ExpectedWeight.Should().Be((10 + _options.MaxThreads) * 3);
     }
 
     // Regression: threads that use the episode title rather than an SxxExx code (e.g.
@@ -1020,7 +1020,10 @@ public class RedditThoughtProviderTests : IDisposable
     [Fact]
     public async Task GetThoughtsAsync_SizeScalesWithMaxThreads()
     {
-        RedditOptions scaledOptions = new() { MaxThreads = 10, MaxComments = 250, CacheTtlSeconds = 86400 };
+        RedditOptions scaledOptions = new()
+        {
+            MaxThreads = 10, MaxComments = 250, CacheTtlSeconds = 86400, UseArcticShift = false
+        };
 
         EpisodeContext mediaContext = new(
             "Test Show",
