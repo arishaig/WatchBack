@@ -39,7 +39,7 @@ tests/
 
 **WatchBack.Infrastructure** (library) — Concrete provider implementations and data access.
 - `WatchStateProviders/`: Jellyfin, Trakt, Manual (singleton — holds state in memory)
-- `ThoughtProviders/`: Reddit (via PullPush), Bluesky, Trakt
+- `ThoughtProviders/`: Reddit (via PullPush and Arctic Shift), Bluesky, Trakt
 - `MediaSearchProviders/`: OMDb (implements both `IMediaSearchProvider` and `IRatingsProvider`)
 - `Http/`: `ResilientHttpHandler` — retry with exponential backoff, 429 rate-limit awareness
 - `Persistence/`: `WatchBackDbContext` (SQLite), entities, migrations, repository

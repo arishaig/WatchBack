@@ -6,7 +6,7 @@ WatchBack is a self-hosted companion app for your media server. While you watch 
 
 - **Automatic sync** — detects what you're currently watching and fetches relevant discussions
 - **Time Machine** — filters results to only show reactions posted close to the original air date, so you get the authentic first-watch experience
-- **Multiple sources** — Reddit threads (via [PullPush](pullpush.io/)), Trakt comments, and Bluesky posts, all in one place
+- **Multiple sources** — Reddit threads (via [PullPush](https://pullpush.io/) and [Arctic Shift](https://github.com/ArthurHeitmann/arctic_shift)), Trakt comments, and Bluesky posts, all in one place
 - **Reddit search shortcut** — one-click search for the episode you're watching
 - **Multiple themes** — dark, light, Solarized Dark, Solarized Light, and Monokai
 

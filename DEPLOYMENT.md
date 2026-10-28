@@ -60,7 +60,7 @@ Add one or more thought providers to aggregate reactions:
 
 - **Trakt Comments**: Configure `TRAKT_CLIENT_ID`, `TRAKT_USERNAME`, `TRAKT_ACCESS_TOKEN`
 - **Bluesky Posts**: Configure `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD` (optional)
-- **Reddit Comments**: Automatically enabled (uses public PullPush API, no credentials)
+- **Reddit Comments**: Automatically enabled (uses the public PullPush and Arctic Shift archives, no credentials)
 
 ## Docker Compose
 
