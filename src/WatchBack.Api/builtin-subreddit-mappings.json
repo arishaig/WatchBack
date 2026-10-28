@@ -19,6 +19,7 @@
     { "title": "Curb Your Enthusiasm", "subreddits": ["curb"] },
     { "title": "It's Always Sunny in Philadelphia", "subreddits": ["IASIP"] },
     { "title": "The Rehearsal", "subreddits": ["nathanfielder"] },
-    { "title": "Nathan For You", "subreddits": ["nathanfielder"] }
+    { "title": "Nathan For You", "subreddits": ["nathanfielder"] },
+    { "title": "Love Is Blind", "subreddits": ["LoveIsBlindNetflix", "LoveIsBlindOnNetflix"] }
   ]
 }
