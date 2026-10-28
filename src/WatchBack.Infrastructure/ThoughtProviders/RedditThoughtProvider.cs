@@ -17,6 +17,9 @@ namespace WatchBack.Infrastructure.ThoughtProviders;
 
 [JsonSerializable(typeof(PullPushSubmissionsResponseDto))]
 [JsonSerializable(typeof(PullPushCommentsResponseDto))]
+[JsonSerializable(typeof(ArcticShiftSubmissionsResponseDto))]
+[JsonSerializable(typeof(ArcticShiftCommentTreeResponseDto))]
+[JsonSerializable(typeof(ArcticShiftCommentNodeDto[]))]
 internal sealed partial class RedditJsonContext : JsonSerializerContext;
 
 public sealed class RedditThoughtProvider(
@@ -31,7 +34,8 @@ public sealed class RedditThoughtProvider(
     // Upper bound on search spec count (before deduplication) — used for progress estimation.
     // Sync ticks are reported one-per-spec, so over-estimating is fine; the SSE layer forces
     // the bar to 100% before emitting the final result.
-    private const int SearchSpecCount = 8;
+    // 8 PullPush specs plus roughly two Arctic Shift subreddit lookups.
+    private const int SearchSpecCount = 10;
     private static readonly ThoughtResult s_empty = new("Reddit", null, null, null, [], null);
 
     private static readonly Regex s_excessiveNewlines = new(@"\n{3,}", RegexOptions.Compiled);
@@ -102,57 +106,31 @@ public sealed class RedditThoughtProvider(
             int normalSize = Math.Clamp(_options.MaxThreads * 8, 25, 100);
             int bypassSize = Math.Clamp(_options.MaxThreads * 4, 10, 100);
 
-            // Run all search specs in parallel — PullPush is the bottleneck, so fan-out wins here
-            (PullPushSubmissionDto[] Subs, bool IsBypass, bool Ok)[] specResults = await Task.WhenAll(
-                specs.Select(async spec =>
-                {
-                    int size = spec.BypassFilter ? bypassSize : normalSize;
-                    string url =
-                        $"https://api.pullpush.io/reddit/search/submission/?title={Uri.EscapeDataString(spec.Title)}&size={size}&sort_type=score&sort=desc&num_comments=%3E2";
-                    if (spec.Subreddit != null)
-                    {
-                        url += $"&subreddit={Uri.EscapeDataString(spec.Subreddit)}";
-                    }
+            // Query every enabled archive in parallel — they are the bottleneck, so fan-out wins here.
+            // A dead archive (PullPush is currently 429ing everything) must not hide the other's results.
+            List<Task<SpecResult[]>> searches = [];
+            if (_options.UsePullPush)
+            {
+                searches.AddRange(specs.Select(spec =>
+                    SearchPullPushAsync(spec, spec.BypassFilter ? bypassSize : normalSize, afterEpoch, progress, ct)));
+            }
 
-                    if (afterEpoch.HasValue)
-                    {
-                        url += $"&after={afterEpoch.Value}";
-                    }
+            if (_options.UseArcticShift)
+            {
+                searches.AddRange(subredditsToSearch.Select(subreddit =>
+                    SearchArcticShiftAsync(subreddit, mediaContext, episode, progress, ct)));
+            }
 
-                    try
-                    {
-                        HttpResponseMessage resp = await httpClient.GetAsync(url, ct);
-                        if (!resp.IsSuccessStatusCode)
-                        {
-                            logger.LogWarning("PullPush submission search failed: HTTP {Status} for query '{Query}'",
-                                (int)resp.StatusCode, spec.Title);
-                            return (Subs: Array.Empty<PullPushSubmissionDto>(), IsBypass: spec.BypassFilter, Ok: false);
-                        }
-
-                        string respContent = await resp.Content.ReadAsStringAsync(ct);
-                        PullPushSubmissionsResponseDto? listing =
-                            JsonSerializer.Deserialize<PullPushSubmissionsResponseDto>(
-                                respContent, RedditJsonContext.Default.PullPushSubmissionsResponseDto);
-                        return (Subs: listing?.Data ?? [], IsBypass: spec.BypassFilter, Ok: true);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "PullPush submission search exception for query '{Query}'", spec.Title);
-                        return (Subs: Array.Empty<PullPushSubmissionDto>(), IsBypass: spec.BypassFilter, Ok: false);
-                    }
-                    finally
-                    {
-                        progress?.Report(new SyncProgressTick(3, "Reddit"));
-                    }
-                }));
+            SpecResult[] specResults = (await Task.WhenAll(searches)).SelectMany(r => r).ToArray();
 
             bool anySpecSucceeded = specResults.Any(r => r.Ok);
 
             Dictionary<string, PullPushSubmissionDto> seenIds = new();
+            Dictionary<string, RedditSource> foundBy = new();
             HashSet<string> bypassIds = new();
-            foreach ((PullPushSubmissionDto[] subs, bool isBypass, _) in specResults)
+            foreach (SpecResult specResult in specResults)
             {
-                foreach (PullPushSubmissionDto sub in subs)
+                foreach (PullPushSubmissionDto sub in specResult.Subs)
                 {
                     if (sub.Id == null)
                     {
@@ -160,7 +138,8 @@ public sealed class RedditThoughtProvider(
                     }
 
                     seenIds.TryAdd(sub.Id, sub);
-                    if (isBypass)
+                    foundBy[sub.Id] = foundBy.GetValueOrDefault(sub.Id) | specResult.Source;
+                    if (specResult.IsBypass)
                     {
                         bypassIds.Add(sub.Id);
                     }
@@ -176,16 +155,16 @@ public sealed class RedditThoughtProvider(
                         (bypassIds.Contains(id) &&
                          (episode == null || !MentionsDifferentSeason(sub.Title ?? "", episode.SeasonNumber))) ||
                         (episode != null && MatchesEpisode(sub.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber));
-                    logger.LogDebug("PullPush raw: [{Id}] r/{Sub} \"{Title}\" → {Result}",
+                    logger.LogDebug("Reddit raw: [{Id}] r/{Sub} \"{Title}\" → {Result}",
                         id, sub.Subreddit, sub.Title, passes ? "KEEP" : "SKIP");
                 }
             }
 
             // Keep submissions whose title matches this episode, or that came from a bypass search
-            // (episode-title search, where PullPush already did the scoping).
+            // (episode-title search, where the archive or the local window filter already did the scoping).
             // For bypass results with an episode context, we still reject any submission that
             // explicitly names a *different* season — this prevents S1 threads bleeding into S2
-            // results when the show is new and PullPush has no S2 content yet.
+            // results when the show is new and the archives have no S2 content yet.
             List<PullPushSubmissionDto> submissions = seenIds.Values
                 .Where(s => s.Id != null && (
                     (bypassIds.Contains(s.Id!) &&
@@ -194,28 +173,29 @@ public sealed class RedditThoughtProvider(
                         episode.EpisodeNumber))))
                 .OrderByDescending(s => s.Stickied)
                 .ThenByDescending(s => s.Score ?? 0)
+                .ThenByDescending(s => s.NumComments ?? 0) // brand-new threads all score 0/1
                 .ToList();
 
             if (episode != null)
             {
                 logger.LogInformation(
-                    "PullPush: found {Count} matching submission(s) for '{Title}' S{Season:D2}E{Episode:D2}",
+                    "Reddit: found {Count} matching submission(s) for '{Title}' S{Season:D2}E{Episode:D2}",
                     submissions.Count, mediaContext.Title, episode.SeasonNumber, episode.EpisodeNumber);
             }
             else
             {
                 logger.LogInformation(
-                    "PullPush: found {Count} matching submission(s) for movie '{Title}'",
+                    "Reddit: found {Count} matching submission(s) for movie '{Title}'",
                     submissions.Count, mediaContext.Title);
             }
 
             if (submissions.Count == 0)
             {
                 ThoughtResult emptyResult = s_empty;
-                // Confirmed archive misses (at least one 2xx from PullPush) get the full TTL.
+                // Confirmed archive misses (at least one valid response) get the full TTL.
                 // Timeout/network/429 failures are transient, so they're only cached briefly:
                 // retrying every poll cycle would re-report progress ticks and flash the
-                // frontend loading bar for as long as PullPush keeps failing.
+                // frontend loading bar for as long as the archives keep failing.
                 cache.Set(cacheKey, emptyResult,
                     anySpecSucceeded ? TimeSpan.FromSeconds(_options.CacheTtlSeconds) : s_failureCacheTtl);
 
@@ -245,25 +225,29 @@ public sealed class RedditThoughtProvider(
                         thisPostBody = selftext;
                     }
 
-                    string commentsUrl =
-                        $"https://api.pullpush.io/reddit/search/comment/?link_id={Uri.EscapeDataString(submission.Id)}&size={_options.MaxComments}&sort_type=score&sort=desc";
-                    HttpResponseMessage commentsResponse = await httpClient.GetAsync(commentsUrl, ct);
-                    progress?.Report(new SyncProgressTick(3, "Reddit"));
-
-                    if (!commentsResponse.IsSuccessStatusCode)
+                    PullPushCommentDto[] comments = [];
+                    try
                     {
-                        logger.LogWarning("PullPush comment fetch failed: HTTP {Status} for thread {ThreadId}",
-                            (int)commentsResponse.StatusCode, submission.Id);
-                        return Array.Empty<Thought>();
+                        // Ask the archive that found the thread first, then fall back to the other.
+                        foreach (RedditSource source in CommentSourceOrder(foundBy[submission.Id]))
+                        {
+                            PullPushCommentDto[]? fetched = source == RedditSource.ArcticShift
+                                ? await ArcticShiftSource.GetCommentsAsync(
+                                    httpClient, submission.Id, _options.MaxComments, logger, ct)
+                                : await GetPullPushCommentsAsync(submission.Id, ct);
+                            if (fetched is { Length: > 0 })
+                            {
+                                comments = fetched;
+                                break;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        progress?.Report(new SyncProgressTick(3, "Reddit"));
                     }
 
-                    string commentsContent = await commentsResponse.Content.ReadAsStringAsync(ct);
-                    PullPushCommentsResponseDto? commentsList = JsonSerializer.Deserialize<PullPushCommentsResponseDto>(
-                        commentsContent,
-                        RedditJsonContext.Default.PullPushCommentsResponseDto);
-
-                    PullPushCommentDto[] comments = commentsList?.Data ?? [];
-                    logger.LogInformation("PullPush: thread {ThreadId} ({Title}) returned {Count} comment(s)",
+                    logger.LogInformation("Reddit: thread {ThreadId} ({Title}) returned {Count} comment(s)",
                         submission.Id, submission.Title, comments.Length);
 
                     return comments
@@ -293,33 +277,47 @@ public sealed class RedditThoughtProvider(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Reddit/PullPush thought fetch failed");
+            logger.LogError(ex, "Reddit thought fetch failed");
             return s_empty;
         }
     }
 
+    // Healthy while at least one enabled archive answers: the provider keeps working with either.
     public async Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
     {
-        try
+        List<(string Name, string Url)> probes = [];
+        if (_options.UsePullPush)
         {
-            using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(5));
-
-            HttpResponseMessage response =
-                await httpClient.GetAsync("https://api.pullpush.io/reddit/search/comment/?size=0", cts.Token);
-
-            return new ServiceHealth(
-                response.IsSuccessStatusCode,
-                response.IsSuccessStatusCode ? "OK" : response.StatusCode.ToString(),
-                DateTimeOffset.UtcNow);
+            probes.Add(("PullPush", "https://api.pullpush.io/reddit/search/comment/?size=0"));
         }
-        catch (Exception ex)
+
+        if (_options.UseArcticShift)
         {
-            return new ServiceHealth(
-                false,
-                ex.Message,
-                DateTimeOffset.UtcNow);
+            probes.Add(("Arctic Shift", ArcticShiftSource.HealthUrl));
         }
+
+        (string Name, string Status)[] results = await Task.WhenAll(probes.Select(async probe =>
+        {
+            try
+            {
+                using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                HttpResponseMessage response = await httpClient.GetAsync(probe.Url, cts.Token);
+                return (probe.Name, response.IsSuccessStatusCode ? "OK" : response.StatusCode.ToString());
+            }
+            catch (Exception ex)
+            {
+                return (probe.Name, ex.Message);
+            }
+        }));
+
+        bool anyHealthy = results.Any(r => r.Status == "OK");
+        string message = results.All(r => r.Status == "OK")
+            ? "OK"
+            : string.Join("; ", results.Where(r => r.Status != "OK").Select(r => $"{r.Name}: {r.Status}"));
+
+        return new ServiceHealth(anyHealthy, message, DateTimeOffset.UtcNow);
     }
 
     public string ConfigSection => "Reddit";
@@ -356,6 +354,152 @@ public sealed class RedditThoughtProvider(
                 envVal("Reddit__MaxComments"),
                 isOverridden("Reddit", "MaxComments"))
         ];
+    }
+
+    // One archive search outcome: the submissions, whether MatchesEpisode is bypassed for them, whether
+    // the request itself succeeded (an empty list from a successful request is a real miss), and who found them.
+    private readonly record struct SpecResult(
+        PullPushSubmissionDto[] Subs, bool IsBypass, bool Ok, RedditSource Source);
+
+    private async Task<SpecResult[]> SearchPullPushAsync(
+        SearchSpec spec, int size, long? afterEpoch, IProgress<SyncProgressTick>? progress, CancellationToken ct)
+    {
+        string url =
+            $"https://api.pullpush.io/reddit/search/submission/?title={Uri.EscapeDataString(spec.Title)}&size={size}&sort_type=score&sort=desc&num_comments=%3E2";
+        if (spec.Subreddit != null)
+        {
+            url += $"&subreddit={Uri.EscapeDataString(spec.Subreddit)}";
+        }
+
+        if (afterEpoch.HasValue)
+        {
+            url += $"&after={afterEpoch.Value}";
+        }
+
+        try
+        {
+            HttpResponseMessage resp = await httpClient.GetAsync(url, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                logger.LogWarning("PullPush submission search failed: HTTP {Status} for query '{Query}'",
+                    (int)resp.StatusCode, spec.Title);
+                return [new SpecResult([], spec.BypassFilter, false, RedditSource.PullPush)];
+            }
+
+            string respContent = await resp.Content.ReadAsStringAsync(ct);
+            PullPushSubmissionsResponseDto? listing = JsonSerializer.Deserialize<PullPushSubmissionsResponseDto>(
+                respContent, RedditJsonContext.Default.PullPushSubmissionsResponseDto);
+            return [new SpecResult(listing?.Data ?? [], spec.BypassFilter, true, RedditSource.PullPush)];
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "PullPush submission search exception for query '{Query}'", spec.Title);
+            return [new SpecResult([], spec.BypassFilter, false, RedditSource.PullPush)];
+        }
+        finally
+        {
+            progress?.Report(new SyncProgressTick(3, "Reddit"));
+        }
+    }
+
+    // Arctic Shift needs a subreddit for any keyword search and times out on large ones, so unlike PullPush
+    // there are no keyword or global searches. It lists the subreddit's posts instead — around the air date
+    // when known, otherwise the newest — and matches titles locally.
+    private async Task<SpecResult[]> SearchArcticShiftAsync(
+        string subreddit, MediaContext mediaContext, EpisodeContext? episode,
+        IProgress<SyncProgressTick>? progress, CancellationToken ct)
+    {
+        try
+        {
+            PullPushSubmissionDto[]? posts;
+            if (mediaContext.ReleaseDate is { } release)
+            {
+                // Episode threads go up around airing; movie discussion lingers far longer.
+                (DateTimeOffset after, DateTimeOffset before) = episode is null
+                    ? (release.AddDays(-14), release.AddDays(90))
+                    : (release.AddDays(-2), release.AddDays(10));
+                posts = await ArcticShiftSource.SearchWindowAsync(httpClient, subreddit, after, before, logger, ct);
+            }
+            else
+            {
+                posts = await ArcticShiftSource.SearchRecentAsync(httpClient, subreddit, logger, ct);
+            }
+
+            if (posts is null)
+            {
+                return [new SpecResult([], false, false, RedditSource.ArcticShift)];
+            }
+
+            (PullPushSubmissionDto[] byCode, PullPushSubmissionDto[] byTitle) =
+                SplitWindowMatches(posts, mediaContext, episode);
+            return
+            [
+                new SpecResult(byCode, false, true, RedditSource.ArcticShift),
+                new SpecResult(byTitle, true, true, RedditSource.ArcticShift)
+            ];
+        }
+        finally
+        {
+            progress?.Report(new SyncProgressTick(3, "Reddit"));
+        }
+    }
+
+    // Local equivalent of PullPush's server-side scoping for a listing of a subreddit's posts:
+    // episode-code titles are matched by MatchesEpisode afterwards; titles naming the episode (or, for
+    // movies, the film) are returned separately so the caller can bypass the code check for them.
+    private static (PullPushSubmissionDto[] ByCode, PullPushSubmissionDto[] ByTitle) SplitWindowMatches(
+        PullPushSubmissionDto[] window, MediaContext mediaContext, EpisodeContext? episode)
+    {
+        if (episode is null)
+        {
+            string wanted = Regex.Replace(mediaContext.Title, "[^a-zA-Z0-9]", "");
+            return ([], window.Where(s =>
+                Regex.Replace(s.Title ?? "", "[^a-zA-Z0-9]", "")
+                    .Contains(wanted, StringComparison.OrdinalIgnoreCase)).ToArray());
+        }
+
+        PullPushSubmissionDto[] byCode = window
+            .Where(s => MatchesEpisode(s.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber)).ToArray();
+        // Whole-word match: a generic "Episode 1" title must not pull in "Episode 12" (a spoiler), nor
+        // "Pilot" match "Copilot". Lookarounds rather than \b so titles ending in punctuation still work.
+        Regex? titlePattern = string.IsNullOrWhiteSpace(episode.EpisodeTitle)
+            ? null
+            : new Regex($"(?<![A-Za-z0-9]){Regex.Escape(episode.EpisodeTitle)}(?![A-Za-z0-9])",
+                RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+        PullPushSubmissionDto[] byTitle = titlePattern is null
+            ? []
+            : window.Except(byCode).Where(s => titlePattern.IsMatch(s.Title ?? "")).ToArray();
+        return (byCode, byTitle);
+    }
+
+    private async Task<PullPushCommentDto[]?> GetPullPushCommentsAsync(string submissionId, CancellationToken ct)
+    {
+        string commentsUrl =
+            $"https://api.pullpush.io/reddit/search/comment/?link_id={Uri.EscapeDataString(submissionId)}&size={_options.MaxComments}&sort_type=score&sort=desc";
+        HttpResponseMessage commentsResponse = await httpClient.GetAsync(commentsUrl, ct);
+
+        if (!commentsResponse.IsSuccessStatusCode)
+        {
+            logger.LogWarning("PullPush comment fetch failed: HTTP {Status} for thread {ThreadId}",
+                (int)commentsResponse.StatusCode, submissionId);
+            return null;
+        }
+
+        string commentsContent = await commentsResponse.Content.ReadAsStringAsync(ct);
+        PullPushCommentsResponseDto? commentsList = JsonSerializer.Deserialize<PullPushCommentsResponseDto>(
+            commentsContent, RedditJsonContext.Default.PullPushCommentsResponseDto);
+        return commentsList?.Data ?? [];
+    }
+
+    // The archive that found a thread goes first; the other (if enabled) is the fallback.
+    private IEnumerable<RedditSource> CommentSourceOrder(RedditSource foundBy)
+    {
+        RedditSource[] order = foundBy.HasFlag(RedditSource.ArcticShift)
+            ? [RedditSource.ArcticShift, RedditSource.PullPush]
+            : [RedditSource.PullPush, RedditSource.ArcticShift];
+        return order.Where(source => source == RedditSource.ArcticShift
+            ? _options.UseArcticShift
+            : _options.UsePullPush);
     }
 
     private static Thought MapCommentToThought(PullPushCommentDto data, string? postTitle, string? postUrl,

@@ -45,7 +45,7 @@ In scope:
 Out of scope:
 
 - Vulnerabilities in third-party services WatchBack talks to (Trakt, Reddit,
-  Bluesky, Jellyfin, OMDb, PullPush)
+  Bluesky, Jellyfin, OMDb, PullPush, Arctic Shift)
 - Issues that require a pre-compromised host or malicious local user
 - Denial of service caused by pointing WatchBack at an untrusted upstream
 
