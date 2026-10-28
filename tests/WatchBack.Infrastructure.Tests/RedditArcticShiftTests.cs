@@ -275,4 +275,27 @@ public sealed class RedditArcticShiftTests : IDisposable
         commentThreads.Should().ContainSingle().Which.Should().Contain("t3_e1x")
             .And.NotContain("e12", "an \"Episode 12\" thread is a later episode");
     }
+
+    // Prefetch targets the next episode, which has no release date. Keyword (title=) searches time out on
+    // large subreddits, so the newest posts are listed and matched locally instead.
+    [Fact]
+    public async Task GetThoughtsAsync_NoReleaseDate_ListsNewestPostsInsteadOfKeywordSearch()
+    {
+        List<Uri> searches = [];
+        RedditThoughtProvider provider = CreateProvider(req =>
+        {
+            if (req.RequestUri!.AbsolutePath.EndsWith("/posts/search", StringComparison.Ordinal))
+            {
+                searches.Add(req.RequestUri);
+            }
+
+            return ArcticShiftOk(req);
+        }, TooManyRequests);
+        EpisodeContext undated = new("Love Is Blind", null, "", 11, 1);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(undated);
+
+        searches.Should().ContainSingle().Which.Query.Should().Contain("sort=desc").And.NotContain("title=");
+        result!.PostTitle.Should().Be("Season 11 Episode 1 Discussion");
+    }
 }

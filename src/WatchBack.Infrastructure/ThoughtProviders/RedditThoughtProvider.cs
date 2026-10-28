@@ -118,7 +118,7 @@ public sealed class RedditThoughtProvider(
             if (_options.UseArcticShift)
             {
                 searches.AddRange(subredditsToSearch.Select(subreddit =>
-                    SearchArcticShiftAsync(subreddit, mediaContext, episode, specs, progress, ct)));
+                    SearchArcticShiftAsync(subreddit, mediaContext, episode, progress, ct)));
             }
 
             SpecResult[] specResults = (await Task.WhenAll(searches)).SelectMany(r => r).ToArray();
@@ -402,50 +402,41 @@ public sealed class RedditThoughtProvider(
         }
     }
 
-    // Arctic Shift needs a subreddit for any keyword search, so unlike PullPush there are no global
-    // searches. With a release date it lists the subreddit's posts around the air date and matches titles
-    // locally; without one it falls back to keyword searches.
+    // Arctic Shift needs a subreddit for any keyword search and times out on large ones, so unlike PullPush
+    // there are no keyword or global searches. It lists the subreddit's posts instead — around the air date
+    // when known, otherwise the newest — and matches titles locally.
     private async Task<SpecResult[]> SearchArcticShiftAsync(
-        string subreddit, MediaContext mediaContext, EpisodeContext? episode, IReadOnlyList<SearchSpec> specs,
+        string subreddit, MediaContext mediaContext, EpisodeContext? episode,
         IProgress<SyncProgressTick>? progress, CancellationToken ct)
     {
         try
         {
+            PullPushSubmissionDto[]? posts;
             if (mediaContext.ReleaseDate is { } release)
             {
                 // Episode threads go up around airing; movie discussion lingers far longer.
                 (DateTimeOffset after, DateTimeOffset before) = episode is null
                     ? (release.AddDays(-14), release.AddDays(90))
                     : (release.AddDays(-2), release.AddDays(10));
-
-                PullPushSubmissionDto[]? window =
-                    await ArcticShiftSource.SearchWindowAsync(httpClient, subreddit, after, before, logger, ct);
-                if (window is null)
-                {
-                    return [new SpecResult([], false, false, RedditSource.ArcticShift)];
-                }
-
-                (PullPushSubmissionDto[] byCode, PullPushSubmissionDto[] byTitle) =
-                    SplitWindowMatches(window, mediaContext, episode);
-                return
-                [
-                    new SpecResult(byCode, false, true, RedditSource.ArcticShift),
-                    new SpecResult(byTitle, true, true, RedditSource.ArcticShift)
-                ];
+                posts = await ArcticShiftSource.SearchWindowAsync(httpClient, subreddit, after, before, logger, ct);
+            }
+            else
+            {
+                posts = await ArcticShiftSource.SearchRecentAsync(httpClient, subreddit, logger, ct);
             }
 
-            List<(string Title, bool Bypass)> queries = episode is null
-                ? [(IThoughtProvider.BuildTextQuery(mediaContext), true)]
-                : specs.Where(s => string.Equals(s.Subreddit, subreddit, StringComparison.OrdinalIgnoreCase))
-                    .Select(s => (s.Title, s.BypassFilter)).ToList();
-
-            SpecResult[] results = await Task.WhenAll(queries.Select(async q =>
+            if (posts is null)
             {
-                PullPushSubmissionDto[]? subs =
-                    await ArcticShiftSource.SearchTitleAsync(httpClient, subreddit, q.Title, null, logger, ct);
-                return new SpecResult(subs ?? [], q.Bypass, subs is not null, RedditSource.ArcticShift);
-            }));
-            return results;
+                return [new SpecResult([], false, false, RedditSource.ArcticShift)];
+            }
+
+            (PullPushSubmissionDto[] byCode, PullPushSubmissionDto[] byTitle) =
+                SplitWindowMatches(posts, mediaContext, episode);
+            return
+            [
+                new SpecResult(byCode, false, true, RedditSource.ArcticShift),
+                new SpecResult(byTitle, true, true, RedditSource.ArcticShift)
+            ];
         }
         finally
         {
@@ -453,7 +444,7 @@ public sealed class RedditThoughtProvider(
         }
     }
 
-    // Local equivalent of PullPush's server-side scoping for a window of a subreddit's posts:
+    // Local equivalent of PullPush's server-side scoping for a listing of a subreddit's posts:
     // episode-code titles are matched by MatchesEpisode afterwards; titles naming the episode (or, for
     // movies, the film) are returned separately so the caller can bypass the code check for them.
     private static (PullPushSubmissionDto[] ByCode, PullPushSubmissionDto[] ByTitle) SplitWindowMatches(

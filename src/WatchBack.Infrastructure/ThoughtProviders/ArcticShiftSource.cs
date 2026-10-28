@@ -69,19 +69,39 @@ internal static class ArcticShiftSource
         return [.. all];
     }
 
-    // Keyword search within one subreddit. Used when the release date is unknown, so no window exists.
-    public static Task<PullPushSubmissionDto[]?> SearchTitleAsync(
-        HttpClient httpClient, string subreddit, string title, DateTimeOffset? after,
-        ILogger logger, CancellationToken ct)
+    // Newest posts first, for when the release date is unknown (prefetch targets the next episode, which
+    // has none). Cheaper and more reliable than keyword search, and the next episode's threads are recent.
+    public static async Task<PullPushSubmissionDto[]?> SearchRecentAsync(
+        HttpClient httpClient, string subreddit, ILogger logger, CancellationToken ct)
     {
-        string url =
-            $"{BaseUrl}/api/posts/search?subreddit={Uri.EscapeDataString(subreddit)}&title={Uri.EscapeDataString(title)}&limit={PageSize}&sort=desc";
-        if (after.HasValue)
+        List<PullPushSubmissionDto> all = [];
+        long? cursor = null;
+
+        for (int page = 0; page < MaxPages; page++)
         {
-            url += $"&after={after.Value.ToUnixTimeSeconds()}";
+            string url =
+                $"{BaseUrl}/api/posts/search?subreddit={Uri.EscapeDataString(subreddit)}&limit={PageSize}&sort=desc";
+            if (cursor.HasValue)
+            {
+                url += $"&before={cursor.Value}";
+            }
+
+            PullPushSubmissionDto[]? batch = await GetSubmissionsAsync(httpClient, url, logger, ct);
+            if (batch is null)
+            {
+                return page == 0 ? null : [.. all];
+            }
+
+            all.AddRange(batch);
+            if (batch.Length < PageSize || batch[^1].CreatedUtc is not { } oldest)
+            {
+                break;
+            }
+
+            cursor = oldest;
         }
 
-        return GetSubmissionsAsync(httpClient, url, logger, ct);
+        return [.. all];
     }
 
     // Full comment tree for one submission, flattened. Unlike /comments/search it isn't capped at 100.
