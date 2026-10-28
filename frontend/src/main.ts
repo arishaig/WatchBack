@@ -34,6 +34,23 @@ Alpine.data('app', (): AppData => {
         prefEdits: {},
         prefSaveStatus: null,
         lightboxImg: null,
+        watchUsers: [],
+        watchUserId: (() => {
+            try { return localStorage.getItem('wb_watchUser') || ''; }
+            catch { return ''; }
+        })(),
+        showUserPicker: false,
+        // Random per-browser key so the manually chosen episode is not shared between viewers.
+        clientId: (() => {
+            const fresh = () => crypto.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36);
+            try {
+                const stored = localStorage.getItem('wb_clientId');
+                if (stored && /^[A-Za-z0-9_-]{1,64}$/.test(stored)) return stored;
+                const id = fresh();
+                localStorage.setItem('wb_clientId', id);
+                return id;
+            } catch { return fresh(); }
+        })(),
         groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
         theme: localStorage.getItem('wb_theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
         collapsedSections: (() => {

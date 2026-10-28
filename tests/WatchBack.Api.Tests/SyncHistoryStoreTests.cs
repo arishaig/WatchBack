@@ -119,4 +119,16 @@ public sealed class SyncHistoryStoreTests : IAsyncDisposable
 
         entity!.ThoughtCount.Should().Be(10);
     }
+
+    [Fact]
+    public void GetLatest_IsPerViewer()
+    {
+        _store.Record(MakeSnapshot("Watching", "Alien"), null, "u:alice");
+        _store.Record(MakeSnapshot("Watching", "Heat"), null, "u:bob");
+
+        _store.GetLatest("u:alice")!.Title.Should().Be("Alien");
+        _store.GetLatest("u:bob")!.Title.Should().Be("Heat");
+        _store.GetLatest("u:carol").Should().BeNull();
+        _store.GetLatest().Should().BeNull();
+    }
 }

@@ -143,4 +143,52 @@ public sealed class PrefetchServiceTests : IDisposable
 
         await act.Should().NotThrowAsync("provider failures should be logged and swallowed");
     }
+
+    // ── Per-viewer isolation ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SchedulePrefetch_OneViewerMovingOn_DoesNotEvictAnotherViewersTargets()
+    {
+        // Alice is on Show A S1E1 (warms S1E2); Bob is on Show B.
+        _service.SchedulePrefetch(MakeEpisode("Show A", 1, 1), "u:alice");
+        await Task.Delay(150);
+        string aliceNext = _provider.GetCacheKey(MakeEpisode("Show A", 1, 2));
+        _cache.Set(aliceNext, "prefetched");
+
+        _service.SchedulePrefetch(MakeEpisode("Show B", 1, 1), "u:bob");
+        await Task.Delay(150);
+        _service.SchedulePrefetch(MakeEpisode("Show B", 2, 5), "u:bob");
+
+        _cache.TryGetValue(aliceNext, out _).Should().BeTrue("Bob's prefetch must not touch Alice's warm cache");
+    }
+
+    [Fact]
+    public async Task SchedulePrefetch_ViewerMovingOn_SparesEntriesAnotherViewerIsOn()
+    {
+        // Alice's prediction (Show A S1E2) is exactly where Bob currently is.
+        _service.SchedulePrefetch(MakeEpisode("Show A", 1, 1), "u:alice");
+        _service.SchedulePrefetch(MakeEpisode("Show A", 1, 2), "u:bob");
+        await Task.Delay(150);
+        string shared = _provider.GetCacheKey(MakeEpisode("Show A", 1, 2));
+        _cache.Set(shared, "bob's thoughts");
+
+        _service.SchedulePrefetch(MakeEpisode("Show C", 1, 1), "u:alice"); // Alice leaves Show A
+
+        _cache.TryGetValue(shared, out _).Should().BeTrue("Bob is still on that episode");
+    }
+
+    [Fact]
+    public async Task SchedulePrefetch_SameEpisodeForDifferentViewers_EachGetsOwnState()
+    {
+        EpisodeContext ep = MakeEpisode();
+        _service.SchedulePrefetch(ep, "u:alice");
+        await Task.Delay(150);
+        int callsAfterAlice = _provider.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "GetThoughtsAsync");
+
+        _service.SchedulePrefetch(ep, "u:bob");
+        await Task.Delay(150);
+
+        int callsAfterBob = _provider.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "GetThoughtsAsync");
+        callsAfterBob.Should().BeGreaterThan(callsAfterAlice, "Alice's state must not suppress Bob's prefetch");
+    }
 }

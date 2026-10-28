@@ -8,6 +8,7 @@ using Serilog.Events;
 
 using WatchBack.Api.Logging;
 using WatchBack.Api.Serialization;
+using WatchBack.Core.Models;
 using WatchBack.Infrastructure.Persistence;
 
 namespace WatchBack.Api.Endpoints;
@@ -92,9 +93,11 @@ public static class DiagnosticsEndpoints
         catch (OperationCanceledException) { }
     }
 
-    private static IResult GetStatus(SyncHistoryStore store)
+    private static IResult GetStatus(SyncHistoryStore store, [FromQuery] string? userId = null,
+        [FromQuery] string? clientId = null)
     {
-        return Results.Ok(new DiagnosticsStatusResponse(ThisAssembly.Info.InformationalVersion, store.GetLatest()));
+        return Results.Ok(new DiagnosticsStatusResponse(ThisAssembly.Info.InformationalVersion,
+            store.GetLatest(WatchViewer.Key(userId, clientId))));
     }
 
     private static async Task<IResult> GetRawLogs(LogFileConfig logConfig, CancellationToken ct)

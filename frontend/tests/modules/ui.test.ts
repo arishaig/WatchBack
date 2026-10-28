@@ -398,6 +398,7 @@ describe('initApp — new-provider discovery', () => {
             _initConfigEdits: vi.fn(),
             fetchMappings: vi.fn(),
             setupSSE: vi.fn(),
+            loadWatchUsers: vi.fn(),
             sync: vi.fn(),
             ...overrides,
         };

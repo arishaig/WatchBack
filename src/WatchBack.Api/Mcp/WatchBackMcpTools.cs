@@ -36,7 +36,7 @@ public sealed class WatchBackMcpTools(
         "Returns status ('Idle', 'Watching', or 'Error'), title, episode info if applicable, thought counts, and ratings.")]
     public async Task<string> GetWatchState(CancellationToken cancellationToken)
     {
-        SyncResult result = await syncService.SyncAsync(null, cancellationToken);
+        SyncResult result = await syncService.SyncAsync(null, null, null, cancellationToken);
 
         Dictionary<string, int> thoughtsBySource = result.SourceResults
             .Where(r => r.Thoughts is { Count: > 0 })

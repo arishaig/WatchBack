@@ -17,6 +17,7 @@ using static WatchBack.Core.Models.ExternalIdType;
 namespace WatchBack.Infrastructure.WatchStateProviders;
 
 [JsonSerializable(typeof(JellyfinSessionDto[]))]
+[JsonSerializable(typeof(JellyfinUserDto[]))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 internal sealed partial class JellyfinJsonContext : JsonSerializerContext;
 
@@ -25,7 +26,7 @@ public sealed class JellyfinWatchStateProvider(
     IOptionsSnapshot<JellyfinOptions> options,
     IMemoryCache cache,
     ILogger<JellyfinWatchStateProvider> logger)
-    : IWatchStateProvider
+    : IWatchStateProvider, IWatchUserDirectory
 {
     private readonly JellyfinOptions _options = options.Value;
 
@@ -39,11 +40,17 @@ public sealed class JellyfinWatchStateProvider(
     )
     { SupportedExternalIds = new HashSet<string> { Imdb, Tmdb, Tvdb } };
 
-    public async Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default)
+    public Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default)
+    {
+        return GetCurrentMediaContextAsync(null, ct);
+    }
+
+    public async Task<MediaContext?> GetCurrentMediaContextAsync(string? userId, CancellationToken ct = default)
     {
         try
         {
-            const string cacheKey = "jellyfin:session";
+            string? wantedUser = NormalizeId(userId);
+            string cacheKey = $"jellyfin:session:{wantedUser ?? "any"}";
             if (cache.TryGetValue(cacheKey, out MediaContext? cached))
             {
                 return cached;
@@ -63,7 +70,8 @@ public sealed class JellyfinWatchStateProvider(
                 content,
                 JellyfinJsonContext.Default.JellyfinSessionDtoArray) ?? [];
 
-            JellyfinSessionDto? activeSession = sessions.FirstOrDefault(s => s.NowPlayingItem != null);
+            JellyfinSessionDto? activeSession = sessions.FirstOrDefault(s =>
+                s.NowPlayingItem != null && (wantedUser is null || NormalizeId(s.UserId) == wantedUser));
             if (activeSession?.NowPlayingItem is null)
             {
                 return null;
@@ -105,6 +113,47 @@ public sealed class JellyfinWatchStateProvider(
             logger.LogWarning(ex, "Jellyfin watch state fetch failed");
             return null;
         }
+    }
+
+    public async Task<IReadOnlyList<WatchUser>> GetUsersAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            // The UI waits on this before opening its stream, so an unreachable server must fail fast.
+            using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+            HttpRequestMessage request = new(HttpMethod.Get, $"{_options.BaseUrl}/Users");
+            request.Headers.Add("X-Emby-Token", _options.ApiKey);
+            HttpResponseMessage response = await httpClient.SendAsync(request, cts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return [];
+            }
+
+            string content = await response.Content.ReadAsStringAsync(cts.Token);
+            JellyfinUserDto[] users = JsonSerializer.Deserialize<JellyfinUserDto[]>(
+                content,
+                JellyfinJsonContext.Default.JellyfinUserDtoArray) ?? [];
+
+            return users
+                .Where(u => !string.IsNullOrEmpty(u.Id) && !string.IsNullOrEmpty(u.Name))
+                .OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(u => new WatchUser(NormalizeId(u.Id)!, u.Name!))
+                .ToList();
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Jellyfin user list fetch failed");
+            return [];
+        }
+    }
+
+    // Jellyfin returns ids as dash-less hex in some endpoints and dashed GUIDs in others.
+    private static string? NormalizeId(string? id)
+    {
+        return string.IsNullOrWhiteSpace(id) ? null : id.Replace("-", "", StringComparison.Ordinal).ToLowerInvariant();
     }
 
     public async Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
@@ -222,6 +271,7 @@ public sealed class JellyfinWatchStateProvider(
 
 internal sealed record JellyfinSessionDto(
     [property: JsonPropertyName("Id")] string Id,
+    [property: JsonPropertyName("UserId")] string? UserId,
     [property: JsonPropertyName("NowPlayingItem")]
     JellyfinItemDto? NowPlayingItem);
 
@@ -237,3 +287,7 @@ internal sealed record JellyfinItemDto(
     DateTime? PremiereDate,
     [property: JsonPropertyName("ProviderIds")]
     Dictionary<string, string>? ProviderIds);
+
+internal sealed record JellyfinUserDto(
+    [property: JsonPropertyName("Id")] string? Id,
+    [property: JsonPropertyName("Name")] string? Name);

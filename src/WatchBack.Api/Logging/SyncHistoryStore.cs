@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 using WatchBack.Infrastructure.Persistence;
 using WatchBack.Infrastructure.Persistence.Entities;
 
@@ -13,22 +15,26 @@ public sealed record SyncSnapshot(
     string? Title,
     List<ProviderSyncRecord> Sources);
 
-/// <summary>Singleton that holds the most recent sync result and persists sync logs to the database.</summary>
+/// <summary>
+///     Singleton that holds the most recent sync result per viewer and persists sync logs to the database.
+///     The persisted log is the server's activity record and stays global; only the live "last sync"
+///     status is per viewer, so one browser's title never shows up in another's status.
+/// </summary>
 public sealed partial class SyncHistoryStore(IServiceScopeFactory scopeFactory, ILogger<SyncHistoryStore> logger)
     : IDisposable
 {
     private readonly SemaphoreSlim _persistGate = new(1, 1);
-    private volatile SyncSnapshot? _latest;
+    private readonly ConcurrentDictionary<string, SyncSnapshot> _latest = new();
 
-    public void Record(SyncSnapshot snapshot, long? durationMs = null)
+    public void Record(SyncSnapshot snapshot, long? durationMs = null, string? viewerKey = null)
     {
-        _latest = snapshot;
+        _latest[viewerKey ?? ""] = snapshot;
         _ = PersistAsync(snapshot, durationMs);
     }
 
-    public SyncSnapshot? GetLatest()
+    public SyncSnapshot? GetLatest(string? viewerKey = null)
     {
-        return _latest;
+        return _latest.TryGetValue(viewerKey ?? "", out SyncSnapshot? snapshot) ? snapshot : null;
     }
 
     private async Task PersistAsync(SyncSnapshot snapshot, long? durationMs)

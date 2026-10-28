@@ -22,6 +22,11 @@ public record BrandData(
     string Color,
     string LogoSvg);
 
+/// <summary>A user on the watch-state source (e.g. a Jellyfin account) whose playback can be followed.</summary>
+/// <param name="Id">The provider-specific user id sent back when selecting this user</param>
+/// <param name="Name">Display name shown in the picker</param>
+public record WatchUser(string Id, string Name);
+
 /// <summary>Describes a single configuration field shown in a provider's settings panel.</summary>
 public record ProviderConfigField(
     string Key,

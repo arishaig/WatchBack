@@ -14,6 +14,13 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
         drilldownEpisodes: [] as unknown[],
         drilldownLoading: false,
         data: null,
+        watchUsers: [] as unknown[],
+        watchUserId: '',
+        showUserPicker: false,
+        clientId: 'client-1',
+        viewerQuery: methods.viewerQuery,
+        manualStateUrl: methods.manualStateUrl,
+        setupSSE: vi.fn(),
         t: (key: string) => key,
         showError: vi.fn(),
         sync: vi.fn(),
@@ -30,7 +37,7 @@ describe('sync', () => {
         vi.stubGlobal('fetch', fetchMock);
         const ctx = makeCtx();
         await methods.sync.call(ctx);
-        expect(fetchMock).toHaveBeenCalledWith('/api/sync/trigger', { method: 'POST' });
+        expect(fetchMock).toHaveBeenCalledWith('/api/sync/trigger?clientId=client-1', { method: 'POST' });
     });
 
     it('calls showError on network failure', async () => {
@@ -243,7 +250,7 @@ describe('setManualWatchState', () => {
             externalIds: { imdb: 'tt123' },
         });
         const [url, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
-        expect(url).toBe('/api/watchstate/manual');
+        expect(url).toBe('/api/watchstate/manual?clientId=client-1');
         expect(opts.method).toBe('POST');
         const body = JSON.parse(opts.body as string);
         expect(body.title).toBe('Show');
@@ -262,7 +269,7 @@ describe('clearManualWatchState', () => {
         const ctx = makeCtx();
         await methods.clearManualWatchState.call(ctx);
         const [url, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
-        expect(url).toBe('/api/watchstate/manual');
+        expect(url).toBe('/api/watchstate/manual?clientId=client-1');
         expect(opts.method).toBe('DELETE');
         expect((ctx.sync as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
     });
@@ -327,5 +334,95 @@ describe('selectEpisode', () => {
         });
         const call = (ctx.setManualWatchState as ReturnType<typeof vi.fn>).mock.calls[0][0];
         expect(call.externalIds).toEqual({ imdb: 'tt0001' });
+    });
+});
+
+// ── viewer identity ───────────────────────────────────────────────────────────
+
+describe('viewerQuery', () => {
+    it('carries both the chosen user and this browser id', () => {
+        expect(methods.viewerQuery.call(makeCtx({ watchUserId: 'u1', clientId: 'c-1' }))).toBe('?userId=u1&clientId=c-1');
+    });
+
+    it('falls back to the browser id when no user is chosen', () => {
+        expect(methods.viewerQuery.call(makeCtx())).toBe('?clientId=client-1');
+    });
+
+    it('is empty without any identity', () => {
+        expect(methods.viewerQuery.call(makeCtx({ clientId: '' }))).toBe('');
+    });
+});
+
+// ── watch user selection ──────────────────────────────────────────────────────
+
+describe('loadWatchUsers', () => {
+    const users = [{ id: 'a', name: 'Alice' }, { id: 'b', name: 'Bob' }];
+
+    function stubUsers(body: unknown, ok = true) {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok, json: async () => body }));
+    }
+
+    afterEach(() => { localStorage.clear(); });
+
+    it('prompts when several users exist and none is chosen', async () => {
+        stubUsers(users);
+        const ctx = makeCtx();
+        await methods.loadWatchUsers.call(ctx);
+        expect(ctx.watchUsers).toEqual(users);
+        expect(ctx.showUserPicker).toBe(true);
+    });
+
+    it('keeps a stored choice that is still valid without prompting', async () => {
+        stubUsers(users);
+        const ctx = makeCtx({ watchUserId: 'b' });
+        await methods.loadWatchUsers.call(ctx);
+        expect(ctx.watchUserId).toBe('b');
+        expect(ctx.showUserPicker).toBe(false);
+    });
+
+    it('drops a stale stored choice and prompts again', async () => {
+        stubUsers(users);
+        const ctx = makeCtx({ watchUserId: 'gone' });
+        await methods.loadWatchUsers.call(ctx);
+        expect(ctx.watchUserId).toBe('');
+        expect(ctx.showUserPicker).toBe(true);
+    });
+
+    it('does not prompt and clears the choice with a single user', async () => {
+        localStorage.setItem('wb_watchUser', 'a');
+        stubUsers([users[0]]);
+        const ctx = makeCtx({ watchUserId: 'a' });
+        await methods.loadWatchUsers.call(ctx);
+        expect(ctx.watchUserId).toBe('');
+        expect(ctx.showUserPicker).toBe(false);
+        expect(localStorage.getItem('wb_watchUser')).toBeNull();
+    });
+
+    it('does not prompt when the request rejects or times out', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('timed out', 'TimeoutError')));
+        const ctx = makeCtx();
+        await methods.loadWatchUsers.call(ctx);
+        expect(ctx.watchUsers).toEqual([]);
+        expect(ctx.showUserPicker).toBe(false);
+    });
+
+    it('does not prompt when the request fails', async () => {
+        stubUsers(null, false);
+        const ctx = makeCtx();
+        await methods.loadWatchUsers.call(ctx);
+        expect(ctx.showUserPicker).toBe(false);
+    });
+});
+
+describe('selectWatchUser', () => {
+    afterEach(() => { localStorage.clear(); });
+
+    it('stores the choice, closes the picker and reconnects the stream', () => {
+        const ctx = makeCtx({ showUserPicker: true });
+        methods.selectWatchUser.call(ctx, 'b');
+        expect(ctx.watchUserId).toBe('b');
+        expect(ctx.showUserPicker).toBe(false);
+        expect(localStorage.getItem('wb_watchUser')).toBe('b');
+        expect(ctx.setupSSE as ReturnType<typeof vi.fn>).toHaveBeenCalled();
     });
 });

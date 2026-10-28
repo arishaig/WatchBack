@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 
 using WatchBack.Core.Interfaces;
@@ -22,6 +23,12 @@ public sealed class ManualWatchStateProvider : IManualWatchStateProvider
     // stale-cache issues. A lock would be heavier and is unnecessary here.
     private MediaContext? _context;
 
+    // Per-browser contexts, keyed by the client id the browser generated. Bounded so an
+    // endless stream of fresh ids cannot grow memory without limit; the stalest entry goes first.
+    private const int MaxClients = 200;
+    private readonly ConcurrentDictionary<string, (MediaContext Context, long Stamp)> _clientContexts = new();
+    private long _stamp;
+
     public DataProviderMetadata Metadata => new WatchStateDataProviderMetadata(
         "Manual",
         UiStrings.ManualWatchStateProvider_Metadata_Manually_set_watch_state,
@@ -40,9 +47,54 @@ public sealed class ManualWatchStateProvider : IManualWatchStateProvider
         Interlocked.Exchange(ref _context, context);
     }
 
+    public void SetCurrentContext(string? viewerKey, MediaContext? context)
+    {
+        string? id = ValidKey(viewerKey);
+        if (id is null)
+        {
+            SetCurrentContext(context);
+            return;
+        }
+
+        if (context is null)
+        {
+            _clientContexts.TryRemove(id, out _);
+            return;
+        }
+
+        _clientContexts[id] = (context, Interlocked.Increment(ref _stamp));
+        EvictStalest();
+    }
+
     public Task<MediaContext?> GetCurrentMediaContextAsync(CancellationToken ct = default)
     {
         return Task.FromResult(Volatile.Read(ref _context));
+    }
+
+    public Task<MediaContext?> GetCurrentMediaContextForClientAsync(string? viewerKey, CancellationToken ct = default)
+    {
+        string? id = ValidKey(viewerKey);
+        return id is not null && _clientContexts.TryGetValue(id, out (MediaContext Context, long Stamp) entry)
+            ? Task.FromResult<MediaContext?>(entry.Context)
+            : GetCurrentMediaContextAsync(ct);
+    }
+
+    // Keys come from WatchViewer.Key, so they are already validated; this only guards direct callers.
+    private static string? ValidKey(string? viewerKey)
+    {
+        return viewerKey is { Length: > 0 and <= 80 } ? viewerKey : null;
+    }
+
+    private void EvictStalest()
+    {
+        while (_clientContexts.Count > MaxClients)
+        {
+            string? oldest = _clientContexts.MinBy(kv => kv.Value.Stamp).Key;
+            if (oldest is null || !_clientContexts.TryRemove(oldest, out _))
+            {
+                return;
+            }
+        }
     }
 
     public Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)

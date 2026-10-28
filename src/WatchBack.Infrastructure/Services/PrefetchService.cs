@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,17 +18,22 @@ public sealed class PrefetchService(
     : IPrefetchService
 {
     // Sentinel stored in IMemoryCache so the prefetch state survives the request scope.
-    private const string StateKey = "watchback:prefetch:state";
+    private const string StateKeyPrefix = "watchback:prefetch:state:";
+
+    // Viewers that currently have prefetch state, so eviction can spare entries another viewer still needs.
+    private readonly ConcurrentDictionary<string, byte> _viewers = new();
+
+    private static string StateKey(string? viewerKey) => StateKeyPrefix + (viewerKey ?? "");
 
     // How long to keep prefetch state tracked (governs stale-entry eviction window).
     private static readonly TimeSpan s_stateTtl = TimeSpan.FromHours(4);
 
-    public void SchedulePrefetch(EpisodeContext current)
+    public void SchedulePrefetch(EpisodeContext current, string? viewerKey = null)
     {
-        EvictStaleTargets(current);
+        EvictStaleTargets(current, viewerKey);
 
         // Already prefetched (or in flight) for this episode — don't re-schedule.
-        if (cache.TryGetValue(StateKey, out PrefetchState? existing) && existing?.TriggerEpisode == current)
+        if (cache.TryGetValue(StateKey(viewerKey), out PrefetchState? existing) && existing?.TriggerEpisode == current)
         {
             return;
         }
@@ -37,7 +44,8 @@ public sealed class PrefetchService(
             return;
         }
 
-        cache.Set(StateKey, new PrefetchState(current, targets), s_stateTtl);
+        cache.Set(StateKey(viewerKey), new PrefetchState(current, targets), s_stateTtl);
+        _viewers[viewerKey ?? ""] = 0;
 
         CancellationToken ct = lifetime.ApplicationStopping;
         _ = Task.Run(async () =>
@@ -56,9 +64,9 @@ public sealed class PrefetchService(
 
     // ── Eviction ─────────────────────────────────────────────────────────────
 
-    private void EvictStaleTargets(EpisodeContext current)
+    private void EvictStaleTargets(EpisodeContext current, string? viewerKey)
     {
-        if (!cache.TryGetValue(StateKey, out PrefetchState? state) || state == null)
+        if (!cache.TryGetValue(StateKey(viewerKey), out PrefetchState? state) || state == null)
         {
             return;
         }
@@ -90,17 +98,47 @@ public sealed class PrefetchService(
 
         using IServiceScope scope = scopeFactory.CreateScope();
         List<IThoughtProvider> providers = scope.ServiceProvider.GetServices<IThoughtProvider>().ToList();
-        EvictAll(stale, providers);
-        cache.Remove(StateKey);
+        EvictAll(stale, providers, ProtectedCacheKeys(viewerKey, providers));
+        cache.Remove(StateKey(viewerKey));
+        _viewers.TryRemove(viewerKey ?? "", out _);
     }
 
-    private void EvictAll(IEnumerable<EpisodeContext> targets, IReadOnlyList<IThoughtProvider> providers)
+    // Cache keys another viewer is on or has warmed: evicting these would make them refetch.
+    private HashSet<string> ProtectedCacheKeys(string? viewerKey, IReadOnlyList<IThoughtProvider> providers)
+    {
+        HashSet<string> keys = [];
+        foreach (string other in _viewers.Keys.Where(k => k != (viewerKey ?? "")))
+        {
+            if (!cache.TryGetValue(StateKey(other.Length == 0 ? null : other), out PrefetchState? state) || state is null)
+            {
+                _viewers.TryRemove(other, out _);
+                continue;
+            }
+
+            foreach (EpisodeContext ep in state.Targets.Append(state.TriggerEpisode))
+            {
+                foreach (IThoughtProvider provider in providers)
+                {
+                    keys.Add(provider.GetCacheKey(ep));
+                }
+            }
+        }
+
+        return keys;
+    }
+
+    private void EvictAll(IEnumerable<EpisodeContext> targets, IReadOnlyList<IThoughtProvider> providers,
+        HashSet<string> protectedKeys)
     {
         foreach (EpisodeContext target in targets)
         {
             foreach (IThoughtProvider provider in providers)
             {
-                cache.Remove(provider.GetCacheKey(target));
+                string key = provider.GetCacheKey(target);
+                if (!protectedKeys.Contains(key))
+                {
+                    cache.Remove(key);
+                }
             }
 
             logger.LogDebug("Prefetch: evicted stale cache for {Title} S{Season}E{Episode}",

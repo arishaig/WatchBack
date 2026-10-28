@@ -21,10 +21,11 @@ public class SyncService(
     : ISyncService
 {
     public async Task<SyncResult> SyncAsync(IProgress<SyncProgressTick>? progress = null,
-        CancellationToken ct = default)
+        string? watchUserId = null, string? clientId = null, CancellationToken ct = default)
     {
         try
         {
+            string? viewerKey = WatchViewer.Key(watchUserId, clientId);
             string configuredName = options.Value.WatchProvider;
             IWatchStateProvider? configuredProvider = watchStateProviders
                                                           .FirstOrDefault(p => p.Metadata.Name.Equals(configuredName,
@@ -43,10 +44,12 @@ public class SyncService(
             bool configuredIsManual = manual != null && configuredProvider == manual;
 
             Task<MediaContext?> configuredTask = configuredProvider != null && !configuredIsManual
-                ? configuredProvider.GetCurrentMediaContextAsync(ct)
+                ? string.IsNullOrEmpty(watchUserId)
+                    ? configuredProvider.GetCurrentMediaContextAsync(ct)
+                    : configuredProvider.GetCurrentMediaContextAsync(watchUserId, ct)
                 : Task.FromResult<MediaContext?>(null);
 
-            MediaContext? manualContext = manual != null ? await manual.GetCurrentMediaContextAsync(ct) : null;
+            MediaContext? manualContext = manual != null ? await manual.GetCurrentMediaContextForClientAsync(viewerKey, ct) : null;
             if (manualContext is not null)
             {
                 watchStateProvider = manual;
@@ -135,7 +138,7 @@ public class SyncService(
 
             if (mediaContext is EpisodeContext episode)
             {
-                prefetchService.SchedulePrefetch(episode);
+                prefetchService.SchedulePrefetch(episode, viewerKey);
             }
 
             return result;

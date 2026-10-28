@@ -1,6 +1,11 @@
 export type SaveStatus = 'saving' | 'saved' | 'error' | null;
 export type TestStatus = 'testing' | 'ok' | 'error' | 'warn' | null;
 
+export interface WatchUser {
+    id: string;
+    name: string;
+}
+
 export interface Thought {
     source: string;
     brandColor?: string;
@@ -167,6 +172,10 @@ export interface AppData {
     prefEdits: Record<string, unknown>;
     prefSaveStatus: SaveStatus;
     lightboxImg: string | null;
+    watchUsers: WatchUser[];
+    watchUserId: string;
+    clientId: string;
+    showUserPicker: boolean;
     groupByThread: boolean;
     theme: string;
     collapsedSections: Record<string, boolean>;
@@ -298,6 +307,11 @@ export interface AppData {
     clearManualWatchState(): Promise<void>;
 
     setupSSE(): void;
+    viewerQuery(): string;
+    manualStateUrl(): string;
+    loadWatchUsers(): Promise<void>;
+    selectWatchUser(id: string): void;
+    currentWatchUserName(): string;
     clearCache(): Promise<void>;
     restart(): Promise<void>;
     waitForServerRestart(): Promise<void>;

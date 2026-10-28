@@ -616,6 +616,15 @@
             <h1 class="text-2xl font-bold wb-accent-text hide-on-mobile">WatchBack</h1>
         </div>
         <div class="flex gap-2">
+            <button :title="t('WatchUser_Change')" @click="showUserPicker = true"
+                    class="px-3 py-2 rounded-lg text-sm leading-none cursor-pointer wb-btn wb-surface-alt
+                           wb-text-muted wb-border border flex items-center gap-2
+                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
+                    x-cloak
+                    x-show="watchUsers.length > 1 && watchUserId">
+                <ion-icon aria-hidden="true" name="person-sharp"></ion-icon>
+                <span class="hide-on-mobile" x-text="currentWatchUserName()"></span>
+            </button>
             <button :title="t('Auth_SignOut')" @click="void logout()"
                     class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface-alt
                            wb-text-muted wb-border border
@@ -2398,6 +2407,30 @@
             </span>
             </li>
         </ul>
+    </div>
+
+    <!-- Watch user picker -->
+    <div @keydown.escape.window="if (watchUserId) showUserPicker = false"
+         aria-modal="true" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog"
+         :aria-label="t('WatchUser_PickTitle')"
+         style="background-color: rgba(0,0,0,0.6);"
+         x-cloak
+         x-show="showUserPicker && watchUsers.length > 1" x-transition.opacity.duration.200ms>
+        <div class="wb-surface wb-border border rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <h2 class="text-lg font-bold wb-text mb-1" x-text="t('WatchUser_PickTitle')"></h2>
+            <p class="text-sm wb-text-muted mb-4" x-text="t('WatchUser_PickPrompt')"></p>
+            <ul class="flex flex-col gap-2">
+                <template :key="u.id" x-for="u in watchUsers">
+                    <li>
+                        <button :class="u.id === watchUserId ? 'wb-bg-accent wb-on-accent' : 'wb-surface-alt wb-text'"
+                                @click="selectWatchUser(u.id)"
+                                class="w-full text-left px-4 py-2 rounded-lg cursor-pointer wb-btn wb-border border
+                                       hover:scale-[1.01] active:scale-95 transition-all"
+                                x-text="u.name"></button>
+                    </li>
+                </template>
+            </ul>
+        </div>
     </div>
 
     <!-- Image lightbox overlay -->

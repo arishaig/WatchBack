@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import systemMethods from '../../src/modules/system';
+import syncMethods from '../../src/modules/sync';
 
 const methods = systemMethods as Record<string, Function>;
 
@@ -17,10 +18,11 @@ const methods = systemMethods as Record<string, Function>;
 interface FakeSSE {
     onmessage: ((e: MessageEvent) => void) | null;
     onerror: (() => void) | null;
+    close: () => void;
 }
 
 function installFakeEventSource(): FakeSSE {
-    const sse: FakeSSE = { onmessage: null, onerror: null };
+    const sse: FakeSSE = { onmessage: null, onerror: null, close: vi.fn() };
     (globalThis as unknown as { window: unknown }).window = (globalThis as unknown as { window: Record<string, unknown> }).window || {};
     (globalThis as unknown as { window: Record<string, unknown> }).window.ReconnectingEventSource = function () {
         return sse;
@@ -38,9 +40,45 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
         showSyncBar: false,
         syncSegments: [],
         data: null,
+        watchUserId: '',
+        clientId: '',
+        viewerQuery: (syncMethods as Record<string, Function>).viewerQuery,
         ...overrides,
     };
 }
+
+describe('setupSSE stream URL', () => {
+    function captureUrl(ctx: Record<string, unknown>): string {
+        let url = '';
+        (window as unknown as Record<string, unknown>).ReconnectingEventSource = function (u: string) {
+            url = u;
+            return { onmessage: null, onerror: null, close: vi.fn() };
+        } as unknown;
+        methods.setupSSE.call(ctx);
+        return url;
+    }
+
+    it('follows any session when no user is chosen', () => {
+        expect(captureUrl(makeCtx())).toBe('/api/sync/stream');
+    });
+
+    it('passes the chosen user id to the stream', () => {
+        expect(captureUrl(makeCtx({ watchUserId: 'abc 123' }))).toBe('/api/sync/stream?userId=abc+123');
+    });
+
+    it('passes the per-browser client id alongside the user id', () => {
+        expect(captureUrl(makeCtx({ watchUserId: 'u1', clientId: 'c-1' })))
+            .toBe('/api/sync/stream?userId=u1&clientId=c-1');
+    });
+
+    it('closes the previous stream when reconnecting', () => {
+        const first = installFakeEventSource();
+        methods.setupSSE.call(makeCtx());
+        installFakeEventSource();
+        methods.setupSSE.call(makeCtx({ watchUserId: 'x' }));
+        expect(first.close).toHaveBeenCalled();
+    });
+});
 
 describe('setupSSE', () => {
     beforeEach(() => { vi.useFakeTimers(); });

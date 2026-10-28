@@ -351,7 +351,7 @@ public class SyncServiceTests
         MediaContext manualContext = new("Manual Movie", DateTimeOffset.UtcNow);
         IManualWatchStateProvider manual = Substitute.For<IManualWatchStateProvider>();
         manual.Metadata.Returns(new WatchStateDataProviderMetadata("Manual", "Manual"));
-        manual.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(manualContext);
+        manual.GetCurrentMediaContextForClientAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(manualContext);
 
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
@@ -379,7 +379,7 @@ public class SyncServiceTests
 
         IManualWatchStateProvider manual = Substitute.For<IManualWatchStateProvider>();
         manual.Metadata.Returns(new WatchStateDataProviderMetadata("Manual", "Manual"));
-        manual.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(manualContext);
+        manual.GetCurrentMediaContextForClientAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(manualContext);
 
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(configuredContext);
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
@@ -406,7 +406,7 @@ public class SyncServiceTests
 
         IManualWatchStateProvider manual = Substitute.For<IManualWatchStateProvider>();
         manual.Metadata.Returns(new WatchStateDataProviderMetadata("Manual", "Manual"));
-        manual.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
+        manual.GetCurrentMediaContextForClientAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
 
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(configuredContext);
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
@@ -672,5 +672,45 @@ public class SyncServiceTests
         // Assert
         await activeProvider.Received(1).GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
         await disabledProvider.DidNotReceive().GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SyncAsync_WithWatchUserId_AsksProviderForThatUsersPlayback()
+    {
+        // Arrange
+        _watchStateProvider.GetCurrentMediaContextAsync("user-1", Arg.Any<CancellationToken>())
+            .Returns((MediaContext?)null);
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [Substitute.For<IThoughtProvider>()], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, _options, NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync(null, "user-1");
+
+        // Assert
+        result.Status.Should().Be(SyncStatus.Idle);
+        await _watchStateProvider.Received(1).GetCurrentMediaContextAsync("user-1", Arg.Any<CancellationToken>());
+        await _watchStateProvider.DidNotReceive().GetCurrentMediaContextAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SyncAsync_WithClientId_UsesThatClientsManualContext()
+    {
+        // Arrange
+        IManualWatchStateProvider manual = Substitute.For<IManualWatchStateProvider>();
+        manual.Metadata.Returns(new WatchStateDataProviderMetadata("Manual", "Manual"));
+        manual.GetCurrentMediaContextForClientAsync("c:client-a", Arg.Any<CancellationToken>())
+            .Returns(new MediaContext("Alien", null));
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
+        SyncService service = new([_watchStateProvider], [manual],
+            [Substitute.For<IThoughtProvider>()], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, _options, NullLogger<SyncService>.Instance);
+
+        // Act
+        SyncResult result = await service.SyncAsync(null, null, "client-a");
+
+        // Assert
+        result.Title.Should().Be("Alien");
+        await manual.Received(1).GetCurrentMediaContextForClientAsync("c:client-a", Arg.Any<CancellationToken>());
     }
 }

@@ -1238,5 +1238,23 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("Checklist_AllDone", resourceCulture);
             }
         }
+        
+        public static string WatchUser_PickTitle {
+            get {
+                return ResourceManager.GetString("WatchUser_PickTitle", resourceCulture);
+            }
+        }
+        
+        public static string WatchUser_PickPrompt {
+            get {
+                return ResourceManager.GetString("WatchUser_PickPrompt", resourceCulture);
+            }
+        }
+        
+        public static string WatchUser_Change {
+            get {
+                return ResourceManager.GetString("WatchUser_Change", resourceCulture);
+            }
+        }
     }
 }

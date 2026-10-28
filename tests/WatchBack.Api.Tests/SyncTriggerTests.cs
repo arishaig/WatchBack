@@ -71,4 +71,39 @@ public sealed class SyncTriggerTests
         wait1.IsCompletedSuccessfully.Should().BeTrue();
         wait2.IsCompletedSuccessfully.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task Signal_ForOneViewer_DoesNotWakeAnotherViewer()
+    {
+        Task alice = _trigger.WaitAsync("u:alice", CancellationToken.None);
+        Task bob = _trigger.WaitAsync("u:bob", CancellationToken.None);
+
+        _trigger.Signal("u:alice");
+
+        await alice.WaitAsync(TimeSpan.FromSeconds(2));
+        await Task.Delay(50);
+        bob.IsCompleted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Signal_WithoutKey_WakesEveryViewer()
+    {
+        Task alice = _trigger.WaitAsync("u:alice", CancellationToken.None);
+        Task bob = _trigger.WaitAsync("c:bob", CancellationToken.None);
+
+        _trigger.Signal();
+
+        await Task.WhenAll(alice, bob).WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task Signal_ForViewer_WakesAllWaitersOfThatViewer()
+    {
+        Task first = _trigger.WaitAsync("u:alice", CancellationToken.None);
+        Task second = _trigger.WaitAsync("u:alice", CancellationToken.None);
+
+        _trigger.Signal("u:alice");
+
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(2));
+    }
 }

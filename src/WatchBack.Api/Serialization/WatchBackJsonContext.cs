@@ -21,6 +21,7 @@ namespace WatchBack.Api.Serialization;
 [JsonSerializable(typeof(List<ProviderSyncRecord>))]
 [JsonSerializable(typeof(DiagnosticsStatusResponse))]
 [JsonSerializable(typeof(IReadOnlyList<MediaSearchResult>))]
+[JsonSerializable(typeof(IReadOnlyList<WatchUser>))]
 [JsonSerializable(typeof(IReadOnlyList<SeasonInfo>))]
 [JsonSerializable(typeof(IReadOnlyList<EpisodeInfo>))]
 [JsonSerializable(typeof(IReadOnlyList<MediaRatingResponse>))]

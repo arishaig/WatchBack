@@ -390,6 +390,7 @@ app.MapStringsEndpoints();
 app.MapAuthEndpoints();
 RouteGroupBuilder protectedGroup = app.MapGroup("").RequireAuthorization();
 protectedGroup.MapSyncEndpoints();
+protectedGroup.MapWatchUserEndpoints();
 protectedGroup.MapConfigEndpoints();
 protectedGroup.MapSystemEndpoints();
 protectedGroup.MapDiagnosticsEndpoints();

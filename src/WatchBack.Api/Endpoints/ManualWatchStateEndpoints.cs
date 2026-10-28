@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Mvc;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Resources;
@@ -28,7 +30,9 @@ public static class ManualWatchStateEndpoints
 
     private static IResult SetManualWatchState(
         SetManualWatchStateRequest request,
-        IManualWatchStateProvider provider)
+        IManualWatchStateProvider provider,
+        [FromQuery] string? userId = null,
+        [FromQuery] string? clientId = null)
     {
         if (string.IsNullOrWhiteSpace(request.Title))
         {
@@ -54,13 +58,16 @@ public static class ManualWatchStateEndpoints
                 request.ExternalIds);
         }
 
-        provider.SetCurrentContext(context);
+        provider.SetCurrentContext(WatchViewer.Key(userId, clientId), context);
         return Results.NoContent();
     }
 
-    private static IResult ClearManualWatchState(IManualWatchStateProvider provider)
+    private static IResult ClearManualWatchState(
+        IManualWatchStateProvider provider,
+        [FromQuery] string? userId = null,
+        [FromQuery] string? clientId = null)
     {
-        provider.SetCurrentContext(null);
+        provider.SetCurrentContext(WatchViewer.Key(userId, clientId), null);
         return Results.NoContent();
     }
 }

@@ -749,4 +749,13 @@
     <data name="Time_SecondsAgo" xml:space="preserve">
         <value>Hace {0} segundos</value>
     </data>
+    <data name="WatchUser_PickTitle" xml:space="preserve">
+        <value>¿Quién está viendo?</value>
+    </data>
+    <data name="WatchUser_PickPrompt" xml:space="preserve">
+        <value>Elige el usuario cuya reproducción debe seguir WatchBack en este dispositivo.</value>
+    </data>
+    <data name="WatchUser_Change" xml:space="preserve">
+        <value>Cambiar de usuario</value>
+    </data>
 </root>

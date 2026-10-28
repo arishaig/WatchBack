@@ -28,9 +28,9 @@ public static partial class SyncEndpoints
                 "Retrieves the current media context, all associated thoughts from providers, and filtered time-machine thoughts")
             .Produces<SyncResponse>();
 
-        group.MapPost("/sync/trigger", (SyncTrigger trigger) =>
+        group.MapPost("/sync/trigger", (SyncTrigger trigger, [FromQuery] string? userId, [FromQuery] string? clientId) =>
             {
-                trigger.Signal();
+                trigger.Signal(WatchViewer.Key(userId, clientId));
                 return Results.NoContent();
             })
             .WithName("TriggerSync")
@@ -63,10 +63,12 @@ public static partial class SyncEndpoints
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         IOptionsSnapshot<WatchBackOptions> watchback,
         SentimentScorer scorer,
-        CancellationToken ct)
+        CancellationToken ct,
+        [FromQuery] string? userId = null,
+        [FromQuery] string? clientId = null)
     {
         HashSet<string> disabled = ParseDisabled(watchback.Value.DisabledProviders);
-        SyncResult result = await syncService.SyncAsync(null, ct);
+        SyncResult result = await syncService.SyncAsync(null, userId, WatchClientId.Normalize(clientId), ct);
         return MapSyncResult(result, BuildBrandLookup(thoughtProviders.Where(p => p.ConfigSection is null || !disabled.Contains(p.ConfigSection))), watchback.Value.EnableSentimentAnalysis, scorer);
     }
 
@@ -80,8 +82,11 @@ public static partial class SyncEndpoints
         SentimentScorer scorer,
         ILoggerFactory loggerFactory,
         HttpContext context,
-        CancellationToken ct)
+        CancellationToken ct,
+        [FromQuery] string? userId = null,
+        [FromQuery] string? clientId = null)
     {
+        string? viewerKey = WatchViewer.Key(userId, clientId);
         context.Response.ContentType = "text/event-stream";
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
@@ -109,11 +114,11 @@ public static partial class SyncEndpoints
                 await context.Response.WriteAsync(reporter.BuildInitialEvent(), ct);
                 await context.Response.Body.FlushAsync(ct);
 
-                // Start sync (gated so only one runs at a time across all SSE clients);
+                // Start sync (gated so only one runs at a time per viewer);
                 // complete the channel when it finishes so ReadAllAsync terminates.
                 Stopwatch syncStopwatch = Stopwatch.StartNew();
                 Task<SyncResult> syncTask = syncGate.ExecuteAsync(
-                    () => syncService.SyncAsync(progress, ct), ct);
+                    () => syncService.SyncAsync(progress, userId, WatchClientId.Normalize(clientId), ct), ct, viewerKey);
                 _ = syncTask.ContinueWith(
                     t => channel.Writer.Complete(t.IsFaulted ? t.Exception : null),
                     TaskScheduler.Default);
@@ -139,7 +144,7 @@ public static partial class SyncEndpoints
                     .ToList();
                 syncHistory.Record(
                     new SyncSnapshot(DateTimeOffset.UtcNow, result.Status.ToString(), result.Title, sourceRecords),
-                    syncStopwatch.ElapsedMilliseconds);
+                    syncStopwatch.ElapsedMilliseconds, viewerKey);
 
                 SyncResponse response = MapSyncResult(result, brandLookup, watchback.Value.EnableSentimentAnalysis, scorer);
                 string json = JsonSerializer.Serialize(response, WatchBackJsonContext.Default.SyncResponse);
@@ -151,7 +156,7 @@ public static partial class SyncEndpoints
                 // Wait up to 5 s, but wake immediately if the user hits the Sync button
                 using CancellationTokenSource delayCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 delayCts.CancelAfter(5000);
-                try { await syncTrigger.WaitAsync(delayCts.Token); }
+                try { await syncTrigger.WaitAsync(viewerKey, delayCts.Token); }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {
                     /* normal timeout */

@@ -1,19 +1,70 @@
-import type { AppData, MediaSearchResult, SeasonSummary, EpisodeResult } from '../types';
+import type { AppData, MediaSearchResult, SeasonSummary, EpisodeResult, WatchUser } from '../types';
 import { uiLog } from '../utils/uiLogger';
 
 const syncMethods: Record<string, unknown> & ThisType<AppData> = {
+    // Identifies this viewer to the server: the chosen Jellyfin user (so browsers signed in as the
+    // same user share state) and this browser's own id (so everyone else stays independent).
+    viewerQuery() {
+        const params = new URLSearchParams();
+        if (this.watchUserId) params.set('userId', this.watchUserId);
+        if (this.clientId) params.set('clientId', this.clientId);
+        const query = params.toString();
+        return query ? '?' + query : '';
+    },
+
     async sync() {
         console.debug("[WatchBack] Triggering sync...");
         uiLog("sync.trigger", "Sync trigger sent", undefined, "Information");
         this.data = null;
         try {
-            const res = await fetch('/api/sync/trigger', { method: 'POST' });
+            const res = await fetch('/api/sync/trigger' + this.viewerQuery(), { method: 'POST' });
             uiLog("sync.trigger.response", "Sync trigger response", { status: res.status });
         } catch (e) {
             console.error("[WatchBack] Trigger failed:", e);
             uiLog("sync.trigger.error", "Sync trigger failed", { error: String(e) }, "Error");
             this.showError(this.t('Auth_ConnectionFailed'));
         }
+    },
+
+    // Asks the server who can be followed. The picker is only offered when the
+    // watch source has more than one user; a single user needs no choice.
+    async loadWatchUsers() {
+        let users: WatchUser[] = [];
+        try {
+            const res = await fetch('/api/watchstate/users', { signal: AbortSignal.timeout(8000) });
+            if (res.ok) users = await res.json() as WatchUser[];
+        } catch (e) {
+            uiLog("watchUsers.error", "Watch user list failed", { error: String(e) }, "Warning");
+        }
+        this.watchUsers = users;
+        if (users.length < 2) {
+            this.watchUserId = '';
+            this.showUserPicker = false;
+            try { localStorage.removeItem('wb_watchUser'); } catch { /* storage unavailable */ }
+            return;
+        }
+        if (!users.some(u => u.id === this.watchUserId)) {
+            this.watchUserId = '';
+            this.showUserPicker = true;
+        }
+    },
+
+    selectWatchUser(id: string) {
+        uiLog("watchUsers.select", "Watch user selected", { id });
+        this.watchUserId = id;
+        this.showUserPicker = false;
+        try { localStorage.setItem('wb_watchUser', id); } catch { /* storage unavailable */ }
+        this.data = null;
+        this.setupSSE();
+        void this.sync();
+    },
+
+    currentWatchUserName() {
+        return this.watchUsers.find(u => u.id === this.watchUserId)?.name ?? '';
+    },
+
+    manualStateUrl() {
+        return '/api/watchstate/manual' + this.viewerQuery();
     },
 
     async searchMedia() {
@@ -113,7 +164,7 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
     async setManualWatchState(context: Record<string, unknown>) {
         uiLog("sync.manualState.set", "Setting manual watch state", { title: context['title'] }, "Information");
         try {
-            const res = await fetch('/api/watchstate/manual', {
+            const res = await fetch(this.manualStateUrl(), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -146,7 +197,7 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
     async clearManualWatchState() {
         uiLog("sync.manualState.clear", "Clearing manual watch state", undefined, "Information");
         try {
-            await fetch('/api/watchstate/manual', { method: 'DELETE' });
+            await fetch(this.manualStateUrl(), { method: 'DELETE' });
             await this.sync();
         } catch (e) {
             uiLog("sync.manualState.clearError", "Clear manual watch state failed", { error: String(e) }, "Error");

@@ -77,4 +77,50 @@ public sealed class SyncGateTests : IDisposable
         hold.SetResult();
         await holder;
     }
+
+    [Fact]
+    public async Task ExecuteAsync_DifferentViewers_DoNotBlockEachOther()
+    {
+        TaskCompletionSource release = new();
+        TaskCompletionSource slowStarted = new();
+
+        Task<int> slow = _gate.ExecuteAsync(async () =>
+        {
+            slowStarted.SetResult();
+            await release.Task;
+            return 1;
+        }, CancellationToken.None, "u:alice");
+        await slowStarted.Task;
+
+        int other = await _gate.ExecuteAsync(() => Task.FromResult(2), CancellationToken.None, "u:bob")
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        other.Should().Be(2);
+        slow.IsCompleted.Should().BeFalse();
+        release.SetResult();
+        await slow;
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SameViewer_StillSerializes()
+    {
+        TaskCompletionSource release = new();
+        TaskCompletionSource firstStarted = new();
+
+        Task<int> first = _gate.ExecuteAsync(async () =>
+        {
+            firstStarted.SetResult();
+            await release.Task;
+            return 1;
+        }, CancellationToken.None, "u:alice");
+        await firstStarted.Task;
+
+        Task<int> second = _gate.ExecuteAsync(() => Task.FromResult(2), CancellationToken.None, "u:alice");
+        await Task.Delay(50);
+        second.IsCompleted.Should().BeFalse();
+
+        release.SetResult();
+        (await second).Should().Be(2);
+        await first;
+    }
 }
