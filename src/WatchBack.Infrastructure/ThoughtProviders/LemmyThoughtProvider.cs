@@ -27,6 +27,10 @@ public sealed class LemmyThoughtProvider(
 {
     private static readonly ThoughtResult s_empty = new("Lemmy", null, null, null, [], null);
 
+    // Returned (and briefly cached) when the lookup itself failed, as opposed to finding nothing,
+    // so the thought cache never stores an outage as a confirmed miss.
+    private static readonly ThoughtResult s_failed = s_empty with { IsTransientFailure = true };
+
     // Failed lookups (errors, timeouts, non-2xx) are cached briefly: long enough that the 5-second poll
     // loop doesn't redo them every cycle, short enough that an outage doesn't hide results for the full TTL.
     private static readonly TimeSpan s_failureCacheTtl = TimeSpan.FromSeconds(60);
@@ -122,9 +126,10 @@ public sealed class LemmyThoughtProvider(
                 if (posts.Length == 0)
                 {
                     // Only an answer from Lemmy is a real miss; if every search failed, retry soon.
-                    cache.Set(cacheKey, s_empty,
+                    ThoughtResult miss = anySearchSucceeded ? s_empty : s_failed;
+                    cache.Set(cacheKey, miss,
                         anySearchSucceeded ? TimeSpan.FromSeconds(_options.CacheTtlSeconds) : s_failureCacheTtl);
-                    return s_empty;
+                    return miss;
                 }
 
                 DateTimeOffset? dateFloor = IThoughtProvider.GetDateFloor(mediaContext);
@@ -194,10 +199,10 @@ public sealed class LemmyThoughtProvider(
                 // A cancelled request (viewer disconnected) isn't a Lemmy failure; let the next viewer retry.
                 if (!ct.IsCancellationRequested)
                 {
-                    cache.Set(cacheKey, s_empty, s_failureCacheTtl);
+                    cache.Set(cacheKey, s_failed, s_failureCacheTtl);
                 }
 
-                return s_empty;
+                return s_failed;
             }
         }
         finally

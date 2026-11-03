@@ -38,6 +38,10 @@ public sealed class RedditThoughtProvider(
     private const int SearchSpecCount = 10;
     private static readonly ThoughtResult s_empty = new("Reddit", null, null, null, [], null);
 
+    // Returned (and briefly cached) when the lookup itself failed, as opposed to finding nothing,
+    // so the thought cache never stores an outage as a confirmed miss.
+    private static readonly ThoughtResult s_failed = s_empty with { IsTransientFailure = true };
+
     // A miss from a lookup with no air date. Prefetch predicts the next episode without knowing its date,
     // so Arctic Shift can only list the subreddit's newest posts: for an old show the thread is never there.
     // That miss is cached as this distinct instance (compared by reference) so a later lookup of the same
@@ -198,7 +202,8 @@ public sealed class RedditThoughtProvider(
 
             if (submissions.Count == 0)
             {
-                ThoughtResult emptyResult = mediaContext.ReleaseDate is null ? s_undatedMiss : s_empty;
+                ThoughtResult emptyResult = !anySpecSucceeded ? s_failed
+                    : mediaContext.ReleaseDate is null ? s_undatedMiss : s_empty;
                 // Confirmed archive misses (at least one valid response) get the full TTL.
                 // Timeout/network/429 failures are transient, so they're only cached briefly:
                 // retrying every poll cycle would re-report progress ticks and flash the
@@ -285,7 +290,7 @@ public sealed class RedditThoughtProvider(
         catch (Exception ex)
         {
             logger.LogError(ex, "Reddit thought fetch failed");
-            return s_empty;
+            return s_failed;
         }
     }
 

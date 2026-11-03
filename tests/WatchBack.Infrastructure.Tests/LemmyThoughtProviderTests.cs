@@ -145,6 +145,7 @@ public class LemmyThoughtProviderTests : IDisposable
         result.Should().NotBeNull();
         result!.Source.Should().Be("Lemmy");
         result.Thoughts.Should().BeEmpty();
+        result.IsTransientFailure.Should().BeFalse("Lemmy answered: this is a confirmed miss");
     }
 
     [Fact]
@@ -183,10 +184,12 @@ public class LemmyThoughtProviderTests : IDisposable
         LemmyThoughtProvider provider = CreateProvider(new HttpClient(handler));
 
         ThoughtResult? first = await provider.GetThoughtsAsync(mediaContext);
-        await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? second = await provider.GetThoughtsAsync(mediaContext);
 
         first!.Thoughts.Should().BeEmpty();
         requests.Should().Be(1);
+        first.IsTransientFailure.Should().BeTrue();
+        second!.IsTransientFailure.Should().BeTrue("the briefly cached failure must still read as a failure");
     }
 
     // Regression: a non-2xx search was cached as a confirmed "no posts" for the full TTL (1h by default),
@@ -205,12 +208,13 @@ public class LemmyThoughtProviderTests : IDisposable
         LemmyThoughtProvider provider = CreateProvider(new HttpClient(handler),
             new LemmyOptions { InstanceUrl = "https://lemmy.world", MaxPosts = 3, CacheTtlSeconds = 1 });
 
-        await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? first = await provider.GetThoughtsAsync(mediaContext);
         int requestsAfterFirst = requests;
         await Task.Delay(TimeSpan.FromMilliseconds(1500));
         await provider.GetThoughtsAsync(mediaContext);
 
         requests.Should().Be(requestsAfterFirst, "a failure is cached with the short failure TTL, not the miss TTL");
+        first!.IsTransientFailure.Should().BeTrue();
     }
 
     [Fact]

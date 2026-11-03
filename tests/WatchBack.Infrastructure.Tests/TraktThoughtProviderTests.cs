@@ -249,9 +249,10 @@ public class TraktThoughtProviderTests : IDisposable
             Substitute.For<IReplyTreeBuilder>(), NullLogger<TraktThoughtProvider>.Instance);
 
         ConcurrentBag<SyncProgressTick> ticks = new();
-        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
 
         ticks.Should().ContainSingle(t => t.Weight == 1 && t.Provider == "Trakt");
+        result!.IsTransientFailure.Should().BeTrue();
     }
 
     // Regression: the SSE loop polls every few seconds and the frontend shows the

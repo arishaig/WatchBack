@@ -72,10 +72,15 @@ public record Thought(
 /// <param name="ImageUrl">The hero image for the post, if returned from the source</param>
 /// <param name="Thoughts">A collection of Thoughts</param>
 /// <param name="NextPageToken">If the response is paginated, the token for the next page</param>
+/// <param name="IsTransientFailure">
+///     True when the lookup failed (timeout, outage, rate limit) rather than finding nothing.
+///     Such results are never stored as a confirmed miss.
+/// </param>
 public record ThoughtResult(
     string Source,
     string? PostTitle,
     string? PostUrl,
     string? ImageUrl,
     IReadOnlyCollection<Thought>? Thoughts,
-    string? NextPageToken);
+    string? NextPageToken,
+    bool IsTransientFailure = false);

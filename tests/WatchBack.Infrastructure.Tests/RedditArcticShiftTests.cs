@@ -187,9 +187,11 @@ public sealed class RedditArcticShiftTests : IDisposable
         ThoughtResult? first = await provider.GetThoughtsAsync(s_episode);
         int requestsAfterFirst = arcticShiftRequests;
         await Task.Delay(TimeSpan.FromMilliseconds(1500));
-        await provider.GetThoughtsAsync(s_episode);
+        ThoughtResult? second = await provider.GetThoughtsAsync(s_episode);
 
         first!.Thoughts!.Should().BeEmpty();
+        first.IsTransientFailure.Should().BeTrue();
+        second!.IsTransientFailure.Should().BeTrue("the briefly cached failure must still read as a failure");
         arcticShiftRequests.Should().Be(requestsAfterFirst, "a timeout is cached with the short failure TTL, not the miss TTL");
         // The long-TTL entry would have expired by now and triggered a refetch.
     }
