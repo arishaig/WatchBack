@@ -104,6 +104,23 @@ describe('sanitizeSvg', () => {
             expect(result).not.toContain('javascript:');
         });
 
+        it.each([
+            ['data:', 'data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=='],
+            ['vbscript:', 'vbscript:msgbox(1)'],
+            ['mixed-case JavaScript:', 'JaVaScRiPt:alert(1)'],
+            ['embedded tab in scheme', 'java&#9;script:alert(1)'],
+        ])('removes href with %s scheme', (_label, url) => {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg"><a href="${url}"><rect/></a></svg>`;
+            const result = sanitizeSvg(svg);
+            expect(result).not.toMatch(/href=/);
+        });
+
+        it('removes xlink:href with javascript: scheme', () => {
+            const svg = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><a xlink:href="javascript:alert(1)"><rect/></a></svg>';
+            const result = sanitizeSvg(svg);
+            expect(result).not.toContain('javascript:');
+        });
+
         it('preserves safe https href', () => {
             const svg = '<svg xmlns="http://www.w3.org/2000/svg"><a href="https://example.com"><rect/></a></svg>';
             const result = sanitizeSvg(svg);
