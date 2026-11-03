@@ -15,6 +15,7 @@ namespace WatchBack.Infrastructure.Services;
 public sealed class PrefetchService(
     IServiceScopeFactory scopeFactory,
     IMemoryCache cache,
+    IMediaResultCache resultCache,
     ILogger<PrefetchService> logger,
     IHostApplicationLifetime lifetime)
     : IPrefetchService
@@ -136,10 +137,9 @@ public sealed class PrefetchService(
         {
             foreach (IThoughtProvider provider in providers)
             {
-                string key = provider.GetCacheKey(target);
-                if (!protectedKeys.Contains(key))
+                if (!protectedKeys.Contains(provider.GetCacheKey(target)))
                 {
-                    cache.Remove(key);
+                    resultCache.Evict(provider, target);
                 }
             }
 
@@ -175,7 +175,9 @@ public sealed class PrefetchService(
             {
                 try
                 {
-                    await provider.GetThoughtsAsync(target, null, ct);
+                    // Through the result cache, so a viewer reaching this episode while the
+                    // prediction is still being fetched joins it instead of fetching again.
+                    await resultCache.GetThoughtsAsync(provider, target, null, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {

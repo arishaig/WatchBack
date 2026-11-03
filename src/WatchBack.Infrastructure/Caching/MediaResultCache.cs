@@ -92,8 +92,7 @@ public sealed class MediaResultCache(
         }
 
         await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
-        IThoughtProvider target = scope.ServiceProvider.GetServices<IThoughtProvider>()
-            .FirstOrDefault(p => p.GetType() == provider.GetType()) ?? provider;
+        IThoughtProvider target = InScope(scope, provider);
         ThoughtResult? result = await target.GetThoughtsAsync(mediaContext, progress, ct);
 
         DateTimeOffset now = time.GetUtcNow();
@@ -163,8 +162,7 @@ public sealed class MediaResultCache(
         }
 
         await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
-        IRatingsProvider target = scope.ServiceProvider.GetServices<IRatingsProvider>()
-            .FirstOrDefault(p => p.GetType() == provider.GetType()) ?? provider;
+        IRatingsProvider target = InScope(scope, provider);
         IReadOnlyList<MediaRating> ratings = await target.GetRatingsAsync(imdbId, ct);
 
         DateTimeOffset now = time.GetUtcNow();
@@ -227,6 +225,18 @@ public sealed class MediaResultCache(
 
     private static string RatingsKey(IRatingsProvider provider, string imdbId) =>
         $"results:ratings:{provider.Metadata.Name}:{imdbId}";
+
+    // The same provider resolved in the fetch's own scope, so the caller's scope ending (a viewer
+    // disconnecting) can't dispose its HttpClient mid-fetch. Falls back to the caller's instance when it
+    // is itself registered as-is (a singleton) or isn't registered at all.
+    private static TProvider InScope<TProvider>(AsyncServiceScope scope, TProvider provider)
+        where TProvider : class, IDataProvider
+    {
+        TProvider[] registered = scope.ServiceProvider.GetServices<TProvider>().ToArray();
+        return registered.Contains(provider)
+            ? provider
+            : registered.FirstOrDefault(p => p.GetType() == provider.GetType()) ?? provider;
+    }
 
     private bool TryGetMemory<T>(string key, out T? value)
     {

@@ -16,6 +16,7 @@ public class SyncService(
     IEnumerable<IRatingsProvider> ratingsProviders,
     ITimeMachineFilter timeMachineFilter,
     IPrefetchService prefetchService,
+    IMediaResultCache resultCache,
     IOptionsSnapshot<WatchBackOptions> options,
     ILogger<SyncService> logger)
     : ISyncService
@@ -90,11 +91,11 @@ public class SyncService(
             mediaContext.ExternalIds?.TryGetValue(Imdb, out imdbId);
             List<IRatingsProvider> ratingsProviderList = ratingsProviders.ToList();
             Task<IReadOnlyList<MediaRating>[]> ratingsTask = !string.IsNullOrEmpty(imdbId)
-                ? Task.WhenAll(ratingsProviderList.Select(p => p.GetRatingsAsync(imdbId, ct)))
+                ? Task.WhenAll(ratingsProviderList.Select(p => resultCache.GetRatingsAsync(p, mediaContext, imdbId, ct)))
                 : Task.FromResult<IReadOnlyList<MediaRating>[]>([]);
 
             ThoughtResult?[] rawResults = await Task.WhenAll(
-                activeProviders.Select(p => p.GetThoughtsAsync(mediaContext, progress, ct)));
+                activeProviders.Select(p => resultCache.GetThoughtsAsync(p, mediaContext, progress, ct)));
 
             List<ThoughtResult> sourceResults = activeProviders
                 .Zip(rawResults)

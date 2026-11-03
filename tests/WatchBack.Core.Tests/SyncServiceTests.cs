@@ -40,7 +40,7 @@ public class SyncServiceTests
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
         IThoughtProvider[] thoughtProviders = [Substitute.For<IThoughtProvider>()];
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
-            thoughtProviders, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options,
+            thoughtProviders, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, new PassThroughResultCache(), _options,
             NullLogger<SyncService>.Instance);
 
         // Act
@@ -97,7 +97,7 @@ public class SyncServiceTests
 
         IThoughtProvider[] thoughtProviders = [thoughtProvider];
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
-            thoughtProviders, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options,
+            thoughtProviders, Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, new PassThroughResultCache(), _options,
             NullLogger<SyncService>.Instance);
 
         // Act
@@ -146,7 +146,7 @@ public class SyncServiceTests
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
             [provider1, provider2, provider3], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         await service.SyncAsync();
@@ -190,7 +190,7 @@ public class SyncServiceTests
             .Returns(filteredThoughts);
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
-            [thoughtProvider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options,
+            [thoughtProvider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, new PassThroughResultCache(), _options,
             NullLogger<SyncService>.Instance);
 
         // Act
@@ -234,7 +234,7 @@ public class SyncServiceTests
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
             [thoughtProvider1, thoughtProvider2], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         SyncResult syncResult = await service.SyncAsync();
@@ -255,7 +255,7 @@ public class SyncServiceTests
             Array.Empty<IThoughtProvider>(),
             Array.Empty<IRatingsProvider>(),
             _timeMachineFilter,
-            _prefetchService,
+            _prefetchService, new PassThroughResultCache(),
             _options,
             NullLogger<SyncService>.Instance);
 
@@ -296,7 +296,7 @@ public class SyncServiceTests
             .Returns(thoughts);
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
-            [thoughtProvider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options,
+            [thoughtProvider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, new PassThroughResultCache(), _options,
             NullLogger<SyncService>.Instance);
 
         // Act
@@ -329,7 +329,7 @@ public class SyncServiceTests
 
         IProgress<SyncProgressTick>? capturedProgress = Substitute.For<IProgress<SyncProgressTick>>();
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
-            [provider1, provider2], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService,
+            [provider1, provider2], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, new PassThroughResultCache(),
             _options, NullLogger<SyncService>.Instance);
 
         // Act
@@ -359,7 +359,7 @@ public class SyncServiceTests
 
         SyncService service = new([_watchStateProvider], [manual],
             Array.Empty<IThoughtProvider>(), Array.Empty<IRatingsProvider>(), _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         SyncResult result = await service.SyncAsync();
@@ -387,7 +387,7 @@ public class SyncServiceTests
 
         SyncService service = new([_watchStateProvider], [manual],
             Array.Empty<IThoughtProvider>(), Array.Empty<IRatingsProvider>(), _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         SyncResult result = await service.SyncAsync();
@@ -414,7 +414,7 @@ public class SyncServiceTests
 
         SyncService service = new([_watchStateProvider], [manual],
             Array.Empty<IThoughtProvider>(), Array.Empty<IRatingsProvider>(), _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         SyncResult result = await service.SyncAsync();
@@ -451,7 +451,7 @@ public class SyncServiceTests
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
             Array.Empty<IThoughtProvider>(), [ratingsProvider], _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         SyncResult result = await service.SyncAsync();
@@ -482,7 +482,7 @@ public class SyncServiceTests
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
             Array.Empty<IThoughtProvider>(), [ratingsProvider], _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         await service.SyncAsync();
@@ -519,7 +519,7 @@ public class SyncServiceTests
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
             Array.Empty<IThoughtProvider>(), [emptyProvider, secondProvider], _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         SyncResult result = await service.SyncAsync();
@@ -544,7 +544,7 @@ public class SyncServiceTests
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
             [throwingProvider], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         SyncResult result = await service.SyncAsync();
@@ -570,7 +570,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
-            [provider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options,
+            [provider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, new PassThroughResultCache(), _options,
             NullLogger<SyncService>.Instance);
 
         // Act
@@ -597,7 +597,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
-            [provider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options,
+            [provider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, new PassThroughResultCache(), _options,
             NullLogger<SyncService>.Instance);
 
         // Act
@@ -623,7 +623,7 @@ public class SyncServiceTests
         _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>()).Returns([]);
 
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
-            [provider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, _options,
+            [provider], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService, new PassThroughResultCache(), _options,
             NullLogger<SyncService>.Instance);
 
         // Act
@@ -664,7 +664,7 @@ public class SyncServiceTests
         });
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
             [activeProvider, disabledProvider], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
-            _prefetchService, options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), options, NullLogger<SyncService>.Instance);
 
         // Act
         await service.SyncAsync();
@@ -682,7 +682,7 @@ public class SyncServiceTests
             .Returns((MediaContext?)null);
         SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
             [Substitute.For<IThoughtProvider>()], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         SyncResult result = await service.SyncAsync(null, "user-1");
@@ -704,7 +704,7 @@ public class SyncServiceTests
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
         SyncService service = new([_watchStateProvider], [manual],
             [Substitute.For<IThoughtProvider>()], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
-            _prefetchService, _options, NullLogger<SyncService>.Instance);
+            _prefetchService, new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
 
         // Act
         SyncResult result = await service.SyncAsync(null, null, "client-a");
