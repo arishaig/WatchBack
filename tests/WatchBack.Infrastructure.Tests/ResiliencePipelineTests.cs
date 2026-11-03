@@ -104,6 +104,28 @@ public sealed class ResiliencePipelineTests
         handler.MaxInFlight["bsky.example"].Should().Be(3);
     }
 
+    // Regression: retry handled 503 before suppression saw it, so a 503 + Retry-After was retried
+    // (after waiting out the Retry-After inside the request) instead of suppressing the host.
+    [Fact]
+    public async Task ServiceUnavailableWithRetryAfter_IsNotRetried_AndSuppressesTheHost()
+    {
+        int calls = 0;
+        await using ServiceProvider provider = BuildServices(new MockHttpMessageHandler(_ =>
+        {
+            Interlocked.Increment(ref calls);
+            HttpResponseMessage response = new(HttpStatusCode.ServiceUnavailable);
+            response.Headers.TryAddWithoutValidation("Retry-After", "120");
+            return response;
+        }));
+        HttpClient client = provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(BlueskyThoughtProvider));
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
+
+        await client.GetAsync(new Uri("https://bsky.example/a"), timeout.Token);
+        await client.GetAsync(new Uri("https://bsky.example/b"), timeout.Token);
+
+        calls.Should().Be(1, "no retry, and the second request is suppressed for the 120 s the server asked");
+    }
+
     // The breaker is exercised on a bare pipeline (no retry) so the test doesn't sit through backoff delays.
     [Fact]
     public async Task CircuitBreaker_AfterRepeatedFailures_ShortCircuitsAsServiceUnavailable()

@@ -144,14 +144,17 @@ public static class ServiceCollectionExtensions
             Delay = TimeSpan.FromSeconds(1),
             BackoffType = DelayBackoffType.Exponential,
             UseJitter = true,
-            // Handle 5xx and transient network errors only — 429 is owned by RateLimitSuppressionStrategy
+            // Handle 5xx and transient network errors only — 429, and 503 with Retry-After, are owned by
+            // RateLimitSuppressionStrategy: retrying here would either call back before the server asked
+            // or sit out a long Retry-After inside the request.
             ShouldHandle = args => ValueTask.FromResult(
                 args.Outcome.Exception is HttpRequestException or TimeoutRejectedException ||
-                args.Outcome.Result?.StatusCode is HttpStatusCode.InternalServerError
-                    or HttpStatusCode.BadGateway
-                    or HttpStatusCode.ServiceUnavailable
-                    or HttpStatusCode.GatewayTimeout
-                    or HttpStatusCode.RequestTimeout),
+                args.Outcome.Result is { } response &&
+                (response.StatusCode is HttpStatusCode.InternalServerError
+                     or HttpStatusCode.BadGateway
+                     or HttpStatusCode.GatewayTimeout
+                     or HttpStatusCode.RequestTimeout ||
+                 (response.StatusCode == HttpStatusCode.ServiceUnavailable && response.Headers.RetryAfter is null))),
             OnRetry = args =>
             {
                 if (!resilienceLogger.IsEnabled(LogLevel.Debug))
