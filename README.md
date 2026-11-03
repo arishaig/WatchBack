@@ -1,12 +1,12 @@
 # WatchBack
 
-WatchBack is a self-hosted companion app for your media server. While you watch a TV show or movie, it automatically fetches Reddit threads, Trakt comments, Bluesky posts, and other community discussions about the exact episode you're watching — and surfaces them in a clean, single-page UI.
+WatchBack is a self-hosted companion app for your media server. While you watch a TV show or movie, it automatically fetches Reddit threads, Trakt comments, Bluesky posts, Lemmy threads, and other community discussions about the exact episode you're watching — and surfaces them in a clean, single-page UI.
 
 ## Features
 
 - **Automatic sync** — detects what you're currently watching and fetches relevant discussions
 - **Time Machine** — filters results to only show reactions posted close to the original air date, so you get the authentic first-watch experience
-- **Multiple sources** — Reddit threads (via [PullPush](https://pullpush.io/) and [Arctic Shift](https://github.com/ArthurHeitmann/arctic_shift)), Trakt comments, and Bluesky posts, all in one place
+- **Multiple sources** — Reddit threads (via [PullPush](https://pullpush.io/) and [Arctic Shift](https://github.com/ArthurHeitmann/arctic_shift)), Trakt comments, Bluesky posts, and Lemmy threads, all in one place
 - **Reddit search shortcut** — one-click search for the episode you're watching
 - **Multiple themes** — dark, light, Solarized Dark, Solarized Light, and Monokai
 
@@ -64,7 +64,11 @@ All provider settings can be configured in the UI under the gear icon, or via en
 | `Trakt__ClientId` | Trakt API client ID | |
 | `Trakt__Username` | Trakt username to fetch comments for | |
 | `Bluesky__Handle` | Bluesky handle (e.g. `you.bsky.social`) | |
-| `Bluesky__AppPassword` | Bluesky app password | |
+| `Bluesky__AppPassword` | Bluesky [app password](https://bsky.app/settings/app-passwords). Required: Bluesky's search rejects signed-out requests | |
+| `Lemmy__InstanceUrl` | Lemmy instance to search (it searches what that instance federates) | `https://lemmy.world` |
+| `Lemmy__Community` | Limit the search to one community (e.g. `television`); empty searches all | |
+| `Lemmy__MaxPosts` | Maximum number of Lemmy posts to fetch comments for | `3` |
+| `Lemmy__MaxComments` | Maximum number of comments per post | `250` |
 
 ### App preferences
 
