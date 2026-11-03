@@ -150,6 +150,57 @@ public sealed class SubredditResolverTests : IDisposable
         ArcticShiftSubredditResolver.Pick(candidates.Take(1), "The Bear").Should().BeNull();
     }
 
+    // Regressions from scanning a real library (names, sizes and descriptions as Arctic Shift returned them):
+    // NSFW subs and side subs passed because their descriptions named the show with "show" in them ("show
+    // off"), and exact-name subs for a city outranked the show's.
+    [Fact]
+    public void Pick_SkipsNsfwSubreddits()
+    {
+        ArcticShiftSubredditDto[] scrubs =
+        [
+            new("scrubsgonewild", 616715, "A subreddit for women who wear scrubs and want to show off their sexy bodies in said scrubs.", true),
+            new("Scrubs", 179585, "A community setup to discuss Scrubs. The long running Medical Dramedy/Sitcom that ran from 2001-2010", false)
+        ];
+
+        ArcticShiftSubredditResolver.Pick(scrubs, "Scrubs").Should().Be("Scrubs");
+    }
+
+    [Theory]
+    [InlineData("Futurama", "Futurama_Sleepers", "Futurama episodes and commentaries fer sleepin' to.")]
+    [InlineData("Doug", "DouglasIsCancelled", "Doug is cancelled. A show about the TV series Doug.")]
+    [InlineData("UNTAMED", "untameddames", "A sub for NSFW creators to show off what sets their spirit free. Always wild and ALWAYS UNTAMED.")]
+    public void Pick_RejectsSideSubsWhoseNameMerelyStartsWithTheTitle(string title, string sub, string description)
+    {
+        ArcticShiftSubredditResolver.Pick([new(sub, 30000, description)], title).Should().BeNull();
+    }
+
+    [Fact]
+    public void Pick_ExactNameNeedsATvDescription_SoACitySubLosesToTheShows()
+    {
+        ArcticShiftSubredditDto[] atlanta =
+        [
+            new("Atlanta", 489211, "Official Subreddit for all things in and about Atlanta, Georgia, USA and the surrounding metropolitan area."),
+            new("AtlantaTV", 103726, "Discussion of the FX series Atlanta.")
+        ];
+        ArcticShiftSubredditDto[] community =
+        [
+            new("community", 893705, "A subreddit for discussion and appreciation of the sitcom that ran between 2009 and 2015 on NBC and Yahoo! Screen."),
+            new("community_chat", 32323, "Chat about Community.")
+        ];
+
+        ArcticShiftSubredditResolver.Pick(atlanta, "Atlanta").Should().Be("AtlantaTV");
+        ArcticShiftSubredditResolver.Pick(community, "Community").Should().Be("community");
+    }
+
+    [Theory]
+    [InlineData("The Magicians", "themagicians_tv")]
+    [InlineData("Love Is Blind", "LoveIsBlindOnNetflix")]
+    [InlineData("Pluribus", "Pluribus_TVshow")]
+    public void Pick_AcceptsUnderscoredAndOnNetworkSuffixes(string title, string sub)
+    {
+        ArcticShiftSubredditResolver.Pick([new(sub, 5000, "")], title).Should().Be(sub);
+    }
+
     private sealed class GatedHandler(Func<HttpResponseMessage> respond, TaskCompletionSource? gate) : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,

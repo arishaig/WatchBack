@@ -123,13 +123,16 @@ public sealed partial class ArcticShiftSubredditResolver(
         return new SubredditResolution(picked);
     }
 
-    // A candidate qualifies when it is active (MinSubscribers) and either its name is the show's name plus
-    // a show suffix, or its description names the show and reads like a TV community. The biggest wins.
+    // A candidate qualifies when it is active (MinSubscribers), safe for work, and either its name is the
+    // show's name plus a show suffix, or exactly the show's name with a description that reads like a TV
+    // community. Any other name starting with the title is a side or unrelated sub (r/Futurama_Sleepers,
+    // r/scrubsgonewild), and an exact name alone can be a city or a game (r/Atlanta, r/Severance).
+    // The biggest qualifying candidate wins.
     internal static string? Pick(IEnumerable<ArcticShiftSubredditDto> candidates, string showTitle)
     {
         string name = Normalize(showTitle);
         return candidates
-            .Where(c => c.DisplayName is not null && (c.Subscribers ?? 0) >= MinSubscribers)
+            .Where(c => c.DisplayName is not null && c.Over18 != true && (c.Subscribers ?? 0) >= MinSubscribers)
             .Where(c => LooksLikeShowCommunity(c, name))
             .OrderByDescending(c => c.Subscribers)
             .Select(c => c.DisplayName)
@@ -138,21 +141,21 @@ public sealed partial class ArcticShiftSubredditResolver(
 
     private static bool LooksLikeShowCommunity(ArcticShiftSubredditDto candidate, string name)
     {
-        string subName = candidate.DisplayName!.ToLowerInvariant();
+        string subName = Normalize(candidate.DisplayName!);
         if (!subName.StartsWith(name, StringComparison.Ordinal))
         {
             return false;
         }
 
+        // "OnNetflix", "_tv": underscores are dropped by Normalize, a leading "on" here.
         string suffix = subName[name.Length..];
-        if (s_showSuffixes.Contains(suffix))
+        if (s_showSuffixes.Contains(suffix) ||
+            (suffix.StartsWith("on", StringComparison.Ordinal) && s_showSuffixes.Contains(suffix[2..])))
         {
             return true;
         }
 
-        string description = candidate.PublicDescription ?? "";
-        bool namesShow = Normalize(description).Contains(name, StringComparison.Ordinal);
-        return namesShow && (suffix.Length == 0 || TvWords().IsMatch(description));
+        return suffix.Length == 0 && TvWords().IsMatch(candidate.PublicDescription ?? "");
     }
 
     // Lower-case letters and digits only, accents removed: "Shōgun" → "shogun", "The Bear" → "thebear".
