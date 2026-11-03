@@ -58,6 +58,9 @@ All provider settings can be configured in the UI under the gear icon, or via en
 |---|---|---|
 | `Reddit__MaxThreads` | Maximum number of Reddit threads to fetch | `3` |
 | `Reddit__MaxComments` | Maximum number of comments per thread | `250` |
+| `Reddit__UseArcticShift` | Search Reddit through Arctic Shift (the primary archive) | `true` |
+| `Reddit__UsePullPush` | Fall back to PullPush when Arctic Shift has nothing, for episodes aired before `Reddit__PullPushCutoff` | `true` |
+| `Reddit__PullPushCutoff` | Air date after which PullPush is never asked (it stopped archiving around then) | `2025-05-01` |
 | `Trakt__ClientId` | Trakt API client ID | |
 | `Trakt__Username` | Trakt username to fetch comments for | |
 | `Bluesky__Handle` | Bluesky handle (e.g. `you.bsky.social`) | |
@@ -75,6 +78,13 @@ All provider settings can be configured in the UI under the gear icon, or via en
 ### Forward auth
 
 If you run WatchBack behind an auth proxy that passes a trusted header (e.g. `X-Remote-User`), you can enable forward auth in the Security section of the config UI. When active, the login screen is bypassed entirely.
+
+## Credits
+
+Reddit discussion comes from two volunteer-run archives. Please be considerate of them: WatchBack looks each episode up once, caches the answer, and backs off when they ask it to.
+
+- [Arctic Shift](https://github.com/ArthurHeitmann/arctic_shift) by Arthur Heitmann: the primary source for Reddit threads and comments. Service status: [status.arctic-shift.photon-reddit.com](https://status.arctic-shift.photon-reddit.com).
+- [PullPush](https://pullpush.io/): a fallback for episodes that aired before May 2025.
 
 ## Adding a new provider
 
