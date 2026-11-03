@@ -1,7 +1,7 @@
 using System.Net;
 
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 using Polly;
@@ -26,6 +26,8 @@ public static class ServiceCollectionExtensions
         // DelegatingHandlers must be transient — they cannot be shared across HttpClients.
         services.AddTransient<RequestLoggingHandler>();
         services.AddTransient<UserAgentHandler>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<HostBackoffRegistry>();
 
         services.AddWatchBackClient<JellyfinWatchStateProvider>();
         services.AddWatchBackClient<TraktWatchStateProvider>();
@@ -88,7 +90,7 @@ public static class ServiceCollectionExtensions
         TimeSpan attemptTimeout)
     {
         IServiceProvider sp = ctx.ServiceProvider;
-        IMemoryCache cache = sp.GetRequiredService<IMemoryCache>();
+        HostBackoffRegistry backoff = sp.GetRequiredService<HostBackoffRegistry>();
         ILogger<RateLimitSuppressionStrategy> rateLimitLogger =
             sp.GetRequiredService<ILogger<RateLimitSuppressionStrategy>>();
         // Shared category for retry + timeout diagnostics — sits under the same
@@ -153,7 +155,7 @@ public static class ServiceCollectionExtensions
         };
 
         pipeline
-            .AddRateLimitSuppression(cache, rateLimitLogger)  // outermost — short-circuits 429 before retry sees it
+            .AddRateLimitSuppression(backoff, rateLimitLogger)  // outermost — short-circuits 429 before retry sees it
             .AddRetry(retryOptions)
             .AddTimeout(timeoutOptions);
     }
