@@ -17,7 +17,7 @@ internal static class ArcticShiftSource
     // makes the API reject the whole request. The permalink is rebuilt from subreddit and id.
     public const string PostFields = "id,title,subreddit,created_utc,score,num_comments,selftext,link_flair_text,author";
 
-    public const string SubredditFields = "display_name,subscribers,public_description";
+    public const string SubredditFields = "display_name,subscribers,public_description,over18";
 
     public const string HealthUrl = BaseUrl + "/api/posts/search?subreddit=announcements&limit=1&fields=id";
 
@@ -213,7 +213,8 @@ internal sealed record ArcticShiftSubredditDto(
     [property: JsonPropertyName("subscribers")]
     long? Subscribers,
     [property: JsonPropertyName("public_description")]
-    string? PublicDescription);
+    string? PublicDescription,
+    [property: JsonPropertyName("over18")] bool? Over18 = null);
 
 internal sealed record ArcticShiftSubmissionsResponseDto(
     [property: JsonPropertyName("data")] PullPushSubmissionDto[]? Data,
