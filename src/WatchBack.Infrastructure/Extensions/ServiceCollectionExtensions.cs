@@ -1,4 +1,5 @@
 using System.Net;
+using System.Threading.RateLimiting;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -29,12 +30,15 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<HostBackoffRegistry>();
 
-        services.AddWatchBackClient<JellyfinWatchStateProvider>();
+        // Jellyfin is the user's own server, polled for watch state: no breaker, so playback is
+        // picked up again as soon as it comes back. PullPush, Arctic Shift and Lemmy instances are
+        // volunteer-run, so they are also throttled per host.
+        services.AddWatchBackClient<JellyfinWatchStateProvider>(policy: ClientPolicy.None);
         services.AddWatchBackClient<TraktWatchStateProvider>();
         services.AddWatchBackClient<TraktThoughtProvider>();
-        services.AddWatchBackClient<RedditThoughtProvider>(TimeSpan.FromSeconds(30));
+        services.AddWatchBackClient<RedditThoughtProvider>(TimeSpan.FromSeconds(30), ClientPolicy.Volunteer);
         services.AddWatchBackClient<BlueskyThoughtProvider>();
-        services.AddWatchBackClient<LemmyThoughtProvider>();
+        services.AddWatchBackClient<LemmyThoughtProvider>(policy: ClientPolicy.Volunteer);
 
         // ManualWatchStateProvider is a singleton so it can hold state across requests.
         // Registered as both IManualWatchStateProvider (for SyncService priority check)
@@ -63,31 +67,62 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static void AddWatchBackClient<T>(this IServiceCollection services, TimeSpan? timeout = null)
+    /// <summary>How much protection a client's upstream gets beyond 429 handling and retries.</summary>
+    internal enum ClientPolicy
+    {
+        /// <summary>Rate-limit suppression, retry and timeout only.</summary>
+        None,
+
+        /// <summary>Adds a per-host circuit breaker.</summary>
+        Breaker,
+
+        /// <summary>Adds the breaker plus per-host concurrency of 1 and about 1 request/second.</summary>
+        Volunteer
+    }
+
+    // Throttled requests queue rather than fail; a lookup can therefore take a while, so the
+    // overall HttpClient deadline (default 100 s, and it includes queueing) is raised for them.
+    private static readonly TimeSpan s_volunteerClientTimeout = TimeSpan.FromMinutes(5);
+
+    private static void AddWatchBackClient<T>(this IServiceCollection services, TimeSpan? timeout = null,
+        ClientPolicy policy = ClientPolicy.Breaker)
         where T : class
     {
         // RequestLoggingHandler is registered FIRST so it sits outside the resilience pipeline
         // — each log entry then represents the end-to-end wall time including retries, waits,
         // and short-circuits. Individual retry/timeout events log separately from inside the pipeline.
-        services.AddHttpClient<T>()
+        // SelectPipelineByAuthority gives each host its own pipeline instance, so breaker and throttle
+        // state are per host: a client that talks to two hosts (Reddit: PullPush and Arctic Shift)
+        // doesn't let one host's outage block the other.
+        services.AddHttpClient<T>(client =>
+            {
+                if (policy == ClientPolicy.Volunteer)
+                {
+                    client.Timeout = s_volunteerClientTimeout;
+                }
+            })
             .AddHttpMessageHandler<UserAgentHandler>()
             .AddHttpMessageHandler<RequestLoggingHandler>()
             .AddResilienceHandler("watchback", (p, ctx) =>
-                ConfigureResiliencePipeline(p, ctx, timeout ?? TimeSpan.FromSeconds(10)));
+                ConfigureResiliencePipeline(p, ctx, timeout ?? TimeSpan.FromSeconds(10), policy))
+            .SelectPipelineByAuthority();
     }
 
     /// <summary>
     ///     Configures the standard WatchBack Polly resilience pipeline:
     ///     <list type="number">
     ///         <item>Rate-limit suppression — short-circuits all requests to a host during a 429 Retry-After window</item>
+    ///         <item>Circuit breaker (unless <see cref="ClientPolicy.None" />) — stops calling a host that keeps failing; open = synthetic 503</item>
     ///         <item>Retry — up to 3 times with exponential backoff + jitter on 5xx and transient errors (GET/HEAD/OPTIONS only)</item>
-    ///         <item>Timeout — per-attempt deadline</item>
+    ///         <item>Throttle (<see cref="ClientPolicy.Volunteer" /> only) — one request in flight and ~1 request/second per host, queued</item>
+    ///         <item>Timeout — per-attempt deadline, so time spent queued in the throttle doesn't count</item>
     ///     </list>
     /// </summary>
     private static void ConfigureResiliencePipeline(
         ResiliencePipelineBuilder<HttpResponseMessage> pipeline,
         ResilienceHandlerContext ctx,
-        TimeSpan attemptTimeout)
+        TimeSpan attemptTimeout,
+        ClientPolicy policy)
     {
         IServiceProvider sp = ctx.ServiceProvider;
         HostBackoffRegistry backoff = sp.GetRequiredService<HostBackoffRegistry>();
@@ -154,9 +189,70 @@ public static class ServiceCollectionExtensions
             }
         };
 
-        pipeline
-            .AddRateLimitSuppression(backoff, rateLimitLogger)  // outermost — short-circuits 429 before retry sees it
-            .AddRetry(retryOptions)
-            .AddTimeout(timeoutOptions);
+        pipeline.AddRateLimitSuppression(backoff, rateLimitLogger); // outermost — short-circuits 429 before retry sees it
+
+        if (policy != ClientPolicy.None)
+        {
+            pipeline
+                .AddStrategy(_ => new BrokenCircuitResponseStrategy())
+                .AddCircuitBreaker(BuildCircuitBreakerOptions(resilienceLogger));
+        }
+
+        pipeline.AddRetry(retryOptions);
+
+        if (policy == ClientPolicy.Volunteer)
+        {
+            pipeline.AddRateLimiter(BuildVolunteerThrottle());
+        }
+
+        pipeline.AddTimeout(timeoutOptions);
     }
+
+    // Counts the final outcome of each request (after retries). Opens once half of at least
+    // 4 requests in a minute failed, and stays open longer each time the half-open probe fails.
+    internal static HttpCircuitBreakerStrategyOptions BuildCircuitBreakerOptions(ILogger logger) => new()
+    {
+        FailureRatio = 0.5,
+        MinimumThroughput = 4,
+        SamplingDuration = TimeSpan.FromMinutes(1),
+        BreakDurationGenerator = args => ValueTask.FromResult(BreakDuration(args.HalfOpenAttempts)),
+        // 429 is owned by RateLimitSuppressionStrategy; only outages count here.
+        ShouldHandle = args => ValueTask.FromResult(
+            args.Outcome.Exception is HttpRequestException or TimeoutRejectedException ||
+            args.Outcome.Result?.StatusCode is HttpStatusCode.InternalServerError
+                or HttpStatusCode.BadGateway
+                or HttpStatusCode.ServiceUnavailable
+                or HttpStatusCode.GatewayTimeout
+                or HttpStatusCode.RequestTimeout),
+        OnOpened = args =>
+        {
+            logger.LogWarning("Circuit opened for {Uri} for {Seconds} s after repeated failures",
+                HttpLogging.RedactSensitiveParams(args.Outcome.Result?.RequestMessage?.RequestUri),
+                (int)args.BreakDuration.TotalSeconds);
+            return default;
+        }
+    };
+
+    // 30 s, 1 min, 2 min … capped at 30 min.
+    internal static TimeSpan BreakDuration(int halfOpenAttempts) =>
+        TimeSpan.FromSeconds(Math.Min(30 * Math.Pow(2, Math.Min(halfOpenAttempts, 10)), 1800));
+
+    // One request in flight per host, and at most about one started per second. Requests queue
+    // (they are never rejected) so a lookup slows down instead of failing.
+    internal static RateLimiter BuildVolunteerThrottle() => RateLimiter.CreateChained(
+        new ConcurrencyLimiter(new ConcurrencyLimiterOptions
+        {
+            PermitLimit = 1,
+            QueueLimit = int.MaxValue,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+        }),
+        new TokenBucketRateLimiter(new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = 1,
+            TokensPerPeriod = 1,
+            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+            QueueLimit = int.MaxValue,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        }));
 }

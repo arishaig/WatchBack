@@ -26,8 +26,8 @@ internal static class ArcticShiftSource
     private const int MaxPages = 3;
 
     // Arctic Shift rate limits are "calculated dynamically based on server load", and the heavy
-    // queries can take seconds. Prefetch runs concurrently, so cap in-flight requests process-wide.
-    private static readonly SemaphoreSlim s_gate = new(2, 2);
+    // queries can take seconds. In-flight requests are capped per host by the Reddit client's
+    // resilience pipeline (see ServiceCollectionExtensions), which also covers prefetch.
 
     // Time-window listing of a subreddit's posts, oldest first. Keyword (title=) search requires a
     // subreddit and times out on large ones, so the window is fetched and matched locally instead.
@@ -110,7 +110,6 @@ internal static class ArcticShiftSource
     {
         string url = $"{BaseUrl}/api/comments/tree?link_id=t3_{Uri.EscapeDataString(submissionId)}&limit={limit}";
 
-        await s_gate.WaitAsync(ct);
         try
         {
             HttpResponseMessage response = await httpClient.GetAsync(url, ct);
@@ -140,16 +139,11 @@ internal static class ArcticShiftSource
             logger.LogWarning(ex, "Arctic Shift comment fetch exception for thread {ThreadId}", submissionId);
             return null;
         }
-        finally
-        {
-            s_gate.Release();
-        }
     }
 
     private static async Task<PullPushSubmissionDto[]?> GetSubmissionsAsync(
         HttpClient httpClient, string url, ILogger logger, CancellationToken ct)
     {
-        await s_gate.WaitAsync(ct);
         try
         {
             HttpResponseMessage response = await httpClient.GetAsync(url, ct);
@@ -177,10 +171,6 @@ internal static class ArcticShiftSource
         {
             logger.LogWarning(ex, "Arctic Shift submission search exception");
             return null;
-        }
-        finally
-        {
-            s_gate.Release();
         }
     }
 
