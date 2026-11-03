@@ -206,9 +206,10 @@ public sealed class TraktThoughtProvider(
     }
 
     // Season- and show-level comments may discuss later episodes. Trakt flags whole-comment spoilers
-    // and users mark parts with [spoiler] tags; skip both.
+    // and users mark parts with [spoiler] tags; skip both, and reviews (long write-ups of the whole
+    // season or show).
     private static TraktCommentDto[]? SpoilerFree(TraktCommentDto[]? page) =>
-        page?.Where(c => c.Spoiler != true &&
+        page?.Where(c => c.Spoiler != true && c.Review != true &&
                          c.Comment?.Contains("[spoiler]", StringComparison.OrdinalIgnoreCase) != true)
             .ToArray();
 
@@ -350,6 +351,13 @@ public sealed class TraktThoughtProvider(
             {
                 return found;
             }
+        }
+
+        // An ID lookup that failed (rather than found nothing) is retried soon; guessing by title meanwhile
+        // could show another show's comments.
+        if (fetch.Failed)
+        {
+            return null;
         }
 
         string title = mediaContext.Title.Trim().ToLowerInvariant();
@@ -500,4 +508,5 @@ internal sealed record TraktCommentDto(
     [property: JsonPropertyName("replies")]
     int? Replies = null,
     [property: JsonPropertyName("spoiler")]
-    bool? Spoiler = null);
+    bool? Spoiler = null,
+    [property: JsonPropertyName("review")] bool? Review = null);

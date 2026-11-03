@@ -891,6 +891,8 @@ public class TraktThoughtProviderTests : IDisposable
 
         result!.IsTransientFailure.Should().BeTrue();
         _ids.Answers.Should().BeEmpty();
+        handler.RecordedUris.Should().NotContain(u => u.AbsolutePath == "/search/show",
+            "a title guess while the ID lookup is failing could show another show's comments");
     }
 
     [Fact]
@@ -932,7 +934,8 @@ public class TraktThoughtProviderTests : IDisposable
         RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
             .RespondTo("/search/", SeveranceEpisodeHit)
             .RespondTo("/episodes/1/comments/likes", Comments((1, 3, 0, false)))
-            .RespondTo("/seasons/1/comments/likes", Comments((10, 5, 0, false), (11, 4, 0, true)))
+            .RespondTo("/seasons/1/comments/likes", Comments((10, 5, 0, false), (11, 4, 0, true)).Replace(
+                "]", """,{"id":12,"comment":"Season review","likes":30,"replies":0,"review":true,"user":{"username":"r"}}]"""))
             .RespondTo("/shows/154997/comments/likes", Comments((20, 9, 0, false), (1, 3, 0, false)))
             .Default("[]");
 
