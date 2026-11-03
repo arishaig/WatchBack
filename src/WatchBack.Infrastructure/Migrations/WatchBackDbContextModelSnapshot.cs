@@ -15,7 +15,7 @@ namespace WatchBack.Infrastructure.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("WatchBack.Infrastructure.Persistence.Entities.ApiKeyEntity", b =>
                 {
@@ -44,6 +44,32 @@ namespace WatchBack.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("ApiKeys");
+                });
+
+            modelBuilder.Entity("WatchBack.Infrastructure.Persistence.Entities.CachedResultEntity", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ExpiresAtUnixMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("FetchedAtUnixMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Key");
+
+                    b.HasIndex("ExpiresAtUnixMs");
+
+                    b.ToTable("CachedResults");
                 });
 
             modelBuilder.Entity("WatchBack.Infrastructure.Persistence.Entities.SyncLogEntity", b =>

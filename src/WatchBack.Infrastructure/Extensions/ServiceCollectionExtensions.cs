@@ -10,6 +10,7 @@ using Polly.Retry;
 using Polly.Timeout;
 
 using WatchBack.Core.Interfaces;
+using WatchBack.Infrastructure.Caching;
 using WatchBack.Infrastructure.Http;
 using WatchBack.Infrastructure.Omdb;
 using WatchBack.Infrastructure.ThoughtProviders;
@@ -29,6 +30,9 @@ public static class ServiceCollectionExtensions
         services.AddTransient<UserAgentHandler>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<HostBackoffRegistry>();
+        services.AddSingleton<ResultCacheStore>();
+        services.AddSingleton<IMediaResultCache, MediaResultCache>();
+        services.AddHostedService<ResultCacheMaintenance>();
 
         // Jellyfin is the user's own server, polled for watch state: no breaker, so playback is
         // picked up again as soon as it comes back. PullPush, Arctic Shift and Lemmy instances are
