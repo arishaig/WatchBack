@@ -76,6 +76,37 @@ public sealed class ResiliencePipelineTests
             "three requests through a 1/s token bucket span at least two refill periods");
     }
 
+    // Regression (seen live): the throttle sat inside suppression and the breaker, so requests already
+    // queued had passed those checks and went out after the host said to back off.
+    [Fact]
+    public async Task VolunteerClient_QueuedRequestsHonourA429SeenWhileTheyWaited()
+    {
+        SlowRateLimitedHandler handler = new();
+        await using ServiceProvider provider = BuildServices(handler);
+        HttpClient client = provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(RedditThoughtProvider));
+
+        // All four are queued before the first (slow) answer arrives.
+        await Task.WhenAll(Enumerable.Range(0, 4)
+            .Select(i => client.GetAsync(new Uri($"https://api.pullpush.io/search?{i}"))));
+
+        handler.Calls.Should().Be(1, "the three queued requests must see the 429's backoff window when their turn comes");
+    }
+
+    private sealed class SlowRateLimitedHandler : HttpMessageHandler
+    {
+        public int Calls;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref Calls);
+            await Task.Delay(200, cancellationToken);
+            HttpResponseMessage response = new(HttpStatusCode.TooManyRequests);
+            response.Headers.TryAddWithoutValidation("Retry-After", "600");
+            return response;
+        }
+    }
+
     [Fact]
     public async Task VolunteerClient_ThrottlesEachHostSeparately()
     {

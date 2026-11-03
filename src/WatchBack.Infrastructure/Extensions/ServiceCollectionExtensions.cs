@@ -115,10 +115,14 @@ public static class ServiceCollectionExtensions
     /// <summary>
     ///     Configures the standard WatchBack Polly resilience pipeline:
     ///     <list type="number">
+    ///         <item>
+    ///             Throttle (<see cref="ClientPolicy.Volunteer" /> only) — one request in flight and ~1 request/second
+    ///             per host, queued. Outermost, so a queued request checks the backoff window and breaker only
+    ///             once it's its turn: a 429 or an outage seen meanwhile stops the whole queue.
+    ///         </item>
     ///         <item>Rate-limit suppression — short-circuits all requests to a host during a 429 Retry-After window</item>
     ///         <item>Circuit breaker (unless <see cref="ClientPolicy.None" />) — stops calling a host that keeps failing; open = synthetic 503</item>
-    ///         <item>Retry — up to 3 times with exponential backoff + jitter on 5xx and transient errors (GET/HEAD/OPTIONS only)</item>
-    ///         <item>Throttle (<see cref="ClientPolicy.Volunteer" /> only) — one request in flight and ~1 request/second per host, queued</item>
+    ///         <item>Retry — up to 3 times with exponential backoff + jitter on 5xx and transient errors (GET/HEAD/OPTIONS only), holding the throttle slot</item>
     ///         <item>Timeout — per-attempt deadline, so time spent queued in the throttle doesn't count</item>
     ///     </list>
     /// </summary>
@@ -196,7 +200,12 @@ public static class ServiceCollectionExtensions
             }
         };
 
-        pipeline.AddRateLimitSuppression(backoff, rateLimitLogger); // outermost — short-circuits 429 before retry sees it
+        if (policy == ClientPolicy.Volunteer)
+        {
+            pipeline.AddRateLimiter(BuildVolunteerThrottle());
+        }
+
+        pipeline.AddRateLimitSuppression(backoff, rateLimitLogger); // short-circuits 429 before retry sees it
 
         if (policy != ClientPolicy.None)
         {
@@ -205,14 +214,9 @@ public static class ServiceCollectionExtensions
                 .AddCircuitBreaker(BuildCircuitBreakerOptions(resilienceLogger));
         }
 
-        pipeline.AddRetry(retryOptions);
-
-        if (policy == ClientPolicy.Volunteer)
-        {
-            pipeline.AddRateLimiter(BuildVolunteerThrottle());
-        }
-
-        pipeline.AddTimeout(timeoutOptions);
+        pipeline
+            .AddRetry(retryOptions)
+            .AddTimeout(timeoutOptions);
     }
 
     // Counts the final outcome of each request (after retries). Opens once half of at least
