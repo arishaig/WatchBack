@@ -235,6 +235,15 @@ public sealed class BlueskyThoughtProvider(
             response = await SendSearchAsync(url, token, ct);
         }
 
+        // A 400 that isn't about the token is about the search itself (a parameter Bluesky won't take).
+        // Retrying can't fix it, so it counts as finding nothing rather than as a transient failure.
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            logger.LogWarning("Bluesky rejected the search '{Query}' (HTTP 400): {Body}", search.Query,
+                await response.Content.ReadAsStringAsync(ct));
+            return ([], token);
+        }
+
         if (!response.IsSuccessStatusCode)
         {
             logger.LogWarning("Bluesky search failed: HTTP {Status} for '{Query}'", (int)response.StatusCode,
@@ -398,6 +407,7 @@ public sealed class BlueskyThoughtProvider(
 
     private static readonly TimeSpan s_sessionLifetime = TimeSpan.FromDays(30);
     private static readonly TimeSpan s_expiryMargin = TimeSpan.FromMinutes(5);
+    private static readonly SemaphoreSlim s_sessionGate = new(1, 1);
 
     private void ExpireAccessToken()
     {
@@ -424,46 +434,73 @@ public sealed class BlueskyThoughtProvider(
         }
 
         string cacheKey = GetTokenCacheKey();
-        cache.TryGetValue(cacheKey, out Session? session);
-        if (session is not null &&
-            (session.AccessExpires is null || session.AccessExpires - DateTimeOffset.UtcNow > s_expiryMargin))
+        if (UsableToken(cacheKey) is { } token)
         {
-            return session.AccessJwt;
+            return token;
         }
 
+        // The watched episode and the prefetched next one can both find the token expiring. Refresh
+        // tokens rotate, so only one may refresh; the other then reuses the new session.
+        await s_sessionGate.WaitAsync(ct);
         try
         {
-            Session? fresh = null;
+            if (UsableToken(cacheKey) is { } refreshedMeanwhile)
+            {
+                return refreshedMeanwhile;
+            }
+
+            cache.TryGetValue(cacheKey, out Session? session);
             if (session?.RefreshJwt is { } refreshJwt)
             {
                 HttpRequestMessage refresh = new(HttpMethod.Post,
                     "https://bsky.social/xrpc/com.atproto.server.refreshSession");
                 refresh.Headers.Add("Authorization", $"Bearer {refreshJwt}");
-                fresh = await ReadSessionAsync(await httpClient.SendAsync(refresh, ct), ct);
+                HttpResponseMessage response = await httpClient.SendAsync(refresh, ct);
+                if (await ReadSessionAsync(response, ct) is { } refreshed)
+                {
+                    cache.Set(cacheKey, refreshed, s_sessionLifetime);
+                    return refreshed.AccessJwt;
+                }
+
+                // An outage or rate limit says nothing about the refresh token: keep it for the next try
+                // rather than spend one of the day's few sign-ins. Only a rejected token means signing in.
+                if (!await IsExpiredTokenAsync(response, ct))
+                {
+                    logger.LogWarning("Bluesky: session refresh failed (HTTP {Status}); will retry",
+                        (int)response.StatusCode);
+                    return null;
+                }
             }
 
-            if (fresh is null)
+            var authPayload = new { identifier = _options.Handle, password = _options.AppPassword };
+            StringContent content = new(JsonSerializer.Serialize(authPayload), Encoding.UTF8, "application/json");
+            HttpResponseMessage signIn = await httpClient.PostAsync(
+                "https://bsky.social/xrpc/com.atproto.server.createSession", content, ct);
+            if (await ReadSessionAsync(signIn, ct) is not { } created)
             {
-                var authPayload = new { identifier = _options.Handle, password = _options.AppPassword };
-                StringContent content = new(JsonSerializer.Serialize(authPayload), Encoding.UTF8, "application/json");
-                fresh = await ReadSessionAsync(await httpClient.PostAsync(
-                    "https://bsky.social/xrpc/com.atproto.server.createSession", content, ct), ct);
-            }
-
-            if (fresh is null)
-            {
-                cache.Remove(cacheKey);
+                logger.LogWarning("Bluesky: sign-in failed (HTTP {Status})", (int)signIn.StatusCode);
                 return null;
             }
 
-            cache.Set(cacheKey, fresh, s_sessionLifetime);
-            return fresh.AccessJwt;
+            cache.Set(cacheKey, created, s_sessionLifetime);
+            return created.AccessJwt;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            logger.LogWarning(ex, "Bluesky: sign-in failed");
             return null;
         }
+        finally
+        {
+            s_sessionGate.Release();
+        }
     }
+
+    private string? UsableToken(string cacheKey) =>
+        cache.TryGetValue(cacheKey, out Session? session) && session is not null &&
+        (session.AccessExpires is null || session.AccessExpires - DateTimeOffset.UtcNow > s_expiryMargin)
+            ? session.AccessJwt
+            : null;
 
     private static async Task<Session?> ReadSessionAsync(HttpResponseMessage response, CancellationToken ct)
     {

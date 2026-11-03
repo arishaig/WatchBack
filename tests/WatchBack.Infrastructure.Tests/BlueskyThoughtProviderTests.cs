@@ -800,5 +800,88 @@ public class BlueskyThoughtProviderTests : IDisposable
         result.Thoughts.Should().ContainSingle();
     }
 
+    // A refresh that fails for a passing reason (outage, rate limit) must not cost a sign-in or lose the
+    // refresh token: there are only a few sign-ins a day.
+    [Fact]
+    public async Task RefreshOutage_KeepsTheSession_AndDoesNotSignInAgain()
+    {
+        List<string> calls = [];
+        int refreshes = 0;
+        MockHttpMessageHandler handler = new(req =>
+        {
+            string path = req.RequestUri!.AbsolutePath;
+            calls.Add($"{path} {req.Headers.Authorization?.Parameter}");
+            return path switch
+            {
+                "/xrpc/com.atproto.server.createSession" => Ok(
+                    $$"""{"accessJwt":"{{Jwt(DateTimeOffset.UtcNow.AddMinutes(1))}}","refreshJwt":"r1"}"""),
+                "/xrpc/com.atproto.server.refreshSession" => ++refreshes == 1
+                    ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                    : Ok($$"""{"accessJwt":"{{Jwt(DateTimeOffset.UtcNow.AddHours(2))}}","refreshJwt":"r2"}"""),
+                _ => Ok("""{"posts":[]}""")
+            };
+        });
+        BlueskyThoughtProvider provider = new(new HttpClient(handler), new OptionsSnapshotStub<BlueskyOptions>(_options),
+            _cache, Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(new MediaContext("Interstellar", null));
+        ThoughtResult? duringOutage = await provider.GetThoughtsAsync(new MediaContext("Arrival", null));
+        ThoughtResult? after = await provider.GetThoughtsAsync(new MediaContext("Dune", null));
+
+        duringOutage!.IsTransientFailure.Should().BeTrue();
+        after!.IsTransientFailure.Should().BeFalse();
+        calls.Count(c => c.Contains("createSession", StringComparison.Ordinal)).Should().Be(1);
+        calls.Where(c => c.Contains("refreshSession", StringComparison.Ordinal))
+            .Should().Equal("/xrpc/com.atproto.server.refreshSession r1", "/xrpc/com.atproto.server.refreshSession r1");
+    }
+
+    [Fact]
+    public async Task RejectedRefreshToken_SignsInAgain()
+    {
+        List<string> calls = [];
+        MockHttpMessageHandler handler = new(req =>
+        {
+            string path = req.RequestUri!.AbsolutePath;
+            calls.Add(path);
+            return path switch
+            {
+                "/xrpc/com.atproto.server.createSession" => Ok(
+                    $$"""{"accessJwt":"{{Jwt(DateTimeOffset.UtcNow.AddMinutes(1))}}","refreshJwt":"r1"}"""),
+                "/xrpc/com.atproto.server.refreshSession" => new HttpResponseMessage(HttpStatusCode.BadRequest)
+                {
+                    Content = new StringContent("""{"error":"ExpiredToken","message":"Token has been revoked"}""")
+                },
+                _ => Ok("""{"posts":[]}""")
+            };
+        });
+        BlueskyThoughtProvider provider = new(new HttpClient(handler), new OptionsSnapshotStub<BlueskyOptions>(_options),
+            _cache, Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(new MediaContext("Interstellar", null));
+        ThoughtResult? second = await provider.GetThoughtsAsync(new MediaContext("Arrival", null));
+
+        second!.IsTransientFailure.Should().BeFalse();
+        calls.Count(c => c.Contains("createSession", StringComparison.Ordinal)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task SearchRejected_CountsAsNothingFound_NotAsAFailure()
+    {
+        MockHttpMessageHandler handler = new(req => req.RequestUri!.AbsolutePath switch
+        {
+            "/xrpc/com.atproto.server.createSession" => Ok("""{"accessJwt":"a1","refreshJwt":"r1"}"""),
+            _ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent("""{"error":"InvalidRequest","message":"Invalid sort"}""")
+            }
+        });
+        BlueskyThoughtProvider provider = new(new HttpClient(handler), new OptionsSnapshotStub<BlueskyOptions>(_options),
+            _cache, Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(new MediaContext("Interstellar", null));
+
+        result!.IsTransientFailure.Should().BeFalse("retrying a rejected search every minute can't help");
+    }
+
     private static HttpResponseMessage Ok(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json) };
 }
