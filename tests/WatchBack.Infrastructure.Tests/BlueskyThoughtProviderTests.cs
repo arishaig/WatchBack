@@ -24,8 +24,7 @@ public class BlueskyThoughtProviderTests : IDisposable
     private readonly BlueskyOptions _options = new()
     {
         Handle = "testuser.bsky.social",
-        AppPassword = "test-password",
-        TokenCacheTtlSeconds = 5400
+        AppPassword = "test-password"
     };
 
     public void Dispose()
@@ -71,13 +70,9 @@ public class BlueskyThoughtProviderTests : IDisposable
                             }
                             """;
 
-        Queue<HttpResponseMessage> responses = new(
-        [
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
-        ]);
-
-        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("createSession", tokenJson)
+            .Default(searchJson);
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
@@ -138,13 +133,9 @@ public class BlueskyThoughtProviderTests : IDisposable
                             }
                             """;
 
-        Queue<HttpResponseMessage> responses = new(
-        [
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
-        ]);
-
-        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("createSession", tokenJson)
+            .Default(searchJson);
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         List<Thought> capturedThoughts = new();
@@ -167,7 +158,7 @@ public class BlueskyThoughtProviderTests : IDisposable
     [Fact]
     public async Task GetThoughtsAsync_WithoutCredentials_MakesNoRequests()
     {
-        BlueskyOptions optionsWithoutCreds = new() { Handle = "", AppPassword = null, TokenCacheTtlSeconds = 5400 };
+        BlueskyOptions optionsWithoutCreds = new() { Handle = "", AppPassword = null };
         EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
 
         int requests = 0;
@@ -214,9 +205,10 @@ public class BlueskyThoughtProviderTests : IDisposable
             Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
 
         ThoughtResult? first = await provider.GetThoughtsAsync(mediaContext);
+        int searchesAfterFirst = searches;
         ThoughtResult? second = await provider.GetThoughtsAsync(mediaContext);
 
-        searches.Should().Be(1);
+        searches.Should().Be(searchesAfterFirst);
         first!.IsTransientFailure.Should().BeTrue();
         second!.IsTransientFailure.Should().BeTrue("the briefly cached failure must still read as a failure");
     }
@@ -267,13 +259,9 @@ public class BlueskyThoughtProviderTests : IDisposable
         string tokenJson = """{"accessJwt":"test-token"}""";
         string searchJson = """{"posts":[]}""";
 
-        Queue<HttpResponseMessage> responses = new(
-        [
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
-        ]);
-
-        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("createSession", tokenJson)
+            .Default(searchJson);
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
@@ -315,13 +303,9 @@ public class BlueskyThoughtProviderTests : IDisposable
         string tokenJson = """{"accessJwt":"test-token"}""";
         string searchJson = """{"posts":[]}""";
 
-        Queue<HttpResponseMessage> responses = new(
-        [
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson) },
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) }
-        ]);
-
-        MockHttpMessageHandler handler = new(() => responses.Dequeue());
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("createSession", tokenJson)
+            .Default(searchJson);
         HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
         IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
         treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
@@ -382,7 +366,6 @@ public class BlueskyThoughtProviderTests : IDisposable
         {
             Handle = "",
             AppPassword = _options.AppPassword,
-            TokenCacheTtlSeconds = _options.TokenCacheTtlSeconds,
             CacheTtlSeconds = _options.CacheTtlSeconds
         };
         BlueskyThoughtProvider provider = new(
@@ -400,7 +383,6 @@ public class BlueskyThoughtProviderTests : IDisposable
         {
             Handle = _options.Handle,
             AppPassword = "",
-            TokenCacheTtlSeconds = _options.TokenCacheTtlSeconds,
             CacheTtlSeconds = _options.CacheTtlSeconds
         };
         BlueskyThoughtProvider provider = new(
@@ -534,7 +516,7 @@ public class BlueskyThoughtProviderTests : IDisposable
         // The search request must contain the S02E01 episode code
         handler.RecordedUris
             .Where(u => u.ToString().Contains("searchPosts"))
-            .Should().ContainSingle(u => Uri.UnescapeDataString(u.ToString()).Contains("The Pitt S02E01"),
+            .Should().ContainSingle(u => Uri.UnescapeDataString(u.ToString()).Contains("\"The Pitt\" S02E01"),
                 "query must be scoped to season 2 episode 1");
 
         // Must not accidentally query for a different season
@@ -612,14 +594,14 @@ public class BlueskyThoughtProviderTests : IDisposable
         result.Thoughts.Should().BeEmpty();
     }
 
-    // Regression: if Bluesky rotates/invalidates a cached JWT before TokenCacheTtlSeconds
-    // expires, the search returns 401 and we previously dropped results entirely. We should
+    // Regression: if Bluesky rotates/invalidates a cached JWT before it expires, the search returns 401 and we previously dropped results entirely. We should
     // evict the cached token and retry once with a fresh session.
     [Fact]
     public async Task GetThoughtsAsync_When401OnSearch_EvictsTokenAndRetriesOnce()
     {
         DateTimeOffset releaseDate = new(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        EpisodeContext mediaContext = new("Breaking Bad", releaseDate, "Pilot", 1, 1);
+        // "Episode 1" is a placeholder name and 2020 predates Bluesky: one search, so the sequence is exact.
+        EpisodeContext mediaContext = new("Breaking Bad", releaseDate, "Episode 1", 1, 1);
 
         string tokenJsonA = """{"accessJwt":"stale-token"}""";
         string tokenJsonB = """{"accessJwt":"fresh-token"}""";
@@ -670,4 +652,153 @@ public class BlueskyThoughtProviderTests : IDisposable
         recorded[3].Url.Should().Contain("searchPosts");
         recorded[3].Auth.Should().Be("fresh-token");
     }
+
+    // ---- Phase 3: search plan, session refresh ----
+
+    private static readonly DateTimeOffset s_now = new(2026, 11, 3, 12, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void PlanSearches_OldEpisode_TopPosts_CodeThenTitleThenHashtagWhileItAired()
+    {
+        DateTimeOffset aired = new(2025, 1, 17, 2, 0, 0, TimeSpan.Zero);
+        EpisodeContext episode = new("Severance", aired, "Hello, Ms. Cobel", 2, 1);
+
+        IReadOnlyList<BlueskyThoughtProvider.SearchSpec> plan = BlueskyThoughtProvider.PlanSearches(episode, s_now);
+
+        plan.Should().Equal(
+            new BlueskyThoughtProvider.SearchSpec("\"Severance\" S02E01", "top", aired.AddDays(-7), null),
+            new BlueskyThoughtProvider.SearchSpec("\"Severance\" \"Hello, Ms. Cobel\"", "top", aired.AddDays(-7), null),
+            new BlueskyThoughtProvider.SearchSpec("#Severance", "top", aired.AddHours(-12), aired.AddDays(2)));
+        plan.Count.Should().BeLessThanOrEqualTo(BlueskyThoughtProvider.MaxSearches);
+    }
+
+    [Fact]
+    public void PlanSearches_RecentEpisode_LatestPosts()
+    {
+        EpisodeContext episode = new("The Pitt", s_now.AddDays(-2), "8:00 A.M.", 2, 3);
+
+        BlueskyThoughtProvider.PlanSearches(episode, s_now).Take(2).Should().OnlyContain(p => p.Sort == "latest");
+    }
+
+    [Theory]
+    [InlineData("Episode 4")]
+    [InlineData("Chapter 12")]
+    [InlineData("")]
+    public void PlanSearches_PlaceholderEpisodeName_SkipsTheTitleSearch(string name)
+    {
+        EpisodeContext episode = new("Shōgun", s_now.AddDays(-30), name, 1, 4);
+
+        BlueskyThoughtProvider.PlanSearches(episode, s_now).Select(p => p.Query)
+            .Should().Equal("\"Shōgun\" S01E04", "#Shōgun");
+    }
+
+    [Fact]
+    public void PlanSearches_AiredBeforeBluesky_NoHashtagSearch()
+    {
+        EpisodeContext episode = new("Lost", new DateTimeOffset(2004, 9, 22, 0, 0, 0, TimeSpan.Zero), "Pilot (1)", 1, 1);
+
+        BlueskyThoughtProvider.PlanSearches(episode, s_now).Should().NotContain(p => p.Query.StartsWith('#'));
+    }
+
+    [Fact]
+    public void PlanSearches_Movie_OneSearch()
+    {
+        MediaContext movie = new("Interstellar", new DateTimeOffset(2014, 11, 5, 0, 0, 0, TimeSpan.Zero));
+
+        BlueskyThoughtProvider.PlanSearches(movie, s_now).Should().ContainSingle()
+            .Which.Should().Be(new BlueskyThoughtProvider.SearchSpec("Interstellar movie", "top",
+                movie.ReleaseDate!.Value.AddDays(-7), null));
+    }
+
+    [Fact]
+    public async Task Search_SendsSortSinceAndUntil()
+    {
+        DateTimeOffset aired = new(2025, 1, 17, 2, 0, 0, TimeSpan.Zero);
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("createSession", """{"accessJwt":"t"}""")
+            .Default("""{"posts":[]}""");
+        BlueskyThoughtProvider provider = new(new HttpClient(handler), new OptionsSnapshotStub<BlueskyOptions>(_options),
+            _cache, Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(new EpisodeContext("Severance", aired, "Hello, Ms. Cobel", 2, 1));
+
+        handler.RecordedUris.Select(u => Uri.UnescapeDataString(u.Query)).Should().Contain(
+            "?q=#Severance&sort=top&limit=100&since=2025-01-16T14:00:00Z&until=2025-01-19T02:00:00Z");
+    }
+
+    private static string Jwt(DateTimeOffset expires) =>
+        "eyJhbGciOiJIUzI1NiJ9." +
+        Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($$"""{"exp":{{expires.ToUnixTimeSeconds()}}}"""))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_') + ".sig";
+
+    [Fact]
+    public void JwtExpiry_ReadsTheExpClaim()
+    {
+        DateTimeOffset expires = new(2026, 11, 3, 14, 0, 0, TimeSpan.Zero);
+
+        BlueskyThoughtProvider.JwtExpiry(Jwt(expires)).Should().Be(expires);
+        BlueskyThoughtProvider.JwtExpiry("not-a-jwt").Should().BeNull();
+    }
+
+    // Regression: the access token was dropped every 90 minutes and a new session created with the app
+    // password. bsky.social allows an account only a few sign-ins a day (its 429 said "10;w=86400"), so
+    // a running instance used them up and Bluesky went dark until the next day. Refresh instead.
+    [Fact]
+    public async Task ExpiringAccessToken_IsRefreshed_NotSignedInAgain()
+    {
+        List<string> calls = [];
+        int session = 0;
+        MockHttpMessageHandler handler = new(req =>
+        {
+            string path = req.RequestUri!.AbsolutePath;
+            calls.Add($"{path} {req.Headers.Authorization?.Parameter}");
+            return path switch
+            {
+                "/xrpc/com.atproto.server.createSession" => Ok(
+                    $$"""{"accessJwt":"{{Jwt(DateTimeOffset.UtcNow.AddMinutes(1))}}","refreshJwt":"refresh-1"}"""),
+                "/xrpc/com.atproto.server.refreshSession" => Ok(
+                    $$"""{"accessJwt":"{{Jwt(DateTimeOffset.UtcNow.AddHours(2))}}","refreshJwt":"refresh-{{++session + 1}}"}"""),
+                _ => Ok("""{"posts":[]}""")
+            };
+        });
+        BlueskyThoughtProvider provider = new(new HttpClient(handler), new OptionsSnapshotStub<BlueskyOptions>(_options),
+            _cache, Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
+
+        // The first token expires within the safety margin, so the next lookup refreshes it.
+        await provider.GetThoughtsAsync(new MediaContext("Interstellar", null));
+        await provider.GetThoughtsAsync(new MediaContext("Arrival", null));
+        await provider.GetThoughtsAsync(new MediaContext("Dune", null));
+
+        calls.Count(c => c.Contains("createSession", StringComparison.Ordinal)).Should().Be(1);
+        calls.Should().ContainSingle(c => c.Contains("refreshSession", StringComparison.Ordinal))
+            .Which.Should().EndWith("refresh-1");
+    }
+
+    [Fact]
+    public async Task ExpiredTokenError_RefreshesAndRetriesTheSearch()
+    {
+        int searches = 0;
+        MockHttpMessageHandler handler = new(req => req.RequestUri!.AbsolutePath switch
+        {
+            "/xrpc/com.atproto.server.createSession" => Ok("""{"accessJwt":"a1","refreshJwt":"r1"}"""),
+            "/xrpc/com.atproto.server.refreshSession" => Ok("""{"accessJwt":"a2","refreshJwt":"r2"}"""),
+            _ => ++searches == 1
+                ? new HttpResponseMessage(HttpStatusCode.BadRequest)
+                {
+                    Content = new StringContent("""{"error":"ExpiredToken","message":"Token has expired"}""")
+                }
+                : Ok("""{"posts":[{"uri":"at://did/app.bsky.feed.post/1","record":{"text":"hi","createdAt":"2026-01-01T00:00:00Z"}}]}""")
+        });
+        IReplyTreeBuilder tree = Substitute.For<IReplyTreeBuilder>();
+        tree.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
+        BlueskyThoughtProvider provider = new(new HttpClient(handler), new OptionsSnapshotStub<BlueskyOptions>(_options),
+            _cache, tree, NullLogger<BlueskyThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(new MediaContext("Interstellar", null));
+
+        result!.IsTransientFailure.Should().BeFalse();
+        result.Thoughts.Should().ContainSingle();
+    }
+
+    private static HttpResponseMessage Ok(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json) };
 }

@@ -219,8 +219,7 @@ public class LiveIntegrationTests : IDisposable
         BlueskyOptions options = new()
         {
             Handle = Environment.GetEnvironmentVariable("BSKY_IDENTIFIER") ?? "arishaig.bsky.social",
-            AppPassword = Environment.GetEnvironmentVariable("BSKY_APP_PASSWORD"),
-            TokenCacheTtlSeconds = 5400
+            AppPassword = Environment.GetEnvironmentVariable("BSKY_APP_PASSWORD")
         };
 
         EpisodeContext mediaContext = new(
