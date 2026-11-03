@@ -169,6 +169,51 @@ public sealed class RateLimitStrategyTests
         reached.Should().Equal(0, 1);
     }
 
+    private string TraktLimit(int remaining, int untilSeconds) =>
+        $$"""{"name":"UNAUTHED_API_GET_LIMIT","period":300,"limit":1000,"remaining":{{remaining}},"until":"{{_time.GetUtcNow().AddSeconds(untilSeconds):yyyy-MM-ddTHH:mm:ssZ}}"}""";
+
+    [Fact]
+    public async Task ExecuteAsync_SuccessUsingTheLastTraktCall_PausesUntilTheQuotaResets()
+    {
+        List<int> reached = await ProbeAsync(Respond(HttpStatusCode.OK, "X-Ratelimit", TraktLimit(0, 120)), 119, 121);
+
+        reached.Should().Equal(0, 1);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SuccessWithTraktCallsLeft_DoesNotPause()
+    {
+        List<int> reached = await ProbeAsync(Respond(HttpStatusCode.OK, "X-Ratelimit", TraktLimit(999, 120)), 1);
+
+        reached.Should().Equal(1);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SuccessWithNoRemainingAndResetSeconds_PausesForTheReset()
+    {
+        ResiliencePipeline<HttpResponseMessage> pipeline = BuildPipeline();
+        HttpRequestMessage request = new(HttpMethod.Get, "https://example.com/api/data");
+        await ExecuteAsync(pipeline, request, () =>
+        {
+            HttpResponseMessage msg = new(HttpStatusCode.OK);
+            msg.Headers.TryAddWithoutValidation("X-RateLimit-Remaining", "0");
+            msg.Headers.TryAddWithoutValidation("X-RateLimit-Reset", "30");
+            return msg;
+        });
+
+        _registry.IsSuppressed("example.com", out DateTimeOffset until).Should().BeTrue();
+        until.Should().Be(_time.GetUtcNow().AddSeconds(30));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_429WithOnlyTraktHeader_WaitsUntilItsResetTime()
+    {
+        List<int> reached = await ProbeAsync(
+            Respond(HttpStatusCode.TooManyRequests, "X-Ratelimit", TraktLimit(0, 200)), 199, 201);
+
+        reached.Should().Equal(0, 1);
+    }
+
     [Fact]
     public async Task ExecuteAsync_After503WithRetryAfter_HonorsIt()
     {
