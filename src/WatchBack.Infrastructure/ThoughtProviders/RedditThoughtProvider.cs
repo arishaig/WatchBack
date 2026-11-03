@@ -136,6 +136,13 @@ public sealed class RedditThoughtProvider(
 
             bool anySpecSucceeded = specResults.Any(r => r.Ok);
 
+            // Arctic Shift covers Reddit's whole history; PullPush stopped archiving in mid-2025 and is often
+            // down. So a failed Arctic Shift search (or, without Arctic Shift, any failed PullPush search) may
+            // have hidden the thread, and the answer is incomplete rather than a confirmed miss.
+            bool searchIncomplete = _options.UseArcticShift
+                ? specResults.Any(r => r is { Source: RedditSource.ArcticShift, Ok: false })
+                : specResults.Any(r => !r.Ok);
+
             Dictionary<string, PullPushSubmissionDto> seenIds = new();
             Dictionary<string, RedditSource> foundBy = new();
             HashSet<string> bypassIds = new();
@@ -202,18 +209,20 @@ public sealed class RedditThoughtProvider(
 
             if (submissions.Count == 0)
             {
-                ThoughtResult emptyResult = !anySpecSucceeded ? s_failed
+                bool confirmedMiss = anySpecSucceeded && !searchIncomplete;
+                ThoughtResult emptyResult = !confirmedMiss ? s_failed
                     : mediaContext.ReleaseDate is null ? s_undatedMiss : s_empty;
-                // Confirmed archive misses (at least one valid response) get the full TTL.
+                // Confirmed archive misses get the full TTL.
                 // Timeout/network/429 failures are transient, so they're only cached briefly:
                 // retrying every poll cycle would re-report progress ticks and flash the
                 // frontend loading bar for as long as the archives keep failing.
                 cache.Set(cacheKey, emptyResult,
-                    anySpecSucceeded ? TimeSpan.FromSeconds(_options.CacheTtlSeconds) : s_failureCacheTtl);
+                    confirmedMiss ? TimeSpan.FromSeconds(_options.CacheTtlSeconds) : s_failureCacheTtl);
 
                 return emptyResult;
             }
 
+            int commentFetchFailed = 0;
             Thought[][] threadResults = await Task.WhenAll(
                 submissions.Take(_options.MaxThreads).Select(async submission =>
                 {
@@ -238,6 +247,7 @@ public sealed class RedditThoughtProvider(
                     }
 
                     PullPushCommentDto[] comments = [];
+                    bool answered = false;
                     try
                     {
                         // Ask the archive that found the thread first, then fall back to the other.
@@ -247,6 +257,7 @@ public sealed class RedditThoughtProvider(
                                 ? await ArcticShiftSource.GetCommentsAsync(
                                     httpClient, submission.Id, _options.MaxComments, logger, ct)
                                 : await GetPullPushCommentsAsync(submission.Id, ct);
+                            answered |= fetched is not null;
                             if (fetched is { Length: > 0 })
                             {
                                 comments = fetched;
@@ -257,6 +268,11 @@ public sealed class RedditThoughtProvider(
                     finally
                     {
                         progress?.Report(new SyncProgressTick(3, "Reddit"));
+                    }
+
+                    if (!answered)
+                    {
+                        Interlocked.Exchange(ref commentFetchFailed, 1);
                     }
 
                     logger.LogInformation("Reddit: thread {ThreadId} ({Title}) returned {Count} comment(s)",
@@ -276,13 +292,16 @@ public sealed class RedditThoughtProvider(
                 ? $"https://reddit.com{top.Permalink}"
                 : $"https://reddit.com/r/{top.Subreddit}/comments/{top.Id}/";
 
+            // A thread whose comments no archive returned, or a failed search, makes this answer incomplete:
+            // keep it (it beats nothing) but flag it so it is never persisted as the episode's final result.
             ThoughtResult result = new(
                 "Reddit",
                 top.Title,
                 topPostUrl,
                 null,
                 treeThoughts,
-                null);
+                null,
+                IsTransientFailure: searchIncomplete || commentFetchFailed != 0);
 
             cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;

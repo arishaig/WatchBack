@@ -239,6 +239,23 @@ public sealed class MediaResultCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task IncompleteResult_IsShownButNotPersisted()
+    {
+        EpisodeContext episode = Episode(s_now.AddDays(-400));
+        FakeThoughtProvider partial = new()
+        {
+            Result = () => new ThoughtResult("Fake", "thread", null, null, [SampleThought], null, IsTransientFailure: true)
+        };
+
+        ThoughtResult? shown = await StartProcess().GetRequiredService<IMediaResultCache>().GetThoughtsAsync(partial, episode);
+        FakeThoughtProvider afterRestart = new();
+        await StartProcess().GetRequiredService<IMediaResultCache>().GetThoughtsAsync(afterRestart, episode);
+
+        shown!.Thoughts.Should().HaveCount(1);
+        afterRestart.Calls.Should().Be(1, "an incomplete answer must get another chance after a restart");
+    }
+
+    [Fact]
     public async Task RecentEpisodeMiss_IsRetriedAfterAnHour()
     {
         IMediaResultCache cache = StartProcess().GetRequiredService<IMediaResultCache>();

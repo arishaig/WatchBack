@@ -73,8 +73,9 @@ public record Thought(
 /// <param name="Thoughts">A collection of Thoughts</param>
 /// <param name="NextPageToken">If the response is paginated, the token for the next page</param>
 /// <param name="IsTransientFailure">
-///     True when the lookup failed (timeout, outage, rate limit) rather than finding nothing.
-///     Such results are never stored as a confirmed miss.
+///     True when any request this answer depended on failed (timeout, outage, rate limit), so it may be
+///     incomplete: nothing found, or some threads' comments missing. Such results are shown but never
+///     persisted as the media's final result.
 /// </param>
 public record ThoughtResult(
     string Source,
