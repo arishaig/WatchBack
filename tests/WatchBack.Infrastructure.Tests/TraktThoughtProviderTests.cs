@@ -820,10 +820,34 @@ public class TraktThoughtProviderTests : IDisposable
         [ExternalIdType.Tmdb] = "3302766"
     };
 
-    // Jellyfin passes the playing episode's own provider IDs. Shaped like the documented ID-lookup
-    // response (written from Trakt's API docs; the key in .env is rejected, so nothing was recorded).
+    // Jellyfin passes the playing episode's own provider IDs. Recorded from Trakt (November 2026):
+    // GET /search/imdb/tt11650328 with no type filter; /search/tvdb/8891221?type=episode returns the same.
     private const string SeveranceEpisodeHit =
-        """[{"type":"episode","score":null,"episode":{"season":1,"number":1,"title":"Good News About Hell","ids":{"trakt":3302766,"tvdb":8582131,"imdb":"tt11650328","tmdb":3302766}},"show":{"title":"Severance","year":2022,"ids":{"trakt":154997,"slug":"severance","tvdb":371980,"imdb":"tt11280740","tmdb":95396}}}]""";
+        """[{"show":{"ids":{"imdb":"tt11280740","plex":{"guid":"5e1622d34f2292003e91314a","slug":"severance"},"slug":"severance","tmdb":95396,"tvdb":371980,"trakt":154997},"year":2022,"title":"Severance","aired_episodes":19},"type":"episode","score":100,"episode":{"ids":{"imdb":"tt11650328","plex":{"guid":"5e1622d34f2292003e913150"},"tmdb":1982925,"tvdb":8891221,"trakt":4648809},"title":"Good News About Hell","number":1,"season":1}}]""";
+
+    // Regression: an unfiltered TVDB or TMDB lookup finds only shows (live, November 2026: /search/tvdb/
+    // 8891221 returns [], with ?type=episode it returns the episode), so an episode Jellyfin knew only by
+    // its TVDB or TMDB ID never found its show.
+    [Theory]
+    [InlineData("Tvdb", "8891221")]
+    [InlineData("Tmdb", "1982925")]
+    public async Task TvdbOrTmdbEpisodeId_IsLookedUpAsAnEpisode_WhenItIsNoShow(string idType, string id)
+    {
+        string key = idType == "Tvdb" ? ExternalIdType.Tvdb : ExternalIdType.Tmdb;
+        EpisodeContext pilot = new("Severance", null, "Good News About Hell", 1, 1,
+            new Dictionary<string, string> { [key] = id });
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo(u => u.AbsolutePath == $"/search/{key}/{id}" && u.Query == "?type=episode", SeveranceEpisodeHit)
+            .RespondTo(u => u.AbsolutePath == $"/search/{key}/{id}", "[]")
+            .Default("[]");
+
+        await Provider(handler).GetThoughtsAsync(pilot);
+
+        handler.RecordedUris.Should().Contain(u => u.AbsolutePath == "/shows/154997/seasons/1/episodes/1/comments/likes");
+        handler.RecordedUris.Should().NotContain(u => u.AbsolutePath == "/search/show",
+            "the ID was enough; no title guess");
+        _ids.Answers[$"trakt:show:{key}:{id}"].Should().Be(new LookupAnswer("154997"));
+    }
 
     [Fact]
     public async Task EpisodeIds_ResolveToTheirShow_InOneCall_AndTheAnswerIsKept()

@@ -9,6 +9,7 @@ using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 using WatchBack.Core.Services;
+using WatchBack.Infrastructure.Caching;
 using WatchBack.Infrastructure.ThoughtProviders;
 using WatchBack.Infrastructure.WatchStateProviders;
 
@@ -181,6 +182,32 @@ public class LiveIntegrationTests : IDisposable
         result.Source.Should().Be("Trakt");
         // Note: Actual content may be empty if Trakt API is unavailable or has rate limiting
         // We're primarily validating the provider can be called without throwing
+    }
+
+    // Jellyfin's case: the episode is known only by its own TVDB ID (Severance S01E01).
+    [Fact]
+    public async Task TraktThoughts_EpisodeKnownOnlyByItsTvdbId_FindsItsComments()
+    {
+        string clientId = Environment.GetEnvironmentVariable("TRAKT_CLIENT_ID") ?? "";
+        if (string.IsNullOrEmpty(clientId))
+        {
+            return; // Skip: TRAKT_CLIENT_ID not set in environment
+        }
+
+        EpisodeContext pilot = new("Severance", new DateTimeOffset(2022, 2, 18, 0, 0, 0, TimeSpan.Zero),
+            "Good News About Hell", 1, 1, new Dictionary<string, string> { [ExternalIdType.Tvdb] = "8891221" });
+        InMemoryLookupCache ids = new();
+        TraktThoughtProvider provider = new(_httpClient,
+            new OptionsSnapshotStub<TraktOptions>(new TraktOptions { ClientId = clientId, CacheTtlSeconds = 30 }),
+            _cache, new ReplyTreeBuilder(), ids, NullLogger<TraktThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(pilot);
+
+        result!.IsTransientFailure.Should().BeFalse();
+        ids.Answers[$"trakt:show:{ExternalIdType.Tvdb}:8891221"].Should().Be(new LookupAnswer("154997"));
+        result.Thoughts.Should().NotBeEmpty();
+        result.Thoughts.Should().Contain(t => t.Score > 0, "comments are scored by likes");
+        result.Thoughts.Should().Contain(t => t.Replies.Count > 0, "the most-liked comments' replies are fetched");
     }
 
     [Fact]

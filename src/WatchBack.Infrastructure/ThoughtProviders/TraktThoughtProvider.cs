@@ -386,15 +386,16 @@ public sealed class TraktThoughtProvider(
     }
 
     // The IDs may be the show's (from Trakt's watch state) or the episode's own (Jellyfin passes the
-    // playing item's provider IDs). So for an episode the lookup has no type filter: a show result is
-    // taken as is, an episode result gives its show. TVDB and TMDB number shows and episodes separately,
-    // so an episode result found by one of those must also have the episode's season and number.
+    // playing item's provider IDs). An unfiltered lookup of an IMDb ID finds either, and an episode
+    // result gives its show. An unfiltered TVDB or TMDB lookup finds only shows (checked live,
+    // November 2026), so for an episode those take a second, type=episode lookup when it finds no show.
+    // TVDB and TMDB number shows and episodes separately, so their episode result must also have the
+    // episode's season and number.
     private async Task<(bool Ok, string? Id)> LookupByIdAsync(string idType, string idValue,
         EpisodeContext? episode, CancellationToken ct)
     {
-        string url = $"https://api.trakt.tv/search/{idType}/{Uri.EscapeDataString(idValue)}" +
-                     (episode is null ? "?type=movie" : "");
-        TraktSearchItemDto[]? items = await SearchAsync(url, ct);
+        string url = $"https://api.trakt.tv/search/{idType}/{Uri.EscapeDataString(idValue)}";
+        TraktSearchItemDto[]? items = await SearchAsync(url + (episode is null ? "?type=movie" : ""), ct);
         if (items is null)
         {
             return (false, null);
@@ -405,12 +406,28 @@ public sealed class TraktThoughtProvider(
             return (true, TraktId(items.FirstOrDefault(i => i.Movie is not null)?.Movie?.Ids));
         }
 
+        if (ShowOf(items, idType, episode) is { } found)
+        {
+            return (true, found);
+        }
+
+        if (idType == ExternalIdType.Imdb)
+        {
+            return (true, null);
+        }
+
+        TraktSearchItemDto[]? episodes = await SearchAsync(url + "?type=episode", ct);
+        return episodes is null ? (false, null) : (true, ShowOf(episodes, idType, episode));
+    }
+
+    private static string? ShowOf(TraktSearchItemDto[] items, string idType, EpisodeContext episode)
+    {
         TraktSearchItemDto? ofEpisode = items.FirstOrDefault(i =>
             i is { Type: "episode", Episode: not null, Show: not null } &&
             (idType == ExternalIdType.Imdb ||
              (i.Episode.Season == episode.SeasonNumber && i.Episode.Number == episode.EpisodeNumber)));
         TraktSearchItemDto? show = ofEpisode ?? items.FirstOrDefault(i => i.Show is not null && i.Type != "episode");
-        return (true, TraktId(show?.Show?.Ids));
+        return TraktId(show?.Show?.Ids);
     }
 
     // Title search is the last resort: prefer an exact title (and, for movies, year) over the top hit.
