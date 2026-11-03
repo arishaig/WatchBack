@@ -4,11 +4,13 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using NSubstitute;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
+using WatchBack.Core.Options;
 using WatchBack.Infrastructure.Services;
 
 using Xunit;
@@ -142,6 +144,34 @@ public sealed class PrefetchServiceTests : IDisposable
         };
 
         await act.Should().NotThrowAsync("provider failures should be logged and swallowed");
+    }
+
+    // ── Disabled providers ────────────────────────────────────────────────────
+
+    // Regression: prefetch called every registered provider, so one the user had disabled
+    // (WatchBack__DisabledProviders) still made upstream requests in the background.
+    [Fact]
+    public async Task SchedulePrefetch_DisabledProvider_IsNeverCalled()
+    {
+        IThoughtProvider disabled = Substitute.For<IThoughtProvider>();
+        disabled.ConfigSection.Returns("Reddit");
+        disabled.Metadata.Returns(new DataProviderMetadata("Reddit", "Reddit"));
+        _provider.ConfigSection.Returns("Trakt");
+
+        ServiceCollection services = new();
+        services.AddScoped<IThoughtProvider>(_ => _provider);
+        services.AddScoped<IThoughtProvider>(_ => disabled);
+        services.AddSingleton<IOptionsSnapshot<WatchBackOptions>>(
+            new OptionsSnapshotStub<WatchBackOptions>(new WatchBackOptions { DisabledProviders = "reddit" }));
+        await using ServiceProvider root = services.BuildServiceProvider();
+        PrefetchService service = new(root.GetRequiredService<IServiceScopeFactory>(), _cache,
+            NullLogger<PrefetchService>.Instance, _lifetime);
+
+        service.SchedulePrefetch(MakeEpisode());
+        await Task.Delay(150);
+
+        await _provider.Received().GetThoughtsAsync(Arg.Any<MediaContext>(), null, Arg.Any<CancellationToken>());
+        await disabled.DidNotReceiveWithAnyArgs().GetThoughtsAsync(default!, default, default);
     }
 
     // ── Per-viewer isolation ──────────────────────────────────────────────────

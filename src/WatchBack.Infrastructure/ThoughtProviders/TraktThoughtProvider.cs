@@ -184,7 +184,7 @@ public sealed class TraktThoughtProvider(
             cts.CancelAfter(TimeSpan.FromSeconds(5));
 
             HttpRequestMessage request = new(HttpMethod.Get, "https://api.trakt.tv/shows/trending?limit=1");
-            request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
+            IDataProvider.ApplyDefaultHeaders(request);
             request.Headers.Add("trakt-api-version", "2");
             request.Headers.Add("trakt-api-key", _options.ClientId);
 

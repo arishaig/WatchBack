@@ -194,6 +194,56 @@ public sealed class RedditArcticShiftTests : IDisposable
         // The long-TTL entry would have expired by now and triggered a refetch.
     }
 
+    // The subreddit's newest posts, long after the episode aired: the episode thread is not among them.
+    private const string RecentJson = """
+                                      {"data":[
+                                        {"id":"1x1lhgt","title":"Yasemin......","subreddit":"LoveIsBlindNetflix","created_utc":1791500000,"score":287,"num_comments":265,"is_self":true,"selftext":"","stickied":false,"permalink":"/r/LoveIsBlindNetflix/comments/1x1lhgt/yasemin/"}
+                                      ]}
+                                      """;
+
+    private static HttpResponseMessage ArcticShiftRecentOrWindow(HttpRequestMessage req) =>
+        req.RequestUri!.AbsolutePath.Contains("comments") ? Json(TreeJson)
+        : req.RequestUri.Query.Contains("sort=desc") ? Json(RecentJson)
+        : Json(WindowJson);
+
+    // Regression: prefetch looks up the next episode with no air date, so Arctic Shift only lists the
+    // newest posts and misses an old episode's thread. That miss was cached for the full TTL under the
+    // same key, so the real (dated) lookup returned nothing for a day.
+    [Fact]
+    public async Task GetThoughtsAsync_UndatedMiss_DoesNotHideThreadsFromDatedLookup()
+    {
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftRecentOrWindow, _ => Json("""{"data":[]}"""));
+        EpisodeContext undated = s_episode with { ReleaseDate = null, EpisodeTitle = string.Empty };
+
+        ThoughtResult? prefetched = await provider.GetThoughtsAsync(undated);
+        ThoughtResult? real = await provider.GetThoughtsAsync(s_episode);
+
+        prefetched!.Thoughts!.Should().BeEmpty();
+        real!.PostTitle.Should().Be("Season 11 Episode 1 Discussion");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_UndatedMiss_IsStillCachedForUndatedLookups()
+    {
+        int requests = 0;
+        RedditThoughtProvider provider = CreateProvider(req =>
+        {
+            Interlocked.Increment(ref requests);
+            return ArcticShiftRecentOrWindow(req);
+        }, _ =>
+        {
+            Interlocked.Increment(ref requests);
+            return Json("""{"data":[]}""");
+        });
+        EpisodeContext undated = s_episode with { ReleaseDate = null, EpisodeTitle = string.Empty };
+
+        await provider.GetThoughtsAsync(undated);
+        int requestsAfterFirst = requests;
+        await provider.GetThoughtsAsync(undated);
+
+        requests.Should().Be(requestsAfterFirst, "an undated viewer must not refetch on every poll");
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_ArcticShiftDisabled_NeverCallsArcticShift()
     {

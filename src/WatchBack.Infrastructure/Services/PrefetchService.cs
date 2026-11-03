@@ -4,9 +4,11 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
+using WatchBack.Core.Options;
 
 namespace WatchBack.Infrastructure.Services;
 
@@ -151,7 +153,15 @@ public sealed class PrefetchService(
     private async Task RunPrefetchAsync(EpisodeContext[] targets, CancellationToken ct = default)
     {
         using IServiceScope scope = scopeFactory.CreateScope();
-        List<IThoughtProvider> providers = scope.ServiceProvider.GetServices<IThoughtProvider>().ToList();
+
+        // Same filter SyncService applies: a provider the user turned off must not be called in the background.
+        HashSet<string> disabled = (scope.ServiceProvider.GetService<IOptionsSnapshot<WatchBackOptions>>()
+                ?.Value.DisabledProviders ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        List<IThoughtProvider> providers = scope.ServiceProvider.GetServices<IThoughtProvider>()
+            .Where(p => p.ConfigSection is null || !disabled.Contains(p.ConfigSection))
+            .ToList();
 
         foreach (EpisodeContext target in targets)
         {
@@ -200,8 +210,9 @@ public sealed class PrefetchService(
         }
 
         // First episode of the next season (S+1 E1) — handles season-finale transitions.
-        // If E+1 exists, the S+1 E1 prefetch returns empty and is not cached (saves nothing but costs 4
-        // cheap HTTP searches). If we're actually at a season finale, S+1 E1 is already warm.
+        // Targets carry no air date or episode title, so a provider's miss here is weaker than a real
+        // lookup's: providers whose search depends on the date must not let it stand in for one.
+        // If we're actually at a season finale, S+1 E1 is already warm.
         if (current.SeasonNumber < short.MaxValue)
         {
             targets.Add(current with
