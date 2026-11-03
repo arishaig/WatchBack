@@ -29,6 +29,7 @@ public sealed class RedditThoughtProviderNormalizeContentTests : IDisposable
             _cache,
             treeBuilder,
             mappingService,
+            Substitute.For<ISubredditResolver>(),
             NullLogger<RedditThoughtProvider>.Instance);
     }
 

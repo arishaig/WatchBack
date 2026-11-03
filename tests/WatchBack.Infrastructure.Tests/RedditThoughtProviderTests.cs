@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Text.Json;
 
 using FluentAssertions;
 
@@ -17,11 +18,31 @@ using Xunit;
 
 namespace WatchBack.Infrastructure.Tests;
 
-public class RedditThoughtProviderTests : IDisposable
+// The Reddit provider against a fake Arctic Shift / PullPush. Requests are recorded so each test can
+// count searches per host and endpoint: the lookup budget is part of the contract.
+public sealed class RedditThoughtProviderTests : IDisposable
 {
-    private readonly MemoryCache _cache = new(new MemoryCacheOptions());
+    private const string ArcticShiftHost = "arctic-shift.photon-reddit.com";
+    private const string PullPushHost = "api.pullpush.io";
 
-    private readonly RedditOptions _options = new() { MaxThreads = 3, MaxComments = 250, CacheTtlSeconds = 86400, UseArcticShift = false };
+    // Aired before PullPush's cutoff (May 2025), and after it.
+    private static readonly DateTimeOffset s_oldAirDate = new(2024, 3, 1, 0, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset s_newAirDate = new(2026, 1, 9, 0, 0, 0, TimeSpan.Zero);
+
+    private static readonly EpisodeContext s_oldEpisode = new("The Show", s_oldAirDate, "The Thing", 1, 5);
+    private static readonly EpisodeContext s_newEpisode = new("The Show", s_newAirDate, "The Thing", 1, 5);
+
+    private static readonly long s_oldAired = s_oldAirDate.ToUnixTimeSeconds() + 3600;
+    private static readonly long s_newAired = s_newAirDate.ToUnixTimeSeconds() + 3600;
+
+    private readonly MemoryCache _cache = new(new MemoryCacheOptions());
+    private readonly ConcurrentQueue<Uri> _requests = new();
+    private readonly ISubredditResolver _resolver = Substitute.For<ISubredditResolver>();
+
+    public RedditThoughtProviderTests()
+    {
+        _resolver.ResolveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SubredditResolution(null));
+    }
 
     public void Dispose()
     {
@@ -29,1201 +50,625 @@ public class RedditThoughtProviderTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    // Returns a mapping service stub that resolves no mappings (uses derived subreddit fallback).
-    private static ISubredditMappingService NoMappings()
-    {
-        ISubredditMappingService svc = Substitute.For<ISubredditMappingService>();
-        svc.GetSubreddits(Arg.Any<MediaContext>()).Returns([]);
-        return svc;
-    }
+    // ---- Fake API ----
 
-    // Helper: returns submission JSON for any submission search, comment JSON for comment searches.
-    private static MockHttpMessageHandler SubmissionAndCommentHandler(
-        string submissionsJson, string commentsJson)
+    private static string Post(string id, string title, long created, int comments = 10, int score = 5,
+        string? flair = null, string selftext = "", string subreddit = "TheShowTV") =>
+        $$"""{"id":"{{id}}","title":{{JsonSerializer.Serialize(title)}},"subreddit":"{{subreddit}}","created_utc":{{created}},"score":{{score}},"num_comments":{{comments}},"selftext":{{JsonSerializer.Serialize(selftext)}},"link_flair_text":{{(flair is null ? "null" : JsonSerializer.Serialize(flair))}},"author":"op"}""";
+
+    private static string Listing(params string[] posts) => $$"""{"data":[{{string.Join(",", posts)}}]}""";
+
+    private static string Tree(string threadId, params (string Id, string? Parent, string Body)[] comments)
     {
-        return new MockHttpMessageHandler(req =>
+        IEnumerable<string> nodes = comments.Select(c =>
         {
-            string path = req.RequestUri?.AbsolutePath ?? "";
-            string content = path.Contains("comment") ? commentsJson : submissionsJson;
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) };
+            string parent = c.Parent ?? $"t3_{threadId}";
+            string body = JsonSerializer.Serialize(c.Body);
+            return "{\"kind\":\"t1\",\"data\":{" +
+                   $"\"id\":\"{c.Id}\",\"parent_id\":\"{parent}\",\"link_id\":\"t3_{threadId}\"," +
+                   $"\"author\":\"u\",\"score\":1,\"created_utc\":1709300000,\"body\":{body},\"replies\":\"\"" + "}}";
         });
+        return $"{{\"data\":[{string.Join(",", nodes)}]}}";
     }
 
-    [Fact]
-    public async Task GetThoughtsAsync_WithValidSubmissions_ReturnsComments()
+    private const string Empty = """{"data":[]}""";
+    private const string ArcticShiftTimeout = """{"data":null,"error":"Timeout. Maybe slow down a bit"}""";
+
+    private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) =>
+        new(status) { Content = new StringContent(body) };
+
+    private static bool IsArcticShiftSearch(Uri u) =>
+        u.Host == ArcticShiftHost && u.AbsolutePath == "/api/posts/search";
+
+    private static bool IsTree(Uri u) => u.Host == ArcticShiftHost && u.AbsolutePath == "/api/comments/tree";
+    private static bool IsPullPush(Uri u) => u.Host == PullPushHost;
+    private static bool IsPullPushSearch(Uri u) => IsPullPush(u) && u.AbsolutePath.Contains("submission");
+    private static bool IsPullPushComments(Uri u) => IsPullPush(u) && u.AbsolutePath.Contains("comment");
+    private static string Query(Uri u) => Uri.UnescapeDataString(u.Query);
+
+    private IEnumerable<Uri> ArcticShiftSearches => _requests.Where(IsArcticShiftSearch);
+
+    private RedditThoughtProvider CreateProvider(
+        Func<Uri, HttpResponseMessage> api,
+        RedditOptions? options = null,
+        IReadOnlyList<string>? mapped = null,
+        IReplyTreeBuilder? treeBuilder = null)
     {
-        // Arrange
-        EpisodeContext mediaContext = new(
-            "Breaking Bad",
-            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            "Pilot",
-            1,
-            1);
+        ISubredditMappingService mapping = Substitute.For<ISubredditMappingService>();
+        mapping.GetSubreddits(Arg.Any<MediaContext>()).Returns(mapped ?? ["TheShowTV"]);
 
-        // PullPush returns { "data": [...] } — flat array
-        string submissionsJson = """
-                                 {
-                                     "data": [
-                                         {
-                                             "id": "sub1",
-                                             "title": "Breaking Bad S01E01 Discussion",
-                                             "permalink": "/r/breakingbad/comments/sub1",
-                                             "subreddit": "breakingbad",
-                                             "score": 100
-                                         }
-                                     ]
-                                 }
-                                 """;
+        MockHttpMessageHandler handler = new(req =>
+        {
+            _requests.Enqueue(req.RequestUri!);
+            return api(req.RequestUri!);
+        });
 
-        string commentsJson = """
-                              {
-                                  "data": [
-                                      {
-                                          "id": "c1",
-                                          "body": "Great episode!",
-                                          "score": 100,
-                                          "created_utc": 1232419200,
-                                          "author": "user1",
-                                          "parent_id": "t3_sub1"
-                                      }
-                                  ]
-                              }
-                              """;
-
-        MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        // Act
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Source.Should().Be("Reddit");
-        result.PostTitle.Should().Contain("S01E01");
-    }
-
-    [Fact]
-    public async Task GetThoughtsAsync_FiltersDeletedContent()
-    {
-        // Arrange
-        EpisodeContext mediaContext = new(
-            "Breaking Bad",
-            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            "Pilot",
-            1,
-            1);
-
-        string submissionsJson = """
-                                 {
-                                     "data": [
-                                         {
-                                             "id": "sub1",
-                                             "title": "Breaking Bad S01E01",
-                                             "subreddit": "breakingbad",
-                                             "score": 50
-                                         }
-                                     ]
-                                 }
-                                 """;
-
-        string commentsJson = """
-                              {
-                                  "data": [
-                                      {
-                                          "id": "c1",
-                                          "body": "[deleted]",
-                                          "score": 0,
-                                          "created_utc": 1232419200,
-                                          "author": "[deleted]",
-                                          "parent_id": "t3_sub1"
-                                      },
-                                      {
-                                          "id": "c2",
-                                          "body": "[removed]",
-                                          "score": 0,
-                                          "created_utc": 1232419300,
-                                          "author": "AutoModerator",
-                                          "parent_id": "t3_sub1"
-                                      },
-                                      {
-                                          "id": "c3",
-                                          "body": "Good episode",
-                                          "score": 10,
-                                          "created_utc": 1232419400,
-                                          "author": "user1",
-                                          "parent_id": "t3_sub1"
-                                      }
-                                  ]
-                              }
-                              """;
-
-        MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        // Act
-        await provider.GetThoughtsAsync(mediaContext);
-
-        // Assert
-        treeBuilder.Received(1).BuildTree(Arg.Is<IEnumerable<Thought>>(t =>
-            t!.All(th => th.Content != "[deleted]" && th.Content != "[removed]")));
-    }
-
-    [Fact]
-    public async Task GetThoughtsAsync_StripsPrefixesFromParentIds()
-    {
-        // Arrange
-        EpisodeContext mediaContext = new(
-            "Breaking Bad",
-            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            "Pilot",
-            1,
-            1);
-
-        string submissionsJson = """
-                                 {
-                                     "data": [
-                                         {
-                                             "id": "sub1",
-                                             "title": "Breaking Bad S01E01",
-                                             "subreddit": "breakingbad",
-                                             "score": 50
-                                         }
-                                     ]
-                                 }
-                                 """;
-
-        string commentsJson = """
-                              {
-                                  "data": [
-                                      {
-                                          "id": "c1",
-                                          "body": "Top level comment",
-                                          "score": 100,
-                                          "created_utc": 1232419200,
-                                          "author": "user1",
-                                          "parent_id": "t3_sub1"
-                                      },
-                                      {
-                                          "id": "c2",
-                                          "body": "Reply to top level",
-                                          "score": 50,
-                                          "created_utc": 1232419300,
-                                          "author": "user2",
-                                          "parent_id": "t1_c1"
-                                      }
-                                  ]
-                              }
-                              """;
-
-        MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-
-        List<Thought> capturedThoughts = new();
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(x => capturedThoughts.AddRange(x)))
-            .Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        // Act
-        await provider.GetThoughtsAsync(mediaContext);
-
-        // Assert
-        capturedThoughts.Should().HaveCount(2);
-        Thought topLevel = capturedThoughts.Single(t => t.Content == "Top level comment");
-        topLevel.ParentId.Should().BeNull(); // t3_ prefix = reply to submission, treated as top-level
-
-        Thought reply = capturedThoughts.Single(t => t.Content == "Reply to top level");
-        reply.ParentId.Should().Be("reddit:c1"); // Stripped t1_ prefix, prepended "reddit:"
-    }
-
-    [Fact]
-    public async Task GetServiceHealthAsync_ReturnsHealthy()
-    {
-        // Arrange
-        MockHttpMessageHandler handler = new(
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        // Act
-        ServiceHealth health = await provider.GetServiceHealthAsync();
-
-        // Assert
-        health.IsHealthy.Should().BeTrue();
-    }
-
-    [Fact]
-    public void ExpectedWeight_EqualsSearchesPlusMaxThreadsTimesThree()
-    {
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        RedditThoughtProvider provider = new(
-            new HttpClient(),
-            new OptionsSnapshotStub<RedditOptions>(_options),
-            _cache, treeBuilder, NoMappings(),
+        return new RedditThoughtProvider(
+            new HttpClient(handler),
+            new OptionsSnapshotStub<RedditOptions>(options ?? new RedditOptions()),
+            _cache, treeBuilder ?? PassThroughTree(), mapping, _resolver,
             NullLogger<RedditThoughtProvider>.Instance);
-
-        // 8 PullPush specs (upper bound) + ~2 Arctic Shift subreddit lookups + MaxThreads comment fetches, 3 weight each
-        provider.ExpectedWeight.Should().Be((10 + _options.MaxThreads) * 3);
     }
 
-    // Regression: threads that use the episode title rather than an SxxExx code (e.g.
-    // r/HaltAndCatchFire's "Episiode 2 \"FUD\" Discussion Thread") were silently dropped
-    // because none of the search queries matched and MatchesEpisode rejected the title.
-    // The episode-title search in the show's subreddit should find and include them.
-    [Fact]
-    public async Task GetThoughtsAsync_EpisodeTitleThread_IsIncludedWhenNoSxxExxInTitle()
+    private static IReplyTreeBuilder PassThroughTree()
     {
-        // Arrange
-        EpisodeContext mediaContext = new(
-            "Halt and Catch Fire",
-            new DateTimeOffset(2014, 6, 8, 0, 0, 0, TimeSpan.Zero),
-            "FUD",
-            1,
-            2);
-
-        // The SxxExx searches return nothing; the episode-title search returns the real thread
-        string emptyJson = """{"data": []}""";
-        string episodeTitleSubmissionsJson = """
-                                             {
-                                                 "data": [
-                                                     {
-                                                         "id": "27lyt2",
-                                                         "title": "Episiode 2 \"FUD\" Discussion Thread",
-                                                         "permalink": "/r/HaltAndCatchFire/comments/27lyt2",
-                                                         "subreddit": "HaltAndCatchFire",
-                                                         "score": 15,
-                                                         "created_utc": 1402531200
-                                                     }
-                                                 ]
-                                             }
-                                             """;
-
-        string commentsJson = """
-                              {
-                                  "data": [
-                                      {
-                                          "id": "c1",
-                                          "body": "Great episode, the FUD strategy is fascinating.",
-                                          "score": 8,
-                                          "author": "redditor1",
-                                          "created_utc": 1402534800,
-                                          "parent_id": "t3_27lyt2"
-                                      }
-                                  ]
-                              }
-                              """;
-
-        MockHttpMessageHandler handler = new(req =>
-        {
-            string url = req.RequestUri?.ToString() ?? "";
-            // Episode-title search: title=FUD&subreddit=haltandcatchfire
-            string content = url.Contains("title=FUD") ? episodeTitleSubmissionsJson
-                : url.Contains("/comment/") ? commentsJson
-                : emptyJson;
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        List<Thought> capturedThoughts = new();
-        treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(t => capturedThoughts.AddRange(t)))
-            .Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        // Act
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        // Assert — the episode-title thread must have been fetched and its comments returned
-        result.Should().NotBeNull();
-        result.PostTitle.Should().Contain("FUD");
-        capturedThoughts.Should().ContainSingle(t => t.Content.Contains("FUD strategy"));
+        IReplyTreeBuilder tree = Substitute.For<IReplyTreeBuilder>();
+        tree.BuildTree(Arg.Any<IReadOnlyList<Thought>>()).Returns(call => call.Arg<IReadOnlyList<Thought>>());
+        return tree;
     }
 
-    // Regression: "3x02 Joe's Deposition..." style titles use NxNN format and were never searched
-    // for. The subreddit NxNN spec (e.g. "3x02" in r/haltandcatchfire) must find and keep them.
+    // One subreddit window holding the episode's thread, comments for every thread, nothing from PullPush.
+    private static Func<Uri, HttpResponseMessage> ArcticShiftWith(string listing, string? tree = null) => u =>
+        IsTree(u) ? Json(tree ?? Tree("t", ("c1", null, "great episode")))
+        : IsArcticShiftSearch(u) ? Json(listing)
+        : Json(Empty, HttpStatusCode.TooManyRequests);
+
+    // ---- Comments ----
+
     [Fact]
-    public async Task GetThoughtsAsync_NxNNTitleInShowSubreddit_IsIncluded()
+    public async Task GetThoughtsAsync_FindsTheEpisodeThreadAndItsComments()
     {
-        EpisodeContext mediaContext = new(
-            "Halt and Catch Fire",
-            new DateTimeOffset(2015, 7, 25, 0, 0, 0, TimeSpan.Zero),
-            "One Way or Another",
-            3,
-            2);
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftWith(
+            Listing(
+                Post("other", "Who else is rewatching?", s_oldAired),
+                Post("ep5", "The Show - 1x05 \"The Thing\" - Episode Discussion", s_oldAired, selftext: "Discuss!")),
+            Tree("ep5", ("c1", null, "top"), ("c2", "t1_c1", "a reply"))));
 
-        string nxnnSubmissionJson = """
-                                    {
-                                        "data": [
-                                            {
-                                                "id": "vieozp",
-                                                "title": "3x02 Joe's Deposition Offer to Gordon Scene Info",
-                                                "permalink": "/r/HaltAndCatchFire/comments/vieozp",
-                                                "subreddit": "HaltAndCatchFire",
-                                                "score": 5,
-                                                "created_utc": 1656892800
-                                            }
-                                        ]
-                                    }
-                                    """;
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_oldEpisode);
 
-        MockHttpMessageHandler handler = new(req =>
-        {
-            string url = req.RequestUri?.ToString() ?? "";
-            string content = url.Contains("title=3x02") && url.Contains("haltandcatchfire") ? nxnnSubmissionJson
-                : """{"data": []}""";
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        result.Should().NotBeNull();
-        result.PostTitle.Should().Contain("3x02");
+        result!.PostTitle.Should().Be("The Show - 1x05 \"The Thing\" - Episode Discussion");
+        result.PostUrl.Should().Be("https://reddit.com/r/TheShowTV/comments/ep5/",
+            "Arctic Shift can't return permalinks, so the URL is built from subreddit and id");
+        result.Thoughts!.Select(t => t.Id).Should().BeEquivalentTo("reddit:c1", "reddit:c2");
+        result.Thoughts!.Single(t => t.Id == "reddit:c1").ParentId.Should().BeNull("t3_ parents are top-level");
+        result.Thoughts!.Single(t => t.Id == "reddit:c2").ParentId.Should().Be("reddit:c1");
+        result.Thoughts!.Should().AllSatisfy(t => t.PostBody.Should().Be("Discuss!"));
+        result.IsTransientFailure.Should().BeFalse();
     }
 
-    // Regression: "Season 3 Episode 2 One Way or Another Rewatch" uses the long-form episode
-    // identifier and was never searched for. The "Season N Episode N" subreddit spec must find it.
     [Fact]
-    public async Task GetThoughtsAsync_LongFormSeasonEpisodeTitleInShowSubreddit_IsIncluded()
+    public async Task GetThoughtsAsync_FiltersDeletedAndRemovedComments()
     {
-        EpisodeContext mediaContext = new(
-            "Halt and Catch Fire",
-            new DateTimeOffset(2015, 7, 25, 0, 0, 0, TimeSpan.Zero),
-            "One Way or Another",
-            3,
-            2);
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftWith(
+            Listing(Post("ep5", "S01E05 Discussion", s_oldAired)),
+            Tree("ep5", ("c1", null, "[deleted]"), ("c2", null, "[removed]"), ("c3", null, "Good episode"))));
 
-        string longFormSubmissionJson = """
-                                        {
-                                            "data": [
-                                                {
-                                                    "id": "vi8vxm",
-                                                    "title": "Season 3 Episode 2 One Way or Another Rewatch",
-                                                    "permalink": "/r/HaltAndCatchFire/comments/vi8vxm",
-                                                    "subreddit": "HaltAndCatchFire",
-                                                    "score": 12,
-                                                    "created_utc": 1656892800
-                                                }
-                                            ]
-                                        }
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_oldEpisode);
+
+        result!.Thoughts!.Should().ContainSingle().Which.Content.Should().Be("Good episode");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ThreadWithNoComments_IsComplete()
+    {
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftWith(
+            Listing(Post("ep5", "S01E05 Discussion", s_oldAired)), Empty));
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_oldEpisode);
+
+        result!.IsTransientFailure.Should().BeFalse("Arctic Shift answered: the thread just has no comments");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_TreeFailsForAnOldThread_FallsBackToPullPushComments()
+    {
+        const string pullPushComments = """
+                                        {"data":[{"id":"pp1","body":"rescued","author":"e","score":2,"created_utc":"1709300000","parent_id":"t3_ep5"}]}
                                         """;
+        RedditThoughtProvider provider = CreateProvider(u =>
+            IsTree(u) ? Json(ArcticShiftTimeout)
+            : IsArcticShiftSearch(u) ? Json(Listing(Post("ep5", "S01E05 Discussion", s_oldAired)))
+            : IsPullPushComments(u) ? Json(pullPushComments)
+            : Json(Empty));
 
-        MockHttpMessageHandler handler = new(req =>
-        {
-            string url = Uri.UnescapeDataString(req.RequestUri?.ToString() ?? "");
-            string content = url.Contains("Season 3 Episode 2") ? longFormSubmissionJson
-                : """{"data": []}""";
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) };
-        });
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_oldEpisode);
 
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        result.Should().NotBeNull();
-        result.PostTitle.Should().Contain("Season 3 Episode 2");
-    }
-
-    // Regression: "Halt and Catch Fire 3x01/3x02 Valley of the..." in r/television uses the
-    // global NxNN format. The global show-title + NxNN spec must find and keep it.
-    [Fact]
-    public async Task GetThoughtsAsync_GlobalNxNNTitleWithShowName_IsIncluded()
-    {
-        EpisodeContext mediaContext = new(
-            "Halt and Catch Fire",
-            new DateTimeOffset(2015, 7, 25, 0, 0, 0, TimeSpan.Zero),
-            "One Way or Another",
-            3,
-            2);
-
-        string globalNxNnJson = """
-                                {
-                                    "data": [
-                                        {
-                                            "id": "4z9v2i",
-                                            "title": "Halt and Catch Fire 3x01/3x02 Valley of the Heart's Delight/One Way or Another",
-                                            "permalink": "/r/television/comments/4z9v2i",
-                                            "subreddit": "television",
-                                            "score": 88,
-                                            "created_utc": 1471046400
-                                        }
-                                    ]
-                                }
-                                """;
-
-        MockHttpMessageHandler handler = new(req =>
-        {
-            string url = req.RequestUri?.ToString() ?? "";
-            // Global NxNN spec: "Halt+and+Catch+Fire+3x02" with no subreddit filter
-            string content = url.Contains("Halt") && url.Contains("3x02") && !url.Contains("subreddit") ? globalNxNnJson
-                : """{"data": []}""";
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        result.Should().NotBeNull();
-        result.PostTitle.Should().Contain("3x01");
+        result!.Thoughts!.Should().ContainSingle().Which.Id.Should().Be("reddit:pp1");
+        result.Thoughts!.Single().CreatedAt.Should().Be(DateTimeOffset.FromUnixTimeSeconds(1709300000),
+            "PullPush sometimes sends created_utc as a string");
+        result.IsTransientFailure.Should().BeFalse("PullPush answered for the thread");
     }
 
     [Fact]
-    public async Task GetThoughtsAsync_ReportsWeightThreeTickPerSearch()
+    public async Task GetThoughtsAsync_TreeFailsForANewThread_NeverAsksPullPush_AndFlagsTheResult()
     {
-        // Arrange — 1 matching submission so exactly 8 search ticks + 1 comment tick
-        EpisodeContext mediaContext = new(
-            "Breaking Bad",
-            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            "Pilot",
-            1,
-            1);
+        RedditThoughtProvider provider = CreateProvider(u =>
+            IsTree(u) ? Json("", HttpStatusCode.BadGateway)
+            : IsArcticShiftSearch(u) ? Json(Listing(Post("ep5", "S01E05 Discussion", s_newAired)))
+            : Json(Empty));
 
-        string submissionsJson = """
-                                 {
-                                     "data": [
-                                         {
-                                             "id": "sub1",
-                                             "title": "Breaking Bad S01E01",
-                                             "subreddit": "breakingbad",
-                                             "score": 100
-                                         }
-                                     ]
-                                 }
-                                 """;
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_newEpisode);
 
-        string commentsJson = """{"data": []}""";
+        result!.PostTitle.Should().Be("S01E05 Discussion");
+        result.IsTransientFailure.Should().BeTrue("no archive returned the thread's comments");
+        _requests.Should().NotContain(u => IsPullPush(u));
+    }
 
-        MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
+    [Fact]
+    public async Task GetThoughtsAsync_TreeIsAskedForMaxCommentsWithoutFields()
+    {
+        RedditThoughtProvider provider = CreateProvider(
+            ArcticShiftWith(Listing(Post("ep5", "S01E05 Discussion", s_oldAired))),
+            new RedditOptions { MaxComments = 77 });
 
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
+        await provider.GetThoughtsAsync(s_oldEpisode);
 
-        ConcurrentBag<SyncProgressTick> ticks = new();
-        CapturingProgress progress = new(ticks);
+        Query(_requests.Single(IsTree)).Should().Contain("link_id=t3_ep5").And.Contain("limit=77")
+            .And.NotContain("fields=", "the tree endpoint doesn't document field selection");
+    }
 
-        // Act
-        await provider.GetThoughtsAsync(mediaContext, progress);
+    // ---- The search budget ----
 
-        // S1E1: padded == unpadded for both fields, so after dedup:
-        // 3 global + 4 subreddit + 1 episode-title = 8 specs, then +1 comment fetch = 9 ticks
-        ticks.Should().HaveCount(9);
+    [Fact]
+    public async Task GetThoughtsAsync_MappedShowWithAMatch_MakesOneSearchAndOneTreeCallPerThread()
+    {
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftWith(Listing(
+            Post("a", "S01E05 Discussion", s_oldAired, comments: 300),
+            Post("b", "S01E05 live thread", s_oldAired, comments: 50),
+            Post("c", "1x05 thoughts", s_oldAired, comments: 20),
+            Post("d", "Season 1 Episode 5 post-episode", s_oldAired, comments: 10))),
+            new RedditOptions { MaxThreads = 3 });
+
+        await provider.GetThoughtsAsync(s_oldEpisode);
+
+        ArcticShiftSearches.Should().ContainSingle();
+        _requests.Count(IsTree).Should().Be(3, "MaxThreads caps the threads read");
+        _requests.Should().NotContain(u => IsPullPush(u), "Arctic Shift found the thread");
+        await _resolver.DidNotReceiveWithAnyArgs().ResolveAsync(default!);
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ListsTheSubredditWindowWithTrimmedFields_NotATitleSearch()
+    {
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftWith(Listing(Post("ep5", "S01E05", s_oldAired))));
+
+        await provider.GetThoughtsAsync(s_oldEpisode);
+
+        string query = Query(ArcticShiftSearches.Single());
+        query.Should().Contain("subreddit=TheShowTV")
+            .And.Contain($"after={s_oldAirDate.AddDays(-2).ToUnixTimeSeconds()}")
+            .And.Contain($"before={s_oldAirDate.AddDays(10).ToUnixTimeSeconds()}")
+            .And.Contain("sort=asc")
+            .And.Contain($"fields={ArcticShiftSource.PostFields}")
+            .And.NotContain("title=", "keyword search times out on active subreddits");
+    }
+
+    // Selecting a field Arctic Shift doesn't offer fails the whole request ("'permalink' is not a valid
+    // field"), which would make every lookup a failure. The list is from the API's README.
+    [Fact]
+    public void PostFields_AreAllSelectable()
+    {
+        string[] selectable =
+        [
+            "author", "author_fullname", "author_flair_text", "created_utc", "distinguished", "id", "retrieved_on",
+            "subreddit", "subreddit_id", "score", "crosspost_parent", "link_flair_text", "num_comments", "over_18",
+            "post_hint", "selftext", "spoiler", "title", "url"
+        ];
+
+        ArcticShiftSource.PostFields.Split(',').Should().OnlyContain(f => selectable.Contains(f));
+        ArcticShiftSource.SubredditFields.Split(',').Should().OnlyContain(f =>
+            new[] { "created_utc", "description", "public_description", "display_name", "id", "over18", "retrieved_on", "subscribers", "title" }.Contains(f));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_FullWindowWithoutAMatch_ReadsTheNextPage_ThenStops()
+    {
+        string[] noise = Enumerable.Range(0, ArcticShiftSource.PageSize)
+            .Select(i => Post($"n{i}", $"Fan theory #{i}", s_oldAired + i)).ToArray();
+        RedditThoughtProvider provider = CreateProvider(u =>
+            IsTree(u) ? Json(Tree("ep5", ("c1", null, "found it")))
+            : IsArcticShiftSearch(u) && Query(u).Contains($"after={s_oldAired + ArcticShiftSource.PageSize - 1}")
+                ? Json(Listing(Post("ep5", "S01E05 Discussion", s_oldAired + 200_000)))
+            : IsArcticShiftSearch(u) ? Json(Listing(noise))
+            : Json(Empty));
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_oldEpisode);
+
+        result!.PostTitle.Should().Be("S01E05 Discussion");
+        ArcticShiftSearches.Should().HaveCount(2, "the second page starts after the first page's last post");
+        _requests.Should().NotContain(u => IsPullPush(u), "the budget went on the second page");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_NeverMakesMoreThanTwoSearches()
+    {
+        RedditThoughtProvider provider = CreateProvider(_ => Json(Empty),
+            mapped: ["SubA", "SubB", "SubC"]);
+
+        await provider.GetThoughtsAsync(s_oldEpisode);
+
+        _requests.Count(u => IsArcticShiftSearch(u) || IsPullPushSearch(u)).Should().Be(2);
+    }
+
+    // ---- PullPush: only a fallback, only for old episodes ----
+
+    [Fact]
+    public async Task GetThoughtsAsync_OldEpisode_ArcticShiftEmpty_AsksPullPushOnce()
+    {
+        RedditThoughtProvider provider = CreateProvider(u =>
+            IsTree(u) ? Json(Tree("pp5", ("c1", null, "from the tree")))
+            : IsPullPushSearch(u) ? Json(Listing(Post("pp5", "S01E05 Discussion", s_oldAired)))
+            : Json(Empty));
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_oldEpisode);
+
+        result!.PostTitle.Should().Be("S01E05 Discussion");
+        _requests.Count(IsPullPushSearch).Should().Be(1);
+        Query(_requests.Single(IsPullPushSearch)).Should().Contain("subreddit=TheShowTV");
+        _requests.Should().NotContain(u => IsPullPushComments(u), "Arctic Shift's tree had the comments");
+        result.IsTransientFailure.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_OldEpisode_ArcticShiftFailed_PullPushFinds_IsStillFlaggedIncomplete()
+    {
+        RedditThoughtProvider provider = CreateProvider(u =>
+            IsArcticShiftSearch(u) ? Json(ArcticShiftTimeout)
+            : IsTree(u) ? Json(Tree("pp5", ("c1", null, "x")))
+            : IsPullPushSearch(u) ? Json(Listing(Post("pp5", "S01E05 Discussion", s_oldAired)))
+            : Json(Empty));
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_oldEpisode);
+
+        result!.PostTitle.Should().Be("S01E05 Discussion");
+        result.IsTransientFailure.Should().BeTrue("Arctic Shift, the archive of record, didn't answer");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetThoughtsAsync_EpisodeAfterTheCutoff_NeverTouchesPullPush(bool arcticShiftFails)
+    {
+        RedditThoughtProvider provider = CreateProvider(u =>
+            IsArcticShiftSearch(u) ? Json(arcticShiftFails ? ArcticShiftTimeout : Empty) : Json(Empty));
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_newEpisode);
+
+        _requests.Should().NotContain(u => IsPullPush(u));
+        result!.IsTransientFailure.Should().Be(arcticShiftFails);
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_PullPushDisabled_NeverCallsPullPush()
+    {
+        RedditThoughtProvider provider = CreateProvider(_ => Json(Empty), new RedditOptions { UsePullPush = false });
+
+        await provider.GetThoughtsAsync(s_oldEpisode);
+
+        _requests.Should().NotContain(u => IsPullPush(u));
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ArcticShiftDisabled_OldEpisode_SearchesPullPushOnly()
+    {
+        RedditThoughtProvider provider = CreateProvider(u =>
+                IsPullPushComments(u) ? Json("""{"data":[{"id":"c1","body":"hi","author":"a","score":1,"created_utc":1709300000,"parent_id":"t3_pp5"}]}""")
+                : IsPullPushSearch(u) ? Json(Listing(Post("pp5", "S01E05 Discussion", s_oldAired)))
+                : Json(Empty),
+            new RedditOptions { UseArcticShift = false }, mapped: []);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_oldEpisode);
+
+        result!.Thoughts!.Should().ContainSingle();
+        _requests.Should().NotContain(u => u.Host == ArcticShiftHost);
+        Query(_requests.First(IsPullPushSearch)).Should().Contain("subreddit=theshow",
+            "without Arctic Shift's subreddit search, the title is the best guess");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ArcticShiftDisabled_NewEpisode_MakesNoRequests()
+    {
+        RedditThoughtProvider provider = CreateProvider(_ => Json(Empty), new RedditOptions { UseArcticShift = false });
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_newEpisode);
+
+        _requests.Should().BeEmpty("no enabled archive covers an episode this recent");
+        result!.IsTransientFailure.Should().BeFalse();
+    }
+
+    // ---- Subreddit resolution ----
+
+    [Fact]
+    public async Task GetThoughtsAsync_UnmappedShow_UsesTheResolvedSubreddit()
+    {
+        _resolver.ResolveAsync("The Show", Arg.Any<CancellationToken>()).Returns(new SubredditResolution("ResolvedSub"));
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftWith(Listing(Post("ep5", "S01E05", s_oldAired))),
+            mapped: []);
+
+        await provider.GetThoughtsAsync(s_oldEpisode);
+
+        Query(ArcticShiftSearches.First()).Should().Contain("subreddit=ResolvedSub");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ResolutionFailed_IsNotAConfirmedMiss()
+    {
+        _resolver.ResolveAsync("The Show", Arg.Any<CancellationToken>())
+            .Returns(new SubredditResolution(null, Failed: true));
+        RedditThoughtProvider provider = CreateProvider(_ => Json(Empty), mapped: []);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_newEpisode);
+
+        result!.IsTransientFailure.Should().BeTrue();
+    }
+
+    // ---- General-subreddit fallbacks ----
+
+    [Fact]
+    public async Task GetThoughtsAsync_NoThreadInTheShowSubreddit_TriesATitleSearchOfRTelevision()
+    {
+        RedditThoughtProvider provider = CreateProvider(u =>
+            IsTree(u) ? Json(Tree("tv5", ("c1", null, "x")))
+            : IsArcticShiftSearch(u) && Query(u).Contains("subreddit=television")
+                ? Json(Listing(
+                    Post("tv5", "The Show - 1x05 \"The Thing\" - Episode Discussion", s_newAired, subreddit: "television"),
+                    Post("tvx", "Other Show S01E05 Discussion", s_newAired, subreddit: "television")))
+            : Json(Empty));
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_newEpisode);
+
+        result!.PostUrl.Should().Contain("/r/television/comments/tv5/");
+        _requests.Count(IsTree).Should().Be(1, "another show's thread in r/television is not this show's");
+        Query(ArcticShiftSearches.Last()).Should().Contain("title=The Show");
+    }
+
+    // r/television's title search often times out. That must not turn a clean miss in the show's own
+    // subreddit into a failure re-fetched every minute.
+    [Fact]
+    public async Task GetThoughtsAsync_RTelevisionTimesOut_IsStillAConfirmedMiss()
+    {
+        RedditThoughtProvider provider = CreateProvider(u =>
+            IsArcticShiftSearch(u) && Query(u).Contains("subreddit=television") ? Json(ArcticShiftTimeout) : Json(Empty));
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_newEpisode);
+
+        result!.Thoughts.Should().BeEmpty();
+        result.IsTransientFailure.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_Movie_SearchesRMoviesForTheOfficialDiscussion()
+    {
+        MediaContext movie = new("Dune: Part Two", new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
+        RedditThoughtProvider provider = CreateProvider(u =>
+            IsTree(u) ? Json(Tree("dune", ("c1", null, "spice")))
+            : IsArcticShiftSearch(u) ? Json(Listing(
+                Post("trailer", "Dune: Part Two - Official Trailer 3", s_oldAired, subreddit: "movies"),
+                Post("dune", "Official Discussion - Dune: Part Two [SPOILERS]", s_oldAired, comments: 1, subreddit: "movies"),
+                Post("other", "Official Discussion - Spaceman [SPOILERS]", s_oldAired, subreddit: "movies")))
+            : Json(Empty), mapped: []);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(movie);
+
+        result!.PostTitle.Should().Be("Official Discussion - Dune: Part Two [SPOILERS]");
+        _requests.Count(IsTree).Should().Be(1, "news, trailers and other films' discussions don't count");
+        Query(ArcticShiftSearches.Single()).Should().Contain("subreddit=movies")
+            .And.Contain("title=Official Discussion Dune Part Two");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_MovieWithoutAMappedSubreddit_RMoviesTimeout_IsTransient()
+    {
+        MediaContext movie = new("Dune: Part Two", new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
+        RedditThoughtProvider provider = CreateProvider(_ => Json(ArcticShiftTimeout), mapped: []);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(movie);
+
+        result!.IsTransientFailure.Should().BeTrue("r/movies was the only place to look");
+    }
+
+    // ---- Undated lookups (prefetch) ----
+
+    [Fact]
+    public async Task GetThoughtsAsync_NoAirDate_ListsNewestPosts_AndNeverTouchesPullPush()
+    {
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftWith(Listing(Post("ep5", "S01E05 Discussion", s_newAired))));
+        EpisodeContext undated = s_oldEpisode with { ReleaseDate = null };
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(undated);
+
+        result!.PostTitle.Should().Be("S01E05 Discussion");
+        Query(ArcticShiftSearches.Single()).Should().Contain("sort=desc").And.NotContain("after=");
+        _requests.Should().NotContain(u => IsPullPush(u));
+    }
+
+    // Regression: prefetch looks up the next episode with no air date, so only the newest posts are listed
+    // and an old episode's thread is missed. That miss must not hide the thread from the dated lookup.
+    [Fact]
+    public async Task GetThoughtsAsync_UndatedMiss_DoesNotHideThreadsFromDatedLookup()
+    {
+        RedditThoughtProvider provider = CreateProvider(u =>
+            IsTree(u) ? Json(Tree("ep5", ("c1", null, "x")))
+            : IsArcticShiftSearch(u) && Query(u).Contains("sort=desc") ? Json(Listing(Post("new", "Season 3 trailer!", s_newAired)))
+            : IsArcticShiftSearch(u) ? Json(Listing(Post("ep5", "S01E05 Discussion", s_oldAired)))
+            : Json(Empty));
+
+        ThoughtResult? prefetched = await provider.GetThoughtsAsync(s_oldEpisode with { ReleaseDate = null });
+        ThoughtResult? real = await provider.GetThoughtsAsync(s_oldEpisode);
+
+        prefetched!.Thoughts.Should().BeEmpty();
+        real!.PostTitle.Should().Be("S01E05 Discussion");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_UndatedMiss_IsStillCachedForUndatedLookups()
+    {
+        RedditThoughtProvider provider = CreateProvider(_ => Json(Empty));
+        EpisodeContext undated = s_oldEpisode with { ReleaseDate = null };
+
+        await provider.GetThoughtsAsync(undated);
+        int afterFirst = _requests.Count;
+        await provider.GetThoughtsAsync(undated);
+
+        _requests.Count.Should().Be(afterFirst, "an undated viewer must not refetch on every poll");
+    }
+
+    // ---- Failures and progress ----
+
+    // Regression: Arctic Shift reports timeouts as {"data":null,"error":...}. Counting that as an empty
+    // result stored "no threads" for the full TTL instead of retrying soon.
+    [Fact]
+    public async Task GetThoughtsAsync_ArcticShiftErrorBody_IsATransientFailure()
+    {
+        RedditThoughtProvider provider = CreateProvider(_ => Json(ArcticShiftTimeout));
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_newEpisode);
+
+        result!.Thoughts.Should().BeEmpty();
+        result.IsTransientFailure.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ReportsOneWeightThreeTickPerSearchAndPerThread()
+    {
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftWith(Listing(Post("ep5", "S01E05", s_oldAired))));
+        ConcurrentBag<SyncProgressTick> ticks = [];
+
+        await provider.GetThoughtsAsync(s_oldEpisode, new CapturingProgress(ticks));
+
+        ticks.Should().HaveCount(2, "one search, one thread");
         ticks.Should().OnlyContain(t => t.Weight == 3 && t.Provider == "Reddit");
     }
 
-    // Regression: PullPush sometimes returns created_utc as a JSON string instead of a number.
-    // Before the fix, this caused a JsonException and silently dropped all comments for that query.
     [Fact]
-    public async Task GetThoughtsAsync_CreatedUtcAsString_DeserializesWithoutThrowing()
+    public void ExpectedWeight_IsTheSearchBudgetPlusMaxThreads_TimesThree()
     {
-        // Arrange
-        EpisodeContext mediaContext = new(
-            "Halt and Catch Fire",
-            new DateTimeOffset(2014, 6, 1, 0, 0, 0, TimeSpan.Zero),
-            "I/O",
-            1,
-            1);
+        RedditThoughtProvider provider = CreateProvider(_ => Json(Empty), new RedditOptions { MaxThreads = 4 });
 
-        // created_utc is a quoted string — the API variant that previously caused the crash
-        string submissionsJson = """
-                                 {
-                                     "data": [
-                                         {
-                                             "id": "sub1",
-                                             "title": "Halt and Catch Fire S01E01 Discussion",
-                                             "permalink": "/r/HaltAndCatchFire/comments/sub1",
-                                             "subreddit": "HaltAndCatchFire",
-                                             "score": 42,
-                                             "created_utc": "1401753600"
-                                         }
-                                     ]
-                                 }
-                                 """;
-
-        string commentsJson = """
-                              {
-                                  "data": [
-                                      {
-                                          "id": "c1",
-                                          "body": "Great pilot!",
-                                          "score": 10,
-                                          "author": "user1",
-                                          "created_utc": "1401753700",
-                                          "parent_id": "t3_sub1"
-                                      }
-                                  ]
-                              }
-                              """;
-
-        MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-
-        List<Thought> capturedThoughts = new();
-        treeBuilder.BuildTree(Arg.Do<IEnumerable<Thought>>(t => capturedThoughts.AddRange(t)))
-            .Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        // Act — must not throw
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        // Assert — comment was parsed and passed through
-        result.Should().NotBeNull();
-        capturedThoughts.Should().ContainSingle(t => t.Content == "Great pilot!");
-        capturedThoughts.Single().CreatedAt.Should().Be(DateTimeOffset.FromUnixTimeSeconds(1401753700));
+        provider.ExpectedWeight.Should().Be((2 + 4) * 3);
     }
 
-    // Regression: when every PullPush search fails (e.g. 429), the empty result used to go
-    // uncached, so each poll cycle redid the searches and re-ticked, flashing the loading bar.
+    // Regression: when every search fails (e.g. 429), the empty result used to go uncached, so each poll
+    // cycle redid the searches and re-ticked, flashing the loading bar.
     [Fact]
-    public async Task GetThoughtsAsync_AfterAllSearchesFail_ReportsNoTicksOnNextCall()
+    public async Task GetThoughtsAsync_AfterAFailure_NextCallIsCachedAndReportsNoTicks()
     {
-        int requestCount = 0;
-        MockHttpMessageHandler handler = new(() =>
-        {
-            requestCount++;
-            return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-        });
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            Substitute.For<IReplyTreeBuilder>(), NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
+        RedditThoughtProvider provider = CreateProvider(_ => Json("", HttpStatusCode.TooManyRequests));
+        await provider.GetThoughtsAsync(s_newEpisode);
+        int afterFirst = _requests.Count;
 
-        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
-        await provider.GetThoughtsAsync(mediaContext);
-        int requestsAfterFirst = requestCount;
+        ConcurrentBag<SyncProgressTick> ticks = [];
+        await provider.GetThoughtsAsync(s_newEpisode, new CapturingProgress(ticks));
 
-        ConcurrentBag<SyncProgressTick> ticks = new();
-        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
-
-        ticks.Should().BeEmpty("a cached failure does no work and must not arm the frontend loading bar");
-        requestCount.Should().Be(requestsAfterFirst);
+        ticks.Should().BeEmpty("a cached failure does no work and must not arm the loading bar");
+        _requests.Count.Should().Be(afterFirst);
     }
 
-    // The loading bar is for the initial bulk load only: once a fetch has been attempted for an
-    // episode, a retry after the cached failure expires must run without reporting progress.
+    // The loading bar is for the initial load only: a retry after the cached failure expires is silent.
     [Fact]
     public async Task GetThoughtsAsync_RetryAfterFailureExpires_ReportsNoTicks()
     {
-        int requestCount = 0;
-        MockHttpMessageHandler handler = new(() =>
-        {
-            requestCount++;
-            return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-        });
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            Substitute.For<IReplyTreeBuilder>(), NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
+        RedditThoughtProvider provider = CreateProvider(_ => Json("", HttpStatusCode.TooManyRequests));
+        ConcurrentBag<SyncProgressTick> initial = [];
+        await provider.GetThoughtsAsync(s_newEpisode, new CapturingProgress(initial));
+        initial.Should().NotBeEmpty("the initial load reports progress");
+        int afterFirst = _requests.Count;
 
-        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
-        ConcurrentBag<SyncProgressTick> initialTicks = new();
-        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(initialTicks));
-        initialTicks.Should().NotBeEmpty("the initial load reports progress");
-        int requestsAfterFirst = requestCount;
+        _cache.Remove(provider.GetCacheKey(s_newEpisode)); // the failure entry's TTL expiring
 
-        _cache.Remove(provider.GetCacheKey(mediaContext)); // simulate the failure entry's TTL expiring
+        ConcurrentBag<SyncProgressTick> retry = [];
+        await provider.GetThoughtsAsync(s_newEpisode, new CapturingProgress(retry));
 
-        ConcurrentBag<SyncProgressTick> retryTicks = new();
-        await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(retryTicks));
-
-        requestCount.Should().BeGreaterThan(requestsAfterFirst, "the retry still hits the network");
-        retryTicks.Should().BeEmpty("retries are background work and must not arm the loading bar");
+        _requests.Count.Should().BeGreaterThan(afterFirst, "the retry still hits the network");
+        retry.Should().BeEmpty("retries are background work and must not arm the loading bar");
     }
 
     [Fact]
     public async Task GetThoughtsAsync_NullProgress_DoesNotThrow()
     {
-        MockHttpMessageHandler handler = SubmissionAndCommentHandler("""{"data":[]}""", """{"data":[]}""");
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftWith(Listing(Post("ep5", "S01E05", s_oldAired))));
 
-        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
-        Func<Task<ThoughtResult?>> act = async () => await provider.GetThoughtsAsync(mediaContext);
+        Func<Task<ThoughtResult?>> act = () => provider.GetThoughtsAsync(s_oldEpisode);
+
         await act.Should().NotThrowAsync();
+    }
+
+    // ---- Ranking ----
+
+    [Fact]
+    public async Task GetThoughtsAsync_RanksCodeMatchesAndDiscussionThreadsAboveScore()
+    {
+        RedditThoughtProvider provider = CreateProvider(ArcticShiftWith(Listing(
+                Post("title", "\"The Thing\" was incredible", s_oldAired, comments: 900, score: 900),
+                Post("meme", "S01E05 meme", s_oldAired, comments: 500, score: 800),
+                Post("disc", "S01E05", s_oldAired, comments: 1, score: 1, flair: "Episode Discussion"))),
+            new RedditOptions { MaxThreads = 1 });
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_oldEpisode);
+
+        result!.PostUrl.Should().Contain("/disc/",
+            "Arctic Shift's counts are often stale; code match and the discussion flair win");
     }
 
     // ---- Provider self-description ----
 
     [Fact]
-    public void ConfigSection_IsReddit()
+    public async Task GetServiceHealthAsync_ArcticShiftUpPullPushDown_IsHealthyAndNamesTheOutage()
     {
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        RedditThoughtProvider provider = new(
-            new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(),
-            NullLogger<RedditThoughtProvider>.Instance);
+        RedditThoughtProvider provider = CreateProvider(u =>
+            u.Host == ArcticShiftHost ? Json(Empty) : Json("", HttpStatusCode.TooManyRequests));
+
+        ServiceHealth health = await provider.GetServiceHealthAsync();
+
+        health.IsHealthy.Should().BeTrue("one working archive is enough");
+        health.Message.Should().Contain("PullPush").And.Contain("TooManyRequests");
+    }
+
+    [Fact]
+    public async Task GetServiceHealthAsync_BothArchivesDown_IsUnhealthy()
+    {
+        RedditThoughtProvider provider = CreateProvider(_ => Json("", HttpStatusCode.TooManyRequests));
+
+        ServiceHealth health = await provider.GetServiceHealthAsync();
+
+        health.IsHealthy.Should().BeFalse();
+    }
+
+    [Fact]
+    public void SelfDescription_NeedsNoCredentials()
+    {
+        RedditThoughtProvider provider = CreateProvider(_ => Json(Empty));
 
         provider.ConfigSection.Should().Be("Reddit");
-    }
-
-    [Fact]
-    public void IsConfigured_IsAlwaysTrue()
-    {
-        // Reddit needs no credentials — always considered configured
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        RedditThoughtProvider provider = new(
-            new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(),
-            NullLogger<RedditThoughtProvider>.Instance);
-
         provider.IsConfigured.Should().BeTrue();
-    }
-
-    [Fact]
-    public void GetConfigSchema_ReturnsTwoNumericFields()
-    {
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        RedditThoughtProvider provider = new(
-            new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(),
-            NullLogger<RedditThoughtProvider>.Instance);
-
+        ((IDataProvider)provider).RevealSecret("Reddit__MaxThreads").Should().BeNull();
         IReadOnlyList<ProviderConfigField> fields = provider.GetConfigSchema(_ => "", (_, _) => false);
-
-        fields.Should().HaveCount(2);
         fields.Select(f => f.Key).Should().BeEquivalentTo("Reddit__MaxThreads", "Reddit__MaxComments");
         fields.Should().AllSatisfy(f => f.Type.Should().Be("number"));
     }
 
     [Fact]
-    public void RevealSecret_ReturnsNull_NoSecretsToReveal()
+    public void PullPushSubmissionDto_Stickied_DefaultsFalse_AndDeserializes()
     {
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        RedditThoughtProvider provider = new(
-            new HttpClient(), new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(),
-            NullLogger<RedditThoughtProvider>.Instance);
-
-        // Reddit stores no secrets, so RevealSecret should return null for any key
-        // (uses default IDataProvider.RevealSecret DIM — cast to interface to invoke)
-        ((IDataProvider)provider).RevealSecret("Reddit__MaxThreads").Should().BeNull();
-        ((IDataProvider)provider).RevealSecret("Reddit__MaxComments").Should().BeNull();
-    }
-
-    // ---- Movie and season-0 / dateless-episode handling ----
-
-    [Fact]
-    public async Task GetThoughtsAsync_WithMovieContext_SearchesWithMovieSuffix()
-    {
-        MediaContext mediaContext = new(
-            "Interstellar",
-            new DateTimeOffset(2014, 11, 5, 0, 0, 0, TimeSpan.Zero));
-
-        string movieSubmissionJson = """
-                                     {
-                                         "data": [
-                                             {
-                                                 "id": "sub1",
-                                                 "title": "Interstellar [Discussion]",
-                                                 "permalink": "/r/movies/comments/sub1",
-                                                 "subreddit": "movies",
-                                                 "score": 500
-                                             }
-                                         ]
-                                     }
-                                     """;
-
-        List<string> searchedUrls = new();
-        MockHttpMessageHandler handler = new(req =>
-        {
-            string url = Uri.UnescapeDataString(req.RequestUri?.ToString() ?? "");
-            searchedUrls.Add(url);
-            string content = url.Contains("/comment/") ? """{"data": []}"""
-                : movieSubmissionJson;
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        result.Should().NotBeNull();
-        searchedUrls.Where(u => u.Contains("/submission/")).Should()
-            .ContainSingle(u => u.Contains("Interstellar movie"));
-    }
-
-    [Fact]
-    public async Task GetThoughtsAsync_WithSeasonZeroEpisode_WithDate_SearchesByDate()
-    {
-        EpisodeContext mediaContext = new(
-            "The Daily Show",
-            new DateTimeOffset(2026, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            "January 20, 2026",
-            0,
-            1);
-
-        List<string> searchedUrls = new();
-        MockHttpMessageHandler handler = new(req =>
-        {
-            string url = Uri.UnescapeDataString(req.RequestUri?.ToString() ?? "");
-            searchedUrls.Add(url);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        await provider.GetThoughtsAsync(mediaContext);
-
-        searchedUrls.Where(u => u.Contains("/submission/")).Should()
-            .Contain(u => u.Contains("January 20, 2026"));
-        searchedUrls.Where(u => u.Contains("/submission/")).Should()
-            .NotContain(u => u.Contains("S00") || u.Contains("0x"));
-    }
-
-    [Fact]
-    public async Task GetThoughtsAsync_WithSeasonZeroEpisode_NoDate_SearchesByEpisodeTitle()
-    {
-        EpisodeContext mediaContext = new(
-            "The Daily Show",
-            null,
-            "Special Report",
-            0,
-            1);
-
-        List<string> searchedUrls = new();
-        MockHttpMessageHandler handler = new(req =>
-        {
-            string url = Uri.UnescapeDataString(req.RequestUri?.ToString() ?? "");
-            searchedUrls.Add(url);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        await provider.GetThoughtsAsync(mediaContext);
-
-        searchedUrls.Where(u => u.Contains("/submission/")).Should()
-            .Contain(u => u.Contains("Special Report"));
-        searchedUrls.Where(u => u.Contains("/submission/")).Should()
-            .NotContain(u => u.Contains("S00") || u.Contains("0x"));
-    }
-
-    // Regression: when a show is new and PullPush has no S2 content, the episode-title bypass
-    // search may return S1 discussion threads whose titles explicitly name Season 1. Without the
-    // MentionsDifferentSeason guard those threads slipped through the bypass filter unchecked.
-    [Fact]
-    public async Task GetThoughtsAsync_BypassResult_WithExplicitPriorSeasonInTitle_IsRejected()
-    {
-        EpisodeContext mediaContext = new(
-            "The Pitt",
-            new DateTimeOffset(2026, 1, 9, 0, 0, 0, TimeSpan.Zero),
-            "Mass Casualty",
-            2,
-            1);
-
-        // S1 thread surfaced by the episode-title bypass search — title explicitly says S01E01
-        string s1ThreadJson = """
-                              {
-                                  "data": [
-                                      {
-                                          "id": "abc123",
-                                          "title": "The Pitt S01E01 - \"Mass Casualty\" Discussion",
-                                          "permalink": "/r/ThePitt/comments/abc123",
-                                          "subreddit": "ThePitt",
-                                          "score": 500
-                                      }
-                                  ]
-                              }
-                              """;
-
-        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
-            .RespondTo("Mass Casualty", s1ThreadJson)
-            .Default("""{"data":[]}""");
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        // The episode-title bypass search must have fired (the mock DID return the S1 thread;
-        // it's the MentionsDifferentSeason guard that rejects it, not an absence of results)
-        handler.RecordedUris.Should().Contain(
-            u => Uri.UnescapeDataString(u.ToString()).Contains("Mass Casualty"),
-            "episode-title bypass search must have been attempted");
-
-        // The S1 thread must then be rejected — no comment fetch should follow
-        result.Should().NotBeNull();
-        result.Thoughts.Should().BeEmpty();
-        handler.RecordedUris.Should().NotContain(u => u.ToString().Contains("/comment/"));
-    }
-
-    // Complement: a bypass result whose title carries no season code must still pass through —
-    // many discussion threads are titled "Episode 3 Discussion" with no SxxExx code at all.
-    [Fact]
-    public async Task GetThoughtsAsync_BypassResult_WithNoSeasonInTitle_IsIncluded()
-    {
-        EpisodeContext mediaContext = new(
-            "The Pitt",
-            new DateTimeOffset(2026, 1, 9, 0, 0, 0, TimeSpan.Zero),
-            "Mass Casualty",
-            2,
-            1);
-
-        string unseasonedThreadJson = """
-                                      {
-                                          "data": [
-                                              {
-                                                  "id": "xyz789",
-                                                  "title": "Mass Casualty - Episode Discussion",
-                                                  "permalink": "/r/ThePitt/comments/xyz789",
-                                                  "subreddit": "ThePitt",
-                                                  "score": 80
-                                              }
-                                          ]
-                                      }
-                                      """;
-
-        string commentsJson = """
-                              {
-                                  "data": [
-                                      {
-                                          "id": "c1",
-                                          "body": "Incredible premiere.",
-                                          "score": 50,
-                                          "author": "viewer1",
-                                          "created_utc": 1736380800,
-                                          "parent_id": "t3_xyz789"
-                                      }
-                                  ]
-                              }
-                              """;
-
-        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
-            .RespondTo("Mass Casualty", unseasonedThreadJson)
-            .RespondTo("/comment/", commentsJson)
-            .Default("""{"data":[]}""");
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        result.Should().NotBeNull();
-        result.Thoughts.Should().NotBeEmpty();
-    }
-
-    // ---- Search query parameter tests ----
-
-    [Fact]
-    public async Task GetThoughtsAsync_WithReleaseDate_AppendsAfterParameter()
-    {
-        DateTimeOffset releaseDate = new(2024, 3, 15, 0, 0, 0, TimeSpan.Zero);
-        long expectedEpoch = releaseDate.AddDays(-7).ToUnixTimeSeconds();
-
-        EpisodeContext mediaContext = new("Test Show", releaseDate, "Pilot", 1, 1);
-
-        List<string> searchedUrls = new();
-        MockHttpMessageHandler handler = new(req =>
-        {
-            searchedUrls.Add(req.RequestUri?.ToString() ?? "");
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        await provider.GetThoughtsAsync(mediaContext);
-
-        searchedUrls.Where(u => u.Contains("/submission/")).Should()
-            .OnlyContain(u => u.Contains($"after={expectedEpoch}"));
-    }
-
-    [Fact]
-    public async Task GetThoughtsAsync_WithNullReleaseDate_OmitsAfterParameter()
-    {
-        EpisodeContext mediaContext = new("Test Show", null, "Pilot", 1, 1);
-
-        List<string> searchedUrls = new();
-        MockHttpMessageHandler handler = new(req =>
-        {
-            searchedUrls.Add(req.RequestUri?.ToString() ?? "");
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        await provider.GetThoughtsAsync(mediaContext);
-
-        searchedUrls.Where(u => u.Contains("/submission/")).Should()
-            .NotContain(u => u.Contains("after="));
-    }
-
-    [Fact]
-    public async Task GetThoughtsAsync_SizeScalesWithMaxThreads()
-    {
-        RedditOptions scaledOptions = new()
-        {
-            MaxThreads = 10, MaxComments = 250, CacheTtlSeconds = 86400, UseArcticShift = false
-        };
-
-        EpisodeContext mediaContext = new(
-            "Test Show",
-            new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),
-            "Pilot",
-            1,
-            1);
-
-        List<string> searchedUrls = new();
-        MockHttpMessageHandler handler = new(req =>
-        {
-            searchedUrls.Add(req.RequestUri?.ToString() ?? "");
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(scaledOptions), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        await provider.GetThoughtsAsync(mediaContext);
-
-        // Episode-title spec is bypass (size=40), all others are normal (size=80)
-        List<string> submissionUrls = searchedUrls.Where(u => u.Contains("/submission/")).ToList();
-        submissionUrls.Should().Contain(u => u.Contains("size=80"));
-        submissionUrls.Should().Contain(u => u.Contains("size=40"));
-    }
-
-    [Fact]
-    public async Task GetThoughtsAsync_SubmissionUrls_ContainNumCommentsFilter()
-    {
-        EpisodeContext mediaContext = new("Test Show", DateTimeOffset.UtcNow, "Pilot", 1, 1);
-
-        List<string> searchedUrls = new();
-        MockHttpMessageHandler handler = new(req =>
-        {
-            searchedUrls.Add(Uri.UnescapeDataString(req.RequestUri?.ToString() ?? ""));
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        await provider.GetThoughtsAsync(mediaContext);
-
-        searchedUrls.Where(u => u.Contains("/submission/")).Should()
-            .OnlyContain(u => u.Contains("num_comments=>2"));
-    }
-
-    [Fact]
-    public async Task GetThoughtsAsync_StickiedSubmission_BoostedAboveHigherScore()
-    {
-        EpisodeContext mediaContext = new(
-            "Breaking Bad",
-            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            "Pilot",
-            1,
-            1);
-
-        string submissionsJson = """
-                                 {
-                                     "data": [
-                                         {
-                                             "id": "highscore",
-                                             "title": "Breaking Bad S01E01 - Amazing!",
-                                             "permalink": "/r/breakingbad/comments/highscore",
-                                             "subreddit": "breakingbad",
-                                             "score": 500,
-                                             "stickied": false
-                                         },
-                                         {
-                                             "id": "stickied",
-                                             "title": "Breaking Bad S01E01 Official Discussion",
-                                             "permalink": "/r/breakingbad/comments/stickied",
-                                             "subreddit": "breakingbad",
-                                             "score": 50,
-                                             "stickied": true
-                                         }
-                                     ]
-                                 }
-                                 """;
-
-        string commentsJson = """
-                              {
-                                  "data": [
-                                      {
-                                          "id": "c1",
-                                          "body": "Great episode!",
-                                          "score": 10,
-                                          "created_utc": 1232419200,
-                                          "author": "user1",
-                                          "parent_id": "t3_stickied"
-                                      }
-                                  ]
-                              }
-                              """;
-
-        MockHttpMessageHandler handler = SubmissionAndCommentHandler(submissionsJson, commentsJson);
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        result.Should().NotBeNull();
-        result.PostTitle.Should().Contain("Official Discussion",
-            "stickied submission should be the featured post despite lower score");
-    }
-
-    [Fact]
-    public void PullPushSubmissionDto_Stickied_DefaultsFalse()
-    {
-        string json = """{"data":[{"id":"abc","title":"Test","score":10}]}""";
-        PullPushSubmissionsResponseDto? result = System.Text.Json.JsonSerializer.Deserialize(
-            json, RedditJsonContext.Default.PullPushSubmissionsResponseDto);
-
-        result.Should().NotBeNull();
-        result!.Data.Should().ContainSingle();
-        result.Data![0].Stickied.Should().BeFalse();
-    }
-
-    [Fact]
-    public void PullPushSubmissionDto_Stickied_DeserializesTrue()
-    {
-        string json = """{"data":[{"id":"abc","title":"Test","score":10,"stickied":true}]}""";
-        PullPushSubmissionsResponseDto? result = System.Text.Json.JsonSerializer.Deserialize(
-            json, RedditJsonContext.Default.PullPushSubmissionsResponseDto);
-
-        result.Should().NotBeNull();
-        result!.Data.Should().ContainSingle();
-        result.Data![0].Stickied.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task GetThoughtsAsync_WithMappedSubreddits_UsesMappedNotDerived()
-    {
-        EpisodeContext mediaContext = new(
-            "Saturday Night Live",
-            new DateTimeOffset(2026, 4, 5, 0, 0, 0, TimeSpan.Zero),
-            "Cynthia Erivo / Doechii",
-            51,
-            16);
-
-        ISubredditMappingService mappingService = Substitute.For<ISubredditMappingService>();
-        mappingService.GetSubreddits(Arg.Any<MediaContext>()).Returns(["snl", "LiveFromNewYork"]);
-
-        List<string> searchedUrls = new();
-        MockHttpMessageHandler handler = new(req =>
-        {
-            searchedUrls.Add(Uri.UnescapeDataString(req.RequestUri?.ToString() ?? ""));
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") };
-        });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, mappingService, NullLogger<RedditThoughtProvider>.Instance);
-
-        await provider.GetThoughtsAsync(mediaContext);
-
-        List<string> submissionUrls = searchedUrls.Where(u => u.Contains("/submission/")).ToList();
-
-        // Mapped subreddits appear in subreddit-scoped specs
-        submissionUrls.Should().Contain(u => u.Contains("subreddit=snl"));
-        submissionUrls.Should().Contain(u => u.Contains("subreddit=LiveFromNewYork"));
-
-        // The derived subreddit ("saturdaynightlive") must NOT appear — mapping replaces it
-        submissionUrls.Should().NotContain(u => u.Contains("saturdaynightlive"));
-    }
-
-    [Fact]
-    public async Task GetThoughtsAsync_WithSeasonZeroEpisode_NoDateNoTitle_ReturnsEmpty()
-    {
-        EpisodeContext mediaContext = new(
-            "The Daily Show",
-            null,
-            "",
-            0,
-            1);
-
-        MockHttpMessageHandler handler = new(req =>
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data": []}""") });
-
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://api.pullpush.io") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-
-        RedditThoughtProvider provider = new(client, new OptionsSnapshotStub<RedditOptions>(_options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
-
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
-
-        result.Should().NotBeNull();
-        result.Thoughts.Should().BeEmpty();
+        PullPushSubmissionsResponseDto? plain = JsonSerializer.Deserialize(
+            """{"data":[{"id":"a","title":"t","is_self":false}]}""",
+            RedditJsonContext.Default.PullPushSubmissionsResponseDto);
+        PullPushSubmissionsResponseDto? stickied = JsonSerializer.Deserialize(
+            """{"data":[{"id":"a","title":"t","is_self":false,"stickied":true,"link_flair_text":"Discussion"}]}""",
+            RedditJsonContext.Default.PullPushSubmissionsResponseDto);
+
+        plain!.Data![0].Stickied.Should().BeFalse();
+        stickied!.Data![0].Stickied.Should().BeTrue();
+        stickied.Data[0].LinkFlairText.Should().Be("Discussion");
     }
 }

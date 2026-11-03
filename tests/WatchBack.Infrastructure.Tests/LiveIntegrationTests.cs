@@ -198,7 +198,7 @@ public class LiveIntegrationTests : IDisposable
 
         ReplyTreeBuilder treeBuilder = new();
         RedditThoughtProvider provider = new(_httpClient, new OptionsSnapshotStub<RedditOptions>(options), _cache,
-            treeBuilder, NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
+            treeBuilder, NoMappings(), NoResolution(), NullLogger<RedditThoughtProvider>.Instance);
 
         // Act
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
@@ -324,7 +324,7 @@ public class LiveIntegrationTests : IDisposable
         RedditOptions redditOpts = new();
         RedditThoughtProvider redditProvider = new(
             _httpClient, new OptionsSnapshotStub<RedditOptions>(redditOpts), _cache, new ReplyTreeBuilder(),
-            NoMappings(), NullLogger<RedditThoughtProvider>.Instance);
+            NoMappings(), NoResolution(), NullLogger<RedditThoughtProvider>.Instance);
 
         // Act - all providers should handle health checks without throwing
         ServiceHealth jellyfinHealth = await jellyfinProvider.GetServiceHealthAsync();
@@ -346,5 +346,13 @@ public class LiveIntegrationTests : IDisposable
         ISubredditMappingService svc = Substitute.For<ISubredditMappingService>();
         svc.GetSubreddits(Arg.Any<MediaContext>()).Returns([]);
         return svc;
+    }
+
+    private static ISubredditResolver NoResolution()
+    {
+        ISubredditResolver resolver = Substitute.For<ISubredditResolver>();
+        resolver.ResolveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new SubredditResolution(null));
+        return resolver;
     }
 }

@@ -5,103 +5,90 @@ using Microsoft.Extensions.Logging;
 
 namespace WatchBack.Infrastructure.ThoughtProviders;
 
-// Which Reddit archive(s) returned a submission. Flags because both can find the same thread.
-[Flags]
-internal enum RedditSource
-{
-    None = 0,
-    PullPush = 1,
-    ArcticShift = 2
-}
-
 // Arctic Shift (https://github.com/ArthurHeitmann/arctic_shift/tree/master/api) client helpers.
 // Submissions reuse the PullPush DTOs — the field names are identical to Reddit's own.
 // Every method returns null on failure so callers can tell "request failed" from "no results".
 internal static class ArcticShiftSource
 {
     private const string BaseUrl = "https://arctic-shift.photon-reddit.com";
-    private const int PageSize = 100;
+    public const int PageSize = 100;
+
+    // Only these fields are selectable on posts; naming any other one (permalink, is_self, stickied)
+    // makes the API reject the whole request. The permalink is rebuilt from subreddit and id.
+    public const string PostFields = "id,title,subreddit,created_utc,score,num_comments,selftext,link_flair_text,author";
+
+    public const string SubredditFields = "display_name,subscribers,public_description";
 
     public const string HealthUrl = BaseUrl + "/api/posts/search?subreddit=announcements&limit=1&fields=id";
-    private const int MaxPages = 3;
 
     // Arctic Shift rate limits are "calculated dynamically based on server load", and the heavy
     // queries can take seconds. In-flight requests are capped per host by the Reddit client's
     // resilience pipeline (see ServiceCollectionExtensions), which also covers prefetch.
 
-    // Time-window listing of a subreddit's posts, oldest first. Keyword (title=) search requires a
-    // subreddit and times out on large ones, so the window is fetched and matched locally instead.
-    // A 100-post page may not cover the window on a busy subreddit, so it pages forward.
-    public static async Task<PullPushSubmissionDto[]?> SearchWindowAsync(
-        HttpClient httpClient, string subreddit, DateTimeOffset after, DateTimeOffset before,
-        ILogger logger, CancellationToken ct)
+    // One page of a subreddit's posts in a time window, oldest first. Title keyword search times out on
+    // active subreddits, so the window is listed and matched locally instead: one request usually covers
+    // an episode's discussion. Full means the page was full, so later posts in the window were not seen;
+    // the next page starts after the last post's created_utc.
+    public static async Task<ListingPage> ListWindowAsync(
+        HttpClient httpClient, string subreddit, long after, long before, ILogger logger, CancellationToken ct)
     {
-        List<PullPushSubmissionDto> all = [];
-        long cursor = after.ToUnixTimeSeconds();
-        long end = before.ToUnixTimeSeconds();
-
-        for (int page = 0; page < MaxPages; page++)
-        {
-            string url =
-                $"{BaseUrl}/api/posts/search?subreddit={Uri.EscapeDataString(subreddit)}&after={cursor}&before={end}&limit={PageSize}&sort=asc";
-            PullPushSubmissionDto[]? batch = await GetSubmissionsAsync(httpClient, url, logger, ct);
-            if (batch is null)
-            {
-                // A later page failing still leaves earlier pages usable.
-                return page == 0 ? null : [.. all];
-            }
-
-            all.AddRange(batch);
-            if (batch.Length < PageSize || batch[^1].CreatedUtc is not { } last)
-            {
-                break;
-            }
-
-            cursor = last;
-            if (page == MaxPages - 1)
-            {
-                logger.LogDebug(
-                    "Arctic Shift window for r/{Subreddit} hit the {Pages}-page cap before reaching the end; later posts were not searched",
-                    subreddit, MaxPages);
-            }
-        }
-
-        return [.. all];
+        string url =
+            $"{BaseUrl}/api/posts/search?subreddit={Uri.EscapeDataString(subreddit)}&after={after}&before={before}&limit={PageSize}&sort=asc&fields={PostFields}";
+        return ListingPage.From(await GetSubmissionsAsync(httpClient, url, logger, ct));
     }
 
-    // Newest posts first, for when the release date is unknown (prefetch targets the next episode, which
-    // has none). Cheaper and more reliable than keyword search, and the next episode's threads are recent.
-    public static async Task<PullPushSubmissionDto[]?> SearchRecentAsync(
+    // The newest page of a subreddit's posts, for when the air date is unknown (prefetch predicts the next
+    // episode, which has none yet). The next episode's thread, if it exists, is recent.
+    public static async Task<ListingPage> ListRecentAsync(
         HttpClient httpClient, string subreddit, ILogger logger, CancellationToken ct)
     {
-        List<PullPushSubmissionDto> all = [];
-        long? cursor = null;
+        string url =
+            $"{BaseUrl}/api/posts/search?subreddit={Uri.EscapeDataString(subreddit)}&limit={PageSize}&sort=desc&fields={PostFields}";
+        return ListingPage.From(await GetSubmissionsAsync(httpClient, url, logger, ct));
+    }
 
-        for (int page = 0; page < MaxPages; page++)
+    // Title keyword search in a time window. Needed for subreddits too busy to list (r/movies, r/television)
+    // but slow there and often answered with a timeout error, so callers treat it as best effort.
+    public static async Task<ListingPage> SearchTitleAsync(
+        HttpClient httpClient, string subreddit, string title, long after, long before, ILogger logger,
+        CancellationToken ct)
+    {
+        string url =
+            $"{BaseUrl}/api/posts/search?subreddit={Uri.EscapeDataString(subreddit)}&title={Uri.EscapeDataString(title)}&after={after}&before={before}&limit={PageSize}&fields={PostFields}";
+        return ListingPage.From(await GetSubmissionsAsync(httpClient, url, logger, ct));
+    }
+
+    // Subreddits whose name starts with prefix, most subscribers first.
+    public static async Task<ArcticShiftSubredditDto[]?> SearchSubredditsAsync(
+        HttpClient httpClient, string prefix, ILogger logger, CancellationToken ct)
+    {
+        string url =
+            $"{BaseUrl}/api/subreddits/search?subreddit_prefix={Uri.EscapeDataString(prefix)}&limit=25&fields={SubredditFields}";
+        try
         {
-            string url =
-                $"{BaseUrl}/api/posts/search?subreddit={Uri.EscapeDataString(subreddit)}&limit={PageSize}&sort=desc";
-            if (cursor.HasValue)
+            HttpResponseMessage response = await httpClient.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
             {
-                url += $"&before={cursor.Value}";
+                logger.LogWarning("Arctic Shift subreddit search failed: HTTP {Status}", (int)response.StatusCode);
+                return null;
             }
 
-            PullPushSubmissionDto[]? batch = await GetSubmissionsAsync(httpClient, url, logger, ct);
-            if (batch is null)
+            string content = await response.Content.ReadAsStringAsync(ct);
+            ArcticShiftSubredditsResponseDto? listing = JsonSerializer.Deserialize(
+                content, RedditJsonContext.Default.ArcticShiftSubredditsResponseDto);
+            if (listing?.Data is null || listing.Error is not null)
             {
-                return page == 0 ? null : [.. all];
+                logger.LogWarning("Arctic Shift subreddit search returned an error body: {Error}", listing?.Error);
+                return null;
             }
 
-            all.AddRange(batch);
-            if (batch.Length < PageSize || batch[^1].CreatedUtc is not { } oldest)
-            {
-                break;
-            }
-
-            cursor = oldest;
+            return listing.Data;
         }
-
-        return [.. all];
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Arctic Shift subreddit search exception");
+            return null;
+        }
     }
 
     // Full comment tree for one submission, flattened. Unlike /comments/search it isn't capped at 100.
@@ -205,6 +192,28 @@ internal static class ArcticShiftSource
         }
     }
 }
+
+// One page of submissions: Posts is null when the request failed.
+internal readonly record struct ListingPage(PullPushSubmissionDto[]? Posts, bool Full)
+{
+    public static ListingPage From(PullPushSubmissionDto[]? posts) =>
+        new(posts, posts is { Length: >= ArcticShiftSource.PageSize });
+
+    // created_utc of the newest post on an ascending page: where the next page starts.
+    public long? LastCreated => Posts is { Length: > 0 } posts ? posts[^1].CreatedUtc : null;
+}
+
+internal sealed record ArcticShiftSubredditsResponseDto(
+    [property: JsonPropertyName("data")] ArcticShiftSubredditDto[]? Data,
+    [property: JsonPropertyName("error")] string? Error);
+
+internal sealed record ArcticShiftSubredditDto(
+    [property: JsonPropertyName("display_name")]
+    string? DisplayName,
+    [property: JsonPropertyName("subscribers")]
+    long? Subscribers,
+    [property: JsonPropertyName("public_description")]
+    string? PublicDescription);
 
 internal sealed record ArcticShiftSubmissionsResponseDto(
     [property: JsonPropertyName("data")] PullPushSubmissionDto[]? Data,

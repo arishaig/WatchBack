@@ -24,6 +24,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\WatchBack.Core\WatchBack.Core.csproj" />
     <ProjectReference Include="..\..\src\WatchBack.Infrastructure\WatchBack.Infrastructure.csproj" />
   </ItemGroup>
