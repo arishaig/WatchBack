@@ -44,7 +44,8 @@ internal sealed class RateLimitSuppressionStrategy(
         }
 
         // Short-circuit during an active rate-limit window — no network call made.
-        if (registry.IsSuppressed(host, out DateTimeOffset until))
+        string endpoint = host + request!.RequestUri!.AbsolutePath;
+        if (registry.IsSuppressed(host, out DateTimeOffset until) || registry.IsSuppressed(endpoint, out until))
         {
             logger.LogDebug("Request to {Host} skipped — rate-limit backoff active until {Until:O}.", host, until);
             return Outcome.FromResult(
@@ -63,18 +64,24 @@ internal sealed class RateLimitSuppressionStrategy(
                 "Rate limited ({Status}) by {Host} ({Uri}). Suppressing requests for {Seconds} s.",
                 (int)response.StatusCode, host, HttpLogging.RedactSensitiveParams(request?.RequestUri),
                 (int)window.TotalSeconds);
-            registry.Suppress(host, now + window);
+            registry.Suppress(ScopeOf(response, host, endpoint), now + window);
         }
         else if (outcome.Result is { } ok && QuotaExhaustedWindow(ok, registry.Time.GetUtcNow()) is { } wait)
         {
             // The last call of the quota succeeded; the next would be a 429. Wait for the reset instead.
             logger.LogInformation("Rate-limit quota for {Host} used up. Pausing requests for {Seconds} s.",
                 host, (int)wait.TotalSeconds);
-            registry.Suppress(host, registry.Time.GetUtcNow() + wait);
+            registry.Suppress(ScopeOf(ok, host, endpoint), registry.Time.GetUtcNow() + wait);
         }
 
         return outcome;
     }
+
+    // What a window covers. Hosts that send the IETF draft's RateLimit-Policy (Bluesky) limit each endpoint
+    // separately: bsky.social allows an account ~10 sign-ins a day but thousands of searches, so a used-up
+    // sign-in limit must pause only createSession. Every other limit covers the whole host.
+    private static string ScopeOf(HttpResponseMessage ok, string host, string endpoint) =>
+        ok.Headers.Contains("RateLimit-Policy") ? endpoint : host;
 
     internal static TimeSpan RateLimitWindow(HttpResponseMessage response, DateTimeOffset now)
     {
