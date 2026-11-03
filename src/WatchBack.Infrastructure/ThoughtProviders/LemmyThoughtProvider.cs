@@ -27,6 +27,10 @@ public sealed class LemmyThoughtProvider(
 {
     private static readonly ThoughtResult s_empty = new("Lemmy", null, null, null, [], null);
 
+    // Failed lookups (errors, timeouts, non-2xx) are cached briefly: long enough that the 5-second poll
+    // loop doesn't redo them every cycle, short enough that an outage doesn't hide results for the full TTL.
+    private static readonly TimeSpan s_failureCacheTtl = TimeSpan.FromSeconds(60);
+
     private readonly LemmyOptions _options = options.Value;
 
     public DataProviderMetadata Metadata => new(
@@ -83,6 +87,7 @@ public sealed class LemmyThoughtProvider(
 
                 LemmyPostViewDto[] posts = [];
                 string usedQuery = queries[0];
+                bool anySearchSucceeded = false;
                 foreach (string query in queries)
                 {
                     string searchUrl =
@@ -101,6 +106,7 @@ public sealed class LemmyThoughtProvider(
                         continue;
                     }
 
+                    anySearchSucceeded = true;
                     string searchContent = await searchResponse.Content.ReadAsStringAsync(ct);
                     LemmySearchResponseDto? searchResult = JsonSerializer.Deserialize(
                         searchContent, LemmyJsonContext.Default.LemmySearchResponseDto);
@@ -115,9 +121,10 @@ public sealed class LemmyThoughtProvider(
 
                 if (posts.Length == 0)
                 {
-                    ThoughtResult emptyResult = s_empty;
-                    cache.Set(cacheKey, emptyResult, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
-                    return emptyResult;
+                    // Only an answer from Lemmy is a real miss; if every search failed, retry soon.
+                    cache.Set(cacheKey, s_empty,
+                        anySearchSucceeded ? TimeSpan.FromSeconds(_options.CacheTtlSeconds) : s_failureCacheTtl);
+                    return s_empty;
                 }
 
                 DateTimeOffset? dateFloor = IThoughtProvider.GetDateFloor(mediaContext);
@@ -184,6 +191,12 @@ public sealed class LemmyThoughtProvider(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Lemmy thought fetch failed");
+                // A cancelled request (viewer disconnected) isn't a Lemmy failure; let the next viewer retry.
+                if (!ct.IsCancellationRequested)
+                {
+                    cache.Set(cacheKey, s_empty, s_failureCacheTtl);
+                }
+
                 return s_empty;
             }
         }

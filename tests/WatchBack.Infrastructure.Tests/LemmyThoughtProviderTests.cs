@@ -168,6 +168,51 @@ public class LemmyThoughtProviderTests : IDisposable
         result.Thoughts.Should().BeEmpty();
     }
 
+    // Regression: an exception (timeout, unreachable instance) wasn't cached, so a failing Lemmy
+    // was re-queried on every 5-second poll cycle.
+    [Fact]
+    public async Task GetThoughtsAsync_WhenRequestThrows_DoesNotRetryOnNextPoll()
+    {
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        int requests = 0;
+        MockHttpMessageHandler handler = new(() =>
+        {
+            Interlocked.Increment(ref requests);
+            throw new HttpRequestException("No route to host");
+        });
+        LemmyThoughtProvider provider = CreateProvider(new HttpClient(handler));
+
+        ThoughtResult? first = await provider.GetThoughtsAsync(mediaContext);
+        await provider.GetThoughtsAsync(mediaContext);
+
+        first!.Thoughts.Should().BeEmpty();
+        requests.Should().Be(1);
+    }
+
+    // Regression: a non-2xx search was cached as a confirmed "no posts" for the full TTL (1h by default),
+    // so a brief instance outage hid results long after it recovered.
+    [Fact]
+    public async Task GetThoughtsAsync_WhenSearchFails_IsCachedAsTransientFailure()
+    {
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
+        int requests = 0;
+        MockHttpMessageHandler handler = new(() =>
+        {
+            Interlocked.Increment(ref requests);
+            return new HttpResponseMessage(HttpStatusCode.BadGateway);
+        });
+        // Confirmed misses expire after 1s; failures after 60s.
+        LemmyThoughtProvider provider = CreateProvider(new HttpClient(handler),
+            new LemmyOptions { InstanceUrl = "https://lemmy.world", MaxPosts = 3, CacheTtlSeconds = 1 });
+
+        await provider.GetThoughtsAsync(mediaContext);
+        int requestsAfterFirst = requests;
+        await Task.Delay(TimeSpan.FromMilliseconds(1500));
+        await provider.GetThoughtsAsync(mediaContext);
+
+        requests.Should().Be(requestsAfterFirst, "a failure is cached with the short failure TTL, not the miss TTL");
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_FallsBackToUnpaddedQueryWhenPaddedReturnsNoPosts()
     {
