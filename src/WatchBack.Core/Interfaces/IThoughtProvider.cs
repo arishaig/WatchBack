@@ -23,6 +23,12 @@ public interface IThoughtProvider : IDataProvider
     string GetCacheKey(MediaContext mediaContext);
 
     /// <summary>
+    ///     The longest this provider's results may be cached, when the source's terms set a limit
+    ///     (e.g. TMDB: at most 6 months). Null means the default air-date-based lifetime applies.
+    /// </summary>
+    TimeSpan? MaxCacheAge => null;
+
+    /// <summary>
     ///     Fetches Thoughts for the given media context. Providers should report progress
     ///     via <paramref name="progress" /> as work completes so the UI can update the progress bar.
     ///     Returns null if no relevant content was found.

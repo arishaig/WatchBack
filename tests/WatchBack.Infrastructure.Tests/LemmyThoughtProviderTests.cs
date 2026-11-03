@@ -122,6 +122,42 @@ public class LemmyThoughtProviderTests : IDisposable
         result.Thoughts.Should().NotBeEmpty();
         result.PostTitle.Should().Be("Breaking Bad S01E01 discussion");
         result.PostUrl.Should().Be("https://lemmy.world/post/101");
+        result.IsTransientFailure.Should().BeFalse();
+    }
+
+    private const string OnePostJson = """
+                                       {"posts":[{"post":{"id":101,"name":"Breaking Bad S01E01 discussion","ap_id":"https://lemmy.world/post/101","published":"2008-01-20T12:00:00Z"},"creator":{"name":"poster1"},"counts":{"score":42}}]}
+                                       """;
+
+    // A post whose comments failed to load is an incomplete answer: shown, but never stored as final.
+    [Fact]
+    public async Task GetThoughtsAsync_WhenCommentFetchFails_FlagsTheResultIncomplete()
+    {
+        EpisodeContext mediaContext = new("Breaking Bad", new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero), "Pilot", 1, 1);
+        MockHttpMessageHandler handler = new(req => req.RequestUri!.AbsolutePath.Contains("comment")
+            ? new HttpResponseMessage(HttpStatusCode.BadGateway)
+            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(OnePostJson) });
+
+        ThoughtResult? result = await CreateProvider(new HttpClient(handler)).GetThoughtsAsync(mediaContext);
+
+        result!.PostTitle.Should().Be("Breaking Bad S01E01 discussion");
+        result.IsTransientFailure.Should().BeTrue();
+    }
+
+    // The padded query failing and the unpadded one finding nothing is not a confirmed miss.
+    [Fact]
+    public async Task GetThoughtsAsync_WhenOneSearchFailsAndAnotherFindsNothing_IsNotAConfirmedMiss()
+    {
+        EpisodeContext mediaContext = new("Breaking Bad", new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero), "Pilot", 1, 1);
+        int searches = 0;
+        MockHttpMessageHandler handler = new(_ => Interlocked.Increment(ref searches) == 1
+            ? new HttpResponseMessage(HttpStatusCode.BadGateway)
+            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"posts":[]}""") });
+
+        ThoughtResult? result = await CreateProvider(new HttpClient(handler)).GetThoughtsAsync(mediaContext);
+
+        searches.Should().Be(2);
+        result!.IsTransientFailure.Should().BeTrue();
     }
 
     [Fact]
@@ -145,6 +181,7 @@ public class LemmyThoughtProviderTests : IDisposable
         result.Should().NotBeNull();
         result!.Source.Should().Be("Lemmy");
         result.Thoughts.Should().BeEmpty();
+        result.IsTransientFailure.Should().BeFalse("Lemmy answered: this is a confirmed miss");
     }
 
     [Fact]
@@ -183,10 +220,12 @@ public class LemmyThoughtProviderTests : IDisposable
         LemmyThoughtProvider provider = CreateProvider(new HttpClient(handler));
 
         ThoughtResult? first = await provider.GetThoughtsAsync(mediaContext);
-        await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? second = await provider.GetThoughtsAsync(mediaContext);
 
         first!.Thoughts.Should().BeEmpty();
         requests.Should().Be(1);
+        first.IsTransientFailure.Should().BeTrue();
+        second!.IsTransientFailure.Should().BeTrue("the briefly cached failure must still read as a failure");
     }
 
     // Regression: a non-2xx search was cached as a confirmed "no posts" for the full TTL (1h by default),
@@ -205,12 +244,13 @@ public class LemmyThoughtProviderTests : IDisposable
         LemmyThoughtProvider provider = CreateProvider(new HttpClient(handler),
             new LemmyOptions { InstanceUrl = "https://lemmy.world", MaxPosts = 3, CacheTtlSeconds = 1 });
 
-        await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? first = await provider.GetThoughtsAsync(mediaContext);
         int requestsAfterFirst = requests;
         await Task.Delay(TimeSpan.FromMilliseconds(1500));
         await provider.GetThoughtsAsync(mediaContext);
 
         requests.Should().Be(requestsAfterFirst, "a failure is cached with the short failure TTL, not the miss TTL");
+        first!.IsTransientFailure.Should().BeTrue();
     }
 
     [Fact]

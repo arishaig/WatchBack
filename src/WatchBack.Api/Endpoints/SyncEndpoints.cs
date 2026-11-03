@@ -28,14 +28,24 @@ public static partial class SyncEndpoints
                 "Retrieves the current media context, all associated thoughts from providers, and filtered time-machine thoughts")
             .Produces<SyncResponse>();
 
-        group.MapPost("/sync/trigger", (SyncTrigger trigger, [FromQuery] string? userId, [FromQuery] string? clientId) =>
+        group.MapPost("/sync/trigger", async (SyncTrigger trigger, ISyncService syncService,
+                [FromQuery] string? userId, [FromQuery] string? clientId, CancellationToken ct,
+                [FromQuery] bool refresh = false) =>
             {
+                if (refresh)
+                {
+                    await syncService.RefreshCurrentAsync(userId, WatchClientId.Normalize(clientId), ct);
+                }
+
                 trigger.Signal(WatchViewer.Key(userId, clientId));
                 return Results.NoContent();
             })
             .WithName("TriggerSync")
             .WithSummary("Trigger an immediate sync")
-            .WithDescription("Wakes the SSE polling loop so it syncs immediately instead of waiting up to 5 seconds")
+            .WithDescription(
+                "Wakes the SSE polling loop so it syncs immediately instead of waiting up to 5 seconds. " +
+                "With refresh=true, first forgets cached results for the media being watched so every provider is asked again " +
+                "(at most once a minute per media item).")
             .Produces(StatusCodes.Status204NoContent);
 
         group.MapGet("/sync/stream", GetSyncStream)

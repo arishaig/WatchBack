@@ -17,7 +17,9 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
         uiLog("sync.trigger", "Sync trigger sent", undefined, "Information");
         this.data = null;
         try {
-            const res = await fetch('/api/sync/trigger' + this.viewerQuery(), { method: 'POST' });
+            // refresh=true: a manual sync asks every source again instead of reusing cached results.
+            const query = this.viewerQuery();
+            const res = await fetch('/api/sync/trigger' + (query ? query + '&' : '?') + 'refresh=true', { method: 'POST' });
             uiLog("sync.trigger.response", "Sync trigger response", { status: res.status });
         } catch (e) {
             console.error("[WatchBack] Trigger failed:", e);

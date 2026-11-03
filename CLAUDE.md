@@ -32,18 +32,19 @@ tests/
 ### Layer Responsibilities
 
 **WatchBack.Core** (library) — Contracts and orchestration logic. No external dependencies beyond Microsoft.Extensions abstractions.
-- `Interfaces/`: Provider contracts — `IWatchStateProvider`, `IThoughtProvider`, `IMediaSearchProvider`, `IRatingsProvider`, `IManualWatchStateProvider`, `ISyncService`, `IReplyTreeBuilder`, `ITimeMachineFilter`, `IPrefetchService`
+- `Interfaces/`: Provider contracts — `IWatchStateProvider`, `IThoughtProvider`, `IMediaSearchProvider`, `IRatingsProvider`, `IManualWatchStateProvider`, `ISyncService`, `IReplyTreeBuilder`, `ITimeMachineFilter`, `IPrefetchService`, `IMediaResultCache`
 - `Models/`: Immutable C# records — `MediaContext`, `EpisodeContext`, `Thought`, `ThoughtResult`, `SyncResult`, `MediaSearchResult`, `MediaRating`, `BrandData`, `ServiceHealth`
 - `Options/`: Strongly-typed config — `WatchBackOptions`, `AuthOptions`, `BlueskyOptions`, `JellyfinOptions`, `OmdbOptions`, `RedditOptions`, `TraktOptions`
 - `Services/`: `SyncService` (orchestrator), `ReplyTreeBuilder`, `TimeMachineFilter`
 
 **WatchBack.Infrastructure** (library) — Concrete provider implementations and data access.
 - `WatchStateProviders/`: Jellyfin, Trakt, Manual (singleton — holds state in memory)
-- `ThoughtProviders/`: Reddit (via PullPush and Arctic Shift), Bluesky, Trakt
-- `MediaSearchProviders/`: OMDb (implements both `IMediaSearchProvider` and `IRatingsProvider`)
-- `Http/`: `ResilientHttpHandler` — retry with exponential backoff, 429 rate-limit awareness
+- `ThoughtProviders/`: Reddit (via PullPush and Arctic Shift), Bluesky, Trakt, Lemmy
+- `MediaSearchProviders/` + `RatingsProviders/`: OMDb (implements both `IMediaSearchProvider` and `IRatingsProvider`)
+- `Http/`: per-client Polly pipeline built in `ServiceCollectionExtensions.AddWatchBackClient` (one pipeline per host): `RateLimitSuppressionStrategy` + `HostBackoffRegistry` (honour 429/Retry-After/X-RateLimit-Reset), circuit breaker, retry, per-host throttle for volunteer APIs, per-attempt timeout; `UserAgentHandler`, `RequestLoggingHandler`
+- `Caching/`: `MediaResultCache` (`IMediaResultCache`) — the fetch-once layer in front of thought/ratings providers: memory → SQLite → upstream, single-flight per key, lifetimes by air date (`CacheTtlPolicy`); `ResultCacheStore` (SQLite), `ResultCacheMaintenance` (prune, persist backoff windows)
 - `Persistence/`: `WatchBackDbContext` (SQLite), entities, migrations, repository
-- `Services/`: `PrefetchService` — background cache warming for next episodes
+- `Services/`: `PrefetchService` — background cache warming for next episodes (through `IMediaResultCache`)
 
 **WatchBack.Api** (web host) — HTTP surface, DI composition, and frontend hosting.
 - `Program.cs`: DI registration, middleware pipeline, SQLite + user-settings.json config
@@ -145,6 +146,12 @@ The frontend (`frontend/`) is 100% TypeScript with strict mode enabled. Follows 
 4. Implement `GetServiceHealthAsync()` for health checks and `GetConfigSchema()` for UI-driven configuration
 5. Register in `WatchBack.Infrastructure/Extensions/ServiceCollectionExtensions.cs`
 6. Bind options in `Program.cs`
+
+### Fetching and caching
+
+- `SyncService` never calls providers directly: it goes through `IMediaResultCache`, so the 5-second SSE poll reads the cache and upstream is hit once per provider per episode. Providers keep their own short in-memory caches too.
+- A provider that *failed* (timeout, outage, 429) must return a result with `IsTransientFailure = true`; only confirmed misses are persisted.
+- Cache hits and callers joining an in-flight fetch must report zero progress ticks (the frontend shows the loading bar on any intermediate tick).
 
 ### Provider lifetime conventions
 

@@ -27,6 +27,10 @@ public sealed class LemmyThoughtProvider(
 {
     private static readonly ThoughtResult s_empty = new("Lemmy", null, null, null, [], null);
 
+    // Returned (and briefly cached) when the lookup itself failed, as opposed to finding nothing,
+    // so the thought cache never stores an outage as a confirmed miss.
+    private static readonly ThoughtResult s_failed = s_empty with { IsTransientFailure = true };
+
     // Failed lookups (errors, timeouts, non-2xx) are cached briefly: long enough that the 5-second poll
     // loop doesn't redo them every cycle, short enough that an outage doesn't hide results for the full TTL.
     private static readonly TimeSpan s_failureCacheTtl = TimeSpan.FromSeconds(60);
@@ -88,6 +92,7 @@ public sealed class LemmyThoughtProvider(
                 LemmyPostViewDto[] posts = [];
                 string usedQuery = queries[0];
                 bool anySearchSucceeded = false;
+                bool anyRequestFailed = false;
                 foreach (string query in queries)
                 {
                     string searchUrl =
@@ -103,6 +108,7 @@ public sealed class LemmyThoughtProvider(
                     {
                         logger.LogWarning("Lemmy search failed: HTTP {Status} for query '{Query}'",
                             (int)searchResponse.StatusCode, query);
+                        anyRequestFailed = true;
                         continue;
                     }
 
@@ -121,10 +127,12 @@ public sealed class LemmyThoughtProvider(
 
                 if (posts.Length == 0)
                 {
-                    // Only an answer from Lemmy is a real miss; if every search failed, retry soon.
-                    cache.Set(cacheKey, s_empty,
-                        anySearchSucceeded ? TimeSpan.FromSeconds(_options.CacheTtlSeconds) : s_failureCacheTtl);
-                    return s_empty;
+                    // Only an answer to every search is a real miss; if any search failed, retry soon.
+                    bool confirmedMiss = anySearchSucceeded && !anyRequestFailed;
+                    ThoughtResult miss = confirmedMiss ? s_empty : s_failed;
+                    cache.Set(cacheKey, miss,
+                        confirmedMiss ? TimeSpan.FromSeconds(_options.CacheTtlSeconds) : s_failureCacheTtl);
+                    return miss;
                 }
 
                 DateTimeOffset? dateFloor = IThoughtProvider.GetDateFloor(mediaContext);
@@ -159,6 +167,7 @@ public sealed class LemmyThoughtProvider(
                     {
                         logger.LogWarning("Lemmy comment fetch failed: HTTP {Status} for post {PostId}",
                             (int)commentsResponse.StatusCode, postView.Post.Id);
+                        anyRequestFailed = true;
                         continue;
                     }
 
@@ -177,13 +186,16 @@ public sealed class LemmyThoughtProvider(
 
                 IReadOnlyList<Thought> treeThoughts = treeBuilder.BuildTree(allThoughts);
 
+                // Missing comments or a failed search make this answer incomplete: flag it so it isn't
+                // persisted as the final result.
                 ThoughtResult result = new(
                     "Lemmy",
                     topPost?.Post?.Name,
                     topPost?.Post?.ApId,
                     null,
                     treeThoughts,
-                    null);
+                    null,
+                    IsTransientFailure: anyRequestFailed);
 
                 cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
                 return result;
@@ -194,10 +206,10 @@ public sealed class LemmyThoughtProvider(
                 // A cancelled request (viewer disconnected) isn't a Lemmy failure; let the next viewer retry.
                 if (!ct.IsCancellationRequested)
                 {
-                    cache.Set(cacheKey, s_empty, s_failureCacheTtl);
+                    cache.Set(cacheKey, s_failed, s_failureCacheTtl);
                 }
 
-                return s_empty;
+                return s_failed;
             }
         }
         finally

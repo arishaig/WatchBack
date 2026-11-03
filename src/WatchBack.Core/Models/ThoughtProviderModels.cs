@@ -72,10 +72,16 @@ public record Thought(
 /// <param name="ImageUrl">The hero image for the post, if returned from the source</param>
 /// <param name="Thoughts">A collection of Thoughts</param>
 /// <param name="NextPageToken">If the response is paginated, the token for the next page</param>
+/// <param name="IsTransientFailure">
+///     True when any request this answer depended on failed (timeout, outage, rate limit), so it may be
+///     incomplete: nothing found, or some threads' comments missing. Such results are shown but never
+///     persisted as the media's final result.
+/// </param>
 public record ThoughtResult(
     string Source,
     string? PostTitle,
     string? PostUrl,
     string? ImageUrl,
     IReadOnlyCollection<Thought>? Thoughts,
-    string? NextPageToken);
+    string? NextPageToken,
+    bool IsTransientFailure = false);

@@ -99,6 +99,50 @@ public sealed class RedditArcticShiftTests : IDisposable
         result.Thoughts!.Select(t => t.Id).Should().BeEquivalentTo("reddit:c1", "reddit:c2", "reddit:c3");
         result.Thoughts!.Single(t => t.Id == "reddit:c2").ParentId.Should().Be("reddit:c1");
         result.Thoughts!.Single(t => t.Id == "reddit:c1").ParentId.Should().BeNull("t3_ parents are top-level");
+        result.IsTransientFailure.Should().BeFalse("PullPush being down doesn't make an Arctic Shift answer incomplete");
+    }
+
+    private static HttpResponseMessage PullPushEmpty(HttpRequestMessage _) => Json("""{"data":[]}""");
+
+    // Regression: one archive answering empty made the lookup a confirmed miss even though Arctic Shift,
+    // the only archive covering recent episodes, had failed. That miss would then be stored for hours or days.
+    [Fact]
+    public async Task GetThoughtsAsync_PullPushEmptyButArcticShiftFailed_IsNotAConfirmedMiss()
+    {
+        RedditThoughtProvider provider = CreateProvider(
+            _ => Json("""{"data":null,"error":"Timeout. Maybe slow down a bit"}"""), PullPushEmpty);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_episode);
+
+        result!.Thoughts.Should().BeEmpty();
+        result.IsTransientFailure.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ThreadFoundButNoArchiveReturnedItsComments_FlagsTheResultIncomplete()
+    {
+        RedditThoughtProvider provider = CreateProvider(
+            req => req.RequestUri!.AbsolutePath.Contains("comments")
+                ? new HttpResponseMessage(HttpStatusCode.BadGateway)
+                : Json(WindowJson),
+            TooManyRequests);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_episode);
+
+        result!.PostTitle.Should().Be("Season 11 Episode 1 Discussion");
+        result.IsTransientFailure.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_ThreadWithNoComments_IsComplete()
+    {
+        RedditThoughtProvider provider = CreateProvider(
+            req => Json(req.RequestUri!.AbsolutePath.Contains("comments") ? """{"data":[]}""" : WindowJson),
+            TooManyRequests);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_episode);
+
+        result!.IsTransientFailure.Should().BeFalse("an archive answered: the thread just has no comments");
     }
 
     [Fact]
@@ -187,9 +231,11 @@ public sealed class RedditArcticShiftTests : IDisposable
         ThoughtResult? first = await provider.GetThoughtsAsync(s_episode);
         int requestsAfterFirst = arcticShiftRequests;
         await Task.Delay(TimeSpan.FromMilliseconds(1500));
-        await provider.GetThoughtsAsync(s_episode);
+        ThoughtResult? second = await provider.GetThoughtsAsync(s_episode);
 
         first!.Thoughts!.Should().BeEmpty();
+        first.IsTransientFailure.Should().BeTrue();
+        second!.IsTransientFailure.Should().BeTrue("the briefly cached failure must still read as a failure");
         arcticShiftRequests.Should().Be(requestsAfterFirst, "a timeout is cached with the short failure TTL, not the miss TTL");
         // The long-TTL entry would have expired by now and triggered a refetch.
     }

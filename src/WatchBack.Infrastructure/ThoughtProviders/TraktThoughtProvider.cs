@@ -29,6 +29,10 @@ public sealed class TraktThoughtProvider(
     private static readonly ThoughtResult s_empty =
         new("Trakt", null, null, null, [], null);
 
+    // Returned (and briefly cached) when the lookup itself failed, as opposed to finding nothing,
+    // so the thought cache never stores an outage as a confirmed miss.
+    private static readonly ThoughtResult s_failed = s_empty with { IsTransientFailure = true };
+
     // Failed lookups (429s, unresolved slugs, transient errors) are cached briefly so
     // the 5-second poll loop doesn't redo the work, and re-tick, every cycle.
     private static readonly TimeSpan s_failureCacheTtl = TimeSpan.FromSeconds(60);
@@ -164,8 +168,8 @@ public sealed class TraktThoughtProvider(
 
     private ThoughtResult CacheFailure(string cacheKey)
     {
-        cache.Set(cacheKey, s_empty, s_failureCacheTtl);
-        return s_empty;
+        cache.Set(cacheKey, s_failed, s_failureCacheTtl);
+        return s_failed;
     }
 
     public async Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)

@@ -16,6 +16,7 @@ public class SyncService(
     IEnumerable<IRatingsProvider> ratingsProviders,
     ITimeMachineFilter timeMachineFilter,
     IPrefetchService prefetchService,
+    IMediaResultCache resultCache,
     IOptionsSnapshot<WatchBackOptions> options,
     ILogger<SyncService> logger)
     : ISyncService
@@ -26,46 +27,9 @@ public class SyncService(
         try
         {
             string? viewerKey = WatchViewer.Key(watchUserId, clientId);
-            string configuredName = options.Value.WatchProvider;
-            IWatchStateProvider? configuredProvider = watchStateProviders
-                                                          .FirstOrDefault(p => p.Metadata.Name.Equals(configuredName,
-                                                              StringComparison.OrdinalIgnoreCase))
-                                                      ?? watchStateProviders.FirstOrDefault();
-
-            // Manual provider takes priority when it has an active context.
-            // Kick off the configured provider's check early so it runs concurrently
-            // with the manual check — avoids a wasted round-trip on the fallback path.
-            IWatchStateProvider? watchStateProvider;
-            MediaContext? mediaContext;
-            IWatchStateProvider? suppressedProvider = null;
-            MediaContext? suppressedContext = null;
-
-            IManualWatchStateProvider? manual = manualWatchStateProviders.FirstOrDefault();
-            bool configuredIsManual = manual != null && configuredProvider == manual;
-
-            Task<MediaContext?> configuredTask = configuredProvider != null && !configuredIsManual
-                ? string.IsNullOrEmpty(watchUserId)
-                    ? configuredProvider.GetCurrentMediaContextAsync(ct)
-                    : configuredProvider.GetCurrentMediaContextAsync(watchUserId, ct)
-                : Task.FromResult<MediaContext?>(null);
-
-            MediaContext? manualContext = manual != null ? await manual.GetCurrentMediaContextForClientAsync(viewerKey, ct) : null;
-            if (manualContext is not null)
-            {
-                watchStateProvider = manual;
-                mediaContext = manualContext;
-                MediaContext? configuredContext = await configuredTask;
-                if (configuredContext is not null)
-                {
-                    suppressedProvider = configuredProvider;
-                    suppressedContext = configuredContext;
-                }
-            }
-            else
-            {
-                watchStateProvider = configuredProvider;
-                mediaContext = await configuredTask;
-            }
+            (IWatchStateProvider? watchStateProvider, MediaContext? mediaContext,
+                IWatchStateProvider? suppressedProvider, MediaContext? suppressedContext) =
+                await ResolveCurrentAsync(watchUserId, viewerKey, ct);
 
             if (watchStateProvider is null)
             {
@@ -78,23 +42,17 @@ public class SyncService(
                 return SyncResult.Idle(options.Value.TimeMachineDays);
             }
 
-            HashSet<string> disabledSet = options.Value.DisabledProviders
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            IThoughtProvider[] activeProviders = thoughtProviders
-                .Where(p => p.ConfigSection is null || !disabledSet.Contains(p.ConfigSection))
-                .ToArray();
+            IThoughtProvider[] activeProviders = ActiveProviders();
 
             string? imdbId = null;
             mediaContext.ExternalIds?.TryGetValue(Imdb, out imdbId);
             List<IRatingsProvider> ratingsProviderList = ratingsProviders.ToList();
             Task<IReadOnlyList<MediaRating>[]> ratingsTask = !string.IsNullOrEmpty(imdbId)
-                ? Task.WhenAll(ratingsProviderList.Select(p => p.GetRatingsAsync(imdbId, ct)))
+                ? Task.WhenAll(ratingsProviderList.Select(p => resultCache.GetRatingsAsync(p, mediaContext, imdbId, ct)))
                 : Task.FromResult<IReadOnlyList<MediaRating>[]>([]);
 
             ThoughtResult?[] rawResults = await Task.WhenAll(
-                activeProviders.Select(p => p.GetThoughtsAsync(mediaContext, progress, ct)));
+                activeProviders.Select(p => resultCache.GetThoughtsAsync(p, mediaContext, progress, ct)));
 
             List<ThoughtResult> sourceResults = activeProviders
                 .Zip(rawResults)
@@ -148,6 +106,84 @@ public class SyncService(
             logger.LogError(ex, "Sync failed");
             return SyncResult.Error(options.Value.TimeMachineDays);
         }
+    }
+
+    // Which provider's playback wins, and what it is playing. A manually chosen item takes priority;
+    // the configured provider's playback is then reported as suppressed.
+    private async Task<(IWatchStateProvider? Provider, MediaContext? Context, IWatchStateProvider? SuppressedProvider,
+        MediaContext? SuppressedContext)> ResolveCurrentAsync(string? watchUserId, string? viewerKey, CancellationToken ct)
+    {
+        string configuredName = options.Value.WatchProvider;
+        IWatchStateProvider? configuredProvider = watchStateProviders
+                                                      .FirstOrDefault(p => p.Metadata.Name.Equals(configuredName,
+                                                          StringComparison.OrdinalIgnoreCase))
+                                                  ?? watchStateProviders.FirstOrDefault();
+
+        // Manual provider takes priority when it has an active context.
+        // Kick off the configured provider's check early so it runs concurrently
+        // with the manual check — avoids a wasted round-trip on the fallback path.
+        IWatchStateProvider? watchStateProvider;
+        MediaContext? mediaContext;
+        IWatchStateProvider? suppressedProvider = null;
+        MediaContext? suppressedContext = null;
+
+        IManualWatchStateProvider? manual = manualWatchStateProviders.FirstOrDefault();
+        bool configuredIsManual = manual != null && configuredProvider == manual;
+
+        Task<MediaContext?> configuredTask = configuredProvider != null && !configuredIsManual
+            ? string.IsNullOrEmpty(watchUserId)
+                ? configuredProvider.GetCurrentMediaContextAsync(ct)
+                : configuredProvider.GetCurrentMediaContextAsync(watchUserId, ct)
+            : Task.FromResult<MediaContext?>(null);
+
+        MediaContext? manualContext = manual != null ? await manual.GetCurrentMediaContextForClientAsync(viewerKey, ct) : null;
+        if (manualContext is not null)
+        {
+            watchStateProvider = manual;
+            mediaContext = manualContext;
+            MediaContext? configuredContext = await configuredTask;
+            if (configuredContext is not null)
+            {
+                suppressedProvider = configuredProvider;
+                suppressedContext = configuredContext;
+            }
+        }
+        else
+        {
+            watchStateProvider = configuredProvider;
+            mediaContext = await configuredTask;
+        }
+
+        return (watchStateProvider, mediaContext, suppressedProvider, suppressedContext);
+    }
+
+    public async Task<bool> RefreshCurrentAsync(string? watchUserId = null, string? clientId = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            (_, MediaContext? mediaContext, _, _) =
+                await ResolveCurrentAsync(watchUserId, WatchViewer.Key(watchUserId, clientId), ct);
+            return mediaContext is not null &&
+                   await resultCache.InvalidateAsync(ActiveProviders(), ratingsProviders, mediaContext, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Like SyncAsync: a failing watch-state provider must not turn the Sync button into a 500.
+            logger.LogError(ex, "Manual refresh failed");
+            return false;
+        }
+    }
+
+    private IThoughtProvider[] ActiveProviders()
+    {
+        HashSet<string> disabledSet = options.Value.DisabledProviders
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return thoughtProviders
+            .Where(p => p.ConfigSection is null || !disabledSet.Contains(p.ConfigSection))
+            .ToArray();
     }
 
     private static ThoughtResult NormalizeThoughts(IThoughtProvider provider, ThoughtResult result)

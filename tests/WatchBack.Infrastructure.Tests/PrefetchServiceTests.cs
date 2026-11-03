@@ -11,6 +11,7 @@ using NSubstitute;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
+using WatchBack.Infrastructure.Caching;
 using WatchBack.Infrastructure.Services;
 
 using Xunit;
@@ -47,8 +48,14 @@ public sealed class PrefetchServiceTests : IDisposable
         ServiceProvider provider = services.BuildServiceProvider();
         _scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
 
-        _service = new PrefetchService(_scopeFactory, _cache, NullLogger<PrefetchService>.Instance, _lifetime);
+        _service = new PrefetchService(_scopeFactory, _cache, ResultCache(_scopeFactory),
+            NullLogger<PrefetchService>.Instance, _lifetime);
     }
+
+    // The real cache on the same memory cache; with no database registered its store degrades to memory-only.
+    private MediaResultCache ResultCache(IServiceScopeFactory scopes) => new(_cache,
+        new ResultCacheStore(scopes, TimeProvider.System, NullLogger<ResultCacheStore>.Instance),
+        scopes, TimeProvider.System, NullLogger<MediaResultCache>.Instance);
 
     public void Dispose()
     {
@@ -164,8 +171,8 @@ public sealed class PrefetchServiceTests : IDisposable
         services.AddSingleton<IOptionsSnapshot<WatchBackOptions>>(
             new OptionsSnapshotStub<WatchBackOptions>(new WatchBackOptions { DisabledProviders = "reddit" }));
         await using ServiceProvider root = services.BuildServiceProvider();
-        PrefetchService service = new(root.GetRequiredService<IServiceScopeFactory>(), _cache,
-            NullLogger<PrefetchService>.Instance, _lifetime);
+        IServiceScopeFactory scopes = root.GetRequiredService<IServiceScopeFactory>();
+        PrefetchService service = new(scopes, _cache, ResultCache(scopes), NullLogger<PrefetchService>.Instance, _lifetime);
 
         service.SchedulePrefetch(MakeEpisode());
         await Task.Delay(150);

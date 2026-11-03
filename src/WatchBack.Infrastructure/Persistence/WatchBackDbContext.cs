@@ -10,6 +10,8 @@ public class WatchBackDbContext(DbContextOptions<WatchBackDbContext> options) : 
 
     public DbSet<ApiKeyEntity> ApiKeys { get; set; } = null!;
 
+    public DbSet<CachedResultEntity> CachedResults { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -27,5 +29,11 @@ public class WatchBackDbContext(DbContextOptions<WatchBackDbContext> options) : 
         modelBuilder.Entity<ApiKeyEntity>()
             .HasIndex(e => e.KeyHash)
             .IsUnique();
+
+        modelBuilder.Entity<CachedResultEntity>()
+            .HasKey(e => e.Key);
+
+        modelBuilder.Entity<CachedResultEntity>()
+            .HasIndex(e => e.ExpiresAtUnixMs);
     }
 }

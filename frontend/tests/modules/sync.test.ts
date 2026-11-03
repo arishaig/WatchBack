@@ -32,12 +32,21 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
 // ── sync ──────────────────────────────────────────────────────────────────────
 
 describe('sync', () => {
-    it('POSTs to /api/sync/trigger', async () => {
+    it('POSTs to /api/sync/trigger asking for a refresh', async () => {
         const fetchMock = vi.fn().mockResolvedValue({});
         vi.stubGlobal('fetch', fetchMock);
         const ctx = makeCtx();
         await methods.sync.call(ctx);
-        expect(fetchMock).toHaveBeenCalledWith('/api/sync/trigger?clientId=client-1', { method: 'POST' });
+        expect(fetchMock).toHaveBeenCalledWith('/api/sync/trigger?clientId=client-1&refresh=true', { method: 'POST' });
+    });
+
+    it('asks for a refresh without a viewer query too', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({});
+        vi.stubGlobal('fetch', fetchMock);
+        const ctx = makeCtx();
+        ctx.clientId = '';
+        await methods.sync.call(ctx);
+        expect(fetchMock).toHaveBeenCalledWith('/api/sync/trigger?refresh=true', { method: 'POST' });
     });
 
     it('calls showError on network failure', async () => {

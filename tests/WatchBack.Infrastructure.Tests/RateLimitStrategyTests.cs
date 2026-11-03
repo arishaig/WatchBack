@@ -2,8 +2,8 @@ using System.Net;
 
 using FluentAssertions;
 
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 using Polly;
 
@@ -13,20 +13,58 @@ using Xunit;
 
 namespace WatchBack.Infrastructure.Tests;
 
-public sealed class RateLimitStrategyTests : IDisposable
+public sealed class RateLimitStrategyTests
 {
-    private readonly MemoryCache _cache = new(new MemoryCacheOptions());
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 3, 12, 0, 0, TimeSpan.Zero));
+    private readonly HostBackoffRegistry _registry;
 
-    public void Dispose()
+    public RateLimitStrategyTests()
     {
-        _cache.Dispose();
-        GC.SuppressFinalize(this);
+        _registry = new HostBackoffRegistry(_time);
     }
 
     private ResiliencePipeline<HttpResponseMessage> BuildPipeline() =>
         new ResiliencePipelineBuilder<HttpResponseMessage>()
-            .AddRateLimitSuppression(_cache, NullLogger<RateLimitSuppressionStrategy>.Instance)
+            .AddRateLimitSuppression(_registry, NullLogger<RateLimitSuppressionStrategy>.Instance)
             .Build();
+
+    private static Func<HttpResponseMessage> Respond(HttpStatusCode status, string? header = null, string? value = null)
+    {
+        return () =>
+        {
+            HttpResponseMessage msg = new(status);
+            if (header is not null)
+            {
+                msg.Headers.TryAddWithoutValidation(header, value);
+            }
+
+            return msg;
+        };
+    }
+
+    // Returns how many of the probes made at each offset (seconds after the 429) reached the network.
+    private async Task<List<int>> ProbeAsync(Func<HttpResponseMessage> first, params int[] offsets)
+    {
+        ResiliencePipeline<HttpResponseMessage> pipeline = BuildPipeline();
+        HttpRequestMessage request = new(HttpMethod.Get, "https://example.com/api/data");
+        await ExecuteAsync(pipeline, request, first);
+
+        DateTimeOffset start = _time.GetUtcNow();
+        List<int> reached = [];
+        foreach (int offset in offsets)
+        {
+            _time.SetUtcNow(start.AddSeconds(offset));
+            int calls = 0;
+            await ExecuteAsync(pipeline, request, () =>
+            {
+                calls++;
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            });
+            reached.Add(calls);
+        }
+
+        return reached;
+    }
 
     private static async Task<HttpResponseMessage> ExecuteAsync(
         ResiliencePipeline<HttpResponseMessage> pipeline,
@@ -100,33 +138,64 @@ public sealed class RateLimitStrategyTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecuteAsync_After429WithRateLimitResetHeader_HonorsResetInsteadOfDefaultWindow()
+    public async Task ExecuteAsync_After429WithRateLimitResetSeconds_HonorsResetInsteadOfDefaultWindow()
     {
-        // Arrange — Arctic Shift sends X-RateLimit-Reset (seconds) rather than Retry-After
-        int callCount = 0;
-        ResiliencePipeline<HttpResponseMessage> pipeline = BuildPipeline();
-        HttpRequestMessage request = new(HttpMethod.Get, "https://example.com/api/data");
+        // Arctic Shift sends X-RateLimit-Reset (seconds) rather than Retry-After
+        List<int> reached = await ProbeAsync(Respond(HttpStatusCode.TooManyRequests, "X-RateLimit-Reset", "5"), 4, 6);
 
-        // Act
-        await ExecuteAsync(pipeline, request, () =>
-        {
-            callCount++;
-            HttpResponseMessage msg = new(HttpStatusCode.TooManyRequests);
-            msg.Headers.Add("X-RateLimit-Reset", "1");
-            return msg;
-        });
+        reached.Should().Equal(0, 1);
+    }
 
-        await Task.Delay(TimeSpan.FromMilliseconds(1500));
+    // Regression: windows were capped at 5 minutes, so a longer Retry-After was retried early.
+    [Fact]
+    public async Task ExecuteAsync_After429WithLongRetryAfter_NeverCallsBeforeTheServerAsked()
+    {
+        List<int> reached = await ProbeAsync(Respond(HttpStatusCode.TooManyRequests, "Retry-After", "600"), 299, 301, 599, 601);
 
-        HttpResponseMessage second = await ExecuteAsync(pipeline, request, () =>
-        {
-            callCount++;
-            return new HttpResponseMessage(HttpStatusCode.OK);
-        });
+        reached.Should().Equal(0, 0, 0, 1);
+    }
 
-        // Assert — the 1 s window has expired, so the second request reaches the network
-        second.StatusCode.Should().Be(HttpStatusCode.OK);
-        callCount.Should().Be(2);
+    // Regression: an epoch X-RateLimit-Reset was read as ~56 years of seconds, then clamped to 5 minutes.
+    [Fact]
+    public async Task ExecuteAsync_After429WithEpochRateLimitReset_WaitsUntilThatInstant()
+    {
+        long resetAt = _time.GetUtcNow().AddMinutes(20).ToUnixTimeSeconds();
+
+        List<int> reached = await ProbeAsync(
+            Respond(HttpStatusCode.TooManyRequests, "X-RateLimit-Reset",
+                resetAt.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            1190, 1210);
+
+        reached.Should().Equal(0, 1);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_After503WithRetryAfter_HonorsIt()
+    {
+        List<int> reached = await ProbeAsync(Respond(HttpStatusCode.ServiceUnavailable, "Retry-After", "120"), 119, 121);
+
+        reached.Should().Equal(0, 1);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_After429WithoutHeaders_UsesDefaultWindow()
+    {
+        List<int> reached = await ProbeAsync(Respond(HttpStatusCode.TooManyRequests), 59, 61);
+
+        reached.Should().Equal(0, 1);
+    }
+
+    [Fact]
+    public void Suppress_NeverShortensAnExistingWindow()
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        _registry.Suppress("example.com", now.AddMinutes(10));
+        _registry.Suppress("example.com", now.AddMinutes(1));
+
+        _time.Advance(TimeSpan.FromMinutes(5));
+
+        _registry.IsSuppressed("example.com", out DateTimeOffset until).Should().BeTrue();
+        until.Should().Be(now.AddMinutes(10));
     }
 }
 

@@ -213,10 +213,12 @@ public class BlueskyThoughtProviderTests : IDisposable
             new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
             Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
 
-        await provider.GetThoughtsAsync(mediaContext);
-        await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? first = await provider.GetThoughtsAsync(mediaContext);
+        ThoughtResult? second = await provider.GetThoughtsAsync(mediaContext);
 
         searches.Should().Be(1);
+        first!.IsTransientFailure.Should().BeTrue();
+        second!.IsTransientFailure.Should().BeTrue("the briefly cached failure must still read as a failure");
     }
 
     [Fact]
