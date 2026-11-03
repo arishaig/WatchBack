@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using WatchBack.Core.Models;
 
 namespace WatchBack.Core.Interfaces;
@@ -47,12 +49,32 @@ public interface IDataProvider
     }
 
     /// <summary>
-    ///     Applies the default WatchBack headers (User-Agent). Call this from
-    ///     <see cref="ConfigureRequest" /> overrides to replicate base-class behaviour.
+    ///     The descriptive User-Agent every outgoing request sends, e.g.
+    ///     <c>WatchBack/2026.03.15 (+https://github.com/arishaig/WatchBack)</c>. Volunteer APIs expect one
+    ///     that identifies the client and links back to it, and some reject generic ones.
+    /// </summary>
+    static string UserAgent { get; } = BuildUserAgent();
+
+    /// <summary>
+    ///     Applies the default WatchBack headers (User-Agent) unless the request already has them. Every
+    ///     WatchBack HTTP client applies these itself; call this only for requests sent some other way.
     /// </summary>
     static void ApplyDefaultHeaders(HttpRequestMessage request)
     {
-        request.Headers.TryAddWithoutValidation("User-Agent", "WatchBack/1.0");
+        if (!request.Headers.Contains("User-Agent"))
+        {
+            request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+        }
+    }
+
+    private static string BuildUserAgent()
+    {
+        // The informational version carries a "+<commit>" suffix; the UA only needs the release.
+        string version = typeof(IDataProvider).Assembly
+                             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                             .Split('+')[0]
+                         ?? "unknown";
+        return $"WatchBack/{version} (+https://github.com/arishaig/WatchBack)";
     }
 
     /// <summary>

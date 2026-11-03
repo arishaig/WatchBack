@@ -25,6 +25,7 @@ public static class ServiceCollectionExtensions
     {
         // DelegatingHandlers must be transient — they cannot be shared across HttpClients.
         services.AddTransient<RequestLoggingHandler>();
+        services.AddTransient<UserAgentHandler>();
 
         services.AddWatchBackClient<JellyfinWatchStateProvider>();
         services.AddWatchBackClient<TraktWatchStateProvider>();
@@ -67,6 +68,7 @@ public static class ServiceCollectionExtensions
         // — each log entry then represents the end-to-end wall time including retries, waits,
         // and short-circuits. Individual retry/timeout events log separately from inside the pipeline.
         services.AddHttpClient<T>()
+            .AddHttpMessageHandler<UserAgentHandler>()
             .AddHttpMessageHandler<RequestLoggingHandler>()
             .AddResilienceHandler("watchback", (p, ctx) =>
                 ConfigureResiliencePipeline(p, ctx, timeout ?? TimeSpan.FromSeconds(10)));
