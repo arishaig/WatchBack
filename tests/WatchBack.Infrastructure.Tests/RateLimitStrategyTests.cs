@@ -214,6 +214,21 @@ public sealed class RateLimitStrategyTests
         reached.Should().Equal(0, 1);
     }
 
+    // Regression: Bluesky sends ratelimit-reset (an epoch, no "X-" prefix) with its 429s. It was not read,
+    // so a sign-in limited for a day was retried every minute.
+    [Fact]
+    public async Task ExecuteAsync_After429WithUnprefixedEpochRateLimitReset_WaitsUntilThatInstant()
+    {
+        long resetAt = _time.GetUtcNow().AddHours(18).ToUnixTimeSeconds();
+
+        List<int> reached = await ProbeAsync(
+            Respond(HttpStatusCode.TooManyRequests, "ratelimit-reset",
+                resetAt.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            60, 18 * 3600 - 10, 18 * 3600 + 10);
+
+        reached.Should().Equal(0, 0, 1);
+    }
+
     [Fact]
     public async Task ExecuteAsync_After503WithRetryAfter_HonorsIt()
     {

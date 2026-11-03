@@ -92,14 +92,14 @@ internal sealed class RateLimitSuppressionStrategy(
         return window > MaxWindow ? MaxWindow : window;
     }
 
-    // A success that reports no calls left in the quota: X-RateLimit-Remaining: 0 with X-RateLimit-Reset
-    // (Arctic Shift), or Trakt's X-Ratelimit JSON with "remaining":0 and an "until" time. Null otherwise.
+    // A success that reports no calls left in the quota: [X-]RateLimit-Remaining: 0 with [X-]RateLimit-Reset
+    // (Arctic Shift, Bluesky), or Trakt's X-Ratelimit JSON with "remaining":0 and an "until" time. Null otherwise.
     internal static TimeSpan? QuotaExhaustedWindow(HttpResponseMessage response, DateTimeOffset now)
     {
         TimeSpan? window = null;
-        if (response.Headers.TryGetValues("X-RateLimit-Remaining", out IEnumerable<string>? remaining) &&
-            double.TryParse(remaining.FirstOrDefault(), NumberStyles.Float, CultureInfo.InvariantCulture,
-                out double left) && left <= 0)
+        if (Header(response, "RateLimit-Remaining") is { } remaining &&
+            double.TryParse(remaining, NumberStyles.Float, CultureInfo.InvariantCulture, out double left) &&
+            left <= 0)
         {
             window = ResetHeaderWindow(response, now);
         }
@@ -150,13 +150,18 @@ internal sealed class RateLimitSuppressionStrategy(
 
     private readonly record struct TraktRateLimit(long? Remaining, DateTimeOffset? Until);
 
+    // Arctic Shift and Reddit send X-RateLimit-*; Bluesky sends the IETF draft's RateLimit-* (no "X-").
+    private static string? Header(HttpResponseMessage response, string name) =>
+        response.Headers.TryGetValues("X-" + name, out IEnumerable<string>? x) ? x.FirstOrDefault()
+        : response.Headers.TryGetValues(name, out IEnumerable<string>? plain) ? plain.FirstOrDefault()
+        : null;
+
     // Some APIs (Arctic Shift, Reddit) send X-RateLimit-Reset instead of Retry-After. Most send
     // seconds-until-reset; others (e.g. GitHub-style) send a Unix timestamp. Tell them apart by size.
     private static TimeSpan? ResetHeaderWindow(HttpResponseMessage response, DateTimeOffset now)
     {
-        if (!response.Headers.TryGetValues("X-RateLimit-Reset", out IEnumerable<string>? values) ||
-            !double.TryParse(values.FirstOrDefault(), NumberStyles.Float, CultureInfo.InvariantCulture,
-                out double value))
+        if (Header(response, "RateLimit-Reset") is not { } text ||
+            !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
         {
             return null;
         }
