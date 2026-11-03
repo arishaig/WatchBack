@@ -620,6 +620,95 @@ public sealed class RedditThoughtProviderTests : IDisposable
             "Arctic Shift's counts are often stale; code match and the discussion flair win");
     }
 
+    // ---- Matching ----
+
+    // 3 = episode code (or premiere, or r/movies official discussion), 2 = episode/movie title, 0 = no match.
+    // Several cases are regressions: later-episode spoilers, prior-season threads, "Copilot" for "Pilot".
+    [Theory]
+    [InlineData("S01E05 Discussion", 1, 5, "The Thing", 3)]
+    [InlineData("The Show 1x05", 1, 5, "The Thing", 3)]
+    [InlineData("Season 3 Episode 2 One Way or Another Rewatch", 3, 2, "One Way or Another", 3)]
+    [InlineData("Episode 5 Discussion", 1, 5, "The Thing", 3)]
+    [InlineData("Episiode 2 \"FUD\" Discussion Thread", 1, 2, "FUD", 2)]
+    [InlineData("Season 11 Episode 12 Discussion", 11, 1, "Episode 1", 0)]
+    [InlineData("Episode 1 reactions (no spoilers)", 11, 1, "Episode 1", 3)]
+    [InlineData("The Pitt S01E01 - \"Mass Casualty\" Discussion", 2, 1, "Mass Casualty", 0)]
+    [InlineData("Mass Casualty - Episode Discussion", 2, 1, "Mass Casualty", 2)]
+    [InlineData("Season 1: \"Mass Casualty\" rewatch", 2, 1, "Mass Casualty", 0)]
+    [InlineData("Copilot appreciation post", 1, 1, "Pilot", 0)]
+    [InlineData("Pilot - Discussion", 1, 1, "Pilot", 2)]
+    [InlineData("Series Premiere Discussion", 1, 1, "Good News About Hell", 3)]
+    [InlineData("Series Premiere Discussion", 2, 1, "Hello, Ms. Cobel", 0)]
+    [InlineData("Season 2 Premiere Discussion", 2, 1, "Hello, Ms. Cobel", 3)]
+    [InlineData("Season 1 Premiere Discussion", 2, 1, "Hello, Ms. Cobel", 0)]
+    [InlineData("Premiere night!", 1, 2, "Half Loop", 0)]
+    public void MatchStrength_Episodes(string title, int season, int episode, string episodeTitle, int expected)
+    {
+        PullPushSubmissionDto post = new("x", title, null, "Sub", 0, null, 0, false, null);
+        EpisodeContext context = new("The Show", s_oldAirDate, episodeTitle, (short)season, (short)episode);
+
+        RedditThoughtProvider.MatchStrength(post, context, context, false).Should().Be(expected);
+    }
+
+    [Fact]
+    public void MatchStrength_SeriesPremiereFlairAlone_MatchesEpisodeOne()
+    {
+        PullPushSubmissionDto post = new("x", "Severance - Discussion Thread", null, "Sub", 0, null, 0, false, null,
+            LinkFlairText: "Series Premiere");
+        EpisodeContext pilot = new("Severance", s_oldAirDate, "Good News About Hell", 1, 1);
+
+        RedditThoughtProvider.MatchStrength(post, pilot, pilot, false).Should().Be(3);
+    }
+
+    [Theory]
+    [InlineData("The Daily Show - January 20, 2026", 2)]
+    [InlineData("The Daily Show - January 21, 2026", 0)]
+    public void MatchStrength_SpecialsMatchByDate(string title, int expected)
+    {
+        EpisodeContext special = new("The Daily Show", new DateTimeOffset(2026, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "", 0, 1);
+        PullPushSubmissionDto post = new("x", title, null, "Sub", 0, null, 0, false, null);
+
+        RedditThoughtProvider.MatchStrength(post, special, special, false).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("Official Discussion - Dune: Part Two [SPOILERS]", true, 3)]
+    [InlineData("Dune: Part Two - Official Trailer 3", true, 0)]
+    [InlineData("Dune: Part Two - Official Trailer 3", false, 2)]
+    [InlineData("Official Discussion - Spaceman [SPOILERS]", true, 0)]
+    public void MatchStrength_Movies(string title, bool generalSubreddit, int expected)
+    {
+        MediaContext movie = new("Dune: Part Two", s_oldAirDate);
+        PullPushSubmissionDto post = new("x", title, null, "movies", 0, null, 0, false, null);
+
+        RedditThoughtProvider.MatchStrength(post, movie, null, generalSubreddit).Should().Be(expected);
+    }
+
+    // Regression: the catch-all let OperationCanceledException through, and an HttpClient timeout is one,
+    // so a slow archive threw out of the provider instead of returning a transient failure.
+    [Fact]
+    public async Task GetThoughtsAsync_HttpClientTimeout_IsATransientFailure()
+    {
+        RedditThoughtProvider provider = CreateProvider(_ => throw new TaskCanceledException("timed out"));
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(s_newEpisode);
+
+        result!.IsTransientFailure.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_CallerCancellation_StillPropagates()
+    {
+        using CancellationTokenSource cts = new();
+        await cts.CancelAsync();
+        RedditThoughtProvider provider = CreateProvider(_ => throw new TaskCanceledException());
+
+        Func<Task> act = () => provider.GetThoughtsAsync(s_newEpisode, null, cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
     // ---- Provider self-description ----
 
     [Fact]

@@ -170,7 +170,8 @@ public sealed class RedditThoughtProvider(
             cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        // An HttpClient timeout is an OperationCanceledException too: only the caller's cancellation escapes.
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             logger.LogError(ex, "Reddit thought fetch failed");
             return s_failed;
@@ -563,6 +564,13 @@ public sealed class RedditThoughtProvider(
             if (MentionsDifferentEpisode(title, season, episode.EpisodeNumber))
             {
                 return 0;
+            }
+
+            // "Episode 5 Discussion": the window around the air date already pins the season.
+            if (Regex.IsMatch(title, $@"(?<![A-Za-z0-9])episode\s*0*{episode.EpisodeNumber}(?!\d)",
+                    RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)))
+            {
+                return 3;
             }
 
             if (episode.EpisodeNumber == 1 && IsPremiereThread(post, season))
