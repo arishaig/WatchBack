@@ -1,8 +1,10 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -38,6 +40,22 @@ public sealed class BlueskyThoughtProvider(
     private static readonly TimeSpan s_failureCacheTtl = TimeSpan.FromSeconds(60);
 
     private readonly BlueskyOptions _options = options.Value;
+
+    public const int MaxSearches = 3;
+
+    // Aired within this long ago: newest posts first. Older: top posts, or the newest would be all
+    // rewatch chatter from this week.
+    private static readonly TimeSpan s_recentFor = TimeSpan.FromDays(7);
+
+    // The hashtag search covers the posts made while an episode aired and just after.
+    private static readonly TimeSpan s_airingWindow = TimeSpan.FromDays(2);
+
+    // Bluesky opened its beta in 2023; nobody posted about earlier airings there.
+    private static readonly DateTimeOffset s_blueskyLaunch = new(2023, 2, 1, 0, 0, 0, TimeSpan.Zero);
+
+    // Placeholder names ("Episode 5") add nothing to a search.
+    private static readonly Regex s_genericEpisodeName =
+        new(@"^\s*(episode|ep\.?|chapter|part)\s*\d+\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public DataProviderMetadata Metadata => new(
         "Bluesky",
@@ -86,86 +104,55 @@ public sealed class BlueskyThoughtProvider(
                 return CacheFailure(cacheKey);
             }
 
-            string query = IThoughtProvider.BuildTextQuery(mediaContext);
-            string searchUrl =
-                $"https://bsky.social/xrpc/app.bsky.feed.searchPosts?q={Uri.EscapeDataString(query)}&limit=100";
+            IReadOnlyList<SearchSpec> searches = PlanSearches(mediaContext, DateTimeOffset.UtcNow);
+            DateTimeOffset? dateFloor = IThoughtProvider.GetDateFloor(mediaContext);
+            HashSet<string> seenTexts = new();
+            HashSet<string> seenUris = new();
+            List<Thought> thoughts = new();
+            int failed = 0;
 
-            HttpResponseMessage response = await SendSearchAsync(searchUrl, token, ct);
-
-            // If the cached JWT expired mid-TTL, evict and retry once with a fresh token
-            if (response.StatusCode == HttpStatusCode.Unauthorized && !string.IsNullOrEmpty(token))
+            foreach (SearchSpec search in searches)
             {
-                response.Dispose();
-                InvalidateCachedToken();
-                token = await GetAccessTokenAsync(ct);
-                response = await SendSearchAsync(searchUrl, token, ct);
+                (BlueskyPostDto[]? posts, token) = await SearchAsync(search, token, ct);
+                if (posts is null)
+                {
+                    failed++;
+                    continue;
+                }
+
+                foreach (BlueskyPostDto post in posts)
+                {
+                    if (post.Record?.Text == null || (post.Uri is not null && !seenUris.Add(post.Uri)))
+                    {
+                        continue;
+                    }
+
+                    if (dateFloor.HasValue && (post.Record.CreatedAt ?? DateTimeOffset.UtcNow) < dateFloor.Value)
+                    {
+                        continue;
+                    }
+
+                    if (!seenTexts.Add(NormalizeText(post.Record.Text)))
+                    {
+                        continue;
+                    }
+
+                    thoughts.Add(ToThought(post));
+                }
             }
 
-            if (!response.IsSuccessStatusCode)
+            if (failed == searches.Count)
             {
-                logger.LogWarning("Bluesky search failed: HTTP {Status} for '{Title}'",
-                    (int)response.StatusCode, mediaContext.Title);
+                logger.LogWarning("Bluesky search failed for '{Title}'", mediaContext.Title);
                 return CacheFailure(cacheKey);
             }
 
-            string content = await response.Content.ReadAsStringAsync(ct);
-            BlueskySearchResponseDto? searchResult = JsonSerializer.Deserialize<BlueskySearchResponseDto>(
-                content,
-                BlueskyJsonContext.Default.BlueskySearchResponseDto);
+            ThoughtResult result = new("Bluesky", searches[0].Query, null, null, treeBuilder.BuildTree(thoughts),
+                null)
+            { IsTransientFailure = failed > 0 };
 
-            BlueskyPostDto[] posts = searchResult?.Posts ?? [];
-            DateTimeOffset? dateFloor = IThoughtProvider.GetDateFloor(mediaContext);
-            HashSet<string> seenTexts = new();
-            List<Thought> thoughts = new();
-
-            foreach (BlueskyPostDto post in posts)
-            {
-                if (post.Record?.Text == null)
-                {
-                    continue;
-                }
-
-                if (dateFloor.HasValue && (post.Record.CreatedAt ?? DateTimeOffset.UtcNow) < dateFloor.Value)
-                {
-                    continue;
-                }
-
-                string normalizedText = NormalizeText(post.Record.Text);
-                if (!seenTexts.Add(normalizedText))
-                {
-                    continue;
-                }
-
-                Thought postThought = new(
-                    $"bluesky:{post.Uri}",
-                    null,
-                    null,
-                    post.Record.Text,
-                    ToBlueskyWebUrl(post.Uri, post.Author?.Handle),
-                    post.Record.Embed?.Images?
-                        .Where(i => !string.IsNullOrEmpty(i.Image?.Link))
-                        .Select(i => new ThoughtImage(i.Image!.Link!, i.Alt))
-                        .ToList() ?? [],
-                    post.Author?.DisplayName ?? post.Author?.Handle ?? "Unknown",
-                    post.LikeCount,
-                    post.Record.CreatedAt ?? DateTimeOffset.UtcNow,
-                    "Bluesky",
-                    []);
-
-                thoughts.Add(postThought);
-            }
-
-            IReadOnlyList<Thought> treeThoughts = treeBuilder.BuildTree(thoughts);
-
-            ThoughtResult result = new(
-                "Bluesky",
-                query,
-                null,
-                null,
-                treeThoughts,
-                null);
-
-            cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+            cache.Set(cacheKey, result,
+                failed > 0 ? s_failureCacheTtl : TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
         catch (Exception ex)
@@ -179,6 +166,130 @@ public sealed class BlueskyThoughtProvider(
             progress?.Report(new SyncProgressTick(1, "Bluesky"));
         }
     }
+
+    /// <summary>One searchPosts call: the query, its sort, and an optional created-at window.</summary>
+    internal sealed record SearchSpec(string Query, string Sort, DateTimeOffset? Since, DateTimeOffset? Until);
+
+    /// <summary>
+    ///     The searches for one lookup, at most <see cref="MaxSearches" />. For an episode: the quoted show
+    ///     title with the episode code, then with the episode title, then the show's hashtag in the days
+    ///     around the air date (posts from while it aired, which the Time Machine view shows). Episodes that
+    ///     aired more than a week ago are searched by top posts, recent ones by latest. Movies and specials
+    ///     get one search.
+    /// </summary>
+    internal static IReadOnlyList<SearchSpec> PlanSearches(MediaContext media, DateTimeOffset now)
+    {
+        DateTimeOffset? air = media.ReleaseDate;
+        string sort = air is { } aired && now - aired > s_recentFor ? "top" : "latest";
+        DateTimeOffset? since = IThoughtProvider.GetDateFloor(media);
+
+        if (media is not EpisodeContext { SeasonNumber: > 0, EpisodeNumber: > 0 } episode)
+        {
+            return [new SearchSpec(IThoughtProvider.BuildTextQuery(media), sort, since, null)];
+        }
+
+        string show = $"\"{media.Title}\"";
+        List<SearchSpec> searches = [new($"{show} S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}", sort, since, null)];
+
+        if (!string.IsNullOrWhiteSpace(episode.EpisodeTitle) && !s_genericEpisodeName.IsMatch(episode.EpisodeTitle))
+        {
+            searches.Add(new SearchSpec($"{show} \"{episode.EpisodeTitle}\"", sort, since, null));
+        }
+
+        string hashtag = Hashtag(media.Title);
+        if (air is { } airDate && airDate >= s_blueskyLaunch && airDate <= now && hashtag.Length > 1)
+        {
+            searches.Add(new SearchSpec(hashtag, "top", airDate.AddHours(-12), airDate + s_airingWindow));
+        }
+
+        return searches.Take(MaxSearches).ToList();
+    }
+
+    // "#TheBear" from "The Bear": the form shows' official hashtags take. Letters and digits only.
+    internal static string Hashtag(string title) =>
+        "#" + new string(title.Where(char.IsLetterOrDigit).ToArray());
+
+    private async Task<(BlueskyPostDto[]? Posts, string? Token)> SearchAsync(SearchSpec search, string? token,
+        CancellationToken ct)
+    {
+        string url =
+            $"https://bsky.social/xrpc/app.bsky.feed.searchPosts?q={Uri.EscapeDataString(search.Query)}&sort={search.Sort}&limit=100";
+        if (search.Since is { } since)
+        {
+            url += $"&since={Uri.EscapeDataString(since.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture))}";
+        }
+
+        if (search.Until is { } until)
+        {
+            url += $"&until={Uri.EscapeDataString(until.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture))}";
+        }
+
+        HttpResponseMessage response = await SendSearchAsync(url, token, ct);
+
+        // An access token that expired mid-TTL: refresh (or sign in again) and retry once.
+        if (await IsExpiredTokenAsync(response, ct) && !string.IsNullOrEmpty(token))
+        {
+            response.Dispose();
+            ExpireAccessToken();
+            token = await GetAccessTokenAsync(ct);
+            response = await SendSearchAsync(url, token, ct);
+        }
+
+        // A 400 that isn't about the token is about the search itself (a parameter Bluesky won't take).
+        // Retrying can't fix it, so it counts as finding nothing rather than as a transient failure.
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            logger.LogWarning("Bluesky rejected the search '{Query}' (HTTP 400): {Body}", search.Query,
+                await response.Content.ReadAsStringAsync(ct));
+            return ([], token);
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("Bluesky search failed: HTTP {Status} for '{Query}'", (int)response.StatusCode,
+                search.Query);
+            return (null, token);
+        }
+
+        string content = await response.Content.ReadAsStringAsync(ct);
+        BlueskySearchResponseDto? result =
+            JsonSerializer.Deserialize(content, BlueskyJsonContext.Default.BlueskySearchResponseDto);
+        return (result?.Posts ?? [], token);
+    }
+
+    // 401, or the 400 {"error":"ExpiredToken"} the PDS sends for an expired access token.
+    private static async Task<bool> IsExpiredTokenAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            return true;
+        }
+
+        if (response.StatusCode != HttpStatusCode.BadRequest)
+        {
+            return false;
+        }
+
+        string body = await response.Content.ReadAsStringAsync(ct);
+        return body.Contains("ExpiredToken", StringComparison.Ordinal) ||
+               body.Contains("InvalidToken", StringComparison.Ordinal);
+    }
+
+    private static Thought ToThought(BlueskyPostDto post) => new(
+        $"bluesky:{post.Uri}",
+        null,
+        null,
+        post.Record!.Text!,
+        ToBlueskyWebUrl(post.Uri, post.Author?.Handle),
+        post.Record.Embed?.Images?
+            .Where(i => !string.IsNullOrEmpty(i.Image?.Link))
+            .Select(i => new ThoughtImage(i.Image!.Link!, i.Alt))
+            .ToList() ?? [],
+        post.Author?.DisplayName ?? post.Author?.Handle ?? "Unknown",
+        post.LikeCount,
+        post.Record.CreatedAt ?? DateTimeOffset.UtcNow,
+        "Bluesky",
+        []);
 
     private ThoughtResult CacheFailure(string cacheKey)
     {
@@ -289,14 +400,22 @@ public sealed class BlueskyThoughtProvider(
         return httpClient.SendAsync(request, ct);
     }
 
-    private void InvalidateCachedToken()
-    {
-        if (string.IsNullOrEmpty(_options.Handle) || string.IsNullOrEmpty(_options.AppPassword))
-        {
-            return;
-        }
+    // Signing in (createSession) is limited per account to a handful a day (bsky.social sent
+    // "ratelimit-policy: 10;w=86400"), so the session is kept and its refresh token used instead:
+    // the access token lasts a couple of hours, the refresh token weeks.
+    private sealed record Session(string AccessJwt, string? RefreshJwt, DateTimeOffset? AccessExpires);
 
-        cache.Remove(GetTokenCacheKey());
+    private static readonly TimeSpan s_sessionLifetime = TimeSpan.FromDays(30);
+    private static readonly TimeSpan s_expiryMargin = TimeSpan.FromMinutes(5);
+    private static readonly SemaphoreSlim s_sessionGate = new(1, 1);
+
+    private void ExpireAccessToken()
+    {
+        if (cache.TryGetValue(GetTokenCacheKey(), out Session? session) && session is not null)
+        {
+            cache.Set(GetTokenCacheKey(), session with { AccessExpires = DateTimeOffset.MinValue },
+                s_sessionLifetime);
+        }
     }
 
     private string GetTokenCacheKey()
@@ -304,54 +423,118 @@ public sealed class BlueskyThoughtProvider(
         string credentialHash = Convert.ToHexString(
             SHA256.HashData(
                 Encoding.UTF8.GetBytes($"{_options.Handle}:{_options.AppPassword}")))[..16];
-        return $"bluesky:auth:token:{credentialHash}";
+        return $"bluesky:auth:session:{credentialHash}";
     }
 
     private async Task<string?> GetAccessTokenAsync(CancellationToken ct)
     {
         if (string.IsNullOrEmpty(_options.Handle) || string.IsNullOrEmpty(_options.AppPassword))
         {
-            return null; // Use public API
+            return null;
         }
 
         string cacheKey = GetTokenCacheKey();
-        if (cache.TryGetValue(cacheKey, out string? cachedToken))
+        if (UsableToken(cacheKey) is { } token)
         {
-            return cachedToken;
+            return token;
+        }
+
+        // The watched episode and the prefetched next one can both find the token expiring. Refresh
+        // tokens rotate, so only one may refresh; the other then reuses the new session.
+        await s_sessionGate.WaitAsync(ct);
+        try
+        {
+            if (UsableToken(cacheKey) is { } refreshedMeanwhile)
+            {
+                return refreshedMeanwhile;
+            }
+
+            cache.TryGetValue(cacheKey, out Session? session);
+            if (session?.RefreshJwt is { } refreshJwt)
+            {
+                HttpRequestMessage refresh = new(HttpMethod.Post,
+                    "https://bsky.social/xrpc/com.atproto.server.refreshSession");
+                refresh.Headers.Add("Authorization", $"Bearer {refreshJwt}");
+                HttpResponseMessage response = await httpClient.SendAsync(refresh, ct);
+                if (await ReadSessionAsync(response, ct) is { } refreshed)
+                {
+                    cache.Set(cacheKey, refreshed, s_sessionLifetime);
+                    return refreshed.AccessJwt;
+                }
+
+                // An outage or rate limit says nothing about the refresh token: keep it for the next try
+                // rather than spend one of the day's few sign-ins. Only a rejected token means signing in.
+                if (!await IsExpiredTokenAsync(response, ct))
+                {
+                    logger.LogWarning("Bluesky: session refresh failed (HTTP {Status}); will retry",
+                        (int)response.StatusCode);
+                    return null;
+                }
+            }
+
+            var authPayload = new { identifier = _options.Handle, password = _options.AppPassword };
+            StringContent content = new(JsonSerializer.Serialize(authPayload), Encoding.UTF8, "application/json");
+            HttpResponseMessage signIn = await httpClient.PostAsync(
+                "https://bsky.social/xrpc/com.atproto.server.createSession", content, ct);
+            if (await ReadSessionAsync(signIn, ct) is not { } created)
+            {
+                logger.LogWarning("Bluesky: sign-in failed (HTTP {Status})", (int)signIn.StatusCode);
+                return null;
+            }
+
+            cache.Set(cacheKey, created, s_sessionLifetime);
+            return created.AccessJwt;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Bluesky: sign-in failed");
+            return null;
+        }
+        finally
+        {
+            s_sessionGate.Release();
+        }
+    }
+
+    private string? UsableToken(string cacheKey) =>
+        cache.TryGetValue(cacheKey, out Session? session) && session is not null &&
+        (session.AccessExpires is null || session.AccessExpires - DateTimeOffset.UtcNow > s_expiryMargin)
+            ? session.AccessJwt
+            : null;
+
+    private static async Task<Session?> ReadSessionAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        BlueskyAuthResponseDto? auth = JsonSerializer.Deserialize(await response.Content.ReadAsStringAsync(ct),
+            BlueskyJsonContext.Default.BlueskyAuthResponseDto);
+        return auth?.AccessJwt is { } access
+            ? new Session(access, auth.RefreshJwt, JwtExpiry(access))
+            : null;
+    }
+
+    // The "exp" claim of a JWT, without verifying it: only used to refresh before it lapses.
+    internal static DateTimeOffset? JwtExpiry(string jwt)
+    {
+        string[] parts = jwt.Split('.');
+        if (parts.Length != 3)
+        {
+            return null;
         }
 
         try
         {
-            var authPayload = new { identifier = _options.Handle, password = _options.AppPassword };
-            StringContent content = new(
-                JsonSerializer.Serialize(authPayload),
-                Encoding.UTF8,
-                "application/json");
-
-            HttpResponseMessage response = await httpClient.PostAsync(
-                "https://bsky.social/xrpc/com.atproto.server.createSession",
-                content,
-                ct);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return null;
-            }
-
-            string responseContent = await response.Content.ReadAsStringAsync(ct);
-            BlueskyAuthResponseDto? authResponse = JsonSerializer.Deserialize<BlueskyAuthResponseDto>(
-                responseContent,
-                BlueskyJsonContext.Default.BlueskyAuthResponseDto);
-
-            string? token = authResponse?.AccessJwt;
-            if (token != null)
-            {
-                cache.Set(cacheKey, token, TimeSpan.FromSeconds(_options.TokenCacheTtlSeconds));
-            }
-
-            return token;
+            string payload = parts[1].Replace('-', '+').Replace('_', '/');
+            payload = payload.PadRight(payload.Length + ((4 - (payload.Length % 4)) % 4), '=');
+            using JsonDocument doc = JsonDocument.Parse(Convert.FromBase64String(payload));
+            return doc.RootElement.TryGetProperty("exp", out JsonElement exp) && exp.TryGetInt64(out long seconds)
+                ? DateTimeOffset.FromUnixTimeSeconds(seconds)
+                : null;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException)
         {
             return null;
         }
@@ -401,7 +584,9 @@ public sealed class BlueskyThoughtProvider(
 
 internal sealed record BlueskyAuthResponseDto(
     [property: JsonPropertyName("accessJwt")]
-    string? AccessJwt);
+    string? AccessJwt,
+    [property: JsonPropertyName("refreshJwt")]
+    string? RefreshJwt = null);
 
 internal sealed record BlueskyImageDto(
     [property: JsonPropertyName("link")] string? Link);

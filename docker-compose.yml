@@ -26,9 +26,19 @@ services:
       # Bluesky__AppPassword: xxxx-xxxx-xxxx-xxxx
 
       # ── Reddit ──────────────────────────────────────────────────────────────
-      # No credentials required (uses public PullPush API).
+      # No credentials required (uses the Arctic Shift archive, with PullPush as a fallback).
       # Reddit__MaxThreads: 3
       # Reddit__MaxComments: 250
+      # Reddit__UseArcticShift: true
+      # Reddit__UsePullPush: true
+      # Reddit__PullPushCutoff: 2025-05-01
+
+      # ── Lemmy ───────────────────────────────────────────────────────────────
+      # No credentials required.
+      # Lemmy__InstanceUrl: https://lemmy.world
+      # Lemmy__Community:                    # e.g. television; empty searches all communities
+      # Lemmy__MaxPosts: 3
+      # Lemmy__MaxComments: 250
 
       # ── App preferences ─────────────────────────────────────────────────────
       # WatchBack__WatchProvider: jellyfin

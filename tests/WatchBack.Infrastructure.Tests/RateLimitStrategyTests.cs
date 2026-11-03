@@ -169,6 +169,111 @@ public sealed class RateLimitStrategyTests
         reached.Should().Equal(0, 1);
     }
 
+    private string TraktLimit(int remaining, int untilSeconds) =>
+        $$"""{"name":"UNAUTHED_API_GET_LIMIT","period":300,"limit":1000,"remaining":{{remaining}},"until":"{{_time.GetUtcNow().AddSeconds(untilSeconds):yyyy-MM-ddTHH:mm:ssZ}}"}""";
+
+    [Fact]
+    public async Task ExecuteAsync_SuccessUsingTheLastTraktCall_PausesUntilTheQuotaResets()
+    {
+        List<int> reached = await ProbeAsync(Respond(HttpStatusCode.OK, "X-Ratelimit", TraktLimit(0, 120)), 119, 121);
+
+        reached.Should().Equal(0, 1);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SuccessWithTraktCallsLeft_DoesNotPause()
+    {
+        List<int> reached = await ProbeAsync(Respond(HttpStatusCode.OK, "X-Ratelimit", TraktLimit(999, 120)), 1);
+
+        reached.Should().Equal(1);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SuccessWithNoRemainingAndResetSeconds_PausesForTheReset()
+    {
+        ResiliencePipeline<HttpResponseMessage> pipeline = BuildPipeline();
+        HttpRequestMessage request = new(HttpMethod.Get, "https://example.com/api/data");
+        await ExecuteAsync(pipeline, request, () =>
+        {
+            HttpResponseMessage msg = new(HttpStatusCode.OK);
+            msg.Headers.TryAddWithoutValidation("X-RateLimit-Remaining", "0");
+            msg.Headers.TryAddWithoutValidation("X-RateLimit-Reset", "30");
+            return msg;
+        });
+
+        _registry.IsSuppressed("example.com", out DateTimeOffset until).Should().BeTrue();
+        until.Should().Be(_time.GetUtcNow().AddSeconds(30));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_429WithOnlyTraktHeader_WaitsUntilItsResetTime()
+    {
+        List<int> reached = await ProbeAsync(
+            Respond(HttpStatusCode.TooManyRequests, "X-Ratelimit", TraktLimit(0, 200)), 199, 201);
+
+        reached.Should().Equal(0, 1);
+    }
+
+    // Bluesky's headers, as bsky.social sent them with a 429 from createSession.
+    private HttpResponseMessage BlueskyLimit(HttpStatusCode status, int remaining, TimeSpan resetIn)
+    {
+        HttpResponseMessage msg = new(status);
+        msg.Headers.TryAddWithoutValidation("ratelimit-limit", "10");
+        msg.Headers.TryAddWithoutValidation("ratelimit-remaining",
+            remaining.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        msg.Headers.TryAddWithoutValidation("ratelimit-reset",
+            (_time.GetUtcNow() + resetIn).ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture));
+        msg.Headers.TryAddWithoutValidation("ratelimit-policy", "10;w=86400");
+        return msg;
+    }
+
+    private static async Task<int> CallsReachingAsync(ResiliencePipeline<HttpResponseMessage> pipeline, string url)
+    {
+        int calls = 0;
+        await ExecuteAsync(pipeline, new HttpRequestMessage(HttpMethod.Get, url), () =>
+        {
+            calls++;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        return calls;
+    }
+
+    // Regression: Bluesky sends ratelimit-reset (an epoch, no "X-" prefix) with its 429s. It was not read,
+    // so a sign-in limited for the day was retried every minute. Its limits are per endpoint, so the
+    // window must not stop searches or session refreshes.
+    [Fact]
+    public async Task ExecuteAsync_BlueskySignIn429_PausesSignInUntilTheReset_AndOnlySignIn()
+    {
+        const string signIn = "https://bsky.social/xrpc/com.atproto.server.createSession";
+        ResiliencePipeline<HttpResponseMessage> pipeline = BuildPipeline();
+        await ExecuteAsync(pipeline, new HttpRequestMessage(HttpMethod.Post, signIn),
+            () => BlueskyLimit(HttpStatusCode.TooManyRequests, 0, TimeSpan.FromHours(18)));
+        DateTimeOffset start = _time.GetUtcNow();
+
+        _time.SetUtcNow(start.AddMinutes(1));
+        int signInSoon = await CallsReachingAsync(pipeline, signIn);
+        int search = await CallsReachingAsync(pipeline, "https://bsky.social/xrpc/app.bsky.feed.searchPosts?q=x");
+        int refresh = await CallsReachingAsync(pipeline, "https://bsky.social/xrpc/com.atproto.server.refreshSession");
+        _time.SetUtcNow(start.AddHours(18).AddSeconds(10));
+        int signInAfterReset = await CallsReachingAsync(pipeline, signIn);
+
+        (signInSoon, search, refresh, signInAfterReset).Should().Be((0, 1, 1, 1));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LastBlueskySignInOfTheDay_PausesOnlySignIn()
+    {
+        const string signIn = "https://bsky.social/xrpc/com.atproto.server.createSession";
+        ResiliencePipeline<HttpResponseMessage> pipeline = BuildPipeline();
+        await ExecuteAsync(pipeline, new HttpRequestMessage(HttpMethod.Post, signIn),
+            () => BlueskyLimit(HttpStatusCode.OK, 0, TimeSpan.FromHours(5)));
+
+        int again = await CallsReachingAsync(pipeline, signIn);
+        int search = await CallsReachingAsync(pipeline, "https://bsky.social/xrpc/app.bsky.feed.searchPosts?q=x");
+
+        (again, search).Should().Be((0, 1));
+    }
+
     [Fact]
     public async Task ExecuteAsync_After503WithRetryAfter_HonorsIt()
     {

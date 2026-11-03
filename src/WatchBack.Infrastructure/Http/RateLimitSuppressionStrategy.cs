@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
 
@@ -43,7 +44,8 @@ internal sealed class RateLimitSuppressionStrategy(
         }
 
         // Short-circuit during an active rate-limit window — no network call made.
-        if (registry.IsSuppressed(host, out DateTimeOffset until))
+        string endpoint = host + request!.RequestUri!.AbsolutePath;
+        if (registry.IsSuppressed(host, out DateTimeOffset until) || registry.IsSuppressed(endpoint, out until))
         {
             logger.LogDebug("Request to {Host} skipped — rate-limit backoff active until {Until:O}.", host, until);
             return Outcome.FromResult(
@@ -62,11 +64,24 @@ internal sealed class RateLimitSuppressionStrategy(
                 "Rate limited ({Status}) by {Host} ({Uri}). Suppressing requests for {Seconds} s.",
                 (int)response.StatusCode, host, HttpLogging.RedactSensitiveParams(request?.RequestUri),
                 (int)window.TotalSeconds);
-            registry.Suppress(host, now + window);
+            registry.Suppress(ScopeOf(response, host, endpoint), now + window);
+        }
+        else if (outcome.Result is { } ok && QuotaExhaustedWindow(ok, registry.Time.GetUtcNow()) is { } wait)
+        {
+            // The last call of the quota succeeded; the next would be a 429. Wait for the reset instead.
+            logger.LogInformation("Rate-limit quota for {Host} used up. Pausing requests for {Seconds} s.",
+                host, (int)wait.TotalSeconds);
+            registry.Suppress(ScopeOf(ok, host, endpoint), registry.Time.GetUtcNow() + wait);
         }
 
         return outcome;
     }
+
+    // What a window covers. Hosts that send the IETF draft's RateLimit-Policy (Bluesky) limit each endpoint
+    // separately: bsky.social allows an account ~10 sign-ins a day but thousands of searches, so a used-up
+    // sign-in limit must pause only createSession. Every other limit covers the whole host.
+    private static string ScopeOf(HttpResponseMessage ok, string host, string endpoint) =>
+        ok.Headers.Contains("RateLimit-Policy") ? endpoint : host;
 
     internal static TimeSpan RateLimitWindow(HttpResponseMessage response, DateTimeOffset now)
     {
@@ -74,7 +89,7 @@ internal sealed class RateLimitSuppressionStrategy(
         TimeSpan window = retryAfter?.Delta
                           ?? (retryAfter?.Date is { } date
                               ? date - now
-                              : ResetHeaderWindow(response, now) ?? DefaultWindow);
+                              : ResetHeaderWindow(response, now) ?? TraktUntilWindow(response, now) ?? DefaultWindow);
 
         if (window <= TimeSpan.Zero)
         {
@@ -84,13 +99,76 @@ internal sealed class RateLimitSuppressionStrategy(
         return window > MaxWindow ? MaxWindow : window;
     }
 
+    // A success that reports no calls left in the quota: [X-]RateLimit-Remaining: 0 with [X-]RateLimit-Reset
+    // (Arctic Shift, Bluesky), or Trakt's X-Ratelimit JSON with "remaining":0 and an "until" time. Null otherwise.
+    internal static TimeSpan? QuotaExhaustedWindow(HttpResponseMessage response, DateTimeOffset now)
+    {
+        TimeSpan? window = null;
+        if (Header(response, "RateLimit-Remaining") is { } remaining &&
+            double.TryParse(remaining, NumberStyles.Float, CultureInfo.InvariantCulture, out double left) &&
+            left <= 0)
+        {
+            window = ResetHeaderWindow(response, now);
+        }
+        else if (TraktLimit(response) is { Remaining: <= 0 })
+        {
+            window = TraktUntilWindow(response, now);
+        }
+
+        if (window is not { } w || w <= TimeSpan.Zero)
+        {
+            return null;
+        }
+
+        return w > MaxWindow ? MaxWindow : w;
+    }
+
+    // Trakt sends X-Ratelimit: {"name":"UNAUTHED_API_GET_LIMIT","period":300,"limit":1000,"remaining":0,
+    // "until":"2020-10-10T00:24:00Z"}. The limits themselves are documented inconsistently, so only the
+    // header is trusted.
+    private static TraktRateLimit? TraktLimit(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("X-Ratelimit", out IEnumerable<string>? values))
+        {
+            return null;
+        }
+
+        try
+        {
+            using JsonDocument doc = JsonDocument.Parse(string.Join(",", values));
+            JsonElement root = doc.RootElement;
+            long? left = root.TryGetProperty("remaining", out JsonElement r) && r.TryGetInt64(out long n) ? n : null;
+            DateTimeOffset? until = root.TryGetProperty("until", out JsonElement u) &&
+                                    u.ValueKind == JsonValueKind.String &&
+                                    DateTimeOffset.TryParse(u.GetString(), CultureInfo.InvariantCulture,
+                                        DateTimeStyles.AssumeUniversal, out DateTimeOffset at)
+                ? at
+                : null;
+            return new TraktRateLimit(left, until);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static TimeSpan? TraktUntilWindow(HttpResponseMessage response, DateTimeOffset now) =>
+        TraktLimit(response)?.Until is { } until ? until - now : null;
+
+    private readonly record struct TraktRateLimit(long? Remaining, DateTimeOffset? Until);
+
+    // Arctic Shift and Reddit send X-RateLimit-*; Bluesky sends the IETF draft's RateLimit-* (no "X-").
+    private static string? Header(HttpResponseMessage response, string name) =>
+        response.Headers.TryGetValues("X-" + name, out IEnumerable<string>? x) ? x.FirstOrDefault()
+        : response.Headers.TryGetValues(name, out IEnumerable<string>? plain) ? plain.FirstOrDefault()
+        : null;
+
     // Some APIs (Arctic Shift, Reddit) send X-RateLimit-Reset instead of Retry-After. Most send
     // seconds-until-reset; others (e.g. GitHub-style) send a Unix timestamp. Tell them apart by size.
     private static TimeSpan? ResetHeaderWindow(HttpResponseMessage response, DateTimeOffset now)
     {
-        if (!response.Headers.TryGetValues("X-RateLimit-Reset", out IEnumerable<string>? values) ||
-            !double.TryParse(values.FirstOrDefault(), NumberStyles.Float, CultureInfo.InvariantCulture,
-                out double value))
+        if (Header(response, "RateLimit-Reset") is not { } text ||
+            !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
         {
             return null;
         }

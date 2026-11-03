@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -9,12 +10,12 @@ using Microsoft.Extensions.Options;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
+using WatchBack.Infrastructure.Caching;
 using WatchBack.Resources;
 
 namespace WatchBack.Infrastructure.ThoughtProviders;
 
-[JsonSerializable(typeof(TraktShowSearchItemDto[]))]
-[JsonSerializable(typeof(TraktMovieSearchItemDto[]))]
+[JsonSerializable(typeof(TraktSearchItemDto[]))]
 [JsonSerializable(typeof(TraktCommentDto[]))]
 internal sealed partial class TraktThoughtJsonContext : JsonSerializerContext;
 
@@ -23,6 +24,7 @@ public sealed class TraktThoughtProvider(
     IOptionsSnapshot<TraktOptions> options,
     IMemoryCache cache,
     IReplyTreeBuilder treeBuilder,
+    IDurableLookupCache ids,
     ILogger<TraktThoughtProvider> logger)
     : IThoughtProvider
 {
@@ -36,6 +38,22 @@ public sealed class TraktThoughtProvider(
     // Failed lookups (429s, unresolved slugs, transient errors) are cached briefly so
     // the 5-second poll loop doesn't redo the work, and re-tick, every cycle.
     private static readonly TimeSpan s_failureCacheTtl = TimeSpan.FromSeconds(60);
+
+    public const string IdStoreKind = "trakt-id";
+
+    // A show's or movie's Trakt ID never changes. "Not on Trakt" may stop being true, so it is re-checked.
+    private static readonly TimeSpan s_idLifetime = TimeSpan.FromDays(3650);
+    private static readonly TimeSpan s_titleLifetime = TimeSpan.FromDays(180);
+    private static readonly TimeSpan s_noneLifetime = TimeSpan.FromDays(7);
+
+    private const int CommentLimit = 50;
+
+    // Below this many episode comments, the season's (then the show's) are added.
+    private const int FewComments = 5;
+
+    // Replies cost a call per comment, so only the few most-liked comments with replies get them.
+    private const int MaxReplyFetches = 3;
+    private const int MinLikesForReplies = 2;
 
     private readonly TraktOptions _options = options.Value;
 
@@ -85,77 +103,36 @@ public sealed class TraktThoughtProvider(
 
         try
         {
-            EpisodeContext? episode = mediaContext as EpisodeContext;
-
-            string commentsUrl;
-            if (episode == null)
+            Fetch fetch = new();
+            string? traktId = await ResolveIdAsync(mediaContext, fetch, ct);
+            if (traktId is null)
             {
-                string? movieId = await ResolveMovieSlugAsync(mediaContext, ct);
-                if (movieId == null)
+                if (fetch.Failed)
                 {
-                    logger.LogWarning("Trakt: no movie found for '{Title}'", mediaContext.Title);
                     return CacheFailure(cacheKey);
                 }
 
-                commentsUrl = $"https://api.trakt.tv/movies/{movieId}/comments/newest";
-            }
-            else
-            {
-                string? showId = await ResolveSlugAsync(mediaContext, ct);
-                if (showId == null)
-                {
-                    logger.LogWarning("Trakt: no show found for '{Title}'", mediaContext.Title);
-                    return CacheFailure(cacheKey);
-                }
-
-                commentsUrl =
-                    $"https://api.trakt.tv/shows/{showId}/seasons/{episode.SeasonNumber}/episodes/{episode.EpisodeNumber}/comments/newest";
+                logger.LogInformation("Trakt: '{Title}' is not on Trakt", mediaContext.Title);
+                cache.Set(cacheKey, s_empty, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+                return s_empty;
             }
 
-            HttpRequestMessage commentsRequest = new(HttpMethod.Get, commentsUrl);
-            ConfigureRequest(commentsRequest);
-
-            HttpResponseMessage commentsResponse = await httpClient.SendAsync(commentsRequest, ct);
-            if (!commentsResponse.IsSuccessStatusCode)
+            List<Thought> thoughts = await GetCommentsAsync(mediaContext, traktId, fetch, ct);
+            if (thoughts.Count == 0 && fetch.Failed)
             {
-                logger.LogWarning("Trakt comments failed: HTTP {Status} for '{Title}'",
-                    (int)commentsResponse.StatusCode, mediaContext.Title);
                 return CacheFailure(cacheKey);
             }
 
-            string commentsContent = await commentsResponse.Content.ReadAsStringAsync(ct);
-            TraktCommentDto[] comments = JsonSerializer.Deserialize<TraktCommentDto[]>(
-                commentsContent,
-                TraktThoughtJsonContext.Default.TraktCommentDtoArray) ?? [];
-            logger.LogDebug("Trakt: fetched {Count} comment(s) for '{Title}'", comments.Length, mediaContext.Title);
+            ThoughtResult result = new("Trakt", null, null, null, treeBuilder.BuildTree(thoughts), null)
+            {
+                IsTransientFailure = fetch.Failed
+            };
 
-            List<Thought> thoughts = comments
-                .Select(c => new Thought(
-                    $"trakt:{c.Id}",
-                    null,
-                    null,
-                    c.Comment ?? "",
-                    c.Id != null ? $"https://trakt.tv/comments/{c.Id}" : null,
-                    [],
-                    c.User?.Username ?? UiStrings.TraktThoughtProvider_GetThoughtsAsync_Unknown,
-                    c.Rating != null ? (int)c.Rating : null,
-                    c.CreatedAt ?? DateTimeOffset.UtcNow,
-                    "Trakt",
-                    []))
-                .ToList();
-
-            ThoughtResult result = new(
-                "Trakt",
-                null,
-                null,
-                null,
-                treeBuilder.BuildTree(thoughts),
-                null);
-
-            cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+            cache.Set(cacheKey, result,
+                fetch.Failed ? s_failureCacheTtl : TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             logger.LogError(ex, "Trakt thought fetch failed");
             return CacheFailure(cacheKey);
@@ -166,12 +143,122 @@ public sealed class TraktThoughtProvider(
         }
     }
 
+    // Episode comments sorted by likes. An episode with few comments gets its season's, then the
+    // show's, labelled as such and without comments flagged or marked as spoilers. Replies are
+    // fetched only for the most-liked comments that have some.
+    private async Task<List<Thought>> GetCommentsAsync(MediaContext mediaContext, string traktId, Fetch fetch,
+        CancellationToken ct)
+    {
+        string id = Uri.EscapeDataString(traktId);
+        List<(TraktCommentDto Comment, string? Group)> comments = [];
+
+        if (mediaContext is EpisodeContext episode)
+        {
+            string show = $"https://api.trakt.tv/shows/{id}";
+            AddComments(comments, await GetCommentPageAsync(
+                $"{show}/seasons/{episode.SeasonNumber}/episodes/{episode.EpisodeNumber}/comments/likes", fetch, ct), null);
+
+            if (comments.Count < FewComments)
+            {
+                // The format string is a localized resource (culture-dependent), so it can't be a cached CompositeFormat.
+#pragma warning disable CA1863
+                string season = string.Format(CultureInfo.CurrentCulture,
+                    UiStrings.TraktThoughtProvider_SeasonComments, episode.SeasonNumber);
+#pragma warning restore CA1863
+                AddComments(comments, SpoilerFree(await GetCommentPageAsync(
+                    $"{show}/seasons/{episode.SeasonNumber}/comments/likes", fetch, ct)), season);
+            }
+
+            if (comments.Count < FewComments)
+            {
+                AddComments(comments, SpoilerFree(await GetCommentPageAsync($"{show}/comments/likes", fetch, ct)),
+                    UiStrings.TraktThoughtProvider_ShowComments);
+            }
+        }
+        else
+        {
+            AddComments(comments,
+                await GetCommentPageAsync($"https://api.trakt.tv/movies/{id}/comments/likes", fetch, ct), null);
+        }
+
+        logger.LogDebug("Trakt: fetched {Count} comment(s) for '{Title}'", comments.Count, mediaContext.Title);
+
+        List<Thought> thoughts = comments.Select(c => ToThought(c.Comment, null, c.Group)).ToList();
+
+        IEnumerable<(TraktCommentDto Comment, string? Group)> worthReplies = comments
+            .Where(c => c.Comment is { Id: not null, Replies: > 0, Likes: >= MinLikesForReplies })
+            .OrderByDescending(c => c.Comment.Likes)
+            .Take(MaxReplyFetches);
+        foreach ((TraktCommentDto parent, string? group) in worthReplies)
+        {
+            TraktCommentDto[]? replies = await GetCommentPageAsync(
+                $"https://api.trakt.tv/comments/{parent.Id}/replies", fetch, ct);
+            thoughts.AddRange((replies ?? []).Select(r => ToThought(r, $"trakt:{parent.Id}", group)));
+        }
+
+        return thoughts;
+    }
+
+    private static void AddComments(List<(TraktCommentDto, string?)> into, TraktCommentDto[]? page, string? group)
+    {
+        HashSet<long?> seen = into.Select(c => c.Item1.Id).ToHashSet();
+        into.AddRange((page ?? []).Where(c => seen.Add(c.Id)).Select(c => (c, group)));
+    }
+
+    // Season- and show-level comments may discuss later episodes. Trakt flags whole-comment spoilers
+    // and users mark parts with [spoiler] tags; skip both, and reviews (long write-ups of the whole
+    // season or show).
+    private static TraktCommentDto[]? SpoilerFree(TraktCommentDto[]? page) =>
+        page?.Where(c => c.Spoiler != true && c.Review != true &&
+                         c.Comment?.Contains("[spoiler]", StringComparison.OrdinalIgnoreCase) != true)
+            .ToArray();
+
+    private static Thought ToThought(TraktCommentDto c, string? parentId, string? group) => new(
+        $"trakt:{c.Id}",
+        parentId,
+        null,
+        c.Comment ?? "",
+        c.Id != null ? $"https://trakt.tv/comments/{c.Id}" : null,
+        [],
+        c.User?.Username ?? UiStrings.TraktThoughtProvider_GetThoughtsAsync_Unknown,
+        c.Likes,
+        c.CreatedAt ?? DateTimeOffset.UtcNow,
+        "Trakt",
+        [],
+        group);
+
+    // Null when the request failed (and marks the fetch failed); empty when there are none.
+    private async Task<TraktCommentDto[]?> GetCommentPageAsync(string url, Fetch fetch, CancellationToken ct)
+    {
+        HttpRequestMessage request = new(HttpMethod.Get, $"{url}?limit={CommentLimit}");
+        ConfigureRequest(request);
+        HttpResponseMessage response = await httpClient.SendAsync(request, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return [];
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("Trakt comments failed: HTTP {Status} for {Url}", (int)response.StatusCode, url);
+            fetch.Failed = true;
+            return null;
+        }
+
+        string content = await response.Content.ReadAsStringAsync(ct);
+        return JsonSerializer.Deserialize(content, TraktThoughtJsonContext.Default.TraktCommentDtoArray) ?? [];
+    }
+
+    private sealed class Fetch
+    {
+        public bool Failed { get; set; }
+    }
+
     private ThoughtResult CacheFailure(string cacheKey)
     {
         cache.Set(cacheKey, s_failed, s_failureCacheTtl);
         return s_failed;
     }
-
     public async Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
     {
         try
@@ -214,10 +301,9 @@ public sealed class TraktThoughtProvider(
     }
 
     /// <summary>
-    ///     Builds a stable slug cache key using the best available external ID, falling back
+    ///     Builds a stable cache key using the best available external ID, falling back
     ///     to title + release year. Title alone is not globally unique (e.g. "The Office" US/UK,
-    ///     multiple "Avatar" movies), so a title-only key lets one show's slug bleed into
-    ///     another's for the whole 24 h TTL.
+    ///     multiple "Avatar" movies), so a title-only key lets one show's results bleed into another's.
     /// </summary>
     private static string BuildSlugCacheKey(string prefix, MediaContext mediaContext)
     {
@@ -245,139 +331,138 @@ public sealed class TraktThoughtProvider(
     }
 
     /// <summary>
-    ///     Resolves a Trakt show slug from the media context. Tries external ID lookups in order
-    ///     (IMDB → TVDB → TMDB) before falling back to a title text search. Result is cached for 24 h.
+    ///     Finds the Trakt ID of the show (for an episode) or movie, by external ID first and by title
+    ///     last. Every answer, including "not on Trakt", is kept in <see cref="IDurableLookupCache" />, so
+    ///     an ID is looked up once. A failed request is not kept, and marks the fetch failed.
     /// </summary>
-    private async Task<string?> ResolveSlugAsync(MediaContext mediaContext, CancellationToken ct)
+    private async Task<string?> ResolveIdAsync(MediaContext mediaContext, Fetch fetch, CancellationToken ct)
     {
-        string slugCacheKey = BuildSlugCacheKey("trakt:slug", mediaContext);
-        if (cache.TryGetValue(slugCacheKey, out string? cached) && cached != null)
-        {
-            return cached;
-        }
+        EpisodeContext? episode = mediaContext as EpisodeContext;
+        string kind = episode is null ? "movie" : "show";
+        IEnumerable<(string Type, string Value)> externalIds = episode is null
+            ? ExternalIdType.GetMovieLookupPriority(mediaContext.ExternalIds)
+            : ExternalIdType.GetShowLookupPriority(mediaContext.ExternalIds);
 
-        foreach ((string idType, string idValue) in ExternalIdType.GetShowLookupPriority(mediaContext.ExternalIds))
+        foreach ((string idType, string idValue) in externalIds)
         {
-            string url = $"https://api.trakt.tv/search/{idType}/{Uri.EscapeDataString(idValue)}?type=show";
-            string? slug = await TryResolveSlugFromSearchUrlAsync(url, mediaContext.Title, ct);
-            if (slug != null)
+            string? found = await RememberedAsync($"trakt:{kind}:{idType}:{idValue}", s_idLifetime, fetch,
+                () => LookupByIdAsync(idType, idValue, episode, ct), ct);
+            if (found is not null)
             {
-                cache.Set(slugCacheKey, slug, TimeSpan.FromHours(24));
-                return slug;
+                return found;
             }
         }
 
-        string textSearchUrl = $"https://api.trakt.tv/search/show?query={Uri.EscapeDataString(mediaContext.Title)}";
-        string? textSlug = await TryResolveSlugFromSearchUrlAsync(textSearchUrl, mediaContext.Title, ct);
-        if (textSlug != null)
-        {
-            cache.Set(slugCacheKey, textSlug, TimeSpan.FromHours(24));
-            return textSlug;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    ///     Calls a Trakt search endpoint and extracts the slug from the first show result.
-    ///     Returns null if the request fails or yields no results.
-    /// </summary>
-    private async Task<string?> TryResolveSlugFromSearchUrlAsync(string url, string title, CancellationToken ct)
-    {
-        HttpRequestMessage request = new(HttpMethod.Get, url);
-        ConfigureRequest(request);
-
-        HttpResponseMessage response = await httpClient.SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode)
-        {
-            logger.LogWarning("Trakt search failed: HTTP {Status} for '{Title}'",
-                (int)response.StatusCode, title);
-            return null;
-        }
-
-        string content = await response.Content.ReadAsStringAsync(ct);
-        TraktShowSearchItemDto[]? results = JsonSerializer.Deserialize<TraktShowSearchItemDto[]>(
-            content, TraktThoughtJsonContext.Default.TraktShowSearchItemDtoArray);
-
-        TraktShowDto? show = results?.FirstOrDefault()?.Show;
-        if (show?.Ids?.Slug is null && show?.Ids?.Trakt is null)
+        // An ID lookup that failed (rather than found nothing) is retried soon; guessing by title meanwhile
+        // could show another show's comments.
+        if (fetch.Failed)
         {
             return null;
         }
 
-        string slug = Uri.EscapeDataString(show.Ids?.Slug
-                                           ?? show.Ids!.Trakt!.Value.ToString(CultureInfo.InvariantCulture));
-        logger.LogDebug("Trakt: resolved '{Title}' → slug '{Slug}'", title, slug);
-        return slug;
+        string title = mediaContext.Title.Trim().ToLowerInvariant();
+        int? year = episode is null ? mediaContext.ReleaseDate?.Year : null;
+        return await RememberedAsync($"trakt:{kind}:title:{title}:{year}", s_titleLifetime, fetch,
+            () => LookupByTitleAsync(mediaContext.Title, year, episode is not null, ct), ct);
     }
 
-    /// <summary>
-    ///     Resolves a Trakt movie slug from the media context. Tries IMDB then TMDB external ID
-    ///     lookups before falling back to a title text search. Result is cached for 24 h.
-    /// </summary>
-    private async Task<string?> ResolveMovieSlugAsync(MediaContext mediaContext, CancellationToken ct)
+    private async Task<string?> RememberedAsync(string key, TimeSpan foundLifetime, Fetch fetch,
+        Func<Task<(bool Ok, string? Id)>> lookup, CancellationToken ct)
     {
-        string slugCacheKey = BuildSlugCacheKey("trakt:movie-slug", mediaContext);
-        if (cache.TryGetValue(slugCacheKey, out string? cached) && cached != null)
+        if (await ids.GetAsync(key, ct) is { } remembered)
         {
-            return cached;
+            return remembered.Value;
         }
 
-        foreach ((string idType, string idValue) in ExternalIdType.GetMovieLookupPriority(mediaContext.ExternalIds))
+        (bool ok, string? id) = await lookup();
+        if (!ok)
         {
-            string url = $"https://api.trakt.tv/search/{idType}/{Uri.EscapeDataString(idValue)}?type=movie";
-            string? slug = await TryResolveMovieSlugFromSearchUrlAsync(url, mediaContext.Title, ct);
-            if (slug != null)
-            {
-                cache.Set(slugCacheKey, slug, TimeSpan.FromHours(24));
-                return slug;
-            }
+            fetch.Failed = true;
+            return null;
         }
 
-        string textSearchUrl =
-            $"https://api.trakt.tv/search/movie?query={Uri.EscapeDataString(mediaContext.Title)}";
-        string? textSlug = await TryResolveMovieSlugFromSearchUrlAsync(textSearchUrl, mediaContext.Title, ct);
-        if (textSlug != null)
-        {
-            cache.Set(slugCacheKey, textSlug, TimeSpan.FromHours(24));
-            return textSlug;
-        }
-
-        return null;
+        await ids.SetAsync(key, IdStoreKind, id, id is null ? s_noneLifetime : foundLifetime, ct);
+        return id;
     }
 
-    /// <summary>
-    ///     Calls a Trakt movie search endpoint and extracts the slug from the first movie result.
-    ///     Returns null if the request fails or yields no results.
-    /// </summary>
-    private async Task<string?> TryResolveMovieSlugFromSearchUrlAsync(string url, string title,
+    // The IDs may be the show's (from Trakt's watch state) or the episode's own (Jellyfin passes the
+    // playing item's provider IDs). So for an episode the lookup has no type filter: a show result is
+    // taken as is, an episode result gives its show. TVDB and TMDB number shows and episodes separately,
+    // so an episode result found by one of those must also have the episode's season and number.
+    private async Task<(bool Ok, string? Id)> LookupByIdAsync(string idType, string idValue,
+        EpisodeContext? episode, CancellationToken ct)
+    {
+        string url = $"https://api.trakt.tv/search/{idType}/{Uri.EscapeDataString(idValue)}" +
+                     (episode is null ? "?type=movie" : "");
+        TraktSearchItemDto[]? items = await SearchAsync(url, ct);
+        if (items is null)
+        {
+            return (false, null);
+        }
+
+        if (episode is null)
+        {
+            return (true, TraktId(items.FirstOrDefault(i => i.Movie is not null)?.Movie?.Ids));
+        }
+
+        TraktSearchItemDto? ofEpisode = items.FirstOrDefault(i =>
+            i is { Type: "episode", Episode: not null, Show: not null } &&
+            (idType == ExternalIdType.Imdb ||
+             (i.Episode.Season == episode.SeasonNumber && i.Episode.Number == episode.EpisodeNumber)));
+        TraktSearchItemDto? show = ofEpisode ?? items.FirstOrDefault(i => i.Show is not null && i.Type != "episode");
+        return (true, TraktId(show?.Show?.Ids));
+    }
+
+    // Title search is the last resort: prefer an exact title (and, for movies, year) over the top hit.
+    private async Task<(bool Ok, string? Id)> LookupByTitleAsync(string title, int? year, bool isShow,
         CancellationToken ct)
     {
+        string type = isShow ? "show" : "movie";
+        TraktSearchItemDto[]? items =
+            await SearchAsync($"https://api.trakt.tv/search/{type}?query={Uri.EscapeDataString(title)}", ct);
+        if (items is null)
+        {
+            return (false, null);
+        }
+
+        TraktShowDto?[] media = items.Select(i => isShow ? i.Show : i.Movie).Where(m => m is not null).ToArray();
+        TraktShowDto? best =
+            media.FirstOrDefault(m => SameTitle(m!.Title, title) && (year is null || m.Year == year))
+            ?? media.FirstOrDefault(m => SameTitle(m!.Title, title))
+            ?? media.FirstOrDefault();
+        if (best is not null)
+        {
+            logger.LogDebug("Trakt: '{Title}' matched by title to '{Match}'", title, best.Title);
+        }
+
+        return (true, TraktId(best?.Ids));
+    }
+
+    private static bool SameTitle(string? a, string b) => string.Equals(a?.Trim(), b.Trim(),
+        StringComparison.OrdinalIgnoreCase);
+
+    private static string? TraktId(TraktShowIdsDto? ids) =>
+        ids?.Trakt?.ToString(CultureInfo.InvariantCulture) ?? ids?.Slug;
+
+    // Null when the request failed; empty when nothing matched.
+    private async Task<TraktSearchItemDto[]?> SearchAsync(string url, CancellationToken ct)
+    {
         HttpRequestMessage request = new(HttpMethod.Get, url);
         ConfigureRequest(request);
-
         HttpResponseMessage response = await httpClient.SendAsync(request, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return [];
+        }
+
         if (!response.IsSuccessStatusCode)
         {
-            logger.LogWarning("Trakt movie search failed: HTTP {Status} for '{Title}'",
-                (int)response.StatusCode, title);
+            logger.LogWarning("Trakt search failed: HTTP {Status} for {Url}", (int)response.StatusCode, url);
             return null;
         }
 
         string content = await response.Content.ReadAsStringAsync(ct);
-        TraktMovieSearchItemDto[]? results = JsonSerializer.Deserialize<TraktMovieSearchItemDto[]>(
-            content, TraktThoughtJsonContext.Default.TraktMovieSearchItemDtoArray);
-
-        TraktMovieDto? movie = results?.FirstOrDefault()?.Movie;
-        if (movie?.Ids?.Slug is null && movie?.Ids?.Trakt is null)
-        {
-            return null;
-        }
-
-        string slug = Uri.EscapeDataString(movie.Ids?.Slug
-                                           ?? movie.Ids!.Trakt!.Value.ToString(CultureInfo.InvariantCulture));
-        logger.LogDebug("Trakt: resolved movie '{Title}' → slug '{Slug}'", title, slug);
-        return slug;
+        return JsonSerializer.Deserialize(content, TraktThoughtJsonContext.Default.TraktSearchItemDtoArray) ?? [];
     }
 
     private void ConfigureRequest(HttpRequestMessage request)
@@ -389,32 +474,39 @@ public sealed class TraktThoughtProvider(
 }
 
 internal sealed record TraktShowIdsDto(
-    [property: JsonPropertyName("trakt")] int? Trakt,
+    [property: JsonPropertyName("trakt")] long? Trakt,
     [property: JsonPropertyName("slug")] string? Slug);
 
+// Shows and movies share this shape.
 internal sealed record TraktShowDto(
     [property: JsonPropertyName("title")] string? Title,
-    [property: JsonPropertyName("ids")] TraktShowIdsDto? Ids);
+    [property: JsonPropertyName("ids")] TraktShowIdsDto? Ids,
+    [property: JsonPropertyName("year")] int? Year = null);
 
-internal sealed record TraktShowSearchItemDto(
-    [property: JsonPropertyName("show")] TraktShowDto? Show);
+internal sealed record TraktEpisodeDto(
+    [property: JsonPropertyName("season")] int? Season,
+    [property: JsonPropertyName("number")] int? Number);
 
-internal sealed record TraktMovieDto(
-    [property: JsonPropertyName("title")] string? Title,
-    [property: JsonPropertyName("ids")] TraktShowIdsDto? Ids);
-
-internal sealed record TraktMovieSearchItemDto(
-    [property: JsonPropertyName("movie")] TraktMovieDto? Movie);
+internal sealed record TraktSearchItemDto(
+    [property: JsonPropertyName("type")] string? Type,
+    [property: JsonPropertyName("show")] TraktShowDto? Show,
+    [property: JsonPropertyName("movie")] TraktShowDto? Movie,
+    [property: JsonPropertyName("episode")] TraktEpisodeDto? Episode);
 
 internal sealed record TraktUserDto(
     [property: JsonPropertyName("username")]
     string? Username);
 
 internal sealed record TraktCommentDto(
-    [property: JsonPropertyName("id")] int? Id,
+    [property: JsonPropertyName("id")] long? Id,
     [property: JsonPropertyName("comment")]
     string? Comment,
-    [property: JsonPropertyName("rating")] double? Rating,
     [property: JsonPropertyName("user")] TraktUserDto? User,
     [property: JsonPropertyName("created_at")]
-    DateTimeOffset? CreatedAt);
+    DateTimeOffset? CreatedAt,
+    [property: JsonPropertyName("likes")] int? Likes = null,
+    [property: JsonPropertyName("replies")]
+    int? Replies = null,
+    [property: JsonPropertyName("spoiler")]
+    bool? Spoiler = null,
+    [property: JsonPropertyName("review")] bool? Review = null);

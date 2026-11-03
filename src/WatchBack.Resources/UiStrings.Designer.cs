@@ -112,6 +112,24 @@ namespace WatchBack.Resources {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized string similar to Season {0} comments.
+        /// </summary>
+        public static string TraktThoughtProvider_SeasonComments {
+            get {
+                return ResourceManager.GetString("TraktThoughtProvider_SeasonComments", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Comments on the whole show.
+        /// </summary>
+        public static string TraktThoughtProvider_ShowComments {
+            get {
+                return ResourceManager.GetString("TraktThoughtProvider_ShowComments", resourceCulture);
+            }
+        }
+        
         public static string TraktThoughtProvider_GetThoughtsAsync_Unknown {
             get {
                 return ResourceManager.GetString("TraktThoughtProvider_GetThoughtsAsync_Unknown", resourceCulture);
