@@ -148,4 +148,10 @@
     <data name="TraktWatchStateProvider_GetServiceHealthAsync_Profile_reachable___0__" xml:space="preserve">
         <value>Perfil accesible ({0})</value>
     </data>
+    <data name="TraktThoughtProvider_SeasonComments" xml:space="preserve">
+        <value>Comentarios de la temporada {0}</value>
+    </data>
+    <data name="TraktThoughtProvider_ShowComments" xml:space="preserve">
+        <value>Comentarios sobre toda la serie</value>
+    </data>
 </root>

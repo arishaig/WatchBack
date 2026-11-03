@@ -169,7 +169,7 @@ public class LiveIntegrationTests : IDisposable
 
         ReplyTreeBuilder treeBuilder = new();
         TraktThoughtProvider provider = new(_httpClient, new OptionsSnapshotStub<TraktOptions>(options), _cache,
-            treeBuilder, NullLogger<TraktThoughtProvider>.Instance);
+            treeBuilder, new InMemoryLookupCache(), NullLogger<TraktThoughtProvider>.Instance);
 
         // Act
         ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
@@ -308,7 +308,7 @@ public class LiveIntegrationTests : IDisposable
             _cache, NullLogger<TraktWatchStateProvider>.Instance);
         TraktThoughtProvider traktThoughtProvider = new(
             _httpClient, new OptionsSnapshotStub<TraktOptions>(traktOpts), _cache, new ReplyTreeBuilder(),
-            NullLogger<TraktThoughtProvider>.Instance);
+            new InMemoryLookupCache(), NullLogger<TraktThoughtProvider>.Instance);
 
         // Bluesky
         BlueskyOptions blueskyOpts = new()

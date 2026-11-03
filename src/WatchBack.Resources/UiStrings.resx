@@ -172,4 +172,10 @@
     <data name="ManualWatchStateEndpoints_SetManualWatchState_Title_is_required_" xml:space="preserve">
         <value>Title is required.</value>
     </data>
+    <data name="TraktThoughtProvider_SeasonComments" xml:space="preserve">
+        <value>Season {0} comments</value>
+    </data>
+    <data name="TraktThoughtProvider_ShowComments" xml:space="preserve">
+        <value>Comments on the whole show</value>
+    </data>
 </root>
