@@ -39,7 +39,7 @@ tests/
 
 **WatchBack.Infrastructure** (library) — Concrete provider implementations and data access.
 - `WatchStateProviders/`: Jellyfin, Trakt, Manual (singleton — holds state in memory)
-- `ThoughtProviders/`: Reddit (via PullPush and Arctic Shift), Bluesky, Trakt, Lemmy
+- `ThoughtProviders/`: Reddit (Arctic Shift first, PullPush as a fallback for pre-May-2025 episodes; at most 2 post searches per lookup, subreddits from the curated mappings or `ArcticShiftSubredditResolver`), Bluesky, Trakt, Lemmy
 - `MediaSearchProviders/` + `RatingsProviders/`: OMDb (implements both `IMediaSearchProvider` and `IRatingsProvider`)
 - `Http/`: per-client Polly pipeline built in `ServiceCollectionExtensions.AddWatchBackClient` (one pipeline per host): `RateLimitSuppressionStrategy` + `HostBackoffRegistry` (honour 429/Retry-After/X-RateLimit-Reset), circuit breaker, retry, per-host throttle for volunteer APIs, per-attempt timeout; `UserAgentHandler`, `RequestLoggingHandler`
 - `Caching/`: `MediaResultCache` (`IMediaResultCache`) — the fetch-once layer in front of thought/ratings providers: memory → SQLite → upstream, single-flight per key, lifetimes by air date (`CacheTtlPolicy`); `ResultCacheStore` (SQLite), `ResultCacheMaintenance` (prune, persist backoff windows)

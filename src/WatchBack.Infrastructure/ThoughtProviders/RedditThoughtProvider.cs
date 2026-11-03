@@ -20,6 +20,7 @@ namespace WatchBack.Infrastructure.ThoughtProviders;
 [JsonSerializable(typeof(ArcticShiftSubmissionsResponseDto))]
 [JsonSerializable(typeof(ArcticShiftCommentTreeResponseDto))]
 [JsonSerializable(typeof(ArcticShiftCommentNodeDto[]))]
+[JsonSerializable(typeof(ArcticShiftSubredditsResponseDto))]
 internal sealed partial class RedditJsonContext : JsonSerializerContext;
 
 public sealed class RedditThoughtProvider(
@@ -28,14 +29,13 @@ public sealed class RedditThoughtProvider(
     IMemoryCache cache,
     IReplyTreeBuilder treeBuilder,
     ISubredditMappingService mappingService,
+    ISubredditResolver resolver,
     ILogger<RedditThoughtProvider> logger)
     : IThoughtProvider, IContentNormalizer
 {
-    // Upper bound on search spec count (before deduplication) — used for progress estimation.
-    // Sync ticks are reported one-per-spec, so over-estimating is fine; the SSE layer forces
-    // the bar to 100% before emitting the final result.
-    // 8 PullPush specs plus roughly two Arctic Shift subreddit lookups.
-    private const int SearchSpecCount = 10;
+    // Post searches per lookup (see SearchAsync). Each reports one progress tick, as does each thread's
+    // comment fetch; the subreddit lookup, at most one per show, reports none.
+    private const int MaxSearches = 2;
     private static readonly ThoughtResult s_empty = new("Reddit", null, null, null, [], null);
 
     // Returned (and briefly cached) when the lookup itself failed, as opposed to finding nothing,
@@ -57,6 +57,12 @@ public sealed class RedditThoughtProvider(
         @"\bS(\d{1,2})E\d+\b|\b(\d{1,2})x\d+\b|\bSeason\s+(\d+)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex s_episodeCode = new(
+        @"\bS(\d{1,2})E(\d{1,3})\b|\b(\d{1,2})x(\d{1,3})\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex s_premiere = new(@"\bprem(?:ie|ei)re\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static readonly TimeSpan s_failureCacheTtl = TimeSpan.FromSeconds(60);
 
     private static readonly ConcurrentDictionary<(int, int), Regex[]> s_episodeRegexCache = new();
@@ -72,7 +78,7 @@ public sealed class RedditThoughtProvider(
         )
     );
 
-    public int ExpectedWeight => (SearchSpecCount + _options.MaxThreads) * 3;
+    public int ExpectedWeight => (MaxSearches + _options.MaxThreads) * 3;
 
     public string GetCacheKey(MediaContext mediaContext)
     {
@@ -97,128 +103,20 @@ public sealed class RedditThoughtProvider(
 
             progress = InitialLoadProgress.ForFetch(cache, cacheKey, progress);
 
-            IReadOnlyList<string> mappedSubreddits = mappingService.GetSubreddits(mediaContext);
-            IReadOnlyList<string> subredditsToSearch = mappedSubreddits.Count > 0
-                ? mappedSubreddits
-                : [Regex.Replace(mediaContext.Title.ToLowerInvariant(), "[^a-z0-9]", "")];
+            Lookup lookup = new(mediaContext, episode, MaxSearches);
+            await SearchAsync(lookup, progress, ct);
 
-            List<SearchSpec> specs = BuildSearchSpecs(mediaContext, subredditsToSearch, episode);
-
-            if (specs.Count == 0)
-            {
-                return s_empty;
-            }
-
-            // Compute date floor: exclude threads posted more than 7 days before this episode aired.
-            // The buffer handles timezone variation and pre-air discussion threads.
-            long? afterEpoch = mediaContext.ReleaseDate?.AddDays(-7).ToUnixTimeSeconds();
-
-            // Scale result count with MaxThreads so higher thread caps have a larger candidate pool.
-            int normalSize = Math.Clamp(_options.MaxThreads * 8, 25, 100);
-            int bypassSize = Math.Clamp(_options.MaxThreads * 4, 10, 100);
-
-            // Query every enabled archive in parallel — they are the bottleneck, so fan-out wins here.
-            // A dead archive (PullPush is currently 429ing everything) must not hide the other's results.
-            List<Task<SpecResult[]>> searches = [];
-            if (_options.UsePullPush)
-            {
-                searches.AddRange(specs.Select(spec =>
-                    SearchPullPushAsync(spec, spec.BypassFilter ? bypassSize : normalSize, afterEpoch, progress, ct)));
-            }
-
-            if (_options.UseArcticShift)
-            {
-                searches.AddRange(subredditsToSearch.Select(subreddit =>
-                    SearchArcticShiftAsync(subreddit, mediaContext, episode, progress, ct)));
-            }
-
-            SpecResult[] specResults = (await Task.WhenAll(searches)).SelectMany(r => r).ToArray();
-
-            bool anySpecSucceeded = specResults.Any(r => r.Ok);
-
-            // Arctic Shift covers Reddit's whole history; PullPush stopped archiving in mid-2025 and is often
-            // down. So a failed Arctic Shift search (or, without Arctic Shift, any failed PullPush search) may
-            // have hidden the thread, and the answer is incomplete rather than a confirmed miss.
-            bool searchIncomplete = _options.UseArcticShift
-                ? specResults.Any(r => r is { Source: RedditSource.ArcticShift, Ok: false })
-                : specResults.Any(r => !r.Ok);
-
-            Dictionary<string, PullPushSubmissionDto> seenIds = new();
-            Dictionary<string, RedditSource> foundBy = new();
-            HashSet<string> bypassIds = new();
-            foreach (SpecResult specResult in specResults)
-            {
-                foreach (PullPushSubmissionDto sub in specResult.Subs)
-                {
-                    if (sub.Id == null)
-                    {
-                        continue;
-                    }
-
-                    seenIds.TryAdd(sub.Id, sub);
-                    foundBy[sub.Id] = foundBy.GetValueOrDefault(sub.Id) | specResult.Source;
-                    if (specResult.IsBypass)
-                    {
-                        bypassIds.Add(sub.Id);
-                    }
-                }
-            }
-
-            // Log raw results before filtering so we can diagnose misses
-            if (logger.IsEnabled(LogLevel.Debug))
-            {
-                foreach ((string id, PullPushSubmissionDto sub) in seenIds)
-                {
-                    bool passes =
-                        (bypassIds.Contains(id) &&
-                         (episode == null || !MentionsDifferentSeason(sub.Title ?? "", episode.SeasonNumber))) ||
-                        (episode != null && MatchesEpisode(sub.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber));
-                    logger.LogDebug("Reddit raw: [{Id}] r/{Sub} \"{Title}\" → {Result}",
-                        id, sub.Subreddit, sub.Title, passes ? "KEEP" : "SKIP");
-                }
-            }
-
-            // Keep submissions whose title matches this episode, or that came from a bypass search
-            // (episode-title search, where the archive or the local window filter already did the scoping).
-            // For bypass results with an episode context, we still reject any submission that
-            // explicitly names a *different* season — this prevents S1 threads bleeding into S2
-            // results when the show is new and the archives have no S2 content yet.
-            List<PullPushSubmissionDto> submissions = seenIds.Values
-                .Where(s => s.Id != null && (
-                    (bypassIds.Contains(s.Id!) &&
-                     (episode == null || !MentionsDifferentSeason(s.Title ?? "", episode.SeasonNumber))) ||
-                    (episode != null && MatchesEpisode(s.Title ?? "", episode.SeasonNumber,
-                        episode.EpisodeNumber))))
-                .OrderByDescending(s => s.Stickied)
-                .ThenByDescending(s => s.Score ?? 0)
-                .ThenByDescending(s => s.NumComments ?? 0) // brand-new threads all score 0/1
-                .ToList();
-
-            if (episode != null)
-            {
-                logger.LogInformation(
-                    "Reddit: found {Count} matching submission(s) for '{Title}' S{Season:D2}E{Episode:D2}",
-                    submissions.Count, mediaContext.Title, episode.SeasonNumber, episode.EpisodeNumber);
-            }
-            else
-            {
-                logger.LogInformation(
-                    "Reddit: found {Count} matching submission(s) for movie '{Title}'",
-                    submissions.Count, mediaContext.Title);
-            }
+            List<PullPushSubmissionDto> submissions = lookup.Ranked();
+            LogMatches(lookup, submissions);
 
             if (submissions.Count == 0)
             {
-                bool confirmedMiss = anySpecSucceeded && !searchIncomplete;
-                ThoughtResult emptyResult = !confirmedMiss ? s_failed
+                ThoughtResult emptyResult = lookup.Incomplete ? s_failed
                     : mediaContext.ReleaseDate is null ? s_undatedMiss : s_empty;
-                // Confirmed archive misses get the full TTL.
-                // Timeout/network/429 failures are transient, so they're only cached briefly:
-                // retrying every poll cycle would re-report progress ticks and flash the
-                // frontend loading bar for as long as the archives keep failing.
+                // Confirmed misses get the full TTL. Failures are only cached briefly: retrying every poll
+                // cycle would re-report progress ticks and flash the loading bar while the archives fail.
                 cache.Set(cacheKey, emptyResult,
-                    confirmedMiss ? TimeSpan.FromSeconds(_options.CacheTtlSeconds) : s_failureCacheTtl);
-
+                    lookup.Incomplete ? s_failureCacheTtl : TimeSpan.FromSeconds(_options.CacheTtlSeconds));
                 return emptyResult;
             }
 
@@ -226,60 +124,29 @@ public sealed class RedditThoughtProvider(
             Thought[][] threadResults = await Task.WhenAll(
                 submissions.Take(_options.MaxThreads).Select(async submission =>
                 {
-                    if (submission.Id == null)
-                    {
-                        return Array.Empty<Thought>();
-                    }
-
-                    string thisPostUrl = submission.Permalink != null
-                        ? $"https://reddit.com{submission.Permalink}"
-                        : $"https://reddit.com/r/{submission.Subreddit}/comments/{submission.Id}/";
-
-                    // Normalization (newlines, spoiler tags) is applied later by SyncService via NormalizeContent.
-                    string? selftext = submission.Selftext;
-                    string? thisPostBody = null;
-                    if (submission.IsSelf &&
-                        !string.IsNullOrWhiteSpace(selftext) &&
-                        !selftext.Equals("[deleted]", StringComparison.Ordinal) &&
-                        !selftext.Equals("[removed]", StringComparison.Ordinal))
-                    {
-                        thisPostBody = selftext;
-                    }
-
-                    PullPushCommentDto[] comments = [];
-                    bool answered = false;
+                    string thisPostUrl = PostUrl(submission);
+                    PullPushCommentDto[]? comments;
                     try
                     {
-                        // Ask the archive that found the thread first, then fall back to the other.
-                        foreach (RedditSource source in CommentSourceOrder(foundBy[submission.Id]))
-                        {
-                            PullPushCommentDto[]? fetched = source == RedditSource.ArcticShift
-                                ? await ArcticShiftSource.GetCommentsAsync(
-                                    httpClient, submission.Id, _options.MaxComments, logger, ct)
-                                : await GetPullPushCommentsAsync(submission.Id, ct);
-                            answered |= fetched is not null;
-                            if (fetched is { Length: > 0 })
-                            {
-                                comments = fetched;
-                                break;
-                            }
-                        }
+                        comments = await GetCommentsAsync(submission, ct);
                     }
                     finally
                     {
                         progress?.Report(new SyncProgressTick(3, "Reddit"));
                     }
 
-                    if (!answered)
+                    if (comments is null)
                     {
                         Interlocked.Exchange(ref commentFetchFailed, 1);
                     }
 
                     logger.LogInformation("Reddit: thread {ThreadId} ({Title}) returned {Count} comment(s)",
-                        submission.Id, submission.Title, comments.Length);
+                        submission.Id, submission.Title, comments?.Length ?? 0);
 
-                    return comments
-                        .Select(c => MapCommentToThought(c, submission.Title, thisPostUrl, thisPostBody))
+                    // Normalization (newlines, spoiler tags) is applied later by SyncService via NormalizeContent.
+                    string? postBody = PostBody(submission);
+                    return (comments ?? [])
+                        .Select(c => MapCommentToThought(c, submission.Title, thisPostUrl, postBody))
                         .Where(t => !IsDeletedOrRemoved(t))
                         .ToArray();
                 }));
@@ -288,29 +155,252 @@ public sealed class RedditThoughtProvider(
             IReadOnlyList<Thought> treeThoughts = treeBuilder.BuildTree(allThoughts);
 
             PullPushSubmissionDto top = submissions[0];
-            string topPostUrl = top.Permalink != null
-                ? $"https://reddit.com{top.Permalink}"
-                : $"https://reddit.com/r/{top.Subreddit}/comments/{top.Id}/";
 
             // A thread whose comments no archive returned, or a failed search, makes this answer incomplete:
             // keep it (it beats nothing) but flag it so it is never persisted as the episode's final result.
             ThoughtResult result = new(
                 "Reddit",
                 top.Title,
-                topPostUrl,
+                PostUrl(top),
                 null,
                 treeThoughts,
                 null,
-                IsTransientFailure: searchIncomplete || commentFetchFailed != 0);
+                IsTransientFailure: lookup.Incomplete || commentFetchFailed != 0);
 
             cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
-        catch (Exception ex)
+        // An HttpClient timeout is an OperationCanceledException too: only the caller's cancellation escapes.
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             logger.LogError(ex, "Reddit thought fetch failed");
             return s_failed;
         }
+    }
+
+    // At most MaxSearches post searches per lookup, in this order, stopping once something matches:
+    //   1. Arctic Shift: list each subreddit's posts around the air date (or its newest posts, undated).
+    //      For a movie with no mapped subreddit, search r/movies' titles instead.
+    //   2. Only if nothing matched:
+    //      a. the next page of a window too busy for one page;
+    //      b. PullPush, for episodes aired before PullPushCutoff (Arctic Shift found nothing or failed);
+    //      c. a title search of r/television (episodes) or r/movies (movies with a mapped subreddit).
+    // Step 1 failing makes the answer incomplete. Step 2b/2c failing doesn't: they are long shots, and
+    // flagging them would turn a clean miss into a re-fetch every minute.
+    private async Task SearchAsync(Lookup lookup, IProgress<SyncProgressTick>? progress, CancellationToken ct)
+    {
+        MediaContext media = lookup.Media;
+        DateTimeOffset? airDate = media.ReleaseDate;
+        bool pullPushEligible = _options.UsePullPush && airDate < _options.PullPushCutoff;
+        (long After, long Before)? window = airDate is { } aired
+            ? lookup.Episode is null
+                ? (aired.AddDays(-14).ToUnixTimeSeconds(), aired.AddDays(90).ToUnixTimeSeconds())
+                : (aired.AddDays(-2).ToUnixTimeSeconds(), aired.AddDays(10).ToUnixTimeSeconds())
+            : null;
+
+        IReadOnlyList<string> subreddits = await ResolveSubredditsAsync(lookup, ct);
+
+        async Task<ListingPage> Run(Func<Task<ListingPage>> search)
+        {
+            lookup.SearchesLeft--;
+            try
+            {
+                return await search();
+            }
+            finally
+            {
+                progress?.Report(new SyncProgressTick(3, "Reddit"));
+            }
+        }
+
+        // 1. Primary searches.
+        (string Subreddit, long Cursor)? fullWindow = null;
+        bool primaryAnswered = false;
+        foreach (string subreddit in subreddits.Take(MaxSearches))
+        {
+            ListingPage page;
+            if (_options.UseArcticShift)
+            {
+                page = await Run(() => window is { } w
+                    ? ArcticShiftSource.ListWindowAsync(httpClient, subreddit, w.After, w.Before, logger, ct)
+                    : ArcticShiftSource.ListRecentAsync(httpClient, subreddit, logger, ct));
+            }
+            else if (pullPushEligible && window is { } w)
+            {
+                page = await Run(() => PullPushSource.ListWindowAsync(httpClient, subreddit, w.After, w.Before, logger, ct));
+            }
+            else
+            {
+                break; // No archive covers this lookup.
+            }
+
+            if (page.Posts is null)
+            {
+                lookup.Incomplete = true;
+                continue;
+            }
+
+            primaryAnswered = true;
+            lookup.Collect(page.Posts, requireShowTitle: false);
+            if (page.Full && window is not null && page.LastCreated is { } last)
+            {
+                fullWindow ??= (subreddit, last);
+            }
+        }
+
+        bool moviesIsPrimary = lookup.Episode is null && subreddits.Count == 0 && _options.UseArcticShift;
+        if (moviesIsPrimary && window is { } movieWindow)
+        {
+            ListingPage page = await Run(() => SearchMoviesAsync(media.Title, movieWindow, ct));
+            if (page.Posts is null)
+            {
+                lookup.Incomplete = true;
+            }
+            else
+            {
+                primaryAnswered = true;
+                lookup.Collect(page.Posts, requireShowTitle: true);
+            }
+        }
+
+        if (lookup.HasMatches || lookup.SearchesLeft <= 0 || window is not { } win)
+        {
+            return;
+        }
+
+        // 2a. The window had more posts than one page holds: read on.
+        if (fullWindow is { } full && _options.UseArcticShift)
+        {
+            ListingPage page = await Run(() =>
+                ArcticShiftSource.ListWindowAsync(httpClient, full.Subreddit, full.Cursor, win.Before, logger, ct));
+            if (page.Posts is null)
+            {
+                lookup.Incomplete = true;
+            }
+            else
+            {
+                lookup.Collect(page.Posts, requireShowTitle: false);
+            }
+
+            return;
+        }
+
+        // 2b. PullPush, for old episodes only, when Arctic Shift had nothing.
+        if (_options.UseArcticShift && pullPushEligible && subreddits.Count > 0)
+        {
+            ListingPage page = await Run(() =>
+                PullPushSource.ListWindowAsync(httpClient, subreddits[0], win.After, win.Before, logger, ct));
+            if (page.Posts is not null)
+            {
+                lookup.Collect(page.Posts, requireShowTitle: false);
+            }
+
+            return;
+        }
+
+        // 2c. A general subreddit, when Arctic Shift is up but the show's own subreddit had nothing.
+        if (_options.UseArcticShift && (primaryAnswered || subreddits.Count == 0) && !moviesIsPrimary)
+        {
+            ListingPage page = await Run(() => lookup.Episode is null
+                ? SearchMoviesAsync(media.Title, win, ct)
+                : ArcticShiftSource.SearchTitleAsync(httpClient, "television", media.Title,
+                    win.After, Math.Min(win.Before, media.ReleaseDate!.Value.AddDays(3).ToUnixTimeSeconds()),
+                    logger, ct));
+            if (page.Posts is not null)
+            {
+                lookup.Collect(page.Posts, requireShowTitle: true);
+            }
+        }
+    }
+
+    // r/movies' "Official Discussion - <Title>" threads, by title search: the subreddit is too busy to list.
+    private Task<ListingPage> SearchMoviesAsync(string title, (long After, long Before) window, CancellationToken ct)
+    {
+        string keywords = Regex.Replace($"Official Discussion {title}", "[^A-Za-z0-9]+", " ").Trim();
+        return ArcticShiftSource.SearchTitleAsync(httpClient, "movies", keywords, window.After, window.Before,
+            logger, ct);
+    }
+
+    // Curated mappings first. Otherwise, for a show, the subreddit Arctic Shift's subreddit search finds
+    // (looked up once per show and remembered). Without Arctic Shift, PullPush gets the old guess: the
+    // title with the spaces and punctuation removed.
+    private async Task<IReadOnlyList<string>> ResolveSubredditsAsync(Lookup lookup, CancellationToken ct)
+    {
+        IReadOnlyList<string> mapped = mappingService.GetSubreddits(lookup.Media);
+        if (mapped.Count > 0 || lookup.Episode is null)
+        {
+            return mapped;
+        }
+
+        if (!_options.UseArcticShift)
+        {
+            return [Regex.Replace(lookup.Media.Title.ToLowerInvariant(), "[^a-z0-9]", "")];
+        }
+
+        SubredditResolution resolution = await resolver.ResolveAsync(lookup.Media.Title, ct);
+        if (resolution.Failed)
+        {
+            lookup.Incomplete = true;
+        }
+
+        return resolution.Subreddit is { } found ? [found] : [];
+    }
+
+    // Arctic Shift has every thread's comments, so it is asked first; PullPush only when that failed and
+    // the thread is old enough for PullPush to have it. Null when no archive answered.
+    private async Task<PullPushCommentDto[]?> GetCommentsAsync(PullPushSubmissionDto submission, CancellationToken ct)
+    {
+        PullPushCommentDto[]? comments = null;
+        if (_options.UseArcticShift)
+        {
+            comments = await ArcticShiftSource.GetCommentsAsync(httpClient, submission.Id!, _options.MaxComments,
+                logger, ct);
+        }
+
+        if (comments is null && _options.UsePullPush &&
+            submission.CreatedUtc is { } created &&
+            DateTimeOffset.FromUnixTimeSeconds(created) < _options.PullPushCutoff)
+        {
+            comments = await PullPushSource.GetCommentsAsync(httpClient, submission.Id!, _options.MaxComments,
+                logger, ct);
+        }
+
+        return comments;
+    }
+
+    private void LogMatches(Lookup lookup, List<PullPushSubmissionDto> submissions)
+    {
+        if (lookup.Episode is { } episode)
+        {
+            logger.LogInformation(
+                "Reddit: found {Count} matching submission(s) for '{Title}' S{Season:D2}E{Episode:D2} in {Searches} search(es)",
+                submissions.Count, lookup.Media.Title, episode.SeasonNumber, episode.EpisodeNumber,
+                MaxSearches - lookup.SearchesLeft);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Reddit: found {Count} matching submission(s) for movie '{Title}' in {Searches} search(es)",
+                submissions.Count, lookup.Media.Title, MaxSearches - lookup.SearchesLeft);
+        }
+    }
+
+    private static string PostUrl(PullPushSubmissionDto submission)
+    {
+        return submission.Permalink != null
+            ? $"https://reddit.com{submission.Permalink}"
+            : $"https://reddit.com/r/{submission.Subreddit}/comments/{submission.Id}/";
+    }
+
+    // Arctic Shift can't return is_self, but a link post's selftext is empty anyway.
+    private static string? PostBody(PullPushSubmissionDto submission)
+    {
+        string? selftext = submission.Selftext;
+        return string.IsNullOrWhiteSpace(selftext) ||
+               selftext.Equals("[deleted]", StringComparison.Ordinal) ||
+               selftext.Equals("[removed]", StringComparison.Ordinal)
+            ? null
+            : selftext;
     }
 
     // Healthy while at least one enabled archive answers: the provider keeps working with either.
@@ -319,7 +409,7 @@ public sealed class RedditThoughtProvider(
         List<(string Name, string Url)> probes = [];
         if (_options.UsePullPush)
         {
-            probes.Add(("PullPush", "https://api.pullpush.io/reddit/search/comment/?size=0"));
+            probes.Add(("PullPush", PullPushSource.HealthUrl));
         }
 
         if (_options.UseArcticShift)
@@ -387,150 +477,168 @@ public sealed class RedditThoughtProvider(
         ];
     }
 
-    // One archive search outcome: the submissions, whether MatchesEpisode is bypassed for them, whether
-    // the request itself succeeded (an empty list from a successful request is a real miss), and who found them.
-    private readonly record struct SpecResult(
-        PullPushSubmissionDto[] Subs, bool IsBypass, bool Ok, RedditSource Source);
-
-    private async Task<SpecResult[]> SearchPullPushAsync(
-        SearchSpec spec, int size, long? afterEpoch, IProgress<SyncProgressTick>? progress, CancellationToken ct)
+    // The state of one lookup: what the searches found so far, how many searches are left, and whether
+    // any search that mattered failed (so a miss can't be trusted).
+    private sealed class Lookup(MediaContext media, EpisodeContext? episode, int searches)
     {
-        string url =
-            $"https://api.pullpush.io/reddit/search/submission/?title={Uri.EscapeDataString(spec.Title)}&size={size}&sort_type=score&sort=desc&num_comments=%3E2";
-        if (spec.Subreddit != null)
-        {
-            url += $"&subreddit={Uri.EscapeDataString(spec.Subreddit)}";
-        }
+        private readonly Dictionary<string, (PullPushSubmissionDto Post, int Strength)> _found = new();
 
-        if (afterEpoch.HasValue)
-        {
-            url += $"&after={afterEpoch.Value}";
-        }
+        public MediaContext Media { get; } = media;
+        public EpisodeContext? Episode { get; } = episode;
+        public int SearchesLeft { get; set; } = searches;
+        public bool Incomplete { get; set; }
+        public bool HasMatches => _found.Count > 0;
 
-        try
+        public void Collect(IEnumerable<PullPushSubmissionDto> posts, bool requireShowTitle)
         {
-            HttpResponseMessage resp = await httpClient.GetAsync(url, ct);
-            if (!resp.IsSuccessStatusCode)
+            foreach (PullPushSubmissionDto post in posts)
             {
-                logger.LogWarning("PullPush submission search failed: HTTP {Status} for query '{Query}'",
-                    (int)resp.StatusCode, spec.Title);
-                return [new SpecResult([], spec.BypassFilter, false, RedditSource.PullPush)];
-            }
+                if (post.Id is null)
+                {
+                    continue;
+                }
 
-            string respContent = await resp.Content.ReadAsStringAsync(ct);
-            PullPushSubmissionsResponseDto? listing = JsonSerializer.Deserialize<PullPushSubmissionsResponseDto>(
-                respContent, RedditJsonContext.Default.PullPushSubmissionsResponseDto);
-            return [new SpecResult(listing?.Data ?? [], spec.BypassFilter, true, RedditSource.PullPush)];
+                int strength = MatchStrength(post, Media, Episode, requireShowTitle);
+                if (strength > 0 &&
+                    (!_found.TryGetValue(post.Id, out (PullPushSubmissionDto Post, int Strength) seen) ||
+                     seen.Strength < strength))
+                {
+                    _found[post.Id] = (post, strength);
+                }
+            }
         }
-        catch (Exception ex)
+
+        // Best match first. Arctic Shift's score and comment counts are often stale (it archives a post the
+        // moment it appears), so match strength and "Discussion" in the title or flair outrank them.
+        public List<PullPushSubmissionDto> Ranked()
         {
-            logger.LogWarning(ex, "PullPush submission search exception for query '{Query}'", spec.Title);
-            return [new SpecResult([], spec.BypassFilter, false, RedditSource.PullPush)];
-        }
-        finally
-        {
-            progress?.Report(new SyncProgressTick(3, "Reddit"));
+            return _found.Values
+                .OrderByDescending(f => f.Strength)
+                .ThenByDescending(f => IsDiscussionThread(f.Post))
+                .ThenByDescending(f => f.Post.Stickied)
+                .ThenByDescending(f => f.Post.NumComments ?? 0)
+                .ThenByDescending(f => f.Post.Score ?? 0)
+                .Select(f => f.Post)
+                .ToList();
         }
     }
 
-    // Arctic Shift needs a subreddit for any keyword search and times out on large ones, so unlike PullPush
-    // there are no keyword or global searches. It lists the subreddit's posts instead — around the air date
-    // when known, otherwise the newest — and matches titles locally.
-    private async Task<SpecResult[]> SearchArcticShiftAsync(
-        string subreddit, MediaContext mediaContext, EpisodeContext? episode,
-        IProgress<SyncProgressTick>? progress, CancellationToken ct)
+    private static bool IsDiscussionThread(PullPushSubmissionDto post)
     {
-        try
-        {
-            PullPushSubmissionDto[]? posts;
-            if (mediaContext.ReleaseDate is { } release)
-            {
-                // Episode threads go up around airing; movie discussion lingers far longer.
-                (DateTimeOffset after, DateTimeOffset before) = episode is null
-                    ? (release.AddDays(-14), release.AddDays(90))
-                    : (release.AddDays(-2), release.AddDays(10));
-                posts = await ArcticShiftSource.SearchWindowAsync(httpClient, subreddit, after, before, logger, ct);
-            }
-            else
-            {
-                posts = await ArcticShiftSource.SearchRecentAsync(httpClient, subreddit, logger, ct);
-            }
-
-            if (posts is null)
-            {
-                return [new SpecResult([], false, false, RedditSource.ArcticShift)];
-            }
-
-            (PullPushSubmissionDto[] byCode, PullPushSubmissionDto[] byTitle) =
-                SplitWindowMatches(posts, mediaContext, episode);
-            return
-            [
-                new SpecResult(byCode, false, true, RedditSource.ArcticShift),
-                new SpecResult(byTitle, true, true, RedditSource.ArcticShift)
-            ];
-        }
-        finally
-        {
-            progress?.Report(new SyncProgressTick(3, "Reddit"));
-        }
+        return (post.Title ?? "").Contains("discussion", StringComparison.OrdinalIgnoreCase) ||
+               (post.LinkFlairText ?? "").Contains("discussion", StringComparison.OrdinalIgnoreCase);
     }
 
-    // Local equivalent of PullPush's server-side scoping for a listing of a subreddit's posts:
-    // episode-code titles are matched by MatchesEpisode afterwards; titles naming the episode (or, for
-    // movies, the film) are returned separately so the caller can bypass the code check for them.
-    private static (PullPushSubmissionDto[] ByCode, PullPushSubmissionDto[] ByTitle) SplitWindowMatches(
-        PullPushSubmissionDto[] window, MediaContext mediaContext, EpisodeContext? episode)
+    // How well a post's title names what is being watched: 3 = the episode code (or, for episode 1, a
+    // premiere thread; for a movie, its r/movies official discussion), 2 = the episode's title (or the
+    // movie's), 0 = no match. requireShowTitle is for general subreddits, where the show must be named too.
+    internal static int MatchStrength(PullPushSubmissionDto post, MediaContext media, EpisodeContext? episode,
+        bool requireShowTitle)
     {
+        string title = post.Title ?? "";
+        if (requireShowTitle && !SquashedContains(title, media.Title))
+        {
+            return 0;
+        }
+
         if (episode is null)
         {
-            string wanted = Regex.Replace(mediaContext.Title, "[^a-zA-Z0-9]", "");
-            return ([], window.Where(s =>
-                Regex.Replace(s.Title ?? "", "[^a-zA-Z0-9]", "")
-                    .Contains(wanted, StringComparison.OrdinalIgnoreCase)).ToArray());
+            if (!SquashedContains(title, media.Title))
+            {
+                return 0;
+            }
+
+            // In r/movies only the official discussion thread will do; news and trailers name the film too.
+            return title.Contains("official discussion", StringComparison.OrdinalIgnoreCase) ? 3
+                : requireShowTitle ? 0 : 2;
         }
 
-        PullPushSubmissionDto[] byCode = window
-            .Where(s => MatchesEpisode(s.Title ?? "", episode.SeasonNumber, episode.EpisodeNumber)).ToArray();
+        int season = episode.SeasonNumber;
+        if (season > 0 && episode.EpisodeNumber > 0)
+        {
+            if (MatchesEpisode(title, season, episode.EpisodeNumber))
+            {
+                return 3;
+            }
+
+            if (MentionsDifferentEpisode(title, season, episode.EpisodeNumber))
+            {
+                return 0;
+            }
+
+            // "Episode 5 Discussion": the window around the air date already pins the season.
+            if (Regex.IsMatch(title, $@"(?<![A-Za-z0-9])episode\s*0*{episode.EpisodeNumber}(?!\d)",
+                    RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)))
+            {
+                return 3;
+            }
+
+            if (episode.EpisodeNumber == 1 && IsPremiereThread(post, season))
+            {
+                return 3;
+            }
+
+            return MatchesWholePhrase(title, episode.EpisodeTitle) ? 2 : 0;
+        }
+
+        // Specials and daily shows (season or episode 0): the episode codes are meaningless.
+        if (MentionsDifferentSeason(title, season) && season > 0)
+        {
+            return 0;
+        }
+
+        string? qualifier = IThoughtProvider.GetTextSearchQualifier(media);
+        return MatchesWholePhrase(title, qualifier) || MatchesWholePhrase(title, episode.EpisodeTitle) ? 2 : 0;
+    }
+
+    // "Series Premiere Discussion" (flair or title; the typo "Premeire" is real) for S1E1, or a season
+    // premiere naming no other season. The window is around the air date, so it's this season's premiere.
+    private static bool IsPremiereThread(PullPushSubmissionDto post, int season)
+    {
+        string text = $"{post.Title} | {post.LinkFlairText}";
+        if (!s_premiere.IsMatch(text) || MentionsDifferentSeason(post.Title ?? "", season))
+        {
+            return false;
+        }
+
+        return season == 1 || !text.Contains("series prem", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool MatchesWholePhrase(string title, string? phrase)
+    {
+        if (string.IsNullOrWhiteSpace(phrase))
+        {
+            return false;
+        }
+
         // Whole-word match: a generic "Episode 1" title must not pull in "Episode 12" (a spoiler), nor
         // "Pilot" match "Copilot". Lookarounds rather than \b so titles ending in punctuation still work.
-        Regex? titlePattern = string.IsNullOrWhiteSpace(episode.EpisodeTitle)
-            ? null
-            : new Regex($"(?<![A-Za-z0-9]){Regex.Escape(episode.EpisodeTitle)}(?![A-Za-z0-9])",
-                RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
-        PullPushSubmissionDto[] byTitle = titlePattern is null
-            ? []
-            : window.Except(byCode).Where(s => titlePattern.IsMatch(s.Title ?? "")).ToArray();
-        return (byCode, byTitle);
+        return Regex.IsMatch(title, $"(?<![A-Za-z0-9]){Regex.Escape(phrase)}(?![A-Za-z0-9])",
+            RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
     }
 
-    private async Task<PullPushCommentDto[]?> GetPullPushCommentsAsync(string submissionId, CancellationToken ct)
+    private static bool SquashedContains(string text, string wanted)
     {
-        string commentsUrl =
-            $"https://api.pullpush.io/reddit/search/comment/?link_id={Uri.EscapeDataString(submissionId)}&size={_options.MaxComments}&sort_type=score&sort=desc";
-        HttpResponseMessage commentsResponse = await httpClient.GetAsync(commentsUrl, ct);
+        string squashedWanted = ArcticShiftSubredditResolver.Normalize(wanted);
+        return squashedWanted.Length > 0 &&
+               ArcticShiftSubredditResolver.Normalize(text).Contains(squashedWanted, StringComparison.Ordinal);
+    }
 
-        if (!commentsResponse.IsSuccessStatusCode)
+    // True when the title carries an episode code (SxxEyy or NxYY) for some other episode.
+    private static bool MentionsDifferentEpisode(string title, int season, int episode)
+    {
+        foreach (Match m in s_episodeCode.Matches(title))
         {
-            logger.LogWarning("PullPush comment fetch failed: HTTP {Status} for thread {ThreadId}",
-                (int)commentsResponse.StatusCode, submissionId);
-            return null;
+            string s = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[3].Value;
+            string e = m.Groups[2].Success ? m.Groups[2].Value : m.Groups[4].Value;
+            if (int.Parse(s, CultureInfo.InvariantCulture) != season ||
+                int.Parse(e, CultureInfo.InvariantCulture) != episode)
+            {
+                return true;
+            }
         }
 
-        string commentsContent = await commentsResponse.Content.ReadAsStringAsync(ct);
-        PullPushCommentsResponseDto? commentsList = JsonSerializer.Deserialize<PullPushCommentsResponseDto>(
-            commentsContent, RedditJsonContext.Default.PullPushCommentsResponseDto);
-        return commentsList?.Data ?? [];
-    }
-
-    // The archive that found a thread goes first; the other (if enabled) is the fallback.
-    private IEnumerable<RedditSource> CommentSourceOrder(RedditSource foundBy)
-    {
-        RedditSource[] order = foundBy.HasFlag(RedditSource.ArcticShift)
-            ? [RedditSource.ArcticShift, RedditSource.PullPush]
-            : [RedditSource.PullPush, RedditSource.ArcticShift];
-        return order.Where(source => source == RedditSource.ArcticShift
-            ? _options.UseArcticShift
-            : _options.UsePullPush);
+        return MentionsDifferentSeason(title, season);
     }
 
     private static Thought MapCommentToThought(PullPushCommentDto data, string? postTitle, string? postUrl,
@@ -581,73 +689,6 @@ public sealed class RedditThoughtProvider(
         }
 
         return redditId;
-    }
-
-    // Builds the ordered list of PullPush search specs for a given episode. Each spec maps to
-    // one API call and one progress tick (weight 3). Specs are deduplicated at the bottom so
-    // padded == unpadded (e.g. S10E10) doesn't run twice. To add a format, add a SearchSpec;
-    // MatchesEpisode already recognizes SxxExx, NxNN, and "Season N Episode N".
-    private static List<SearchSpec> BuildSearchSpecs(
-        MediaContext mediaContext, IReadOnlyList<string> subreddits, EpisodeContext? episode)
-    {
-        // Movie: one global text search using the canonical query (bypass — MatchesEpisode not used)
-        if (episode is null)
-        {
-            return [new(IThoughtProvider.BuildTextQuery(mediaContext), null, true)];
-        }
-
-        string sn = episode.SeasonNumber.ToString(CultureInfo.InvariantCulture);
-        string ss = episode.SeasonNumber.ToString("D2", CultureInfo.InvariantCulture);
-        string en = episode.EpisodeNumber.ToString(CultureInfo.InvariantCulture);
-        string ee = episode.EpisodeNumber.ToString("D2", CultureInfo.InvariantCulture);
-
-        List<SearchSpec> specs = [];
-
-        if (episode.SeasonNumber > 0 && episode.EpisodeNumber > 0)
-        {
-            // Global: show title + episode code — catches cross-subreddit threads (e.g. r/television)
-            specs.Add(new($"{mediaContext.Title} S{sn}E{en}", null));
-            specs.Add(new($"{mediaContext.Title} S{ss}E{ee}", null));
-            specs.Add(new($"{mediaContext.Title} {sn}x{ee}", null)); // NxNN (e.g. "Halt and Catch Fire 3x02")
-
-            // Subreddit-scoped: bare episode code — catches terse titles with no show name.
-            // Generated for every subreddit in the resolved list (mapped or derived).
-            foreach (string sub in subreddits)
-            {
-                specs.Add(new($"S{sn}E{en}", sub));
-                specs.Add(new($"S{ss}E{ee}", sub));
-                specs.Add(new($"{sn}x{ee}", sub)); // NxNN (e.g. "3x02 Joe's Deposition...")
-                specs.Add(new($"Season {sn} Episode {en}", sub)); // long form (e.g. "Season 3 Episode 2 Rewatch")
-            }
-        }
-        else
-        {
-            // Season 0 or episode 0 (specials, daily shows, etc.): episode codes are meaningless.
-            // Use the canonical qualifier (premiere date or episode title) as the search term.
-            string? qualifier = IThoughtProvider.GetTextSearchQualifier(mediaContext);
-            if (qualifier is not null)
-            {
-                specs.Add(new($"{mediaContext.Title} {qualifier}", null, true));
-                foreach (string sub in subreddits)
-                {
-                    specs.Add(new(qualifier, sub, true));
-                }
-            }
-        }
-
-        // Episode title: PullPush already scopes results, so MatchesEpisode is bypassed for these
-        if (!string.IsNullOrWhiteSpace(episode.EpisodeTitle))
-        {
-            foreach (string sub in subreddits)
-            {
-                specs.Add(new SearchSpec(episode.EpisodeTitle, sub, true));
-            }
-        }
-
-        // Deduplicate: when season/episode >= 10, padded == unpadded (e.g. S10E10 == S10E10)
-        return specs
-            .DistinctBy(s => (s.Title.ToUpperInvariant(), s.Subreddit?.ToUpperInvariant()))
-            .ToList();
     }
 
     private static Regex[] GetEpisodePatterns(int season, int episode)
@@ -705,11 +746,6 @@ public sealed class RedditThoughtProvider(
                thought.Content.Contains("[removed]", StringComparison.Ordinal);
     }
 }
-
-// One PullPush submission search: the title query, an optional subreddit filter, and a flag that
-// bypasses MatchesEpisode for results (used for episode-title searches where PullPush already
-// scopes results and the title needn't contain an episode code).
-internal sealed record SearchSpec(string Title, string? Subreddit, bool BypassFilter = false);
 
 // PullPush sometimes returns created_utc as a float (e.g. 1234567890.0) rather than an integer.
 // AllowReadingFromString handles string-encoded numbers but not float-encoded integers, so we
@@ -801,7 +837,9 @@ internal sealed record PullPushSubmissionDto(
     [property: JsonPropertyName("stickied")]
     bool Stickied = false,
     [property: JsonPropertyName("num_comments")]
-    int? NumComments = null);
+    int? NumComments = null,
+    [property: JsonPropertyName("link_flair_text")]
+    string? LinkFlairText = null);
 
 internal sealed record PullPushSubmissionsResponseDto(
     [property: JsonPropertyName("data")] PullPushSubmissionDto[]? Data);

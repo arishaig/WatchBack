@@ -31,6 +31,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<HostBackoffRegistry>();
         services.AddSingleton<ResultCacheStore>();
+        services.AddSingleton<ISubredditResolver, ArcticShiftSubredditResolver>();
         services.AddSingleton<IMediaResultCache, MediaResultCache>();
         services.AddHostedService<ResultCacheMaintenance>();
 
