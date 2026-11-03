@@ -247,6 +247,52 @@ public sealed class ForwardAuthHandlerTests : IAsyncLifetime, IDisposable
         }
     }
 
+    // ── Behind a proxy that sets X-Forwarded-For ─────────────────────────────
+    // The trusted host is the proxy (the transport peer). UseForwardedHeaders rewrites
+    // RemoteIpAddress to the end client from X-Forwarded-For, so the check must use the
+    // peer that actually connected.
+
+    [Fact]
+    public async Task GetMe_Authenticated_WhenProxyIsTrustedHostAndSendsXForwardedFor()
+    {
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/auth/me");
+        request.Headers.Add(HeaderName, "testuser");
+        request.Headers.Add("X-Forwarded-For", "203.0.113.7");
+
+        HttpResponseMessage response = await _client.SendAsync(request);
+
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        doc.RootElement.GetProperty("authenticated").GetBoolean().Should().BeTrue();
+        doc.RootElement.GetProperty("authMethod").GetString().Should().Be("forwardAuth");
+    }
+
+    [Fact]
+    public async Task GetMe_NotAuthenticated_WhenClientForgesTrustedHostInXForwardedFor()
+    {
+        // The peer (192.0.2.1) is not the trusted host, so its X-Forwarded-For must not be
+        // believed, and naming the trusted host in it must not satisfy the check.
+        string tempPath = Path.Combine(Path.GetTempPath(), $"watchback-fwdauth-test-{Guid.NewGuid()}.json");
+        try
+        {
+            using WebApplicationFactory<Program> factory = BuildFactory(
+                tempPath, trustedHost: "10.0.0.99", overrideRemoteIp: TrustedIp);
+            using HttpClient client = factory.CreateClient();
+
+            HttpRequestMessage request = new(HttpMethod.Get, "/api/auth/me");
+            request.Headers.Add(HeaderName, "testuser");
+            request.Headers.Add("X-Forwarded-For", "10.0.0.99");
+
+            HttpResponseMessage response = await client.SendAsync(request);
+
+            JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            doc.RootElement.GetProperty("authenticated").GetBoolean().Should().BeFalse();
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+        }
+    }
+
     // ── Missing TrustedHost → forward auth disabled ──────────────────────────
 
     [Fact]

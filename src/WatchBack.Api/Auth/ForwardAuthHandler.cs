@@ -24,6 +24,14 @@ public partial class ForwardAuthHandler(
     private static readonly TimeSpan s_dnsNegativeCacheDuration = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan s_dnsTimeout = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    ///     <see cref="HttpContext.Items" /> key holding the transport peer's IP, captured before
+    ///     <c>UseForwardedHeaders</c> rewrites <see cref="ConnectionInfo.RemoteIpAddress" /> from
+    ///     <c>X-Forwarded-For</c>. The trusted-host check must compare the proxy that actually
+    ///     connected, not the end client the proxy reports.
+    /// </summary>
+    public const string PeerIpItemKey = "WatchBack.PeerIpAddress";
+
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         AuthOptions opts = authOptions.CurrentValue;
@@ -52,7 +60,8 @@ public partial class ForwardAuthHandler(
 
         if (!trustAll)
         {
-            IPAddress? remoteIp = Context.Connection.RemoteIpAddress;
+            IPAddress? remoteIp = Context.Items[PeerIpItemKey] as IPAddress
+                                  ?? Context.Connection.RemoteIpAddress;
             if (remoteIp == null || !await IsFromTrustedHostAsync(remoteIp, opts.ForwardAuthTrustedHost))
             {
                 LogTrustedHostMismatch(Logger, remoteIp, opts.ForwardAuthTrustedHost);
