@@ -26,8 +26,9 @@ public interface IMediaResultCache
 
     /// <summary>
     ///     Forgets everything cached for <paramref name="mediaContext" />, in memory and on disk, so the
-    ///     next lookup goes upstream. Backs the manual refresh.
+    ///     next lookup goes upstream. Backs the manual refresh. Returns false, doing nothing, when the
+    ///     same media was invalidated within the last minute.
     /// </summary>
-    Task InvalidateAsync(IEnumerable<IThoughtProvider> providers, IEnumerable<IRatingsProvider> ratingsProviders,
+    Task<bool> InvalidateAsync(IEnumerable<IThoughtProvider> providers, IEnumerable<IRatingsProvider> ratingsProviders,
         MediaContext mediaContext, CancellationToken ct = default);
 }

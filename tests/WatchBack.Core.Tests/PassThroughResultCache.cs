@@ -18,6 +18,12 @@ internal sealed class PassThroughResultCache : IMediaResultCache
     {
     }
 
-    public Task InvalidateAsync(IEnumerable<IThoughtProvider> providers, IEnumerable<IRatingsProvider> ratingsProviders,
-        MediaContext mediaContext, CancellationToken ct = default) => Task.CompletedTask;
+    public List<MediaContext> Invalidated { get; } = [];
+
+    public Task<bool> InvalidateAsync(IEnumerable<IThoughtProvider> providers, IEnumerable<IRatingsProvider> ratingsProviders,
+        MediaContext mediaContext, CancellationToken ct = default)
+    {
+        Invalidated.Add(mediaContext);
+        return Task.FromResult(true);
+    }
 }

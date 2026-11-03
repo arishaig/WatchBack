@@ -334,6 +334,27 @@ public sealed class MediaResultCacheTests : IDisposable
         ratings.Calls.Should().Be(2);
     }
 
+    [Fact]
+    public async Task Invalidate_RepeatedWithinAMinute_IsIgnored()
+    {
+        EpisodeContext episode = Episode(s_now.AddDays(-400));
+        FakeThoughtProvider provider = new();
+        IMediaResultCache cache = StartProcess().GetRequiredService<IMediaResultCache>();
+        await cache.GetThoughtsAsync(provider, episode);
+
+        bool first = await cache.InvalidateAsync([provider], [], episode);
+        await cache.GetThoughtsAsync(provider, episode);
+        _time.Advance(TimeSpan.FromSeconds(30));
+        bool second = await cache.InvalidateAsync([provider], [], episode);
+        await cache.GetThoughtsAsync(provider, episode);
+        _time.Advance(TimeSpan.FromSeconds(31));
+        bool third = await cache.InvalidateAsync([provider], [], episode);
+        await cache.GetThoughtsAsync(provider, episode);
+
+        (first, second, third).Should().Be((true, false, true));
+        provider.Calls.Should().Be(3, "the ignored refresh reuses the result fetched by the first");
+    }
+
     // ── Acceptance: a 429 never causes a retry sooner than the server asked, across a restart ──
 
     [Fact]

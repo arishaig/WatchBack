@@ -713,4 +713,38 @@ public class SyncServiceTests
         result.Title.Should().Be("Alien");
         await manual.Received(1).GetCurrentMediaContextForClientAsync("c:client-a", Arg.Any<CancellationToken>());
     }
+
+    // ── Manual refresh ───────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RefreshCurrentAsync_InvalidatesWhatTheViewerIsWatching()
+    {
+        EpisodeContext episode = new("Breaking Bad", new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot", 1, 1);
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+        PassThroughResultCache cache = new();
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [Substitute.For<IThoughtProvider>()], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, cache, _options, NullLogger<SyncService>.Instance);
+
+        bool refreshed = await service.RefreshCurrentAsync();
+
+        refreshed.Should().BeTrue();
+        cache.Invalidated.Should().ContainSingle().Which.Should().Be(episode);
+    }
+
+    [Fact]
+    public async Task RefreshCurrentAsync_WhenNothingIsPlaying_DoesNothing()
+    {
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);
+        PassThroughResultCache cache = new();
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [Substitute.For<IThoughtProvider>()], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, cache, _options, NullLogger<SyncService>.Instance);
+
+        bool refreshed = await service.RefreshCurrentAsync();
+
+        refreshed.Should().BeFalse();
+        cache.Invalidated.Should().BeEmpty();
+    }
 }

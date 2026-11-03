@@ -43,7 +43,11 @@ public sealed class MediaResultCache(
     // Empty ratings can't be told apart from a failed OMDb call, so they are neither persisted nor kept long.
     private static readonly TimeSpan s_emptyRatingsTtl = TimeSpan.FromMinutes(10);
 
+    // A manual refresh refetches from every provider; repeated presses within this window reuse the first.
+    private static readonly TimeSpan s_refreshCooldown = TimeSpan.FromMinutes(1);
+
     private readonly ConcurrentDictionary<string, Task> _inFlight = new();
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _lastRefresh = new();
 
     private sealed record MemoryEntry<T>(T Value, DateTimeOffset ExpiresAt);
 
@@ -191,9 +195,27 @@ public sealed class MediaResultCache(
         memory.Remove(ThoughtKey(provider, mediaContext));
     }
 
-    public async Task InvalidateAsync(IEnumerable<IThoughtProvider> providers,
+    public async Task<bool> InvalidateAsync(IEnumerable<IThoughtProvider> providers,
         IEnumerable<IRatingsProvider> ratingsProviders, MediaContext mediaContext, CancellationToken ct = default)
     {
+        DateTimeOffset now = time.GetUtcNow();
+        string refreshKey = mediaContext is EpisodeContext e
+            ? $"{e.Title}|{e.SeasonNumber}|{e.EpisodeNumber}|{e.ReleaseDate:O}"
+            : $"{mediaContext.Title}|{mediaContext.ReleaseDate:O}";
+        if (_lastRefresh.TryGetValue(refreshKey, out DateTimeOffset last) && now - last < s_refreshCooldown)
+        {
+            return false;
+        }
+
+        _lastRefresh[refreshKey] = now;
+        foreach ((string key, DateTimeOffset at) in _lastRefresh)
+        {
+            if (now - at >= s_refreshCooldown)
+            {
+                _lastRefresh.TryRemove(new KeyValuePair<string, DateTimeOffset>(key, at));
+            }
+        }
+
         List<string> keys = [];
         foreach (IThoughtProvider provider in providers)
         {
@@ -214,6 +236,7 @@ public sealed class MediaResultCache(
         await store.RemoveAsync(keys, ct);
         logger.LogInformation("Result cache: cleared {Count} entr(ies) for {Title} on request", keys.Count,
             mediaContext.Title);
+        return true;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

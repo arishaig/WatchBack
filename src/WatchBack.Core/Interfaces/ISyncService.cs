@@ -19,4 +19,12 @@ public interface ISyncService
     /// <param name="ct">Optional cancellation token.</param>
     Task<SyncResult> SyncAsync(IProgress<SyncProgressTick>? progress = null, string? watchUserId = null,
         string? clientId = null, CancellationToken ct = default);
+
+    /// <summary>
+    ///     Manual refresh: forgets everything cached for the media this viewer is watching, so the next
+    ///     sync asks every provider again. Returns false when nothing is playing, or when the same media
+    ///     was refreshed moments ago (repeated presses don't each go upstream).
+    /// </summary>
+    Task<bool> RefreshCurrentAsync(string? watchUserId = null, string? clientId = null,
+        CancellationToken ct = default);
 }
