@@ -38,6 +38,12 @@ public sealed class RedditThoughtProvider(
     private const int SearchSpecCount = 10;
     private static readonly ThoughtResult s_empty = new("Reddit", null, null, null, [], null);
 
+    // A miss from a lookup with no air date. Prefetch predicts the next episode without knowing its date,
+    // so Arctic Shift can only list the subreddit's newest posts: for an old show the thread is never there.
+    // That miss is cached as this distinct instance (compared by reference) so a later lookup of the same
+    // episode that does know its air date searches properly instead of trusting it.
+    private static readonly ThoughtResult s_undatedMiss = new("Reddit", null, null, null, [], null);
+
     private static readonly Regex s_excessiveNewlines = new(@"\n{3,}", RegexOptions.Compiled);
     private static readonly Regex s_spoilerTag = new(@">!(.+?)!<", RegexOptions.Compiled | RegexOptions.Singleline);
 
@@ -79,7 +85,8 @@ public sealed class RedditThoughtProvider(
             EpisodeContext? episode = mediaContext as EpisodeContext;
 
             string cacheKey = GetCacheKey(mediaContext);
-            if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
+            if (cache.TryGetValue(cacheKey, out ThoughtResult? cached) &&
+                !(mediaContext.ReleaseDate is not null && ReferenceEquals(cached, s_undatedMiss)))
             {
                 return cached;
             }
@@ -191,7 +198,7 @@ public sealed class RedditThoughtProvider(
 
             if (submissions.Count == 0)
             {
-                ThoughtResult emptyResult = s_empty;
+                ThoughtResult emptyResult = mediaContext.ReleaseDate is null ? s_undatedMiss : s_empty;
                 // Confirmed archive misses (at least one valid response) get the full TTL.
                 // Timeout/network/429 failures are transient, so they're only cached briefly:
                 // retrying every poll cycle would re-report progress ticks and flash the
