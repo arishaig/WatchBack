@@ -296,6 +296,16 @@ using (IServiceScope scope = app.Services.CreateScope())
 
 await InitializeAuthAsync(app);
 
+// Remember the transport peer before any UseForwardedHeaders below rewrites
+// RemoteIpAddress from X-Forwarded-For. ForwardAuthHandler's trusted-host check needs the
+// proxy that connected; the rewritten value is the end client, so a proxy that always sends
+// X-Forwarded-For (Traefik, nginx, ...) could otherwise never match its own trusted host.
+app.Use(async (ctx, next) =>
+{
+    ctx.Items[ForwardAuthHandler.PeerIpItemKey] = ctx.Connection.RemoteIpAddress;
+    await next(ctx);
+});
+
 // X-Forwarded-Proto is trusted unconditionally, from any peer, with no KnownProxies
 // restriction. Spoofing it only makes an attacker's own request look like HTTPS when
 // it isn't — a browser won't store or send a Secure cookie over a connection it knows
