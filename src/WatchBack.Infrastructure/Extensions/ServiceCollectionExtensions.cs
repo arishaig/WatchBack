@@ -216,21 +216,21 @@ public static class ServiceCollectionExtensions
     }
 
     // Counts the final outcome of each request (after retries). Opens once half of at least
-    // 4 requests in a minute failed, and stays open longer each time the half-open probe fails.
+    // 4 requests in five minutes failed, and stays open longer each time the half-open probe fails.
+    // The window is long because a struggling host fails slowly: PullPush behind Cloudflare answers
+    // 522 after ~20 s, and throttled to one request at a time that's only three failures a minute.
     internal static HttpCircuitBreakerStrategyOptions BuildCircuitBreakerOptions(ILogger logger) => new()
     {
         FailureRatio = 0.5,
         MinimumThroughput = 4,
-        SamplingDuration = TimeSpan.FromMinutes(1),
+        SamplingDuration = TimeSpan.FromMinutes(5),
         BreakDurationGenerator = args => ValueTask.FromResult(BreakDuration(args.HalfOpenAttempts)),
-        // 429 is owned by RateLimitSuppressionStrategy; only outages count here.
+        // 429 is owned by RateLimitSuppressionStrategy; only outages count here: any 5xx (including
+        // Cloudflare's 520–524), 408, timeouts and transport errors.
         ShouldHandle = args => ValueTask.FromResult(
             args.Outcome.Exception is HttpRequestException or TimeoutRejectedException ||
-            args.Outcome.Result?.StatusCode is HttpStatusCode.InternalServerError
-                or HttpStatusCode.BadGateway
-                or HttpStatusCode.ServiceUnavailable
-                or HttpStatusCode.GatewayTimeout
-                or HttpStatusCode.RequestTimeout),
+            args.Outcome.Result is { } response &&
+            ((int)response.StatusCode >= 500 || response.StatusCode == HttpStatusCode.RequestTimeout)),
         OnOpened = args =>
         {
             logger.LogWarning("Circuit opened for {Uri} for {Seconds} s after repeated failures",

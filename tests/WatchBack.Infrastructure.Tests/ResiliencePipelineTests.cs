@@ -5,6 +5,7 @@ using FluentAssertions;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 using Polly;
 
@@ -149,6 +150,32 @@ public sealed class ResiliencePipelineTests
 
         networkCalls.Should().Be(4, "the circuit opens once the minimum throughput of failures is reached");
         statuses.Skip(4).Should().AllSatisfy(s => s.Should().Be(HttpStatusCode.ServiceUnavailable));
+    }
+
+    // Regression (seen live): PullPush answered 522 after ~20 s per request. 522 wasn't counted, and
+    // slow failures never reached 4 inside a one-minute window, so all 8 searches ran to the end.
+    [Fact]
+    public async Task CircuitBreaker_OpensOnSlowCloudflareOriginErrors()
+    {
+        FakeTimeProvider time = new();
+        ResiliencePipelineBuilder<HttpResponseMessage> builder = new() { TimeProvider = time };
+        ResiliencePipeline<HttpResponseMessage> pipeline = builder
+            .AddStrategy(_ => new BrokenCircuitResponseStrategy())
+            .AddCircuitBreaker(ServiceCollectionExtensions.BuildCircuitBreakerOptions(NullLogger.Instance))
+            .Build();
+        int networkCalls = 0;
+
+        for (int i = 0; i < 8; i++)
+        {
+            await pipeline.ExecuteAsync(_ =>
+            {
+                networkCalls++;
+                time.Advance(TimeSpan.FromSeconds(20));
+                return ValueTask.FromResult(new HttpResponseMessage((HttpStatusCode)522));
+            });
+        }
+
+        networkCalls.Should().Be(4);
     }
 
     [Fact]
