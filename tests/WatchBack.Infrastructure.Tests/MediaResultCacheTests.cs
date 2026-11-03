@@ -1,6 +1,7 @@
 using FluentAssertions;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Time.Testing;
@@ -10,6 +11,7 @@ using WatchBack.Core.Models;
 using WatchBack.Infrastructure.Caching;
 using WatchBack.Infrastructure.Http;
 using WatchBack.Infrastructure.Persistence;
+using WatchBack.Infrastructure.ThoughtProviders;
 
 using Xunit;
 
@@ -349,6 +351,21 @@ public sealed class MediaResultCacheTests : IDisposable
 
         provider.Calls.Should().Be(2);
         ratings.Calls.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Invalidate_LetsTheNextFetchReportProgressAgain()
+    {
+        ServiceProvider sp = StartProcess();
+        IMemoryCache memory = sp.GetRequiredService<IMemoryCache>();
+        FakeThoughtProvider provider = new();
+        EpisodeContext episode = Episode(s_now.AddDays(-400));
+        string marker = InitialLoadProgress.MarkerKey(provider.GetCacheKey(episode));
+        memory.Set(marker, true);
+
+        await sp.GetRequiredService<IMediaResultCache>().InvalidateAsync([provider], [], episode);
+
+        memory.TryGetValue(marker, out _).Should().BeFalse();
     }
 
     [Fact]

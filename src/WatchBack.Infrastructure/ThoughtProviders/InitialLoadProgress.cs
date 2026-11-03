@@ -18,10 +18,13 @@ internal static class InitialLoadProgress
     ///     Returns <paramref name="progress" /> the first time <paramref name="cacheKey" /> is fetched
     ///     and <c>null</c> on every later fetch (retry or refresh) within the marker's lifetime.
     /// </summary>
+    /// <summary>The marker for <paramref name="cacheKey" />; removing it makes the next fetch report progress again.</summary>
+    public static string MarkerKey(string cacheKey) => $"{cacheKey}:initial-load";
+
     public static IProgress<SyncProgressTick>? ForFetch(
         IMemoryCache cache, string cacheKey, IProgress<SyncProgressTick>? progress)
     {
-        string markerKey = $"{cacheKey}:initial-load";
+        string markerKey = MarkerKey(cacheKey);
         if (cache.TryGetValue(markerKey, out _))
         {
             return null;

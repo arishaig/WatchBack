@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
+using WatchBack.Infrastructure.ThoughtProviders;
 
 using static WatchBack.Core.Models.ExternalIdType;
 
@@ -39,6 +40,10 @@ public sealed class MediaResultCache(
 {
     private const string ThoughtsKind = "thoughts";
     private const string RatingsKind = "ratings";
+
+    // SQLite holds the long-lived copy; memory only keeps recently used entries, so a year-long lifetime
+    // doesn't pin every episode ever watched in RAM.
+    private static readonly TimeSpan s_maxMemoryLifetime = TimeSpan.FromHours(6);
 
     // Empty ratings can't be told apart from a failed OMDb call, so they are neither persisted nor kept long.
     private static readonly TimeSpan s_emptyRatingsTtl = TimeSpan.FromMinutes(10);
@@ -220,6 +225,8 @@ public sealed class MediaResultCache(
         foreach (IThoughtProvider provider in providers)
         {
             Evict(provider, mediaContext);
+            // A refresh the user asked for is a fresh load: let it drive the progress bar again.
+            memory.Remove(InitialLoadProgress.MarkerKey(provider.GetCacheKey(mediaContext)));
             keys.Add(ThoughtKey(provider, mediaContext));
         }
 
@@ -279,7 +286,7 @@ public sealed class MediaResultCache(
         TimeSpan ttl = expiresAt - time.GetUtcNow();
         if (ttl > TimeSpan.Zero)
         {
-            memory.Set(key, new MemoryEntry<T>(value, expiresAt), ttl);
+            memory.Set(key, new MemoryEntry<T>(value, expiresAt), ttl < s_maxMemoryLifetime ? ttl : s_maxMemoryLifetime);
         }
     }
 

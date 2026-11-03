@@ -160,9 +160,19 @@ public class SyncService(
     public async Task<bool> RefreshCurrentAsync(string? watchUserId = null, string? clientId = null,
         CancellationToken ct = default)
     {
-        (_, MediaContext? mediaContext, _, _) = await ResolveCurrentAsync(watchUserId, WatchViewer.Key(watchUserId, clientId), ct);
-        return mediaContext is not null &&
-               await resultCache.InvalidateAsync(ActiveProviders(), ratingsProviders, mediaContext, ct);
+        try
+        {
+            (_, MediaContext? mediaContext, _, _) =
+                await ResolveCurrentAsync(watchUserId, WatchViewer.Key(watchUserId, clientId), ct);
+            return mediaContext is not null &&
+                   await resultCache.InvalidateAsync(ActiveProviders(), ratingsProviders, mediaContext, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Like SyncAsync: a failing watch-state provider must not turn the Sync button into a 500.
+            logger.LogError(ex, "Manual refresh failed");
+            return false;
+        }
     }
 
     private IThoughtProvider[] ActiveProviders()

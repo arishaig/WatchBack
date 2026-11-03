@@ -734,6 +734,21 @@ public class SyncServiceTests
     }
 
     [Fact]
+    public async Task RefreshCurrentAsync_WhenWatchStateFails_ReturnsFalseInsteadOfThrowing()
+    {
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>())
+            .Returns<MediaContext?>(_ => throw new HttpRequestException("Jellyfin unreachable"));
+        PassThroughResultCache cache = new();
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [Substitute.For<IThoughtProvider>()], Array.Empty<IRatingsProvider>(), _timeMachineFilter,
+            _prefetchService, cache, _options, NullLogger<SyncService>.Instance);
+
+        bool refreshed = await service.RefreshCurrentAsync();
+
+        refreshed.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task RefreshCurrentAsync_WhenNothingIsPlaying_DoesNothing()
     {
         _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns((MediaContext?)null);

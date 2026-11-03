@@ -25,6 +25,7 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
     private HttpClient _client = null!;
 
     private WebApplicationFactory<Program> _factory = null!;
+    private IThoughtProvider _thoughtProvider = null!;
 
     public async Task InitializeAsync()
     {
@@ -48,6 +49,7 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
                 return new ThoughtResult("Test", null, null, null, [], null);
             });
 
+        _thoughtProvider = mockThoughtProvider;
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -91,6 +93,36 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
         var loginBody = new { username = TestUsername, password = TestPassword };
         HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/login", loginBody);
         response.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task TriggerSync_WithRefresh_ForgetsCachedResultsForTheCurrentMedia()
+    {
+        _thoughtProvider.IsConfigured.Returns(true);
+        await _client.GetAsync("/api/sync");
+        await _client.GetAsync("/api/sync");
+        int callsBeforeRefresh = _thoughtProvider.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "GetThoughtsAsync");
+
+        HttpResponseMessage trigger = await _client.PostAsync("/api/sync/trigger?clientId=abc&refresh=true", null);
+        await _client.GetAsync("/api/sync");
+        int callsAfterRefresh = _thoughtProvider.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "GetThoughtsAsync");
+
+        trigger.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        callsBeforeRefresh.Should().Be(1, "the second sync is served from the result cache");
+        callsAfterRefresh.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task TriggerSync_WithoutRefresh_KeepsCachedResults()
+    {
+        _thoughtProvider.IsConfigured.Returns(true);
+        await _client.GetAsync("/api/sync");
+
+        HttpResponseMessage trigger = await _client.PostAsync("/api/sync/trigger", null);
+        await _client.GetAsync("/api/sync");
+
+        trigger.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        _thoughtProvider.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "GetThoughtsAsync").Should().Be(1);
     }
 
     [Fact]
