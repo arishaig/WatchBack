@@ -162,40 +162,61 @@ public class BlueskyThoughtProviderTests : IDisposable
         capturedThoughts.Should().HaveCount(1);
     }
 
+    // Regression: with no credentials the provider searched unauthenticated, which searchPosts rejects,
+    // and never cached the failure, so the 5-second poll loop sent a doomed request every cycle.
     [Fact]
-    public async Task GetThoughtsAsync_WithoutCredentials_UsesPublicAPI()
+    public async Task GetThoughtsAsync_WithoutCredentials_MakesNoRequests()
     {
-        // Arrange
         BlueskyOptions optionsWithoutCreds = new() { Handle = "", AppPassword = null, TokenCacheTtlSeconds = 5400 };
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
 
-        EpisodeContext mediaContext = new(
-            "Breaking Bad",
-            new DateTimeOffset(2009, 1, 20, 0, 0, 0, TimeSpan.Zero),
-            "Pilot",
-            1,
-            1);
+        int requests = 0;
+        MockHttpMessageHandler handler = new(() =>
+        {
+            Interlocked.Increment(ref requests);
+            return new HttpResponseMessage(HttpStatusCode.Forbidden);
+        });
+        BlueskyThoughtProvider provider = new(new HttpClient(handler),
+            new OptionsSnapshotStub<BlueskyOptions>(optionsWithoutCreds),
+            _cache, Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
 
-        string searchJson = """
-                            {
-                                "posts": []
-                            }
-                            """;
+        ConcurrentBag<SyncProgressTick> ticks = new();
+        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext, new CapturingProgress(ticks));
 
-        MockHttpMessageHandler handler = new(
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(searchJson) });
-        HttpClient client = new(handler) { BaseAddress = new Uri("https://bsky.social") };
-        IReplyTreeBuilder? treeBuilder = Substitute.For<IReplyTreeBuilder>();
-        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
+        result!.Source.Should().Be("Bluesky");
+        result.Thoughts.Should().BeEmpty();
+        requests.Should().Be(0);
+        ticks.Should().BeEmpty("an unconfigured provider does no work, so it must not move the loading bar");
+    }
 
-        BlueskyThoughtProvider provider = new(client, new OptionsSnapshotStub<BlueskyOptions>(optionsWithoutCreds),
-            _cache, treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
+    // Regression: a failed search wasn't cached, so a failing Bluesky was re-queried on every poll cycle.
+    [Fact]
+    public async Task GetThoughtsAsync_WhenSearchFails_DoesNotRetryOnNextPoll()
+    {
+        EpisodeContext mediaContext = new("Breaking Bad", DateTimeOffset.UtcNow, "Pilot", 1, 1);
 
-        // Act
-        ThoughtResult? result = await provider.GetThoughtsAsync(mediaContext);
+        int searches = 0;
+        MockHttpMessageHandler handler = new(req =>
+        {
+            if (req.RequestUri!.AbsolutePath.Contains("createSession"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"accessJwt":"test-token"}""")
+                };
+            }
 
-        // Assert
-        result.Should().NotBeNull();
-        result.Source.Should().Be("Bluesky");
+            Interlocked.Increment(ref searches);
+            return new HttpResponseMessage(HttpStatusCode.Forbidden);
+        });
+        BlueskyThoughtProvider provider = new(new HttpClient(handler),
+            new OptionsSnapshotStub<BlueskyOptions>(_options), _cache,
+            Substitute.For<IReplyTreeBuilder>(), NullLogger<BlueskyThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(mediaContext);
+        await provider.GetThoughtsAsync(mediaContext);
+
+        searches.Should().Be(1);
     }
 
     [Fact]

@@ -30,6 +30,9 @@ public sealed class BlueskyThoughtProvider(
 {
     private static readonly ThoughtResult s_empty = new("Bluesky", null, null, null, [], null);
 
+    // Failed lookups are cached briefly so the 5-second poll loop doesn't redo them every cycle.
+    private static readonly TimeSpan s_failureCacheTtl = TimeSpan.FromSeconds(60);
+
     private readonly BlueskyOptions _options = options.Value;
 
     public DataProviderMetadata Metadata => new(
@@ -56,6 +59,12 @@ public sealed class BlueskyThoughtProvider(
         // Cache hits must not report progress ticks: the frontend shows the sync
         // bar whenever it sees intermediate progress, so a fully cached poll
         // cycle has to stay silent or the bar flashes every few seconds.
+        // searchPosts rejects unauthenticated requests, so without credentials there is nothing to ask.
+        if (!IsConfigured)
+        {
+            return s_empty;
+        }
+
         string cacheKey = GetCacheKey(mediaContext);
         if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
         {
@@ -67,6 +76,11 @@ public sealed class BlueskyThoughtProvider(
         try
         {
             string? token = await GetAccessTokenAsync(ct);
+            if (string.IsNullOrEmpty(token))
+            {
+                logger.LogWarning("Bluesky: sign-in failed; skipping search");
+                return CacheFailure(cacheKey);
+            }
 
             string query = IThoughtProvider.BuildTextQuery(mediaContext);
             string searchUrl =
@@ -85,7 +99,9 @@ public sealed class BlueskyThoughtProvider(
 
             if (!response.IsSuccessStatusCode)
             {
-                return s_empty;
+                logger.LogWarning("Bluesky search failed: HTTP {Status} for '{Title}'",
+                    (int)response.StatusCode, mediaContext.Title);
+                return CacheFailure(cacheKey);
             }
 
             string content = await response.Content.ReadAsStringAsync(ct);
@@ -151,12 +167,19 @@ public sealed class BlueskyThoughtProvider(
         catch (Exception ex)
         {
             logger.LogError(ex, "Bluesky thought fetch failed");
-            return s_empty;
+            // A cancelled request (viewer disconnected) isn't a Bluesky failure; let the next viewer retry.
+            return ct.IsCancellationRequested ? s_empty : CacheFailure(cacheKey);
         }
         finally
         {
             progress?.Report(new SyncProgressTick(1, "Bluesky"));
         }
+    }
+
+    private ThoughtResult CacheFailure(string cacheKey)
+    {
+        cache.Set(cacheKey, s_empty, s_failureCacheTtl);
+        return s_empty;
     }
 
     public async Task<ServiceHealth> GetServiceHealthAsync(CancellationToken ct = default)
