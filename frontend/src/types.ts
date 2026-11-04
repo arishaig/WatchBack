@@ -233,6 +233,10 @@ export interface AppData {
     wizardSelectedWatch: string | null;
     wizardSelectedComments: Set<string>;
     wizardSaving: boolean;
+    wizardAiMode: boolean;
+    wizardAiKey: string | null;
+    wizardAiStatus: 'idle' | 'creating' | 'error';
+    wizardAiCopied: string | null;
     newProviderKeys: string[];
     newProvidersActive: boolean;
     newProviderSelected: Set<string>;
@@ -333,6 +337,15 @@ export interface AppData {
     wizardSaveAndContinue(): Promise<void>;
     dismissChecklist(): void;
     openConfigForItem(type: string): void;
+    openSettingsLink(key: string): boolean;
+    wizardStartAi(): void;
+    wizardCreateAiKey(): Promise<void>;
+    wizardAiCopy(what: string, text: string): Promise<void>;
+    wizardAiDone(): void;
+    wizardAiBack(): void;
+    readonly mcpUrl: string;
+    readonly mcpClaudeCommand: string;
+    handleSettingsHash(): void;
     newProviderToggle(key: string): void;
     dismissNewProviders(): void;
     saveAndDismissNewProviders(): Promise<void>;

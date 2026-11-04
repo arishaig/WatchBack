@@ -793,4 +793,49 @@
     <data name="WatchUser_Change" xml:space="preserve">
         <value>Switch user</value>
     </data>
+    <data name="Wizard_AiSetup" xml:space="preserve">
+        <value>Set it up with an AI assistant</value>
+    </data>
+    <data name="Wizard_AiSetupTitle" xml:space="preserve">
+        <value>Set up with an AI assistant</value>
+    </data>
+    <data name="Wizard_AiSetupBody" xml:space="preserve">
+        <value>WatchBack can give an AI assistant, such as {0}, a key to connect with. The assistant then walks you through setup and changes settings for you. It can't change your password or how you log in.</value>
+    </data>
+    <data name="Wizard_AiSecretsNote" xml:space="preserve">
+        <value>When a step needs an API key or password, the assistant gives you a link to paste it into WatchBack, so it doesn't pass through the chat.</value>
+    </data>
+    <data name="Wizard_AiCreateKey" xml:space="preserve">
+        <value>Create a key</value>
+    </data>
+    <data name="Wizard_AiCreatingKey" xml:space="preserve">
+        <value>Creating…</value>
+    </data>
+    <data name="Wizard_AiKeyFailed" xml:space="preserve">
+        <value>Couldn't create a key. Try again, or set things up yourself.</value>
+    </data>
+    <data name="Wizard_AiServerUrl" xml:space="preserve">
+        <value>Server URL</value>
+    </data>
+    <data name="Wizard_AiApiKey" xml:space="preserve">
+        <value>API key</value>
+    </data>
+    <data name="Wizard_AiKeyShownOnce" xml:space="preserve">
+        <value>Shown only now. Give it only to an assistant you trust, and revoke it under API Keys in settings once setup is done.</value>
+    </data>
+    <data name="Wizard_AiForClaudeCode" xml:space="preserve">
+        <value>For {0}, run:</value>
+    </data>
+    <data name="Wizard_AiOtherAssistants" xml:space="preserve">
+        <value>Other assistants: add an HTTP MCP server with the URL above and the header {0} with this key. The assistant must be able to reach this address.</value>
+    </data>
+    <data name="Wizard_AiThenAsk" xml:space="preserve">
+        <value>Then ask your assistant:</value>
+    </data>
+    <data name="Wizard_AiPrompt" xml:space="preserve">
+        <value>Help me set up WatchBack.</value>
+    </data>
+    <data name="Wizard_AiDone" xml:space="preserve">
+        <value>Done</value>
+    </data>
 </root>

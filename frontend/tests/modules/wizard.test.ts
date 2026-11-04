@@ -461,3 +461,122 @@ describe('openConfigForItem', () => {
         expect((ctx.collapsedSections as Record<string, boolean>).trakt).toBe(false);
     });
 });
+
+// #settings/<key> links come from the MCP setup tools: they open an integration's settings with the
+// first empty secret focused, so a pasted key goes into WatchBack rather than into an assistant's chat.
+describe('settings links', () => {
+    function linkCtx() {
+        return makeCtx({
+            configData: {
+                integrations: {
+                    bluesky: {
+                        name: 'Bluesky',
+                        fields: [
+                            { key: 'Bluesky__Handle', type: 'text', hasValue: true },
+                            { key: 'Bluesky__AppPassword', type: 'password', hasValue: false },
+                        ],
+                    },
+                },
+            },
+        });
+    }
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        document.body.innerHTML =
+            '<div data-integration="bluesky"><input id="field-Bluesky__Handle"><input id="field-Bluesky__AppPassword" type="password"></div>';
+        Element.prototype.scrollIntoView = vi.fn();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        document.body.innerHTML = '';
+        window.history.replaceState(null, '', '/');
+    });
+
+    it('opens the panel on the integration, expanded, with the empty secret focused', () => {
+        const ctx = linkCtx();
+
+        const opened = methods['openSettingsLink'].call(ctx, 'bluesky');
+        vi.runAllTimers();
+
+        expect(opened).toBe(true);
+        expect(ctx['showConfig']).toBe(true);
+        expect(ctx['wizardActive']).toBe(false);
+        expect((ctx['collapsedSections'] as Record<string, boolean>)['bluesky']).toBe(false);
+        expect(document.activeElement?.id).toBe('field-Bluesky__AppPassword');
+    });
+
+    it('ignores an unknown integration', () => {
+        const ctx = linkCtx();
+
+        expect(methods['openSettingsLink'].call(ctx, 'plex')).toBe(false);
+        expect(ctx['showConfig']).toBe(false);
+    });
+
+    it('follows #settings/<key> and then clears the fragment', () => {
+        const ctx = linkCtx();
+        ctx['openSettingsLink'] = vi.fn();
+        window.history.replaceState(null, '', '/#settings/bluesky');
+
+        methods['handleSettingsHash'].call(ctx);
+
+        expect(ctx['openSettingsLink']).toHaveBeenCalledWith('bluesky');
+        expect(window.location.hash).toBe('');
+    });
+
+    it('leaves other fragments alone', () => {
+        const ctx = linkCtx();
+        ctx['openSettingsLink'] = vi.fn();
+        window.history.replaceState(null, '', '/#something-else');
+
+        methods['handleSettingsHash'].call(ctx);
+
+        expect(ctx['openSettingsLink']).not.toHaveBeenCalled();
+        expect(window.location.hash).toBe('#something-else');
+    });
+});
+
+// First start, "Set it up with an AI assistant": a key for the MCP endpoint, shown once.
+describe('AI assistant setup', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        localStorage.clear();
+    });
+
+    it('creates a dated key and keeps it only in memory', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ key: 'wb_abc123' }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const ctx = makeCtx();
+        methods['wizardStartAi'].call(ctx);
+
+        await methods['wizardCreateAiKey'].call(ctx);
+
+        expect(ctx['wizardAiMode']).toBe(true);
+        expect(ctx['wizardAiKey']).toBe('wb_abc123');
+        const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string) as { name: string };
+        expect(body.name).toMatch(/^Setup assistant \(\d{4}-\d{2}-\d{2}\)$/);
+        expect(JSON.stringify(localStorage)).not.toContain('wb_abc123');
+    });
+
+    it('reports a failure to create the key', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+        const ctx = makeCtx();
+
+        await methods['wizardCreateAiKey'].call(ctx);
+
+        expect(ctx['wizardAiStatus']).toBe('error');
+        expect(ctx['wizardAiKey']).toBeUndefined();
+    });
+
+    it('forgets the key when done, and finishes the wizard', () => {
+        const ctx = makeCtx({ wizardAiMode: true, wizardAiKey: 'wb_abc123', sync: vi.fn() });
+        ctx['wizardComplete'] = vi.fn();
+
+        methods['wizardAiDone'].call(ctx);
+
+        expect(ctx['wizardAiKey']).toBeNull();
+        expect(ctx['wizardAiMode']).toBe(false);
+        expect(ctx['wizardComplete']).toHaveBeenCalled();
+    });
+});

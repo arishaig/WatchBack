@@ -758,4 +758,49 @@
     <data name="WatchUser_Change" xml:space="preserve">
         <value>Cambiar de usuario</value>
     </data>
+    <data name="Wizard_AiSetup" xml:space="preserve">
+        <value>Configurarlo con un asistente de IA</value>
+    </data>
+    <data name="Wizard_AiSetupTitle" xml:space="preserve">
+        <value>Configurar con un asistente de IA</value>
+    </data>
+    <data name="Wizard_AiSetupBody" xml:space="preserve">
+        <value>WatchBack puede darle a un asistente de IA, como {0}, una clave para conectarse. El asistente te guía en la configuración y cambia los ajustes por ti. No puede cambiar tu contraseña ni cómo inicias sesión.</value>
+    </data>
+    <data name="Wizard_AiSecretsNote" xml:space="preserve">
+        <value>Cuando un paso necesita una clave de API o una contraseña, el asistente te da un enlace para pegarla en WatchBack, así no pasa por el chat.</value>
+    </data>
+    <data name="Wizard_AiCreateKey" xml:space="preserve">
+        <value>Crear una clave</value>
+    </data>
+    <data name="Wizard_AiCreatingKey" xml:space="preserve">
+        <value>Creando…</value>
+    </data>
+    <data name="Wizard_AiKeyFailed" xml:space="preserve">
+        <value>No se pudo crear la clave. Inténtalo de nuevo o configúralo tú mismo.</value>
+    </data>
+    <data name="Wizard_AiServerUrl" xml:space="preserve">
+        <value>URL del servidor</value>
+    </data>
+    <data name="Wizard_AiApiKey" xml:space="preserve">
+        <value>Clave de API</value>
+    </data>
+    <data name="Wizard_AiKeyShownOnce" xml:space="preserve">
+        <value>Solo se muestra ahora. Dásela solo a un asistente de confianza y revócala en Claves de API, en la configuración, al terminar.</value>
+    </data>
+    <data name="Wizard_AiForClaudeCode" xml:space="preserve">
+        <value>Para {0}, ejecuta:</value>
+    </data>
+    <data name="Wizard_AiOtherAssistants" xml:space="preserve">
+        <value>Otros asistentes: añade un servidor MCP HTTP con la URL de arriba y el encabezado {0} con esta clave. El asistente debe poder acceder a esta dirección.</value>
+    </data>
+    <data name="Wizard_AiThenAsk" xml:space="preserve">
+        <value>Luego pídele a tu asistente:</value>
+    </data>
+    <data name="Wizard_AiPrompt" xml:space="preserve">
+        <value>Ayúdame a configurar WatchBack.</value>
+    </data>
+    <data name="Wizard_AiDone" xml:space="preserve">
+        <value>Listo</value>
+    </data>
 </root>

@@ -194,6 +194,15 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
         return status === 'Watching' || status === 'Idle';
     },
 
+    // The MCP endpoint, as an assistant on another machine reaches it: the address WatchBack is open at.
+    get mcpUrl(): string {
+        return `${window.location.origin}/mcp`;
+    },
+
+    get mcpClaudeCommand(): string {
+        return `claude mcp add --transport http watchback ${this.mcpUrl} --header "Authorization: Bearer ${this.wizardAiKey ?? ''}"`;
+    },
+
     get checklistAllComplete(): boolean {
         return this.hasWatchProvider && this.hasCommentSource && this.hasCompletedSync;
     },
