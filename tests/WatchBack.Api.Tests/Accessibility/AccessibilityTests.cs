@@ -578,6 +578,9 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
                 ConfigFilled);
             await OpenConfigModal(page);
             await SwitchToDiagnosticsTab(page);
+            // Nothing to clear: no Clear button for an empty sync history.
+            (await page.Locator("#panel-diagnostics button[\\@click='void clearSyncHistory()']").IsVisibleAsync())
+                .Should().BeFalse();
             await AssertNoViolations(page);
         }
         finally

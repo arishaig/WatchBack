@@ -1537,11 +1537,11 @@
                 <div class="mb-5">
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold wb-text-secondary" x-text="t('Diagnostics_SyncHistory')"></h2>
-                        <button @click="void clearSyncHistory()" x-show="access.isAdmin" class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                        <button @click="void clearSyncHistory()" class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
                                        wb-text-muted cursor-pointer wb-btn
                                        hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                                 type="button"
-                                x-show="syncHistoryEntries.length > 0"
+                                x-show="access.isAdmin && syncHistoryEntries.length > 0"
                                 x-text="t('Common_Clear')">
                         </button>
                     </div>
