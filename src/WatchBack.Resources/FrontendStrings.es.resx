@@ -786,7 +786,7 @@
         <value>Clave de API</value>
     </data>
     <data name="Wizard_AiKeyShownOnce" xml:space="preserve">
-        <value>Solo se muestra ahora. Dásela solo a un asistente de confianza y revócala en Claves de API, en la configuración, al terminar.</value>
+        <value>Solo se muestra ahora. Dásela solo a un asistente de confianza y revócala en Seguridad, Claves de API, en la configuración, al terminar.</value>
     </data>
     <data name="Wizard_AiForClaudeCode" xml:space="preserve">
         <value>Para {0}, ejecuta:</value>

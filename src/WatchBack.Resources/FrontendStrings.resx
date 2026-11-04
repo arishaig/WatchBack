@@ -821,7 +821,7 @@
         <value>API key</value>
     </data>
     <data name="Wizard_AiKeyShownOnce" xml:space="preserve">
-        <value>Shown only now. Give it only to an assistant you trust, and revoke it under API Keys in settings once setup is done.</value>
+        <value>Shown only now. Give it only to an assistant you trust, and revoke it under Security, API keys, in settings once setup is done.</value>
     </data>
     <data name="Wizard_AiForClaudeCode" xml:space="preserve">
         <value>For {0}, run:</value>
