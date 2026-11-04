@@ -68,6 +68,8 @@ public sealed class BlueskyThoughtProvider(
 
     public int ExpectedWeight => 1;
 
+    public bool SupportsLiveBroadcasts => true;
+
     public string GetCacheKey(MediaContext mediaContext)
     {
         return mediaContext is EpisodeContext episode
@@ -152,7 +154,9 @@ public sealed class BlueskyThoughtProvider(
             { IsTransientFailure = failed > 0 };
 
             cache.Set(cacheKey, result,
-                failed > 0 ? s_failureCacheTtl : TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+                failed > 0 ? s_failureCacheTtl
+                : mediaContext is LiveBroadcastContext ? LiveBroadcastContext.CacheLifetime
+                : TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
         catch (Exception ex)
@@ -175,10 +179,18 @@ public sealed class BlueskyThoughtProvider(
     ///     title with the episode code, then with the episode title, then the show's hashtag in the days
     ///     around the air date (posts from while it aired, which the Time Machine view shows). Episodes that
     ///     aired more than a week ago are searched by top posts, recent ones by latest. Movies and specials
-    ///     get one search.
+    ///     get one search. A live broadcast: the latest posts of the past day naming the program, then the channel.
     /// </summary>
     internal static IReadOnlyList<SearchSpec> PlanSearches(MediaContext media, DateTimeOffset now)
     {
+        if (media is LiveBroadcastContext live)
+        {
+            return live.SearchNames
+                .Select(name => new SearchSpec($"\"{name}\"", "latest", now - LiveBroadcastContext.RecentWindow, null))
+                .Take(MaxSearches)
+                .ToList();
+        }
+
         DateTimeOffset? air = media.ReleaseDate;
         string sort = air is { } aired && now - aired > s_recentFor ? "top" : "latest";
         DateTimeOffset? since = IThoughtProvider.GetDateFloor(media);

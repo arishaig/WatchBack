@@ -764,4 +764,57 @@ public class LemmyThoughtProviderTests : IDisposable
         // Assert
         requestedUrls.Should().Contain(u => Uri.UnescapeDataString(u).Contains("Interstellar movie"));
     }
+
+    // ---- Live broadcasts ----
+
+    // Regression: a live channel searched "<channel> <channel>" by all-time top posts.
+    [Fact]
+    public async Task GetThoughtsAsync_LiveBroadcast_SearchesNewestPostsByProgramThenChannel()
+    {
+        LiveBroadcastContext live = new("NBC News Daily With Morgan Radford", "NBC News NOW");
+        List<string> searches = [];
+        MockHttpMessageHandler handler = new(req =>
+        {
+            searches.Add(Uri.UnescapeDataString(req.RequestUri!.Query));
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"posts":[]}""") };
+        });
+
+        await CreateProvider(new HttpClient(handler)).GetThoughtsAsync(live);
+
+        searches.Should().HaveCount(2);
+        searches[0].Should().Contain("q=NBC News Daily&").And.Contain("sort=New");
+        searches[1].Should().Contain("q=NBC News NOW&").And.Contain("sort=New");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_LiveBroadcast_IsSearchedAgainAfterTenMinutes()
+    {
+        LiveBroadcastContext live = new("NBC News Daily", "NBC News NOW");
+        ManualClock clock = new();
+        using MemoryCache cache = new(new MemoryCacheOptions { Clock = clock });
+        int searches = 0;
+        MockHttpMessageHandler handler = new(_ =>
+        {
+            Interlocked.Increment(ref searches);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"posts":[]}""") };
+        });
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        LemmyThoughtProvider provider = new(new HttpClient(handler), new OptionsSnapshotStub<LemmyOptions>(_options),
+            cache, treeBuilder, NullLogger<LemmyThoughtProvider>.Instance);
+
+        await provider.GetThoughtsAsync(live);
+        clock.UtcNow += TimeSpan.FromMinutes(9);
+        await provider.GetThoughtsAsync(live);
+        clock.UtcNow += TimeSpan.FromMinutes(2);
+        await provider.GetThoughtsAsync(live);
+
+        searches.Should().Be(4, "two names searched, twice: once at first and once after ten minutes");
+    }
+
+#pragma warning disable CS0618 // MemoryCacheOptions.Clock is the cache's only time seam
+    private sealed class ManualClock : Microsoft.Extensions.Internal.ISystemClock
+    {
+        public DateTimeOffset UtcNow { get; set; } = new(2026, 11, 4, 18, 0, 0, TimeSpan.Zero);
+    }
+#pragma warning restore CS0618
 }

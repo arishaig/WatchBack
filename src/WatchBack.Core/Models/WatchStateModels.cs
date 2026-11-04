@@ -128,6 +128,9 @@ public record LiveBroadcastContext(
     /// <summary>How long results for a live broadcast stay fresh: the conversation moves while it airs.</summary>
     public static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(10);
 
+    /// <summary>How far back posts about a live broadcast count as discussion of this airing.</summary>
+    public static readonly TimeSpan RecentWindow = TimeSpan.FromDays(1);
+
     private static readonly string[] s_hostSeparators = [" with ", " w/ "];
 
     /// <summary>

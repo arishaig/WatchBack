@@ -884,4 +884,17 @@ public class BlueskyThoughtProviderTests : IDisposable
     }
 
     private static HttpResponseMessage Ok(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json) };
+
+    [Fact]
+    public void PlanSearches_LiveBroadcast_LatestPostsOfThePastDay_ByProgramThenChannel()
+    {
+        LiveBroadcastContext live = new("NBC News Daily With Morgan Radford and Vicky Nguyen", "NBC News NOW",
+            s_now.AddMinutes(-20), s_now.AddMinutes(40));
+
+        IReadOnlyList<BlueskyThoughtProvider.SearchSpec> plan = BlueskyThoughtProvider.PlanSearches(live, s_now);
+
+        plan.Should().Equal(
+            new BlueskyThoughtProvider.SearchSpec("\"NBC News Daily\"", "latest", s_now.AddDays(-1), null),
+            new BlueskyThoughtProvider.SearchSpec("\"NBC News NOW\"", "latest", s_now.AddDays(-1), null));
+    }
 }
