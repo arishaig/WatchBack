@@ -91,7 +91,7 @@
 <!-- SSE sync progress bar -->
 <div :aria-label="t('Aria_SyncProgress')" :aria-valuemax="syncProgress?.total"
      :aria-valuenow="syncProgress?.completed"
-     :style="configData?.preferences?.segmentedProgressBar ? 'height:5px' : 'height:5px;background:color-mix(in srgb, var(--wb-accent) 20%, transparent)'"
+     :style="{ background: configData?.preferences?.segmentedProgressBar ? 'transparent' : 'color-mix(in srgb, var(--wb-accent) 20%, transparent)' }"
      aria-atomic="true"
      aria-live="polite"
      aria-valuemin="0" class="fixed top-0 left-0 right-0 z-[150]"
@@ -1953,7 +1953,7 @@
                 </template>
 
                 <!-- Reddit search — always visible when watching an episode -->
-                <div :style="`--thread-brand: ${(availableSources.find(s => s.name === 'Reddit') || {}).brandColor || '#FF4500'}`"
+                <div :style="{ '--thread-brand': (availableSources.find(s => s.name === 'Reddit') || {}).brandColor || '#FF4500' }"
                      class="mb-4 comment-card"
                      style="animation-delay:0.05s"
                      x-show="data?.metadata?.seasonNumber != null">
@@ -1983,7 +1983,7 @@
                         <button :aria-label="src.name + ' (' + sourceCount(src.name) + ' comments)'"
                                 :aria-pressed="sourceActive(src.name)"
                                 :class="sourceActive(src.name) ? 'filter-source' : 'filter-inactive'"
-                                :style="sourceActive(src.name) ? `--brand: ${src.brandColor}` : ''"
+                                :style="{ '--brand': sourceActive(src.name) ? src.brandColor : null }"
                                 @click="toggleSource(src.name)"
                                 class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase
                                    wb-border border cursor-pointer wb-btn
@@ -2003,7 +2003,7 @@
                     <!-- Group by thread pill -->
                     <button :aria-pressed="groupByThread"
                             :class="groupByThread ? 'filter-source' : 'filter-inactive'"
-                            :style="groupByThread ? `--brand: ${(availableSources.find(s => s.name === 'Reddit') || {}).brandColor || ''}` : ''"
+                            :style="{ '--brand': groupByThread ? (availableSources.find(s => s.name === 'Reddit') || {}).brandColor || null : null }"
                             @click="handleThreadToggle()"
                             class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase
                                    wb-border border cursor-pointer wb-btn
@@ -2016,7 +2016,7 @@
                     <!-- Filter by opinion pill (master toggle) -->
                     <button :aria-pressed="sentimentCategory !== 'all'"
                             :class="sentimentCategory !== 'all' ? 'filter-source' : 'filter-inactive'"
-                            :style="sentimentCategory === 'positive' ? '--brand: #22c55e' : sentimentCategory === 'negative' ? '--brand: #f87171' : ''"
+                            :style="{ '--brand': sentimentCategory === 'positive' ? '#22c55e' : sentimentCategory === 'negative' ? '#f87171' : null }"
                             @click="sentimentCategory = sentimentCategory !== 'all' ? 'all' : 'positive'"
                             class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase
                                    wb-border border cursor-pointer wb-btn
