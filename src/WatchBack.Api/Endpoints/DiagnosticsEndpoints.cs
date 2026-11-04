@@ -54,6 +54,7 @@ public static class DiagnosticsEndpoints
 
         group.MapDelete("/logs", ClearLogs)
             .WithName("ClearLogs")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Clear the in-memory log buffer");
 
         group.MapGet("/sync-history", GetSyncHistory)
@@ -62,6 +63,7 @@ public static class DiagnosticsEndpoints
 
         group.MapDelete("/sync-history", ClearSyncHistory)
             .WithName("ClearSyncHistory")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Clear all persisted sync log entries");
     }
 

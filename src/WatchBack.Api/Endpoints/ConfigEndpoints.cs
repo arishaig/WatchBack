@@ -31,6 +31,7 @@ public static class ConfigEndpoints
 
         group.MapPost("/config", SaveConfig)
             .WithName("SaveConfig")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Save configuration")
             .WithDescription(
                 "Persists configuration values to the user settings file. Rejects unknown configuration sections for security. Empty values are skipped.")
@@ -39,6 +40,7 @@ public static class ConfigEndpoints
 
         group.MapDelete("/config", ResetConfig)
             .WithName("ResetConfig")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Reset config keys to environment/default values")
             .WithDescription(
                 "Removes the specified keys from user-settings.json so environment variables or compiled defaults take effect again.")
@@ -47,6 +49,7 @@ public static class ConfigEndpoints
 
         group.MapPost("/config/reveal/{key}", RevealConfigValue)
             .WithName("RevealConfigValue")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Reveal a stored secret value")
             .WithDescription(
                 "Returns the plaintext value of a password-type config field owned by a registered provider.")
@@ -61,6 +64,7 @@ public static class ConfigEndpoints
 
         group.MapPost("/test/{service}", TestService)
             .WithName("TestService")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Test service connection")
             .WithDescription(
                 "Tests the connection for a registered integration using the submitted form values and returns the result")

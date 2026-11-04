@@ -261,11 +261,23 @@ builder.Services.AddAuthorization(options =>
     // The MCP endpoint also accepts bearer API keys in addition to the default auth schemes.
     // Key management endpoints (/api/mcp/keys) remain under the default policy only —
     // an API key cannot mint, list, or revoke other keys.
+    // MCP tools change settings, so a signed-in browser calling /mcp must also be an admin.
+    // An API key passes: only an admin can mint one.
     options.AddPolicy("mcp", new AuthorizationPolicyBuilder()
         .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, "ForwardAuth", "ApiKey")
         .RequireAuthenticatedUser()
+        .AddRequirements(new AdminRequirement())
+        .Build());
+
+    // Anything that changes settings. See AdminStore: a guard against mistakes, not a security boundary.
+    options.AddPolicy(AccessEndpoints.AdminPolicy, new AuthorizationPolicyBuilder()
+        .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, "ForwardAuth")
+        .RequireAuthenticatedUser()
+        .AddRequirements(new AdminRequirement())
         .Build());
 });
+builder.Services.AddSingleton<AdminStore>();
+builder.Services.AddSingleton<IAuthorizationHandler, AdminAuthorizationHandler>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -410,6 +422,7 @@ protectedGroup.MapManualWatchStateEndpoints();
 protectedGroup.MapSearchEndpoints();
 protectedGroup.MapSubredditMappingEndpoints();
 protectedGroup.MapApiKeyEndpoints();
+protectedGroup.MapAccessEndpoints();
 
 app.MapMcp("/mcp").RequireAuthorization("mcp");
 

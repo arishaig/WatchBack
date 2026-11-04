@@ -17,24 +17,28 @@ public static class SubredditMappingEndpoints
 
         group.MapPost("/local", AddLocal)
             .WithName("AddLocalSubredditMapping")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Add an entry to the local (user-managed) source")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest);
 
         group.MapDelete("/local/{title}", DeleteLocal)
             .WithName("DeleteLocalSubredditMapping")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Delete an entry from the local source by title")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest);
 
         group.MapPost("/import", Import)
             .WithName("ImportSubredditMappings")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Import a JSON mapping file as a new source")
             .Produces<SubredditMappingSourceDto>()
             .Produces(StatusCodes.Status400BadRequest);
 
         group.MapDelete("/sources/{id}", DeleteSource)
             .WithName("DeleteSubredditMappingSource")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Delete an imported source and its entries")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest)
@@ -48,6 +52,7 @@ public static class SubredditMappingEndpoints
 
         group.MapPost("/sources/{id}/promote/{index}", PromoteEntry)
             .WithName("PromoteSubredditMappingEntry")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Copy an entry from any source into the local source")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status404NotFound);

@@ -14,7 +14,9 @@ public static class ApiKeyEndpoints
     public static void MapApiKeyEndpoints(this IEndpointRouteBuilder app)
     {
         RouteGroupBuilder group = app.MapGroup("/api/keys")
-            .WithTags("API Keys");
+            .WithTags("API Keys")
+            // Admin-only, listing included: a key acts as an admin through MCP.
+            .RequireAuthorization(AccessEndpoints.AdminPolicy);
 
         group.MapGet("/", ListKeys)
             .WithName("ListApiKeys")

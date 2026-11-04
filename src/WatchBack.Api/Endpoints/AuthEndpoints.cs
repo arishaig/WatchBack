@@ -53,16 +53,19 @@ public static class AuthEndpoints
 
         group.MapPost("/reset-password", ResetPassword)
             .WithName("ResetPassword")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Generate and store a new random password, logged to stdout")
             .RequireAuthorization();
 
         group.MapPost("/change-password", ChangePassword)
             .WithName("ChangePassword")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Change the current user's password")
             .RequireAuthorization();
 
         group.MapPost("/forward-auth", SaveForwardAuth)
             .WithName("SaveForwardAuth")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Enable or disable forward auth header bypass")
             .RequireAuthorization();
     }

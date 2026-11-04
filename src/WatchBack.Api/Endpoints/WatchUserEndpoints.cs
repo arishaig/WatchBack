@@ -22,14 +22,20 @@ public static class WatchUserEndpoints
             .Produces<IReadOnlyList<WatchUser>>();
     }
 
-    private static async Task<IReadOnlyList<WatchUser>> GetUsers(
+    private static Task<IReadOnlyList<WatchUser>> GetUsers(
         [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
         IOptionsSnapshot<WatchBackOptions> options,
+        CancellationToken ct) => ListAsync(watchStateProviders, options.Value, ct);
+
+    /// <summary>The users the configured watch state provider knows; empty when it can't tell them apart.</summary>
+    internal static async Task<IReadOnlyList<WatchUser>> ListAsync(
+        IEnumerable<IWatchStateProvider> watchStateProviders,
+        WatchBackOptions options,
         CancellationToken ct)
     {
         // Same selection rule as SyncService: the configured provider, else the first registered.
         IWatchStateProvider? provider = watchStateProviders
-                                            .FirstOrDefault(p => p.Metadata.Name.Equals(options.Value.WatchProvider,
+                                            .FirstOrDefault(p => p.Metadata.Name.Equals(options.WatchProvider,
                                                 StringComparison.OrdinalIgnoreCase))
                                         ?? watchStateProviders.FirstOrDefault();
 
