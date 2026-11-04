@@ -1445,5 +1445,432 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("DangerZone_GroupsHelp", resourceCulture);
             }
         }
+    
+        
+        public static string Settings_TabSources {
+            get {
+                return ResourceManager.GetString("Settings_TabSources", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TabSecurity {
+            get {
+                return ResourceManager.GetString("Settings_TabSecurity", resourceCulture);
+            }
+        }
+        
+        public static string Settings_PreferencesSub {
+            get {
+                return ResourceManager.GetString("Settings_PreferencesSub", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SecuritySub {
+            get {
+                return ResourceManager.GetString("Settings_SecuritySub", resourceCulture);
+            }
+        }
+        
+        public static string Settings_DiagnosticsSub {
+            get {
+                return ResourceManager.GetString("Settings_DiagnosticsSub", resourceCulture);
+            }
+        }
+        
+        public static string Settings_More {
+            get {
+                return ResourceManager.GetString("Settings_More", resourceCulture);
+            }
+        }
+        
+        public static string Settings_WatchingFrom {
+            get {
+                return ResourceManager.GetString("Settings_WatchingFrom", resourceCulture);
+            }
+        }
+        
+        public static string Settings_WatchingHint {
+            get {
+                return ResourceManager.GetString("Settings_WatchingHint", resourceCulture);
+            }
+        }
+        
+        public static string Settings_WatchFrom {
+            get {
+                return ResourceManager.GetString("Settings_WatchFrom", resourceCulture);
+            }
+        }
+        
+        public static string Settings_DiscussionGroup {
+            get {
+                return ResourceManager.GetString("Settings_DiscussionGroup", resourceCulture);
+            }
+        }
+        
+        public static string Settings_RatingsGroup {
+            get {
+                return ResourceManager.GetString("Settings_RatingsGroup", resourceCulture);
+            }
+        }
+        
+        public static string Settings_OnCount {
+            get {
+                return ResourceManager.GetString("Settings_OnCount", resourceCulture);
+            }
+        }
+        
+        public static string Settings_UsesConnection {
+            get {
+                return ResourceManager.GetString("Settings_UsesConnection", resourceCulture);
+            }
+        }
+        
+        public static string Settings_UseSource {
+            get {
+                return ResourceManager.GetString("Settings_UseSource", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ManualSub {
+            get {
+                return ResourceManager.GetString("Settings_ManualSub", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ManualHelp {
+            get {
+                return ResourceManager.GetString("Settings_ManualHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_RedditHelp {
+            get {
+                return ResourceManager.GetString("Settings_RedditHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_StatusReady {
+            get {
+                return ResourceManager.GetString("Settings_StatusReady", resourceCulture);
+            }
+        }
+        
+        public static string Settings_StatusOff {
+            get {
+                return ResourceManager.GetString("Settings_StatusOff", resourceCulture);
+            }
+        }
+        
+        public static string Settings_StatusFailed {
+            get {
+                return ResourceManager.GetString("Settings_StatusFailed", resourceCulture);
+            }
+        }
+        
+        public static string Settings_StatusNeedsSetup {
+            get {
+                return ResourceManager.GetString("Settings_StatusNeedsSetup", resourceCulture);
+            }
+        }
+        
+        public static string Settings_FromEnv {
+            get {
+                return ResourceManager.GetString("Settings_FromEnv", resourceCulture);
+            }
+        }
+        
+        public static string Settings_UseEnv {
+            get {
+                return ResourceManager.GetString("Settings_UseEnv", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ClearSaved {
+            get {
+                return ResourceManager.GetString("Settings_ClearSaved", resourceCulture);
+            }
+        }
+        
+        public static string Settings_UseDefault {
+            get {
+                return ResourceManager.GetString("Settings_UseDefault", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SaveAnyway {
+            get {
+                return ResourceManager.GetString("Settings_SaveAnyway", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SecretSaved {
+            get {
+                return ResourceManager.GetString("Settings_SecretSaved", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SaveFailed {
+            get {
+                return ResourceManager.GetString("Settings_SaveFailed", resourceCulture);
+            }
+        }
+        
+        public static string Settings_NumberInvalid {
+            get {
+                return ResourceManager.GetString("Settings_NumberInvalid", resourceCulture);
+            }
+        }
+        
+        public static string Settings_DaysInvalid {
+            get {
+                return ResourceManager.GetString("Settings_DaysInvalid", resourceCulture);
+            }
+        }
+        
+        public static string Settings_Advanced {
+            get {
+                return ResourceManager.GetString("Settings_Advanced", resourceCulture);
+            }
+        }
+        
+        public static string Settings_AutoSaveNote {
+            get {
+                return ResourceManager.GetString("Settings_AutoSaveNote", resourceCulture);
+            }
+        }
+        
+        public static string Settings_YourSubreddits {
+            get {
+                return ResourceManager.GetString("Settings_YourSubreddits", resourceCulture);
+            }
+        }
+        
+        public static string Settings_NoSubreddits {
+            get {
+                return ResourceManager.GetString("Settings_NoSubreddits", resourceCulture);
+            }
+        }
+        
+        public static string Settings_RemoveMapping {
+            get {
+                return ResourceManager.GetString("Settings_RemoveMapping", resourceCulture);
+            }
+        }
+        
+        public static string Settings_AddSubreddits {
+            get {
+                return ResourceManager.GetString("Settings_AddSubreddits", resourceCulture);
+            }
+        }
+        
+        public static string Settings_MappingShow {
+            get {
+                return ResourceManager.GetString("Settings_MappingShow", resourceCulture);
+            }
+        }
+        
+        public static string Settings_MappingShowPlaceholder {
+            get {
+                return ResourceManager.GetString("Settings_MappingShowPlaceholder", resourceCulture);
+            }
+        }
+        
+        public static string Settings_LookUpShow {
+            get {
+                return ResourceManager.GetString("Settings_LookUpShow", resourceCulture);
+            }
+        }
+        
+        public static string Settings_MappingSubreddits {
+            get {
+                return ResourceManager.GetString("Settings_MappingSubreddits", resourceCulture);
+            }
+        }
+        
+        public static string Settings_MappingSubredditsPlaceholder {
+            get {
+                return ResourceManager.GetString("Settings_MappingSubredditsPlaceholder", resourceCulture);
+            }
+        }
+        
+        public static string Settings_Add {
+            get {
+                return ResourceManager.GetString("Settings_Add", resourceCulture);
+            }
+        }
+        
+        public static string Settings_OtherLists {
+            get {
+                return ResourceManager.GetString("Settings_OtherLists", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ShowCount {
+            get {
+                return ResourceManager.GetString("Settings_ShowCount", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SearchMappings {
+            get {
+                return ResourceManager.GetString("Settings_SearchMappings", resourceCulture);
+            }
+        }
+        
+        public static string Settings_NoMappingMatch {
+            get {
+                return ResourceManager.GetString("Settings_NoMappingMatch", resourceCulture);
+            }
+        }
+        
+        public static string Settings_MappingsHelp {
+            get {
+                return ResourceManager.GetString("Settings_MappingsHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_BuiltIn {
+            get {
+                return ResourceManager.GetString("Settings_BuiltIn", resourceCulture);
+            }
+        }
+        
+        public static string Settings_CopyToYours {
+            get {
+                return ResourceManager.GetString("Settings_CopyToYours", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ImportExport {
+            get {
+                return ResourceManager.GetString("Settings_ImportExport", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ShareList {
+            get {
+                return ResourceManager.GetString("Settings_ShareList", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ExportList {
+            get {
+                return ResourceManager.GetString("Settings_ExportList", resourceCulture);
+            }
+        }
+        
+        public static string Settings_DeleteList {
+            get {
+                return ResourceManager.GetString("Settings_DeleteList", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ImportName {
+            get {
+                return ResourceManager.GetString("Settings_ImportName", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ImportJson {
+            get {
+                return ResourceManager.GetString("Settings_ImportJson", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ImportHelp {
+            get {
+                return ResourceManager.GetString("Settings_ImportHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_Import {
+            get {
+                return ResourceManager.GetString("Settings_Import", resourceCulture);
+            }
+        }
+        
+        public static string Settings_Imported {
+            get {
+                return ResourceManager.GetString("Settings_Imported", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ImportFailed {
+            get {
+                return ResourceManager.GetString("Settings_ImportFailed", resourceCulture);
+            }
+        }
+        
+        public static string Settings_Appearance {
+            get {
+                return ResourceManager.GetString("Settings_Appearance", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SegmentedHelp {
+            get {
+                return ResourceManager.GetString("Settings_SegmentedHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TimeMachineHelp {
+            get {
+                return ResourceManager.GetString("Settings_TimeMachineHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_Days {
+            get {
+                return ResourceManager.GetString("Settings_Days", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SentimentHelp {
+            get {
+                return ResourceManager.GetString("Settings_SentimentHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_PrefsSaveNote {
+            get {
+                return ResourceManager.GetString("Settings_PrefsSaveNote", resourceCulture);
+            }
+        }
+        
+        public static string Settings_PrefsLocalNote {
+            get {
+                return ResourceManager.GetString("Settings_PrefsLocalNote", resourceCulture);
+            }
+        }
+        
+        public static string Settings_Account {
+            get {
+                return ResourceManager.GetString("Settings_Account", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ForwardAuthHint {
+            get {
+                return ResourceManager.GetString("Settings_ForwardAuthHint", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ForwardAuthSaveNote {
+            get {
+                return ResourceManager.GetString("Settings_ForwardAuthSaveNote", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SaveForwardAuth {
+            get {
+                return ResourceManager.GetString("Settings_SaveForwardAuth", resourceCulture);
+            }
+        }
+        
+        public static string Settings_Maintenance {
+            get {
+                return ResourceManager.GetString("Settings_Maintenance", resourceCulture);
+            }
+        }
     }
 }
