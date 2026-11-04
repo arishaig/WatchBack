@@ -226,16 +226,28 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         }
     },
 
-    // Comments and replies: a post from the last day also shows its time, since on live TV
-    // the conversation moves by the hour and several posts share a date.
+    // Comments and replies, by calendar day: "Today 1:05 PM" and "Yesterday 11:00 PM" (on live TV the
+    // conversation moves by the hour), "3 days ago", "1 week ago", then the date.
     formatThoughtDate(iso: string): string {
         if (!iso) return '';
         const posted = new Date(iso);
         if (isNaN(posted.getTime())) return iso;
-        const date = posted.toLocaleDateString();
-        const age = Date.now() - posted.getTime();
-        if (age < 0 || age >= 24 * 60 * 60 * 1000) return date;
-        return `${date} ${posted.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+        const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        // Rounded: a day across a daylight-saving change is 23 or 25 hours.
+        const days = Math.round((midnight(new Date()) - midnight(posted)) / 86_400_000);
+        const time = () => posted.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        if (days === 0) return this.t('Time_TodayAt', time());
+        if (days === 1) return this.t('Time_YesterdayAt', time());
+        if (days >= 2 && days <= 6) return this.t('Time_DaysAgo', days);
+        if (days === 7) return this.t('Time_WeekAgo');
+        return posted.toLocaleDateString();
+    },
+
+    // The exact moment, for the tooltip on a relative date.
+    formatFullTimestamp(iso: string): string {
+        if (!iso) return '';
+        const posted = new Date(iso);
+        return isNaN(posted.getTime()) ? iso : posted.toLocaleString();
     },
 
     formatScore(n: number | null): string {

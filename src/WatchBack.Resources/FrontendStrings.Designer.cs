@@ -645,6 +645,30 @@ namespace WatchBack.Resources {
             }
         }
         
+        public static string Time_TodayAt {
+            get {
+                return ResourceManager.GetString("Time_TodayAt", resourceCulture);
+            }
+        }
+        
+        public static string Time_YesterdayAt {
+            get {
+                return ResourceManager.GetString("Time_YesterdayAt", resourceCulture);
+            }
+        }
+        
+        public static string Time_DaysAgo {
+            get {
+                return ResourceManager.GetString("Time_DaysAgo", resourceCulture);
+            }
+        }
+        
+        public static string Time_WeekAgo {
+            get {
+                return ResourceManager.GetString("Time_WeekAgo", resourceCulture);
+            }
+        }
+        
         public static string Time_SecondsAgo {
             get {
                 return ResourceManager.GetString("Time_SecondsAgo", resourceCulture);

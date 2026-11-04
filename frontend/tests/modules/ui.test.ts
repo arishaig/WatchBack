@@ -90,36 +90,52 @@ describe('formatScore', () => {
 // ── formatThoughtDate ─────────────────────────────────────────────────────────
 
 describe('formatThoughtDate', () => {
-    const now = new Date('2026-11-04T19:30:00Z');
+    // Local times, so calendar days are the same wherever the tests run.
+    const now = new Date(2026, 10, 4, 14, 30);
     beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(now); });
     afterEach(() => { vi.useRealTimers(); });
 
-    const timeOf = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const ctx = { t: (key: string, ...args: unknown[]) => [key, ...args].join('|') };
+    const label = (d: Date) => methods.formatThoughtDate.call(ctx, d.toISOString());
+    const timeOf = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
-    it('shows the time as well as the date for a post from the last day', () => {
-        const iso = '2026-11-04T18:05:00Z';
-        expect(methods.formatThoughtDate.call({}, iso))
-            .toBe(`${new Date(iso).toLocaleDateString()} ${timeOf(iso)}`);
+    it('says "Today" with the time for a post from today', () => {
+        const d = new Date(2026, 10, 4, 0, 5);
+        expect(label(d)).toBe(`Time_TodayAt|${timeOf(d)}`);
     });
 
-    it('shows the time for last night\'s post the next morning', () => {
-        const iso = '2026-11-03T23:00:00Z';
-        expect(methods.formatThoughtDate.call({}, iso)).toContain(timeOf(iso));
+    it('says "Yesterday" with the time, by calendar day even if under 24 hours ago', () => {
+        const d = new Date(2026, 10, 3, 23, 0);
+        expect(label(d)).toBe(`Time_YesterdayAt|${timeOf(d)}`);
     });
 
-    it('shows only the date for an older post', () => {
-        const iso = '2026-11-02T18:05:00Z';
-        expect(methods.formatThoughtDate.call({}, iso)).toBe(new Date(iso).toLocaleDateString());
+    it('counts days from 2 to 6', () => {
+        expect(label(new Date(2026, 10, 2, 9, 0))).toBe('Time_DaysAgo|2');
+        expect(label(new Date(2026, 9, 29, 23, 59))).toBe('Time_DaysAgo|6');
     });
 
-    it('shows only the date for a post dated in the future', () => {
-        const iso = '2026-11-05T18:05:00Z';
-        expect(methods.formatThoughtDate.call({}, iso)).toBe(new Date(iso).toLocaleDateString());
+    it('says "1 week ago" for a post from 7 days ago', () => {
+        expect(label(new Date(2026, 9, 28, 12, 0))).toBe('Time_WeekAgo');
+    });
+
+    it('shows the date for anything older', () => {
+        const d = new Date(2026, 9, 27, 12, 0);
+        expect(label(d)).toBe(d.toLocaleDateString());
+    });
+
+    it('shows the date for a post dated in the future', () => {
+        const d = new Date(2026, 10, 5, 9, 0);
+        expect(label(d)).toBe(d.toLocaleDateString());
     });
 
     it('returns empty for empty input and the input for an invalid date', () => {
-        expect(methods.formatThoughtDate.call({}, '')).toBe('');
-        expect(methods.formatThoughtDate.call({}, 'not-a-date')).toBe('not-a-date');
+        expect(methods.formatThoughtDate.call(ctx, '')).toBe('');
+        expect(methods.formatThoughtDate.call(ctx, 'not-a-date')).toBe('not-a-date');
+    });
+
+    it('gives the exact moment for the tooltip', () => {
+        const d = new Date(2026, 10, 2, 9, 0);
+        expect(methods.formatFullTimestamp.call({}, d.toISOString())).toBe(d.toLocaleString());
     });
 });
 
