@@ -34,7 +34,8 @@ public sealed partial class WatchBackMcpTools(
     [McpServerTool]
     [Description(
         "Get the current watch state: what is currently being watched, community thought counts by source, and ratings. " +
-        "Returns status ('Idle', 'Watching', or 'Error'), title, episode info if applicable, thought counts, and ratings.")]
+        "Returns status ('Idle', 'Watching', or 'Error'), title, episode info if applicable, the channel for a live broadcast " +
+        "(news, sports), thought counts, and ratings.")]
     public async Task<string> GetWatchState(CancellationToken cancellationToken)
     {
         SyncResult result = await syncService.SyncAsync(null, null, null, cancellationToken);
@@ -59,6 +60,7 @@ public sealed partial class WatchBackMcpTools(
             status = result.Status.ToString(),
             title = result.Title,
             episode,
+            liveChannel = (result.Metadata as LiveBroadcastContext)?.ChannelName,
             releaseDate = result.Metadata?.ReleaseDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
             thoughtCount = result.AllThoughts.Count,
             thoughtsBySource,
