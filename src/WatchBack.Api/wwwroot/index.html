@@ -348,7 +348,7 @@
                     <div class="flex items-center gap-3">
                         <span class="integration-logo" :style="'color: ' + integration.brandColor"
                               x-html="sanitizeSvg(integration.logoSvg)"></span>
-                        <span class="text-sm font-semibold wb-text-primary" x-text="integration.name"></span>
+                        <span class="text-sm font-semibold wb-text" x-text="integration.name"></span>
                         <span class="ml-auto text-xs wb-accent-text font-medium"
                               x-show="newProviderSelected.has(key)">&#10003;</span>
                     </div>
@@ -501,7 +501,7 @@
                             <span :style="'color: ' + integration.brandColor" class="integration-logo"
                                   x-html="sanitizeSvg(integration.logoSvg)">
                             </span>
-                            <span class="text-sm font-semibold wb-text-primary" x-text="integration.name"></span>
+                            <span class="text-sm font-semibold wb-text" x-text="integration.name"></span>
                             <span class="ml-auto text-xs wb-accent-text font-medium"
                                   x-show="wizardSelectedWatch === key">
                                 &#10003;
@@ -553,7 +553,7 @@
                             <span :style="'color: ' + integration.brandColor" class="integration-logo"
                                   x-html="sanitizeSvg(integration.logoSvg)">
                             </span>
-                            <span class="text-sm font-semibold wb-text-primary" x-text="integration.name"></span>
+                            <span class="text-sm font-semibold wb-text" x-text="integration.name"></span>
                             <span class="ml-auto text-xs wb-accent-text font-medium"
                                   x-show="wizardSelectedComments.has(key)">
                                 &#10003;

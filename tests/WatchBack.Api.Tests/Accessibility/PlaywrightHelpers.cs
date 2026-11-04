@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 using Microsoft.Playwright;
 
@@ -108,24 +107,16 @@ internal static class PlaywrightHelpers
     ///     Parses the theme select in index.html so that adding a new theme to
     ///     the dropdown automatically includes it in tests.
     /// </summary>
+    /// <summary>Every theme the app ships: one stylesheet each in frontend/css/themes.</summary>
     public static IReadOnlyList<string> GetAvailableThemes()
     {
-        string htmlPath = Path.Combine(FindProjectRoot(), "src", "WatchBack.Api", "wwwroot", "index.html");
-        string content = File.ReadAllText(htmlPath);
-
-        Match blockMatch = Regex.Match(content, @"aria-label=""Theme"".*?</select>", RegexOptions.Singleline);
-        if (blockMatch.Success)
-        {
-            List<string> themes = Regex.Matches(blockMatch.Value, @"<option\s+value=""([^""]+)""")
-                .Select(m => m.Groups[1].Value)
-                .ToList();
-            if (themes.Count > 0)
-            {
-                return themes;
-            }
-        }
-
-        return ["dark", "light"]; // fallback
+        string themesDir = Path.Combine(FindProjectRoot(), "frontend", "css", "themes");
+        List<string> themes = Directory.GetFiles(themesDir, "*.css")
+            .Select(Path.GetFileNameWithoutExtension)
+            .OfType<string>()
+            .Order(StringComparer.Ordinal)
+            .ToList();
+        return themes.Count > 0 ? themes : ["dark", "light"];
     }
 
     private static string FindProjectRoot()
