@@ -445,6 +445,25 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
 
     [Theory]
     [MemberData(nameof(ThemeData))]
+    public async Task WizardAiSetup(string theme)
+    {
+        IPage page = await NewPageAsync();
+        try
+        {
+            await LoadPageWithWizard(page, _baseUrl, theme, ConfigEmpty);
+            await page.Locator("button:visible:has-text('AI assistant'), button:visible:has-text('asistente de IA')")
+                .ClickAsync();
+            await page.WaitForTimeoutAsync(300); // allow transition
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
     public async Task WizardWatchProvider(string theme)
     {
         IPage page = await NewPageAsync();
