@@ -120,9 +120,15 @@ const { chromium } = require(process.env.PLAYWRIGHT_PKG);
 Notes specific to this app's markup:
 - The settings/gear button has **no `aria-label`**, only `:title` — select
   it by icon instead: `button:has(ion-icon[name="settings-sharp"])`.
-- Config panel tabs have stable ids: `#tab-settings`, `#tab-diagnostics`,
-  `#tab-mappings`, `#tab-apikeys` (`aria-controls` gives the matching
-  `#panel-*`).
+- Config panel tabs have stable ids: `#tab-sources`, `#tab-preferences`,
+  `#tab-security`, `#tab-diagnostics` (`aria-controls` gives the matching
+  `#panel-*`). Non-admins only get Preferences and Diagnostics. Below 640px
+  the tab bar is hidden and Sources lists the other tabs as rows.
+- A provider row opens with `button[aria-controls="st-detail-<group>-<key>"]`
+  (groups: `watch`, `thought`, `ratings`, e.g. `st-detail-thought-reddit`);
+  its fields are `#field-<Section>__<Key>`. Settings save on change/blur,
+  and text or secrets are tested with the provider first, so a field you
+  fill in a script triggers a real connection test.
 - For mobile-viewport layout bugs, 375×667 (iPhone SE-ish) is narrow enough
   to reproduce overflow/clipping issues that don't show at desktop widths.
 
