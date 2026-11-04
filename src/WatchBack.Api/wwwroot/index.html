@@ -681,7 +681,7 @@
     <header class="flex justify-between items-center mb-6 mt-2">
         <div class="flex items-center gap-3">
             <img alt="WatchBack Logo" class="w-10 h-10 object-contain wb-logo" src="/watchback.png">
-            <h1 class="text-2xl font-bold wb-accent-text hide-on-mobile">WatchBack</h1>
+            <h1 class="text-2xl font-bold wb-accent-text sr-only-on-mobile">WatchBack</h1>
         </div>
         <div class="flex gap-2">
             <button :title="t('WatchUser_Change')" @click="showUserPicker = true"
@@ -762,61 +762,421 @@
                     type="button">
                 <ion-icon aria-hidden="true" class="block pointer-events-none" name="close-sharp"></ion-icon>
             </button>
+
+            <!-- ─── Phone: back to the list (the tabs are hidden there; see .st-tabs) ─── -->
+            <button @click="switchConfigTab('sources')"
+                    class="st-back cursor-pointer"
+                    type="button"
+                    x-show="access.isAdmin && settingsTab !== 'sources'">
+                <ion-icon aria-hidden="true" name="chevron-back-sharp"></ion-icon>
+                <span x-text="t('Nav_Settings')"></span>
+            </button>
+
+            <h2 class="st-phone-title" x-show="access.isAdmin && settingsTab === 'sources'" x-text="t('Nav_Settings')"></h2>
+
             <!-- ─── Tab navigation ─── -->
-            <div class="flex items-center mb-5 border-b wb-border pr-10 overflow-x-auto">
+            <div :class="access.isAdmin ? 'st-tabs' : ''"
+                 class="flex items-center mb-4 border-b wb-border pr-10 overflow-x-auto">
                 <nav :aria-label="t('Aria_ConfigSections')" class="flex gap-0 flex-nowrap" role="tablist">
-                    <button :aria-selected="configTab === 'settings'" :class="configTab === 'settings'
-                            ? 'wb-text-secondary border-current' : 'wb-text-faint border-transparent hover:wb-text-muted'"
-                            :style="configTab === 'settings' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
-                            @click="configTab = 'settings'; closeLogStream()"
-                            aria-controls="panel-settings"
-                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap"
-                            id="tab-settings"
-                            role="tab"
-                            style="border-color: configTab === 'settings' ? 'var(--wb-accent)' : undefined"
-                            type="button"
-                            x-text="t('Nav_Settings')">
-                    </button>
-                    <button :aria-selected="configTab === 'diagnostics'" :class="configTab === 'diagnostics'
-                            ? 'wb-text-secondary' : 'wb-text-faint hover:wb-text-muted'"
-                            :style="configTab === 'diagnostics' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
-                            @click="switchConfigTab('diagnostics')"
-                            aria-controls="panel-diagnostics"
-                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap"
-                            id="tab-diagnostics"
-                            role="tab"
-                            type="button"
-                            x-text="t('Nav_Diagnostics')">
-                    </button>
-                    <button :aria-selected="configTab === 'mappings'" :class="configTab === 'mappings'
-                            ? 'wb-text-secondary' : 'wb-text-faint hover:wb-text-muted'"
-                            :style="configTab === 'mappings' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
-                            @click="switchConfigTab('mappings')"
-                            aria-controls="panel-mappings"
-                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap"
-                            id="tab-mappings"
-                            role="tab"
-                            type="button"
-                            x-show="access.isAdmin && !configData?.integrations?.['reddit']?.disabled"
-                            x-text="'Subreddits'">
-                    </button>
-                    <button :aria-selected="configTab === 'apikeys'" :class="configTab === 'apikeys'
-                            ? 'wb-text-secondary' : 'wb-text-faint hover:wb-text-muted'"
-                            :style="configTab === 'apikeys' ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
-                            @click="switchConfigTab('apikeys')"
-                            aria-controls="panel-apikeys"
-                            class="px-4 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap"
-                            id="tab-apikeys"
-                            role="tab"
-                            type="button"
-                            x-show="access.isAdmin"
-                            x-text="t('Mcp_ApiKeys')">
-                    </button>
+                    <template :key="tab.id" x-for="tab in settingsTabs">
+                        <button :aria-controls="'panel-' + tab.id"
+                                :aria-selected="settingsTab === tab.id"
+                                :class="settingsTab === tab.id ? 'wb-text-secondary' : 'wb-text-faint hover:wb-text-muted'"
+                                :id="'tab-' + tab.id"
+                                :style="settingsTab === tab.id ? 'border-color:var(--wb-accent)' : 'border-color:transparent'"
+                                @click="switchConfigTab(tab.id)"
+                                class="px-3 py-2 text-sm font-medium cursor-pointer border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap"
+                                role="tab"
+                                type="button"
+                                x-text="tab.label">
+                        </button>
+                    </template>
                 </nav>
             </div>
 
-            <!-- ─── Settings tab ─── -->
-            <div :aria-label="t('Nav_Settings')" aria-labelledby="tab-settings" id="panel-settings" role="tabpanel" x-show="configTab === 'settings'">
+            <!-- ─── Sources tab: one row per provider; a row opens to its settings ─── -->
+            <div aria-labelledby="tab-sources" id="panel-sources" role="tabpanel" x-show="settingsTab === 'sources'">
+                <template :key="group.id" x-for="group in settingsGroups">
+                    <section :aria-labelledby="'st-group-' + group.id">
+                        <div class="st-group-h">
+                            <h2 :id="'st-group-' + group.id" x-text="group.title"></h2>
+                            <span class="st-hint" x-text="group.hint"></span>
+                        </div>
+                        <div class="st-list">
+                            <template :key="row.id" x-for="row in group.rows">
+                                <div :data-integration="row.key">
+                                    <div :class="openRow === row.id ? 'st-open' : ''" class="st-row">
+                                        <!-- Watching from: one choice, saved as soon as it's picked -->
+                                        <template x-if="row.kind === 'watch'">
+                                            <input :aria-label="t('Settings_WatchFrom', row.name)"
+                                                   :checked="activeWatchProvider() === row.key"
+                                                   :id="'watch-' + row.key"
+                                                   @change="void chooseWatchProvider(row.key)"
+                                                   class="st-radio"
+                                                   name="watch-provider"
+                                                   type="radio">
+                                        </template>
+                                        <button :aria-controls="'st-detail-' + row.id.replace(':', '-')"
+                                                :aria-expanded="openRow === row.id"
+                                                @click="toggleRow(row.id)"
+                                                class="st-row-main cursor-pointer"
+                                                type="button">
+                                            <span :style="row.color ? 'background:' + row.color : ''"
+                                                  aria-hidden="true"
+                                                  class="st-logo"
+                                                  x-html="sanitizeSvg(row.logo)"></span>
+                                            <span class="st-row-text">
+                                                <span class="st-name" x-text="row.name"></span>
+                                                <span class="st-sub" x-text="row.sub"></span>
+                                            </span>
+                                            <span :class="'st-chip-' + row.status.kind" class="st-chip"
+                                                  x-show="row.status.label" x-text="row.status.label"></span>
+                                            <ion-icon :name="openRow === row.id ? 'chevron-down-sharp' : 'chevron-forward-sharp'"
+                                                      aria-hidden="true" class="st-chev"></ion-icon>
+                                        </button>
+                                        <template x-if="row.kind === 'toggle'">
+                                            <label class="switch-container shrink-0">
+                                                <input :aria-label="t('Settings_UseSource', row.name)"
+                                                       :checked="!row.integration.disabled"
+                                                       @change="void toggleDisabled(row.key)"
+                                                       class="switch-input"
+                                                       type="checkbox">
+                                                <span class="switch-slider"></span>
+                                            </label>
+                                        </template>
+                                    </div>
+
+                                    <!-- The row's settings -->
+                                    <template x-if="openRow === row.id">
+                                        <div :id="'st-detail-' + row.id.replace(':', '-')" class="st-detail">
+                                            <template x-if="!row.integration">
+                                                <p class="st-help" x-text="t('Settings_ManualHelp')"></p>
+                                            </template>
+                                            <template x-if="row.key === 'reddit'">
+                                                <p class="st-help" x-text="t('Settings_RedditHelp', 'Arctic Shift', 'PullPush')"></p>
+                                            </template>
+                                            <template x-if="row.integration">
+                                                <div>
+                                                    <template :key="'f-' + field.key" x-for="field in row.integration.fields.filter(f => f.type !== 'number')">
+                                                        <div class="st-field" x-data="{ showSecret: false }">
+                                                            <div class="st-label">
+                                                                <label :for="'field-' + field.key" x-text="field.label"></label>
+                                                                <span :class="fieldStatus[field.key]?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="fieldNote(field)"></span>
+                                                            </div>
+                                                            <div class="relative">
+                                                                <input :aria-describedby="'help-' + field.key"
+                                                                       :class="[field.type === 'password' ? 'pr-9' : '', fieldStatus[field.key]?.state === 'error' ? 'st-input-bad' : '']"
+                                                                       :id="'field-' + field.key"
+                                                                       :placeholder="field.type === 'password' && field.hasValue ? t('Settings_SecretSaved') : field.placeholder"
+                                                                       :type="field.type === 'password' && !showSecret ? 'password' : (field.type === 'password' ? 'text' : field.type)"
+                                                                       @change="void commitField(row.key, field.key)"
+                                                                       @keydown.enter.prevent="void commitField(row.key, field.key)"
+                                                                       @paste="$nextTick(() => void commitField(row.key, field.key))"
+                                                                       autocomplete="off"
+                                                                       class="st-input"
+                                                                       x-model="configEdits[field.key]">
+                                                                <button :aria-label="showSecret ? t('Aria_HideValue') : t('Aria_ShowValue')"
+                                                                        :aria-pressed="showSecret"
+                                                                        @click="showSecret = !showSecret; if (showSecret && !configEdits[field.key] && field.hasValue) fetch('/api/config/reveal/' + field.key, {method:'POST'}).then(r => r.ok ? r.json() : null).then(d => { if (d?.value) configEdits[field.key] = d.value; })"
+                                                                        class="wb-eye-btn"
+                                                                        type="button"
+                                                                        x-show="field.type === 'password'">
+                                                                    <ion-icon :name="showSecret ? 'eye-off-sharp' : 'eye-sharp'" aria-hidden="true"></ion-icon>
+                                                                </button>
+                                                            </div>
+                                                            <div :id="'help-' + field.key" class="st-help-row">
+                                                                <span class="st-help st-help-err" role="alert"
+                                                                      x-show="fieldStatus[field.key]?.state === 'error'"
+                                                                      x-text="fieldStatus[field.key]?.message"></span>
+                                                                <button @click="void commitField(row.key, field.key, true)"
+                                                                        class="st-link"
+                                                                        type="button"
+                                                                        x-show="fieldStatus[field.key]?.state === 'error' && fieldStatus[field.key]?.canForce"
+                                                                        x-text="t('Settings_SaveAnyway')"></button>
+                                                                <button @click="void useEnvValue(row.key, field.key)"
+                                                                        class="st-link"
+                                                                        type="button"
+                                                                        x-show="field.isOverridden"
+                                                                        x-text="field.envValue ? t('Settings_UseEnv') : t('Settings_ClearSaved')"></button>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+
+                                                    <!-- Reddit: the subreddits each show is searched in -->
+                                                    <template x-if="row.key === 'reddit'">
+                                                        <div id="reddit-mappings">
+                                                            <div class="st-field">
+                                                                <div class="st-label">
+                                                                    <span class="st-label-text" id="st-your-subreddits" x-text="t('Settings_YourSubreddits')"></span>
+                                                                </div>
+                                                                <div aria-labelledby="st-your-subreddits" class="st-list st-list-inner" role="list">
+                                                                    <template x-if="localMappings().length === 0">
+                                                                        <p class="st-help px-3 py-2" x-text="t('Settings_NoSubreddits')"></p>
+                                                                    </template>
+                                                                    <template :key="'lm-' + entry.index" x-for="entry in localMappings()">
+                                                                        <div class="st-map-row" role="listitem">
+                                                                            <span class="st-map-show" x-text="entry.title ?? '—'"></span>
+                                                                            <span class="st-pills">
+                                                                                <template :key="sub" x-for="sub in entry.subreddits">
+                                                                                    <span class="st-pill" x-text="'r/' + sub"></span>
+                                                                                </template>
+                                                                            </span>
+                                                                            <button :aria-label="t('Settings_RemoveMapping', entry.title ?? '')"
+                                                                                    @click="void deleteLocalMapping(entry.title ?? '')"
+                                                                                    class="st-icon-btn cursor-pointer"
+                                                                                    type="button">
+                                                                                <ion-icon aria-hidden="true" name="close-outline"></ion-icon>
+                                                                            </button>
+                                                                        </div>
+                                                                    </template>
+                                                                </div>
+                                                            </div>
+
+                                                            <!-- Add one: look the show up (for its IMDb ID), then name its subreddits -->
+                                                            <div class="st-field" x-data="{ adding: false }">
+                                                                <button :aria-expanded="adding" @click="adding = !adding" class="st-link" type="button"
+                                                                        x-text="'+ ' + t('Settings_AddSubreddits')"></button>
+                                                                <div class="space-y-2 mt-2" x-show="adding">
+                                                                    <div class="flex gap-2">
+                                                                        <input :aria-label="t('Settings_MappingShow')"
+                                                                               :placeholder="t('Settings_MappingShowPlaceholder')"
+                                                                               @input.debounce.400ms="newMappingImdbId = ''; mappingSearchResults = []; void searchForMapping()"
+                                                                               class="st-input flex-1 min-w-0"
+                                                                               id="new-mapping-title"
+                                                                               type="text"
+                                                                               x-model="newMappingTitle">
+                                                                        <button :aria-label="t('Settings_LookUpShow')"
+                                                                                :disabled="!newMappingTitle.trim() || mappingSearchLoading"
+                                                                                @click="void searchForMapping()"
+                                                                                class="st-btn cursor-pointer disabled:opacity-40"
+                                                                                type="button">
+                                                                            <ion-icon :class="mappingSearchLoading ? 'animate-spin' : ''"
+                                                                                      :name="mappingSearchLoading ? 'sync-outline' : 'search-outline'"
+                                                                                      aria-hidden="true"></ion-icon>
+                                                                        </button>
+                                                                    </div>
+                                                                    <div @click.outside="mappingSearchResults = []" class="space-y-1"
+                                                                         x-show="mappingSearchResults.length > 0">
+                                                                        <template :key="r.imdbId" x-for="r in mappingSearchResults">
+                                                                            <button @click="selectMappingSearchResult(r)"
+                                                                                    class="w-full flex gap-3 items-center p-2 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt"
+                                                                                    type="button">
+                                                                                <img :alt="''" :src="r.posterUrl" class="w-8 h-11 object-cover rounded shrink-0"
+                                                                                     loading="lazy" x-show="r.posterUrl">
+                                                                                <span class="min-w-0">
+                                                                                    <span class="block text-sm font-semibold wb-text-secondary" x-text="r.title"></span>
+                                                                                    <span class="block text-xs wb-text-muted" x-text="r.year + ' · ' + r.type"></span>
+                                                                                </span>
+                                                                            </button>
+                                                                        </template>
+                                                                    </div>
+                                                                    <p class="st-help" x-show="newMappingImdbId" x-text="'IMDb: ' + newMappingImdbId"></p>
+                                                                    <input :aria-label="t('Settings_MappingSubreddits')"
+                                                                           :placeholder="t('Settings_MappingSubredditsPlaceholder')"
+                                                                           @keydown.enter.prevent="void addLocalMapping()"
+                                                                           class="st-input"
+                                                                           id="new-mapping-subreddits"
+                                                                           type="text"
+                                                                           x-model="newMappingSubreddits">
+                                                                    <button :disabled="!newMappingTitle.trim() || !newMappingSubreddits.trim() || mappingSaveStatus === 'saving'"
+                                                                            @click="void addLocalMapping()"
+                                                                            aria-live="polite"
+                                                                            class="st-btn st-btn-primary cursor-pointer disabled:opacity-50"
+                                                                            type="button"
+                                                                            x-text="mappingSaveStatus === 'saving' ? t('Common_Saving') : mappingSaveStatus === 'saved' ? t('Common_Saved') : mappingSaveStatus === 'error' ? t('Common_Error') : t('Settings_Add')"></button>
+                                                                </div>
+                                                            </div>
+
+                                                            <!-- The built-in and imported lists: searched, not listed -->
+                                                            <div class="st-field">
+                                                                <div class="st-label">
+                                                                    <label for="mapping-filter" x-text="t('Settings_OtherLists')"></label>
+                                                                    <span class="st-note" x-text="t('Settings_ShowCount', otherMappingCount())"></span>
+                                                                </div>
+                                                                <input :placeholder="t('Settings_SearchMappings')"
+                                                                       class="st-input"
+                                                                       id="mapping-filter"
+                                                                       type="search"
+                                                                       x-model="mappingFilter">
+                                                                <div class="st-list st-list-inner mt-2" role="list" x-show="matchingMappings().length > 0">
+                                                                    <template :key="m.source.id + '-' + m.entry.index" x-for="m in matchingMappings()">
+                                                                        <div class="st-map-row" role="listitem">
+                                                                            <span class="st-map-show" x-text="m.entry.title ?? '—'"></span>
+                                                                            <span class="st-pills">
+                                                                                <template :key="sub" x-for="sub in m.entry.subreddits">
+                                                                                    <span class="st-pill" x-text="'r/' + sub"></span>
+                                                                                </template>
+                                                                            </span>
+                                                                            <span class="st-tag" x-text="m.source.isBuiltIn ? t('Settings_BuiltIn') : m.source.name"></span>
+                                                                            <button :aria-label="t('Settings_CopyToYours', m.entry.title ?? '')"
+                                                                                    @click="void promoteMappingEntry(m.source.id, m.entry.index)"
+                                                                                    class="st-icon-btn cursor-pointer"
+                                                                                    type="button"
+                                                                                    x-show="!m.source.isBuiltIn">
+                                                                                <ion-icon aria-hidden="true" name="copy-outline"></ion-icon>
+                                                                            </button>
+                                                                        </div>
+                                                                    </template>
+                                                                </div>
+                                                                <p class="st-help" x-show="mappingFilter.trim() && matchingMappings().length === 0"
+                                                                   x-text="t('Settings_NoMappingMatch')"></p>
+                                                                <p class="st-help" x-text="t('Settings_MappingsHelp')"></p>
+                                                            </div>
+
+                                                            <!-- Import and export: closed by default -->
+                                                            <div class="st-advanced" x-data="{ open: false }">
+                                                                <button :aria-expanded="open" @click="open = !open" class="st-disclosure cursor-pointer" type="button">
+                                                                    <ion-icon :name="open ? 'chevron-down-sharp' : 'chevron-forward-sharp'" aria-hidden="true"></ion-icon>
+                                                                    <span x-text="t('Settings_ImportExport')"></span>
+                                                                </button>
+                                                                <div class="space-y-3 mt-2" x-show="open">
+                                                                    <div class="st-list st-list-inner" role="list">
+                                                                        <template :key="'src-' + src.id" x-for="src in mappingSources">
+                                                                            <div class="st-map-row" role="listitem">
+                                                                                <span class="st-map-show" x-text="src.isBuiltIn ? t('Settings_BuiltIn') : src.id === 'local' ? t('Settings_YourSubreddits') : src.name"></span>
+                                                                                <span class="st-tag" x-text="t('Settings_ShowCount', src.entries.length)"></span>
+                                                                                <button :aria-label="(mappingShareCopied === src.id ? t('Common_Copied') : t('Settings_ShareList')) + ': ' + src.name"
+                                                                                        @click="void shareMappingSource(src.id, src.name)"
+                                                                                        class="st-icon-btn cursor-pointer" type="button">
+                                                                                    <ion-icon :name="mappingShareCopied === src.id ? 'checkmark-outline' : 'share-social-outline'" aria-hidden="true"></ion-icon>
+                                                                                </button>
+                                                                                <button :aria-label="t('Settings_ExportList') + ': ' + src.name"
+                                                                                        @click="void exportMappingSource(src.id)"
+                                                                                        class="st-icon-btn cursor-pointer" type="button">
+                                                                                    <ion-icon aria-hidden="true" name="download-outline"></ion-icon>
+                                                                                </button>
+                                                                                <button :aria-label="t('Settings_DeleteList') + ': ' + src.name"
+                                                                                        @click="void deleteMappingSource(src.id)"
+                                                                                        class="st-icon-btn cursor-pointer" type="button"
+                                                                                        x-show="!src.isBuiltIn && src.id !== 'local'">
+                                                                                    <ion-icon aria-hidden="true" name="trash-outline"></ion-icon>
+                                                                                </button>
+                                                                            </div>
+                                                                        </template>
+                                                                    </div>
+                                                                    <input :aria-label="t('Settings_ImportName')"
+                                                                           :placeholder="t('Settings_ImportName')"
+                                                                           class="st-input"
+                                                                           type="text"
+                                                                           x-model="mappingImportName">
+                                                                    <div :class="mappingDropActive ? 'ring-2 ring-[var(--wb-accent)] opacity-75' : ''"
+                                                                         @dragenter.prevent="_dc++; mappingDropActive = true"
+                                                                         @dragleave.prevent="_dc--; if (_dc <= 0) { _dc = 0; mappingDropActive = false; }"
+                                                                         @dragover.prevent
+                                                                         @drop.prevent="_dc = 0; handleMappingFileDrop($event)"
+                                                                         class="relative rounded-lg"
+                                                                         x-data="{ _dc: 0 }">
+                                                                        <textarea :aria-label="t('Settings_ImportJson')"
+                                                                                  class="st-input font-mono resize-y"
+                                                                                  placeholder='{"mappings":[{"title":"My Show","subreddits":["myshow"]}]}'
+                                                                                  rows="3"
+                                                                                  x-model="mappingImportJson"></textarea>
+                                                                    </div>
+                                                                    <p class="st-help" x-text="t('Settings_ImportHelp')"></p>
+                                                                    <button :disabled="!mappingImportJson.trim() || mappingImportStatus === 'saving'"
+                                                                            @click="void importMappingSource()"
+                                                                            aria-live="polite"
+                                                                            class="st-btn cursor-pointer disabled:opacity-50"
+                                                                            type="button"
+                                                                            x-text="mappingImportStatus === 'saving' ? t('Common_Saving') : mappingImportStatus === 'saved' ? t('Settings_Imported') : mappingImportStatus === 'error' ? t('Settings_ImportFailed') : t('Settings_Import')"></button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+
+                                                    <!-- Limits: closed by default -->
+                                                    <template x-if="row.integration.fields.some(f => f.type === 'number')">
+                                                        <div class="st-advanced" x-data="{ open: false }">
+                                                            <button :aria-expanded="open" @click="open = !open" class="st-disclosure cursor-pointer" type="button">
+                                                                <ion-icon :name="open ? 'chevron-down-sharp' : 'chevron-forward-sharp'" aria-hidden="true"></ion-icon>
+                                                                <span x-text="t('Settings_Advanced')"></span>
+                                                                <span class="st-hint" x-show="!open"
+                                                                      x-text="row.integration.fields.filter(f => f.type === 'number').map(f => f.label + ' ' + (f.value || f.placeholder)).join(' · ')"></span>
+                                                            </button>
+                                                            <div class="st-two" x-show="open">
+                                                                <template :key="'n-' + field.key" x-for="field in row.integration.fields.filter(f => f.type === 'number')">
+                                                                    <div class="st-field">
+                                                                        <div class="st-label">
+                                                                            <label :for="'field-' + field.key" x-text="field.label"></label>
+                                                                            <span :class="fieldStatus[field.key]?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="fieldNote(field)"></span>
+                                                                        </div>
+                                                                        <input :class="fieldStatus[field.key]?.state === 'error' ? 'st-input-bad' : ''"
+                                                                               :id="'field-' + field.key"
+                                                                               :placeholder="field.placeholder"
+                                                                               @change="void commitField(row.key, field.key)"
+                                                                               @keydown.enter.prevent="void commitField(row.key, field.key)"
+                                                                               class="st-input"
+                                                                               min="1"
+                                                                               type="number"
+                                                                               x-model="configEdits[field.key]">
+                                                                        <div class="st-help-row">
+                                                                            <span class="st-help st-help-err" role="alert"
+                                                                                  x-show="fieldStatus[field.key]?.state === 'error'"
+                                                                                  x-text="fieldStatus[field.key]?.message"></span>
+                                                                            <button @click="void useEnvValue(row.key, field.key)"
+                                                                                    class="st-link"
+                                                                                    type="button"
+                                                                                    x-show="field.isOverridden"
+                                                                                    x-text="field.envValue ? t('Settings_UseEnv') : t('Settings_UseDefault')"></button>
+                                                                        </div>
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+
+                                                    <template x-if="row.integration.fields.length > 0">
+                                                        <div class="st-detail-foot">
+                                                            <span class="st-help" aria-live="polite"
+                                                                  x-text="testResults[row.key]?.status === 'testing' ? t('Common_Testing') : (testResults[row.key]?.message || '')"></span>
+                                                            <button :disabled="testResults[row.key]?.status === 'testing'"
+                                                                    @click="void testService(row.key)"
+                                                                    class="st-btn st-btn-small cursor-pointer disabled:opacity-50"
+                                                                    type="button"
+                                                                    x-text="t('Config_TestConnection')"></button>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </section>
+                </template>
+
+                <!-- Phone: the other tabs as rows (the tab bar is hidden there) -->
+                <section class="st-more" aria-labelledby="st-group-more">
+                    <div class="st-group-h"><h2 id="st-group-more" x-text="t('Settings_More')"></h2></div>
+                    <div class="st-list">
+                        <template :key="'more-' + tab.id" x-for="tab in settingsTabs.filter(x => x.id !== 'sources')">
+                            <div class="st-row">
+                                <button @click="switchConfigTab(tab.id)" class="st-row-main cursor-pointer" type="button">
+                                    <span class="st-row-text">
+                                        <span class="st-name" x-text="tab.label"></span>
+                                        <span class="st-sub" x-text="tab.sub"></span>
+                                    </span>
+                                    <ion-icon aria-hidden="true" class="st-chev" name="chevron-forward-sharp"></ion-icon>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </section>
+
+                <div class="st-status-line">
+                    <span x-text="t('Settings_AutoSaveNote')"></span>
+                    <button :disabled="testAllStatus === 'testing'"
+                            @click="void testAll()"
+                            aria-live="polite"
+                            class="st-btn st-btn-small cursor-pointer disabled:opacity-50"
+                            type="button"
+                            x-text="testAllStatus === 'testing' ? t('Common_Testing') : testAllStatus === 'ok' ? t('Config_AllConnected') : testAllStatus === 'error' ? t('Config_AllFailed') : testAllStatus === 'warn' ? t('Config_SomeFailed') : t('Config_TestAll')"></button>
+                </div>
+            </div><!-- /sources tab -->
+
+            <!-- ─── Preferences tab: every change saves at once ─── -->
+            <div aria-labelledby="tab-preferences" id="panel-preferences" role="tabpanel" x-show="settingsTab === 'preferences'">
 
                 <!-- Not an admin: the server settings are hidden; theme and language stay. -->
                 <p class="rounded-lg px-3 py-2 mb-4 text-xs leading-relaxed wb-surface-alt wb-border border wb-text-muted"
@@ -825,372 +1185,236 @@
                    x-show="!access.isAdmin"
                    x-text="access.decidedBy === 'group' ? t('Access_ReadOnlyGroup', access.adminGroup) : t('Access_ReadOnly')"></p>
 
-                <div x-show="access.isAdmin">
-                <!-- ═══════════════════ Integrations ═══════════════════ -->
-                <h2 class="text-sm font-semibold wb-text-secondary mb-3" x-text="t('Config_Integrations')"></h2>
-
-                <!-- Disabled providers section -->
-                <div class="mb-4"
-                     x-show="Object.values(configData?.integrations || {}).some(i => i.disabled)"
-                     x-transition:enter="transition ease-out duration-200"
-                     x-transition:enter-start="opacity-0"
-                     x-transition:enter-end="opacity-100"
-                     x-transition:leave="transition ease-in duration-150"
-                     x-transition:leave-start="opacity-100"
-                     x-transition:leave-end="opacity-0">
-                    <button :aria-expanded="!collapsedSections.disabledProviders"
-                            @click="toggleSection('disabledProviders')"
-                            class="w-full flex items-center justify-between gap-2 mb-2 cursor-pointer"
-                            type="button">
-                        <p class="text-xs font-medium wb-text-faint uppercase tracking-wide"
-                           x-text="t('Config_DisabledSection')"></p>
-                        <ion-icon :name="collapsedSections.disabledProviders ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
-                                  aria-hidden="true" class="wb-text-faint shrink-0 pointer-events-none"></ion-icon>
-                    </button>
-                    <div class="space-y-2"
-                         x-show="!collapsedSections.disabledProviders"
-                         x-transition:enter="transition ease-out duration-200"
-                         x-transition:enter-start="opacity-0 -translate-y-2"
-                         x-transition:enter-end="opacity-100 translate-y-0"
-                         x-transition:leave="transition ease-in duration-150"
-                         x-transition:leave-start="opacity-100 translate-y-0"
-                         x-transition:leave-end="opacity-0 -translate-y-2">
-                        <template :key="'dis-' + key"
-                                  x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([,i]) => i.disabled)">
-                            <div x-transition:enter="transition ease-out duration-300 transform-gpu"
-                                 x-transition:enter-start="opacity-0 -translate-y-3"
-                                 x-transition:enter-end="opacity-100 translate-y-0"
-                                 x-transition:leave="transition ease-in duration-200 transform-gpu"
-                                 x-transition:leave-start="opacity-100 translate-y-0"
-                                 x-transition:leave-end="opacity-0 translate-y-3">
-                                <div :data-integration="key"
-                                     :style="'--card-accent: ' + integration.brandColor"
-                                     class="integration-card rounded-xl overflow-hidden opacity-50">
-                                    <div class="w-full flex items-center gap-2 p-4">
-                                        <span :style="'color: ' + integration.brandColor"
-                                              class="integration-logo"
-                                              x-html="sanitizeSvg(integration.logoSvg)"></span>
-                                        <span class="text-sm font-semibold wb-text-secondary grow"
-                                              x-text="integration.name"></span>
-                                        <button :aria-label="t('Config_EnableProvider') + ' ' + integration.name"
-                                                @click="void toggleDisabled(key)"
-                                                class="p-1 rounded wb-text-faint opacity-50 cursor-pointer shrink-0
-                                                       hover:opacity-90 active:scale-95 transition-all duration-150 transform-gpu"
-                                                type="button">
-                                            <ion-icon aria-hidden="true" class="text-base block pointer-events-none" name="power-sharp"></ion-icon>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <!-- Active integrations -->
-                <div x-show="Object.values(configData?.integrations || {}).some(i => i.disabled)"
-                     class="wb-border border-t mb-4"></div>
-                <div class="space-y-3">
-                    <template :key="key"
-                              x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([,i]) => !i.disabled)">
-                        <div :data-integration="key"
-                             :style="'--card-accent: ' + integration.brandColor"
-                             class="integration-card rounded-xl overflow-hidden"
-                             x-transition:enter="transition ease-out duration-300 transform-gpu"
-                             x-transition:enter-start="opacity-0 -translate-y-3"
-                             x-transition:enter-end="opacity-100 translate-y-0"
-                             x-transition:leave="transition ease-in duration-200 transform-gpu"
-                             x-transition:leave-start="opacity-100 translate-y-0"
-                             x-transition:leave-end="opacity-0 -translate-y-3">
-                            <!-- Card header: logo + service name + collapse toggle + disable button -->
-                            <div :class="collapsedSections[key] ? '' : 'pb-3'"
-                                 class="w-full flex items-center justify-between gap-2 p-4">
-                                <button :aria-expanded="!collapsedSections[key]"
-                                        @click="toggleSection(key)"
-                                        class="flex items-center gap-2 cursor-pointer text-left grow min-w-0"
-                                        type="button">
-                                    <ion-icon :name="collapsedSections[key] ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
-                                              aria-hidden="true" class="wb-text-faint shrink-0 pointer-events-none"></ion-icon>
-                                    <span :style="'color: ' + integration.brandColor"
-                                          class="integration-logo"
-                                          x-html="sanitizeSvg(integration.logoSvg)"></span>
-                                    <span class="text-sm font-semibold wb-text-secondary"
-                                          x-text="integration.name"></span>
-                                </button>
-                                <button :aria-label="t('Config_DisableProvider') + ' ' + integration.name"
-                                        @click="void toggleDisabled(key)"
-                                        class="p-1 rounded wb-text-faint opacity-30 cursor-pointer shrink-0
-                                               hover:opacity-70 active:scale-95 transition-all duration-150 transform-gpu"
-                                        type="button">
-                                    <ion-icon aria-hidden="true" class="text-base block pointer-events-none" name="power-sharp"></ion-icon>
-                                </button>
-                            </div>
-                            <!-- Collapsible body: fields + test button -->
-                            <div class="px-4 pb-4"
-                                 x-providerfields="{ mode: 'config', prefix: 'field-' }"
-                                 x-show="!collapsedSections[key]"
-                                 x-transition:enter="transition ease-out duration-150"
-                                 x-transition:enter-end="opacity-100"
-                                 x-transition:enter-start="opacity-0"
-                                 x-transition:leave="transition ease-in duration-100"
-                                 x-transition:leave-end="opacity-0"
-                                 x-transition:leave-start="opacity-100">
-                            </div>
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Save + feature summary -->
-                <div class="wb-border border-t mt-8 pt-5 space-y-3">
-                    <button :class="saveAllStatus === 'saved' ? 'test-ok' : saveAllStatus === 'error' ? 'test-error' : ''"
-                            :disabled="saveAllStatus === 'saving'"
-                            @click="void saveAllConfig()"
-                            aria-live="polite"
-                            class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
-                                   wb-text-muted cursor-pointer disabled:opacity-50 wb-btn
-                                   hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                            x-text="saveAllStatus === 'saving' ? t('Common_Saving') : saveAllStatus === 'saved' ? t('Common_Saved') : saveAllStatus === 'error' ? t('Common_Error') : t('Common_Save')">
-                    </button>
-
-                    <!-- Feature summary -->
-                    <template x-if="configData">
-                        <ul class="space-y-1.5 text-sm wb-text-muted" role="list">
-                            <template
-                                    :key="'feat-' + key"
-                                    x-for="[key, integration] in Object.entries(configData?.integrations || {}).filter(([,i]) => !i.disabled)">
-                                <li class="flex items-start gap-2">
-                    <span :aria-label="integration.name + ': ' + testIcon(key).label" :class="testIcon(key).cls"
-                          class="mt-0.5" role="img"
-                          x-text="testIcon(key).icon">
-                    </span>
-                                    <span>
-                        <template x-if="integration.configured">
-                            <span>
-                                <span x-text="integration.providerTypes && integration.providerTypes.includes('watchState') ? t('Config_WatchData') : t('Config_Posts')"></span>
-                                <span x-text="t('Config_From')"></span>
-                                <strong class="wb-text-secondary"
-                                        x-text="integration.name">
-                                </strong>
-                            </span>
-                        </template>
-                        <template x-if="!integration.configured">
-                            <span class="wb-text-faint" x-text="t('Config_NotConfigured', integration.name)">
-                            </span>
-                        </template>
-                    </span>
-                                </li>
+                <div class="st-group-h"><h2 x-text="t('Settings_Appearance')"></h2></div>
+                <div class="st-list">
+                    <div class="st-pref">
+                        <span class="st-pref-l" id="st-theme-label" x-text="t('Auth_Theme')"></span>
+                        <div aria-labelledby="st-theme-label" class="st-swatches" role="radiogroup">
+                            <template :key="th.id" x-for="th in themes">
+                                <button :aria-checked="theme === th.id"
+                                        :aria-label="th.label"
+                                        :class="theme === th.id ? 'st-swatch-on' : ''"
+                                        :data-theme-swatch="th.id"
+                                        :title="th.label"
+                                        @click="theme = th.id; applyTheme(theme); localStorage.setItem('wb_theme', theme)"
+                                        class="st-swatch cursor-pointer"
+                                        role="radio"
+                                        type="button"></button>
                             </template>
-                            <li class="pt-1">
-                                <button :class="testAllStatus === 'ok' ? 'test-ok' : testAllStatus === 'error' ? 'test-error' : testAllStatus === 'warn' ? 'test-warn' : ''"
-                                        :disabled="testAllStatus === 'testing'"
-                                        @click="void testAll()"
-                                        aria-live="polite"
-                                        class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
-                                               wb-text-muted cursor-pointer disabled:opacity-50 wb-btn
-                                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                        x-text="testAllStatus === 'testing' ? t('Common_Testing') : testAllStatus === 'ok' ? t('Config_AllConnected') : testAllStatus === 'error' ? t('Config_AllFailed') : testAllStatus === 'warn' ? t('Config_SomeFailed') : t('Config_TestAll')">
-                                </button>
-                            </li>
-                        </ul>
-                    </template>
-                </div>
-
-                </div><!-- /admin-only integrations -->
-
-                <!-- ═══════════════════ Preferences ═══════════════════ -->
-                <div :class="access.isAdmin ? 'wb-border border-t mt-5 pt-5' : ''">
-                    <button :aria-expanded="!collapsedSections.preferences" @click="toggleSection('preferences')"
-                            class="w-full flex items-center justify-between gap-2 mb-3 cursor-pointer"
-                            type="button">
-                        <h2 class="text-sm font-semibold wb-text-secondary" x-text="t('Preferences_Title')"></h2>
-                        <ion-icon :name="collapsedSections.preferences ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
-                                  aria-hidden="true" class="wb-text-faint shrink-0">
-                        </ion-icon>
-                    </button>
-
-                    <div class="space-y-4"
-                         x-show="!collapsedSections.preferences"
-                         x-transition:enter="transition ease-out duration-150"
-                         x-transition:enter-end="opacity-100"
-                         x-transition:enter-start="opacity-0"
-                         x-transition:leave="transition ease-in duration-100"
-                         x-transition:leave-end="opacity-0"
-                         x-transition:leave-start="opacity-100">
-                        <div>
-                            <label class="text-xs font-medium wb-text-muted block mb-1"
-                                   x-text="t('Auth_Theme')"></label>
+                        </div>
+                    </div>
+                    <template x-if="supportedLocales.length > 1">
+                        <div class="st-pref">
+                            <label class="st-pref-l" for="pref-language" x-text="t('Preferences_Language')"></label>
                             <div class="wb-select-wrap">
-                                <select :aria-label="t('Auth_Theme')"
-                                        @change="theme = $event.target.value; applyTheme(theme); localStorage.setItem('wb_theme', theme)"
-                                        class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border">
-                                    <template :key="th.id" x-for="th in themes">
-                                        <option :selected="theme === th.id" :value="th.id" x-text="th.label"></option>
+                                <select class="wb-select st-input st-select" id="pref-language" x-model="locale">
+                                    <template :key="loc" x-for="loc in supportedLocales">
+                                        <option :value="loc" x-text="(window._allStrings[loc] || {})['Locale_NativeName'] || loc.toUpperCase()"></option>
                                     </template>
                                 </select>
                             </div>
                         </div>
-
-                        <template x-if="supportedLocales.length > 1">
-                            <div>
-                                <label class="text-xs font-medium wb-text-muted block mb-1"
-                                       x-text="t('Preferences_Language')"></label>
-                                <div class="wb-select-wrap">
-                                    <select :aria-label="t('Preferences_Language')"
-                                            class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                            x-model="locale">
-                                        <template :key="loc" x-for="loc in supportedLocales">
-                                            <option :value="loc"
-                                                    x-text="(window._allStrings[loc] || {})['Locale_NativeName'] || loc.toUpperCase()"></option>
-                                        </template>
-                                    </select>
-                                </div>
-                            </div>
-                        </template>
-
-                        <template x-if="access.isAdmin && (configData?.preferences?.watchProviders || []).length > 0">
-                            <div>
-                                <div class="flex justify-between mb-1">
-                                    <label class="text-xs font-medium wb-text-muted"
-                                           x-text="t('Preferences_WatchProvider')"></label>
-                                    <button :title="configData?.preferences?.envValues?.['WatchBack__WatchProvider'] ? t('Config_ResetTo', configData.preferences.envValues['WatchBack__WatchProvider']) : t('Config_ClearOverride')"
-                                            @click="void resetConfigKeys(['WatchBack__WatchProvider'])"
-                                            class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none"
-                                            type="button"
-                                            x-show="configData?.preferences?.overrides?.['WatchBack__WatchProvider']">
-                                        ↺
-                                    </button>
-                                </div>
-                                <div class="wb-select-wrap">
-                                    <select :aria-label="t('Preferences_WatchProvider')"
-                                            class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                            x-model="prefEdits.watchProvider">
-                                        <template :key="wp.value" x-for="wp in configData.preferences.watchProviders">
-                                            <option :value="wp.value" x-text="wp.label"></option>
-                                        </template>
-                                    </select>
-                                </div>
-                            </div>
-                        </template>
-
-                        <div x-show="access.isAdmin">
-                            <div class="flex justify-between mb-1">
-                                <label class="text-xs font-medium wb-text-muted" for="time-machine-days"
-                                       x-text="t('Preferences_TimeMachineWindow')"></label>
-                                <button :title="configData?.preferences?.envValues?.['WatchBack__TimeMachineDays'] ? t('Config_ResetTo', configData.preferences.envValues['WatchBack__TimeMachineDays']) : t('Config_ClearOverride')"
-                                        @click="void resetConfigKeys(['WatchBack__TimeMachineDays'])"
-                                        class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none"
-                                        type="button"
-                                        x-show="configData?.preferences?.overrides?.['WatchBack__TimeMachineDays']">
-                                    ↺
-                                </button>
-                            </div>
-                            <input class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                   id="time-machine-days" max="365" min="1"
-                                   type="number"
-                                   x-model.number="prefEdits.timeMachineDays">
+                    </template>
+                    <div class="st-pref" x-show="access.isAdmin">
+                        <div>
+                            <label class="st-pref-l cursor-pointer" for="segmented-bar-toggle" x-text="t('Preferences_SegmentedProgressBar')"></label>
+                            <p class="st-pref-s" x-text="t('Settings_SegmentedHelp')"></p>
                         </div>
-
-                        <div x-show="access.isAdmin">
-                            <div class="flex justify-between mb-1">
-                                <label class="text-xs font-medium wb-text-muted"
-                                       x-text="t('Preferences_RedditSearchEngine')"></label>
-                                <button :title="configData?.preferences?.envValues?.['WatchBack__SearchEngine'] ? t('Config_ResetTo', configData.preferences.envValues['WatchBack__SearchEngine']) : t('Config_ClearOverride')"
-                                        @click="void resetConfigKeys(['WatchBack__SearchEngine', 'WatchBack__CustomSearchUrl'])"
-                                        class="text-xs wb-text-faint hover:wb-text-muted cursor-pointer leading-none"
-                                        type="button"
-                                        x-show="configData?.preferences?.overrides?.['WatchBack__SearchEngine']">
-                                    ↺
-                                </button>
-                            </div>
-                            <div class="wb-select-wrap">
-                                <select :aria-label="t('Preferences_RedditSearchEngine')"
-                                        class="wb-select w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                        x-model="prefEdits.searchEngine">
-                                    <option value="google">Google</option>
-                                    <option value="duckduckgo">DuckDuckGo</option>
-                                    <option value="bing">Bing</option>
-                                    <option value="custom" x-text="t('Preferences_CustomOption')"></option>
-                                </select>
-                            </div>
-                            <div class="mt-2" x-show="prefEdits.searchEngine === 'custom'">
-                                <input :aria-label="t('Preferences_CustomSearchUrlHelp')"
-                                       class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                       id="custom-search-url"
-                                       placeholder="https://example.com/search?q="
-                                       type="url"
-                                       x-model="prefEdits.customSearchUrl">
-                                <p class="text-xs wb-text-faint mt-1" x-text="t('Preferences_CustomSearchUrlHelp')"></p>
-                            </div>
-                        </div>
-
-                        <!-- Segmented progress bar toggle -->
-                        <div class="flex items-center justify-between py-1" x-show="access.isAdmin">
-                            <label class="text-xs font-medium wb-text-muted cursor-pointer" for="segmented-bar-toggle"
-                                   x-text="t('Preferences_SegmentedProgressBar')"></label>
+                        <span class="st-pref-ctl">
+                            <span :class="fieldStatus['WatchBack__SegmentedProgressBar']?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="prefNote('WatchBack__SegmentedProgressBar')"></span>
                             <label class="switch-container">
-                                <input :aria-label="t('Preferences_SegmentedProgressBar')"
-                                       :checked="prefEdits.segmentedProgressBar"
-                                       @change="prefEdits.segmentedProgressBar = $event.target.checked"
+                                <input :checked="prefEdits.segmentedProgressBar"
+                                       @change="void setPreferenceSwitch('segmentedProgressBar', $event.target.checked)"
                                        class="switch-input"
                                        id="segmented-bar-toggle"
                                        type="checkbox">
                                 <span class="switch-slider"></span>
                             </label>
-                        </div>
+                        </span>
+                    </div>
+                </div>
 
-                        <!-- Sentiment analysis toggle -->
-                        <div class="flex items-center justify-between py-1" x-show="access.isAdmin">
-                            <label class="text-xs font-medium wb-text-muted cursor-pointer"
-                                   for="pref-sentiment"
-                                   x-text="t('Preferences_SentimentAnalysis')"></label>
+                <div class="st-group-h"><h2 x-text="t('Settings_DiscussionGroup')"></h2></div>
+                <div class="st-list">
+                    <div class="st-pref" x-show="access.isAdmin">
+                        <div>
+                            <label class="st-pref-l" for="time-machine-days" x-text="t('Preferences_TimeMachineWindow')"></label>
+                            <p class="st-pref-s" x-text="t('Settings_TimeMachineHelp')"></p>
+                            <p class="st-help st-help-err" role="alert"
+                               x-show="fieldStatus['WatchBack__TimeMachineDays']?.state === 'error'"
+                               x-text="fieldStatus['WatchBack__TimeMachineDays']?.message"></p>
+                        </div>
+                        <span class="st-pref-ctl">
+                            <span :class="fieldStatus['WatchBack__TimeMachineDays']?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="prefNote('WatchBack__TimeMachineDays')"></span>
+                            <span class="st-days">
+                                <input @change="void commitTimeMachine()"
+                                       @keydown.enter.prevent="void commitTimeMachine()"
+                                       class="st-input"
+                                       id="time-machine-days" max="365" min="1"
+                                       type="number"
+                                       x-model.number="prefEdits.timeMachineDays">
+                                <span aria-hidden="true" x-text="t('Settings_Days')"></span>
+                            </span>
+                        </span>
+                    </div>
+                    <div class="st-pref" x-show="access.isAdmin">
+                        <div>
+                            <label class="st-pref-l cursor-pointer" for="pref-sentiment" x-text="t('Preferences_SentimentAnalysis')"></label>
+                            <p class="st-pref-s" x-text="t('Settings_SentimentHelp')"></p>
+                        </div>
+                        <span class="st-pref-ctl">
+                            <span :class="fieldStatus['WatchBack__EnableSentimentAnalysis']?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="prefNote('WatchBack__EnableSentimentAnalysis')"></span>
                             <label class="switch-container">
-                                <input :aria-label="t('Preferences_SentimentAnalysis')"
-                                       :checked="prefEdits.enableSentimentAnalysis"
-                                       @change="prefEdits.enableSentimentAnalysis = $event.target.checked; if (!$event.target.checked) sentimentCategory = 'all'"
+                                <input :checked="prefEdits.enableSentimentAnalysis"
+                                       @change="void setPreferenceSwitch('enableSentimentAnalysis', $event.target.checked); if (!$event.target.checked) sentimentCategory = 'all'"
                                        class="switch-input"
                                        id="pref-sentiment"
                                        type="checkbox">
                                 <span class="switch-slider"></span>
                             </label>
-                        </div>
-
-                        <!-- Always show manual search toggle (localStorage only — no server save needed) -->
-                        <div class="flex items-center justify-between py-1">
-                            <label class="text-xs font-medium wb-text-muted cursor-pointer"
-                                   for="always-show-search-toggle"
-                                   x-text="t('Preferences_AlwaysShowSearch')"></label>
-                            <label class="switch-container">
-                                <input :aria-label="t('Preferences_AlwaysShowSearch')" :checked="alwaysShowSearch"
-                                       @change="toggleAlwaysShowSearch()"
-                                       class="switch-input"
-                                       id="always-show-search-toggle"
-                                       type="checkbox">
-                                <span class="switch-slider"></span>
-                            </label>
-                        </div>
-
-                        <button :class="prefSaveStatus === 'saved' ? 'test-ok' : prefSaveStatus === 'error' ? 'test-error' : 'wb-text-muted'"
-                                :disabled="prefSaveStatus === 'saving'"
-                                @click="void savePreferences()"
-                                aria-live="polite"
-                                x-show="access.isAdmin"
-                                class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
-                                       cursor-pointer disabled:opacity-50 wb-btn
-                                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                x-text="prefSaveStatus === 'saving' ? t('Common_Saving') : prefSaveStatus === 'saved' ? t('Common_Saved') : prefSaveStatus === 'error' ? t('Common_Error') : t('Preferences_SavePreferences')">
-                        </button>
+                        </span>
+                    </div>
+                    <!-- Kept in this browser only: no server save -->
+                    <div class="st-pref">
+                        <label class="st-pref-l cursor-pointer" for="always-show-search-toggle" x-text="t('Preferences_AlwaysShowSearch')"></label>
+                        <label class="switch-container">
+                            <input :checked="alwaysShowSearch"
+                                   @change="toggleAlwaysShowSearch()"
+                                   class="switch-input"
+                                   id="always-show-search-toggle"
+                                   type="checkbox">
+                            <span class="switch-slider"></span>
+                        </label>
                     </div>
                 </div>
 
-                <!-- ═══════════════════ Admins ═══════════════════ -->
-                <div class="wb-border border-t mt-5 pt-5" id="admins-section"
-                     x-show="access.isAdmin && (access.decidedBy === 'group' || watchUsers.length > 1)">
-                    <h2 class="text-sm font-semibold wb-text-secondary mb-1" x-text="t('Access_AdminsTitle')"></h2>
-                    <p class="text-xs wb-text-faint mb-3 leading-relaxed"
-                       x-text="access.decidedBy === 'group' ? t('Access_AdminsByGroup', access.adminGroup) : t('Access_AdminsHelp')"></p>
-                    <ul class="space-y-1" x-show="access.decidedBy !== 'group'">
+                <template x-if="access.isAdmin">
+                    <div>
+                        <div class="st-group-h"><h2 id="st-search-label" x-text="t('Preferences_RedditSearchEngine')"></h2></div>
+                        <div class="st-list">
+                            <div class="st-pref">
+                                <div aria-labelledby="st-search-label" class="st-seg" role="radiogroup">
+                                    <template :key="eng.id" x-for="eng in [{ id: 'google', label: 'Google' }, { id: 'duckduckgo', label: 'DuckDuckGo' }, { id: 'bing', label: 'Bing' }, { id: 'custom', label: t('Preferences_CustomOption') }]">
+                                        <button :aria-checked="prefEdits.searchEngine === eng.id"
+                                                :class="prefEdits.searchEngine === eng.id ? 'st-seg-on' : ''"
+                                                @click="void setSearchEngine(eng.id)"
+                                                class="cursor-pointer"
+                                                role="radio"
+                                                type="button"
+                                                x-text="eng.label"></button>
+                                    </template>
+                                </div>
+                                <span :class="fieldStatus['WatchBack__SearchEngine']?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="prefNote('WatchBack__SearchEngine')"></span>
+                            </div>
+                            <div class="st-pref st-pref-stack" x-show="prefEdits.searchEngine === 'custom'">
+                                <label class="st-pref-l" for="custom-search-url" x-text="t('Preferences_CustomSearchUrlHelp')"></label>
+                                <input @change="void commitCustomSearchUrl()"
+                                       @keydown.enter.prevent="void commitCustomSearchUrl()"
+                                       class="st-input"
+                                       id="custom-search-url"
+                                       placeholder="https://example.com/search?q="
+                                       type="url"
+                                       x-model="prefEdits.customSearchUrl">
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <p class="st-footnote" x-text="access.isAdmin ? t('Settings_PrefsSaveNote') : t('Settings_PrefsLocalNote')"></p>
+            </div><!-- /preferences tab -->
+
+            <!-- ─── Security tab: sign-in, forward auth, admins and API keys ─── -->
+            <div aria-labelledby="tab-security" id="panel-security" role="tabpanel" x-show="settingsTab === 'security'">
+
+                <template x-if="currentUser?.authMethod !== 'forwardAuth'">
+                    <div>
+                        <div class="st-group-h"><h2 x-text="t('Settings_Account')"></h2></div>
+                        <div class="st-list">
+                            <div class="st-pref">
+                                <div>
+                                    <p class="st-pref-l" x-text="t('DangerZone_ResetPasswordTitle')"></p>
+                                    <p class="st-pref-s" x-text="t('DangerZone_ResetPasswordHelp')"></p>
+                                </div>
+                                <button :disabled="resetPasswordStatus === 'loading'"
+                                        @click="void resetPassword()"
+                                        aria-live="polite"
+                                        class="st-btn st-btn-small st-btn-danger cursor-pointer disabled:opacity-50 shrink-0"
+                                        type="button"
+                                        x-text="resetPasswordStatus === 'loading' ? t('Common_Resetting') : resetPasswordStatus === 'ok' ? t('DangerZone_ResetPasswordDone') : resetPasswordStatus === 'error' ? t('Common_Error') : t('DangerZone_ResetPassword')"></button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Forward auth: saved with a button, because a wrong value can lock you out -->
+                <div class="st-group-h">
+                    <h2 x-text="t('DangerZone_ForwardAuth')"></h2>
+                    <span class="st-hint" x-text="t('Settings_ForwardAuthHint')"></span>
+                </div>
+                <div class="st-list">
+                    <div class="st-pref">
+                        <div>
+                            <label class="st-pref-l cursor-pointer" for="forward-auth-toggle" x-text="t('DangerZone_EnableForwardAuth')"></label>
+                            <p class="st-pref-s" x-text="t('DangerZone_ForwardAuthHelp')"></p>
+                        </div>
+                        <label class="switch-container">
+                            <input :checked="forwardAuthEnabled"
+                                   @change="forwardAuthEnabled = $event.target.checked"
+                                   class="switch-input"
+                                   id="forward-auth-toggle"
+                                   type="checkbox">
+                            <span class="switch-slider"></span>
+                        </label>
+                    </div>
+                    <template x-if="forwardAuthEnabled">
+                        <div class="st-detail">
+                            <div class="st-two">
+                                <div class="st-field">
+                                    <div class="st-label"><label for="forward-auth-header" x-text="t('DangerZone_HeaderName')"></label></div>
+                                    <input class="st-input" id="forward-auth-header" placeholder="X-Remote-User" type="text" x-model="forwardAuthHeaderEdit">
+                                </div>
+                                <div class="st-field">
+                                    <div class="st-label"><label for="forward-auth-trusted-host" x-text="t('DangerZone_TrustedHost')"></label></div>
+                                    <input class="st-input" id="forward-auth-trusted-host" placeholder="192.168.1.1" type="text" x-model="forwardAuthTrustedHostEdit">
+                                </div>
+                            </div>
+                            <p class="st-help" x-text="t('DangerZone_TrustedHostHelp')"></p>
+                            <div class="st-two">
+                                <div class="st-field">
+                                    <div class="st-label"><label for="forward-auth-groups-header" x-text="t('DangerZone_GroupsHeader')"></label></div>
+                                    <input class="st-input" id="forward-auth-groups-header" placeholder="Remote-Groups" type="text" x-model="forwardAuthGroupsHeaderEdit">
+                                </div>
+                                <div class="st-field">
+                                    <div class="st-label"><label for="forward-auth-admin-group" x-text="t('DangerZone_AdminGroup')"></label></div>
+                                    <input class="st-input" id="forward-auth-admin-group" placeholder="admins" type="text" x-model="forwardAuthAdminGroupEdit">
+                                </div>
+                            </div>
+                            <p class="st-help" x-text="t('DangerZone_GroupsHelp', 'Authelia', 'Remote-Groups')"></p>
+                        </div>
+                    </template>
+                </div>
+                <div class="st-callout st-callout-warn" x-show="forwardAuthEnabled" x-text="t('DangerZone_ForwardAuthWarning')"></div>
+                <div class="st-status-line">
+                    <span class="st-help st-help-err" id="forward-auth-error" role="alert"
+                          x-show="forwardAuthError" x-text="forwardAuthError"></span>
+                    <span x-show="!forwardAuthError" x-text="t('Settings_ForwardAuthSaveNote')"></span>
+                    <button :aria-describedby="forwardAuthError ? 'forward-auth-error' : null"
+                            :disabled="forwardAuthSaveStatus === 'saving'"
+                            @click="void saveForwardAuth()"
+                            aria-live="polite"
+                            class="st-btn st-btn-small st-btn-primary cursor-pointer disabled:opacity-50"
+                            type="button"
+                            x-text="forwardAuthSaveStatus === 'saving' ? t('Common_Saving') : forwardAuthSaveStatus === 'saved' ? t('Common_Saved') : forwardAuthSaveStatus === 'error' ? t('Common_Error') : t('Settings_SaveForwardAuth')"></button>
+                </div>
+
+                <!-- Admins -->
+                <div id="admins-section" x-show="access.decidedBy === 'group' || watchUsers.length > 1">
+                    <div class="st-group-h"><h2 x-text="t('Access_AdminsTitle')"></h2></div>
+                    <p class="st-help mb-2" x-text="access.decidedBy === 'group' ? t('Access_AdminsByGroup', access.adminGroup) : t('Access_AdminsHelp')"></p>
+                    <div class="st-list" x-show="access.decidedBy !== 'group'">
                         <template :key="u.id" x-for="u in watchUsers">
-                            <li class="flex items-center justify-between py-1">
-                                <label :for="'admin-' + u.id" class="text-xs font-medium wb-text-muted cursor-pointer">
+                            <div class="st-pref">
+                                <label :for="'admin-' + u.id" class="st-pref-l cursor-pointer">
                                     <span x-text="u.name"></span>
                                     <span class="wb-text-faint" x-show="u.id === watchUserId" x-text="' ' + t('Access_You')"></span>
                                 </label>
@@ -1204,186 +1428,66 @@
                                            type="checkbox">
                                     <span class="switch-slider"></span>
                                 </label>
-                            </li>
+                            </div>
                         </template>
-                    </ul>
-                    <p class="text-xs mt-2" role="alert" style="color:var(--wb-error-text)"
-                       x-show="adminSaveError" x-text="adminSaveError"></p>
+                    </div>
+                    <p class="st-help st-help-err mt-2" role="alert" x-show="adminSaveError" x-text="adminSaveError"></p>
                 </div>
 
-                <!-- ═══════════════════ Danger zone ═══════════════════ -->
-                <div class="mt-5 rounded-xl overflow-hidden" style="border:1px solid var(--wb-error-border)" x-show="access.isAdmin">
-                    <button :aria-expanded="!collapsedSections.dangerZone"
-                            :style="collapsedSections.dangerZone ? '' : 'border-bottom:1px solid var(--wb-error-border)'"
-                            @click="toggleSection('dangerZone')"
-                            class="w-full flex items-center justify-between gap-2 px-4 py-2.5 cursor-pointer"
-                            style="background:var(--wb-error-bg)"
-                            type="button">
-                        <h2 class="text-xs font-semibold" style="color:var(--wb-error-text)"
-                            x-text="t('DangerZone_Title')"></h2>
-                        <ion-icon :name="collapsedSections.dangerZone ? 'chevron-forward-sharp' : 'chevron-down-sharp'"
-                                  aria-hidden="true" class="shrink-0" style="color:var(--wb-error-text)">
-                        </ion-icon>
-                    </button>
-                    <div class="p-3 grid grid-cols-2 gap-3"
-                         x-show="!collapsedSections.dangerZone"
-                         x-transition:enter="transition ease-out duration-150"
-                         x-transition:enter-end="opacity-100"
-                         x-transition:enter-start="opacity-0"
-                         x-transition:leave="transition ease-in duration-100"
-                         x-transition:leave-end="opacity-0"
-                         x-transition:leave-start="opacity-100">
-
-                        <!-- Reset password card (hidden for forward auth users) -->
-                        <template x-if="currentUser?.authMethod !== 'forwardAuth'">
-                            <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
-                                <div>
-                                    <p class="text-xs font-semibold wb-text-secondary"
-                                       x-text="t('DangerZone_ResetPasswordTitle')"></p>
-                                    <p class="text-xs wb-text-faint mt-1 leading-relaxed"
-                                       x-text="t('DangerZone_ResetPasswordHelp')"></p>
-                                </div>
-                                <button :class="resetPasswordStatus === 'ok' ? 'test-ok' : resetPasswordStatus === 'error' ? 'test-error' : ''"
-                                        :disabled="resetPasswordStatus === 'loading'"
-                                        @click="void resetPassword()"
-                                        aria-live="polite"
-                                        class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer
-                                               disabled:opacity-50 wb-btn
-                                               hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                        style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
-                                        x-text="resetPasswordStatus === 'loading' ? t('Common_Resetting') : resetPasswordStatus === 'ok' ? t('DangerZone_ResetPasswordDone') : resetPasswordStatus === 'error' ? t('Common_Error') : t('DangerZone_ResetPassword')">
-                                </button>
-                            </div>
-                        </template>
-
-                        <!-- Clear cache card -->
-                        <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
-                            <div>
-                                <p class="text-xs font-semibold wb-text-secondary"
-                                   x-text="t('DangerZone_ClearCacheTitle')"></p>
-                                <p class="text-xs wb-text-faint mt-1 leading-relaxed"
-                                   x-text="t('DangerZone_ClearCacheHelp')"></p>
-                            </div>
-                            <button :class="clearCacheStatus === 'ok' ? 'test-ok' : clearCacheStatus === 'error' ? 'test-error' : ''"
-                                    :disabled="clearCacheStatus === 'loading'"
-                                    @click="void clearCache()"
-                                    aria-live="polite"
-                                    class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer
-                                           disabled:opacity-50 wb-btn
-                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                    style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
-                                    x-text="clearCacheStatus === 'loading' ? t('Common_Clearing') : clearCacheStatus === 'ok' ? t('Common_Cleared') : clearCacheStatus === 'error' ? t('Common_Error') : t('DangerZone_ClearCache')">
-                            </button>
+                <!-- API keys -->
+                <div class="st-group-h"><h2 x-text="t('Mcp_ApiKeys')"></h2></div>
+                <p class="st-help mb-2" x-text="t('Mcp_Help')"></p>
+                <template x-if="newlyGeneratedKey">
+                    <div class="st-callout st-callout-ok space-y-2 mb-3">
+                        <p class="font-medium" x-text="t('Mcp_KeyReady')"></p>
+                        <code class="block font-mono break-all wb-text-secondary" x-text="newlyGeneratedKey"></code>
+                        <div class="flex gap-2">
+                            <button @click="void copyApiKey(newlyGeneratedKey)" class="st-btn st-btn-small cursor-pointer" type="button"
+                                    x-text="apiKeyCopied ? t('Mcp_Copied') : t('Mcp_CopyKey')"></button>
+                            <button @click="dismissGeneratedKey()" class="st-btn st-btn-small cursor-pointer" type="button"
+                                    x-text="t('Mcp_Dismiss')"></button>
                         </div>
-
-                        <!-- Restart card -->
-                        <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
-                            <div>
-                                <p class="text-xs font-semibold wb-text-secondary" x-text="t('DangerZone_Restart')"></p>
-                                <p class="text-xs wb-text-faint mt-1 leading-relaxed"
-                                   x-text="t('DangerZone_RestartHelp')"></p>
+                    </div>
+                </template>
+                <div class="st-list">
+                    <template x-if="!apiKeys.length && !newlyGeneratedKey">
+                        <p class="st-help px-3 py-3" x-text="t('Mcp_NoKeys')"></p>
+                    </template>
+                    <template :key="key.id" x-for="key in apiKeys">
+                        <div class="st-pref">
+                            <div class="min-w-0">
+                                <p class="st-pref-l truncate" x-text="key.name"></p>
+                                <p class="st-pref-s font-mono">
+                                    <span x-text="key.prefix + '…'"></span> · <span x-text="t('Mcp_CreatedOn')"></span> <span x-text="formatDate(key.createdAt)"></span>
+                                </p>
                             </div>
-                            <button @click="void restart()"
-                                    aria-live="polite"
-                                    class="mt-auto w-full py-2 rounded-lg text-xs
-                                           font-medium cursor-pointer wb-btn
-                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                    style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
-                                    x-text="t('DangerZone_Restart')">
-                            </button>
+                            <button :aria-label="t('Mcp_Revoke') + ' ' + key.name"
+                                    @click="void revokeApiKey(key.id)"
+                                    class="st-btn st-btn-small st-btn-danger cursor-pointer shrink-0"
+                                    type="button"
+                                    x-text="t('Mcp_Revoke')"></button>
                         </div>
-
-                        <!-- Forward auth card -->
-                        <div class="rounded-lg p-3 flex flex-col gap-3 wb-border border">
-                            <div>
-                                <p class="text-xs font-semibold wb-text-secondary"
-                                   x-text="t('DangerZone_ForwardAuth')"></p>
-                                <p class="text-xs wb-text-faint mt-1 leading-relaxed"
-                                   x-text="t('DangerZone_ForwardAuthHelp')"></p>
-                            </div>
-                            <label class="switch-container">
-                                <input :aria-label="t('DangerZone_EnableForwardAuth')" :checked="forwardAuthEnabled"
-                                       @change="forwardAuthEnabled = $event.target.checked"
-                                       class="switch-input"
-                                       id="forward-auth-toggle"
-                                       type="checkbox">
-                                <span class="switch-slider"></span>
-                            </label>
-                            <template x-if="forwardAuthEnabled">
-                                <div class="space-y-2">
-                                    <div>
-                                        <label class="text-xs font-medium wb-text-muted block mb-1"
-                                               for="forward-auth-header"
-                                               x-text="t('DangerZone_HeaderName')">
-                                        </label>
-                                        <input class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                               id="forward-auth-header" placeholder="X-Remote-User"
-                                               type="text"
-                                               x-model="forwardAuthHeaderEdit">
-                                    </div>
-                                    <div>
-                                        <label class="text-xs font-medium wb-text-muted block mb-1"
-                                               for="forward-auth-trusted-host"
-                                               x-text="t('DangerZone_TrustedHost')">
-                                        </label>
-                                        <input class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                               id="forward-auth-trusted-host"
-                                               placeholder="192.168.1.1"
-                                               type="text"
-                                               x-model="forwardAuthTrustedHostEdit">
-                                        <p class="text-xs wb-text-faint mt-1"
-                                           x-text="t('DangerZone_TrustedHostHelp')"></p>
-                                    </div>
-                                    <div>
-                                        <label class="text-xs font-medium wb-text-muted block mb-1"
-                                               for="forward-auth-groups-header"
-                                               x-text="t('DangerZone_GroupsHeader')">
-                                        </label>
-                                        <input class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                               id="forward-auth-groups-header" placeholder="Remote-Groups"
-                                               type="text"
-                                               x-model="forwardAuthGroupsHeaderEdit">
-                                    </div>
-                                    <div>
-                                        <label class="text-xs font-medium wb-text-muted block mb-1"
-                                               for="forward-auth-admin-group"
-                                               x-text="t('DangerZone_AdminGroup')">
-                                        </label>
-                                        <input class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                               id="forward-auth-admin-group" placeholder="admins"
-                                               type="text"
-                                               x-model="forwardAuthAdminGroupEdit">
-                                        <p class="text-xs wb-text-faint mt-1"
-                                           x-text="t('DangerZone_GroupsHelp', 'Authelia', 'Remote-Groups')"></p>
-                                    </div>
-                                    <div class="rounded-lg px-3 py-2 text-xs leading-relaxed"
-                                         style="background:var(--wb-error-bg);color:var(--wb-error-text);border:1px solid var(--wb-error-border)">
-                                        <span x-text="t('DangerZone_ForwardAuthWarning')"></span>
-                                    </div>
-                                </div>
-                            </template>
-                            <button :class="forwardAuthSaveStatus === 'saved' ? 'test-ok' : forwardAuthSaveStatus === 'error' ? 'test-error' : ''"
-                                    :disabled="forwardAuthSaveStatus === 'saving'"
-                                    @click="void saveForwardAuth()"
-                                    aria-live="polite"
-                                    :aria-describedby="forwardAuthError ? 'forward-auth-error' : null"
-                                    class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer
-                                           disabled:opacity-50 wb-btn
-                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                    style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
-                                    x-text="forwardAuthSaveStatus === 'saving' ? t('Common_Saving') : forwardAuthSaveStatus === 'saved' ? t('Common_Saved') : forwardAuthSaveStatus === 'error' ? t('Common_Error') : t('Common_Save')">
-                            </button>
-                            <p class="text-xs" id="forward-auth-error" role="alert" style="color:var(--wb-error-text)"
-                               x-show="forwardAuthError" x-text="forwardAuthError"></p>
-                        </div>
-
+                    </template>
+                    <div class="st-pref">
+                        <input :aria-label="t('Mcp_KeyName')"
+                               :placeholder="t('Mcp_KeyNamePlaceholder')"
+                               @keydown.enter="void generateApiKey()"
+                               class="st-input flex-1 min-w-0"
+                               id="new-api-key-name"
+                               type="text"
+                               x-model="newApiKeyName">
+                        <button :disabled="!newApiKeyName.trim() || apiKeySaveStatus === 'saving'"
+                                @click="void generateApiKey()"
+                                aria-live="polite"
+                                class="st-btn st-btn-small st-btn-primary cursor-pointer disabled:opacity-50 shrink-0"
+                                type="button"
+                                x-text="apiKeySaveStatus === 'saving' ? t('Common_Saving') : apiKeySaveStatus === 'error' ? t('Common_Error') : t('Mcp_Generate')"></button>
                     </div>
                 </div>
-
-            </div><!-- /settings tab -->
+            </div><!-- /security tab -->
 
             <!-- ─── Diagnostics tab ─── -->
-            <div :aria-label="t('Nav_Diagnostics')" aria-labelledby="tab-diagnostics" id="panel-diagnostics" role="tabpanel" x-show="configTab === 'diagnostics'">
+            <div aria-labelledby="tab-diagnostics" id="panel-diagnostics" role="tabpanel" x-show="settingsTab === 'diagnostics'">
 
                 <!-- Last sync status -->
                 <div class="mb-5">
@@ -1567,303 +1671,39 @@
                     </div>
                 </div>
 
-            </div><!-- /diagnostics tab -->
 
-            <!-- ─── Subreddit Mappings tab ─── -->
-            <div aria-labelledby="tab-mappings" id="panel-mappings" role="tabpanel" x-show="configTab === 'mappings'">
-                <div class="space-y-4">
-
-                    <!-- Add local entry form -->
-                    <div class="space-y-2">
-                        <p class="text-xs font-medium wb-text-muted">Add mapping</p>
-
-                        <!-- Title + search button -->
-                        <div class="flex gap-2">
-                            <input class="flex-1 min-w-0 wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                                   placeholder="Show title (e.g. Saturday Night Live)"
-                                   type="text"
-                                   @input.debounce.400ms="newMappingImdbId = ''; mappingSearchResults = []; void searchForMapping()"
-                                   x-model="newMappingTitle">
-                            <button :disabled="!newMappingTitle.trim() || mappingSearchLoading"
-                                    @click="void searchForMapping()"
-                                    class="shrink-0 px-2.5 py-2 rounded-lg wb-border border wb-surface-alt wb-text-muted
-                                           cursor-pointer disabled:opacity-40 wb-btn
-                                           hover:scale-[1.02] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                    title="Look up show"
-                                    type="button">
-                                <ion-icon :name="mappingSearchLoading ? 'sync-outline' : 'search-outline'"
-                                          :class="mappingSearchLoading ? 'animate-spin' : ''"
-                                          aria-hidden="true">
-                                </ion-icon>
-                            </button>
-                        </div>
-
-                        <!-- Search results dropdown -->
-                        <div class="space-y-1"
-                             @click.outside="mappingSearchResults = []"
-                             x-show="mappingSearchResults.length > 0">
-                            <template :key="r.imdbId" x-for="r in mappingSearchResults">
-                                <button @click="selectMappingSearchResult(r)"
-                                        class="w-full flex gap-3 items-start p-3 rounded-lg wb-surface wb-border border text-left cursor-pointer hover:wb-surface-alt wb-btn hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                        type="button">
-                                    <img :alt="r.title + ' poster'" :src="r.posterUrl"
-                                         class="w-10 h-14 object-cover rounded shrink-0 bg-gray-800"
-                                         loading="lazy" x-show="r.posterUrl">
-                                    <div class="w-10 h-14 rounded shrink-0 flex items-center justify-center wb-surface-alt wb-border border"
-                                         x-show="!r.posterUrl">
-                                        <ion-icon aria-hidden="true" class="wb-text-faint" name="film-outline"></ion-icon>
-                                    </div>
-                                    <div class="min-w-0">
-                                        <p class="text-sm font-semibold wb-text-secondary leading-snug" x-text="r.title"></p>
-                                        <p class="text-xs wb-text-muted mt-0.5">
-                                            <span x-text="r.year"></span>
-                                            <span class="mx-1">·</span>
-                                            <span class="capitalize" x-text="r.type"></span>
-                                        </p>
-                                    </div>
-                                </button>
-                            </template>
-                        </div>
-
-                        <!-- IMDb badge (shown when a result was selected) -->
-                        <div class="flex items-center gap-1" x-show="newMappingImdbId">
-                            <span class="text-[10px] px-1.5 py-0.5 rounded wb-surface wb-border border wb-accent-text font-mono"
-                                  x-text="'IMDb: ' + newMappingImdbId">
-                            </span>
-                            <button @click="newMappingImdbId = ''"
-                                    class="w-7 h-7 flex items-center justify-center text-[10px] wb-text-faint hover:wb-error-text cursor-pointer wb-btn
-                                           active:scale-90 transition-all duration-200 active:duration-75 transform-gpu"
-                                    title="Remove IMDb association"
-                                    type="button">✕</button>
-                        </div>
-
-                        <input class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                               placeholder="Subreddits, comma-separated (e.g. snl, LiveFromNewYork)"
-                               type="text"
-                               x-model="newMappingSubreddits">
-                        <button :class="mappingSaveStatus === 'saved' ? 'test-ok' : mappingSaveStatus === 'error' ? 'test-error' : 'wb-text-muted'"
-                                :disabled="!newMappingTitle.trim() || !newMappingSubreddits.trim() || mappingSaveStatus === 'saving'"
-                                @click="void addLocalMapping()"
-                                aria-live="polite"
-                                class="w-full py-2 rounded-lg text-xs font-medium wb-border border wb-surface-alt
-                                       cursor-pointer disabled:opacity-50 wb-btn
-                                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                type="button"
-                                x-text="mappingSaveStatus === 'saving' ? 'Saving…' : mappingSaveStatus === 'saved' ? 'Saved' : mappingSaveStatus === 'error' ? 'Error' : 'Add'">
-                        </button>
-                    </div>
-
-                    <!-- Import form -->
-                    <div class="space-y-2 border-t wb-border pt-4">
-                        <p class="text-xs font-medium wb-text-muted">Import mapping file</p>
-                        <input class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                               placeholder="Source name (optional)"
-                               type="text"
-                               x-model="mappingImportName">
-                        <!-- Drop zone wrapper; _dc tracks nested dragenter/leave so the highlight
-                             doesn't flicker when the cursor crosses into the child textarea -->
-                        <div :class="mappingDropActive ? 'ring-2 ring-[var(--wb-accent)] opacity-75' : ''"
-                             x-data="{ _dc: 0 }"
-                             @dragenter.prevent="_dc++; mappingDropActive = true"
-                             @dragleave.prevent="_dc--; if (_dc <= 0) { _dc = 0; mappingDropActive = false; }"
-                             @dragover.prevent
-                             @drop.prevent="_dc = 0; handleMappingFileDrop($event)"
-                             class="relative rounded-lg transition-all duration-150">
-                            <textarea :placeholder="mappingDropActive ? 'Drop file here…' : '{&quot;mappings&quot;:[{&quot;title&quot;:&quot;My Show&quot;,&quot;subreddits&quot;:[&quot;myshow&quot;]}]}'"
-                                      class="w-full wb-surface-alt wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border font-mono resize-y"
-                                      rows="4"
-                                      x-model="mappingImportJson">
-                            </textarea>
-                            <p class="absolute bottom-2 right-2 text-[10px] wb-text-faint pointer-events-none"
-                               x-show="!mappingImportJson">
-                                drag &amp; drop or paste JSON
-                            </p>
-                        </div>
-                        <p class="text-xs wb-text-faint font-mono">{"mappings":[{"title":"…","subreddits":["snl"]}]}</p>
-                        <button :class="mappingImportStatus === 'saved' ? 'test-ok' : mappingImportStatus === 'error' ? 'test-error' : 'wb-text-muted'"
-                                :disabled="!mappingImportJson.trim() || mappingImportStatus === 'saving'"
-                                @click="void importMappingSource()"
-                                aria-live="polite"
-                                class="w-full py-2 rounded-lg text-xs font-medium wb-border border wb-surface-alt
-                                       cursor-pointer disabled:opacity-50 wb-btn
-                                       hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                type="button"
-                                x-text="mappingImportStatus === 'saving' ? 'Importing…' : mappingImportStatus === 'saved' ? 'Imported' : mappingImportStatus === 'error' ? 'Error — check JSON format' : 'Import'">
-                        </button>
-                    </div>
-
-                    <!-- Source cards -->
-                    <template x-if="mappingSources.length > 0">
-                        <div class="space-y-3 border-t wb-border pt-4">
-                            <p class="text-xs font-medium wb-text-muted">Active sources</p>
-                            <template :key="src.id" x-for="src in mappingSources">
-                                <div class="wb-surface-alt wb-border border rounded-xl overflow-hidden">
-                                    <!-- Card header -->
-                                    <div class="flex items-center justify-between gap-2 px-3 py-2 border-b wb-border">
-                                        <div class="flex items-center gap-2 min-w-0">
-                                            <span class="text-xs font-semibold wb-text-secondary truncate" x-text="src.name"></span>
-                                            <span class="text-[10px] font-medium px-1.5 py-0.5 rounded wb-border border"
-                                                  :class="src.isBuiltIn ? 'wb-accent-text' : src.id === 'local' ? 'wb-text-secondary' : 'wb-text-muted'"
-                                                  x-text="src.isBuiltIn ? 'Built-in' : src.id === 'local' ? 'Local' : 'Imported'">
-                                            </span>
-                                        </div>
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <button :title="mappingShareCopied === src.id ? 'Copied!' : 'Share ' + src.name"
-                                                    @click="void shareMappingSource(src.id, src.name)"
-                                                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface wb-text-faint wb-border border
-                                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                                    type="button">
-                                                <ion-icon :name="mappingShareCopied === src.id ? 'checkmark-outline' : 'share-social-outline'"
-                                                          aria-hidden="true">
-                                                </ion-icon>
-                                            </button>
-                                            <button :title="'Export ' + src.name"
-                                                    @click="void exportMappingSource(src.id)"
-                                                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface wb-text-faint wb-border border
-                                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                                    type="button">
-                                                <ion-icon aria-hidden="true" name="download-outline"></ion-icon>
-                                            </button>
-                                            <button :disabled="src.isBuiltIn"
-                                                    :title="src.isBuiltIn ? 'Built-in source cannot be deleted' : 'Delete source'"
-                                                    @click="!src.isBuiltIn && void deleteMappingSource(src.id)"
-                                                    class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface wb-text-faint wb-border border
-                                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu disabled:opacity-30 disabled:cursor-default"
-                                                    type="button">
-                                                <ion-icon aria-hidden="true" name="trash-outline"></ion-icon>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <!-- Entry list -->
-                                    <template x-if="src.entries.length === 0">
-                                        <p class="text-xs wb-text-faint px-3 py-2">No entries</p>
-                                    </template>
-                                    <template :key="entry.index" x-for="entry in src.entries">
-                                        <div class="flex items-start justify-between gap-2 px-3 py-2 border-b wb-border last:border-b-0">
-                                            <div class="min-w-0">
-                                                <p class="text-xs wb-text-secondary font-medium truncate" x-text="entry.title ?? '(no title)'"></p>
-                                                <div class="flex flex-wrap gap-1 mt-1">
-                                                    <template :key="sub" x-for="sub in entry.subreddits">
-                                                        <span class="text-[10px] px-1.5 py-0.5 rounded wb-surface wb-border border wb-text-muted"
-                                                              x-text="'r/' + sub">
-                                                        </span>
-                                                    </template>
-                                                </div>
-                                            </div>
-                                            <div class="flex items-center shrink-0">
-                                                <template x-if="!src.isBuiltIn && src.id !== 'local'">
-                                                    <button title="Copy to local"
-                                                            @click="void promoteMappingEntry(src.id, entry.index)"
-                                                            class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface wb-text-faint wb-border border
-                                                                   hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                                            type="button">
-                                                        <ion-icon aria-hidden="true" name="copy-outline"></ion-icon>
-                                                    </button>
-                                                </template>
-                                                <template x-if="src.id === 'local'">
-                                                    <button :title="'Remove ' + (entry.title ?? 'entry')"
-                                                            @click="void deleteLocalMapping(entry.title ?? '')"
-                                                            class="px-3 py-2 rounded-lg text-lg leading-none cursor-pointer wb-btn wb-surface wb-text-faint wb-border border
-                                                                   hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                                            type="button">
-                                                        <ion-icon aria-hidden="true" name="close-outline"></ion-icon>
-                                                    </button>
-                                                </template>
-                                            </div>
-                                        </div>
-                                    </template>
+                <!-- Maintenance -->
+                <template x-if="access.isAdmin">
+                    <div>
+                        <div class="st-group-h"><h2 x-text="t('Settings_Maintenance')"></h2></div>
+                        <div class="st-list">
+                            <div class="st-pref">
+                                <div>
+                                    <p class="st-pref-l" x-text="t('DangerZone_ClearCacheTitle')"></p>
+                                    <p class="st-pref-s" x-text="t('DangerZone_ClearCacheHelp')"></p>
                                 </div>
-                            </template>
-                        </div>
-                    </template>
-
-                </div>
-            </div><!-- /mappings tab -->
-
-            <!-- ─── API Keys tab ─── -->
-            <div :aria-label="t('Mcp_ApiKeys')" aria-labelledby="tab-apikeys" id="panel-apikeys" role="tabpanel" x-show="configTab === 'apikeys'">
-
-                <h2 class="text-sm font-semibold wb-text-secondary mb-1" x-text="t('Mcp_ApiKeys')"></h2>
-                <p class="text-xs wb-text-faint mb-5" x-text="t('Mcp_Help')"></p>
-
-                <!-- One-time key reveal banner -->
-                <template x-if="newlyGeneratedKey">
-                    <div class="rounded-xl p-4 mb-5 space-y-3"
-                         style="background:var(--wb-success-bg);border:1px solid var(--wb-success-text)">
-                        <p class="text-xs font-medium" style="color:var(--wb-success-text)" x-text="t('Mcp_KeyReady')"></p>
-                        <code class="block text-xs font-mono break-all wb-text-secondary"
-                              x-text="newlyGeneratedKey"></code>
-                        <div class="flex gap-2">
-                            <button @click="void copyApiKey(newlyGeneratedKey)"
-                                    class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer wb-btn wb-surface wb-border border
-                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                    type="button"
-                                    x-text="apiKeyCopied ? t('Mcp_Copied') : t('Mcp_CopyKey')">
-                            </button>
-                            <button @click="dismissGeneratedKey()"
-                                    class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer wb-btn wb-surface wb-border border
-                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                    type="button"
-                                    x-text="t('Mcp_Dismiss')">
-                            </button>
+                                <button :disabled="clearCacheStatus === 'loading'"
+                                        @click="void clearCache()"
+                                        aria-live="polite"
+                                        class="st-btn st-btn-small st-btn-danger cursor-pointer disabled:opacity-50 shrink-0"
+                                        type="button"
+                                        x-text="clearCacheStatus === 'loading' ? t('Common_Clearing') : clearCacheStatus === 'ok' ? t('Common_Cleared') : clearCacheStatus === 'error' ? t('Common_Error') : t('DangerZone_ClearCache')"></button>
+                            </div>
+                            <div class="st-pref">
+                                <div>
+                                    <p class="st-pref-l" x-text="t('DangerZone_Restart')"></p>
+                                    <p class="st-pref-s" x-text="t('DangerZone_RestartHelp')"></p>
+                                </div>
+                                <button @click="void restart()"
+                                        aria-live="polite"
+                                        class="st-btn st-btn-small st-btn-danger cursor-pointer shrink-0"
+                                        type="button"
+                                        x-text="t('DangerZone_Restart')"></button>
+                            </div>
                         </div>
                     </div>
                 </template>
-
-                <!-- Existing keys list -->
-                <div class="mb-5 space-y-2">
-                    <template x-if="!apiKeys.length && !newlyGeneratedKey">
-                        <p class="text-xs wb-text-faint" x-text="t('Mcp_NoKeys')"></p>
-                    </template>
-                    <template x-for="key in apiKeys" :key="key.id">
-                        <div class="flex items-center justify-between wb-surface wb-border border rounded-xl px-4 py-3">
-                            <div class="min-w-0">
-                                <p class="text-sm font-medium wb-text-secondary truncate" x-text="key.name"></p>
-                                <p class="text-xs wb-text-faint font-mono mt-0.5">
-                                    <span x-text="key.prefix"></span><span>…</span>
-                                    &nbsp;·&nbsp;
-                                    <span x-text="t('Mcp_CreatedOn')"></span>&nbsp;<span x-text="formatDate(key.createdAt)"></span>
-                                </p>
-                            </div>
-                            <button :aria-label="t('Mcp_Revoke') + ' ' + key.name"
-                                    @click="void revokeApiKey(key.id)"
-                                    class="ml-4 px-3 py-1.5 shrink-0 rounded-lg text-xs font-medium cursor-pointer wb-btn wb-surface wb-border border
-                                           hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                                    style="color:var(--wb-error-text);border-color:var(--wb-error-border)"
-                                    type="button"
-                                    x-text="t('Mcp_Revoke')">
-                            </button>
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Generate new key -->
-                <div class="flex gap-2 items-end">
-                    <div class="flex-1">
-                        <label class="text-xs font-medium wb-text-muted block mb-1"
-                               for="new-api-key-name"
-                               x-text="t('Mcp_KeyName')">
-                        </label>
-                        <input :placeholder="t('Mcp_KeyNamePlaceholder')"
-                               @keydown.enter="void generateApiKey()"
-                               class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
-                               id="new-api-key-name"
-                               type="text"
-                               x-model="newApiKeyName">
-                    </div>
-                    <button :class="apiKeySaveStatus === 'saved' ? 'test-ok' : apiKeySaveStatus === 'error' ? 'test-error' : ''"
-                            :disabled="!newApiKeyName.trim() || apiKeySaveStatus === 'saving'"
-                            @click="void generateApiKey()"
-                            aria-live="polite"
-                            class="py-2 px-4 rounded-lg text-xs font-medium cursor-pointer wb-btn
-                                   disabled:opacity-50 hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
-                            style="border:1px solid var(--wb-accent);color:var(--wb-accent)"
-                            type="button"
-                            x-text="apiKeySaveStatus === 'saving' ? t('Common_Saving') : apiKeySaveStatus === 'error' ? t('Common_Error') : t('Mcp_Generate')">
-                    </button>
-                </div>
-
-            </div><!-- /api keys tab -->
+            </div><!-- /diagnostics tab -->
 
         </div>
     </aside>

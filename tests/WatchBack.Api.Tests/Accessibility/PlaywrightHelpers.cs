@@ -736,10 +736,29 @@ internal static class PlaywrightHelpers
 
     public static async Task SwitchToDiagnosticsTab(IPage page)
     {
-        await page.ClickAsync("button:has-text('Diagnostics')");
+        await page.ClickAsync("#tab-diagnostics");
         // Wait for the log container to become visible (Alpine lifts display:none on the panel)
         await page.WaitForSelectorAsync("#log-container",
             new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 3_000 });
         await page.WaitForTimeoutAsync(200); // allow Alpine to render entries
+    }
+
+    /// <summary>Opens a settings tab by its id (sources, preferences, security, diagnostics).</summary>
+    public static async Task SwitchToSettingsTab(IPage page, string tab)
+    {
+        await page.ClickAsync($"#tab-{tab}");
+        await page.WaitForSelectorAsync($"#panel-{tab}",
+            new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 3_000 });
+        await page.WaitForTimeoutAsync(200);
+    }
+
+    /// <summary>Opens one provider row in the Sources tab, e.g. "thought:reddit".</summary>
+    public static async Task OpenSettingsRow(IPage page, string rowId)
+    {
+        string detail = "#st-detail-" + rowId.Replace(':', '-');
+        await page.ClickAsync($"button[aria-controls=\"{detail[1..]}\"]");
+        await page.WaitForSelectorAsync(detail,
+            new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 3_000 });
+        await page.WaitForTimeoutAsync(200);
     }
 }

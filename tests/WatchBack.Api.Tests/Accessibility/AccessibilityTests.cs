@@ -408,6 +408,7 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
                 },
                 watchUser: "a");
             await OpenConfigModal(page);
+            await SwitchToSettingsTab(page, "security");
             await page.Locator("#admin-b").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached });
             await AssertNoViolations(page);
         }
@@ -428,6 +429,134 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
                 SyncIdle,
                 ConfigFilled);
             await OpenConfigModal(page);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    // Sources with rows open: a watch source with a value from an environment variable, and Reddit's
+    // subreddit lists searched for a show.
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task SettingsRowsOpen(string theme)
+    {
+        IPage page = await NewPageAsync();
+        try
+        {
+            await LoadPage(page, _baseUrl, theme, SyncIdle, ConfigFilled,
+                jsonRoutes: new Dictionary<string, string>
+                {
+                    ["**/api/subreddit-mappings"] =
+                        """[{"id":"builtin","name":"Built-in","isBuiltIn":true,"entries":[{"index":0,"title":"Severance","subreddits":["SeveranceAppleTVPlus"]}]},{"id":"local","name":"Local","isBuiltIn":false,"entries":[{"index":0,"title":"Angel","subreddits":["ANGEL"]}]}]"""
+                });
+            await OpenConfigModal(page);
+            await OpenSettingsRow(page, "watch:jellyfin");
+            await AssertNoViolations(page);
+
+            await OpenSettingsRow(page, "thought:reddit");
+            await page.FillAsync("#mapping-filter", "sever");
+            await page.WaitForTimeoutAsync(200);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    // Every status chip at once (connected, ready, needs setup, failed, off), and a pasted key that failed.
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task SettingsStatusChips(string theme)
+    {
+        IPage page = await NewPageAsync();
+        try
+        {
+            await LoadPage(page, _baseUrl, theme, SyncIdle, ConfigFilled);
+            await OpenConfigModal(page);
+            await page.EvaluateAsync("""
+                () => {
+                    const a = document.querySelector('[x-data]')._x_dataStack[0];
+                    a.configData.integrations.reddit.disabled = true;
+                    a.lastTestResults = { trakt: { status: 'ok' }, bluesky: { status: 'error', message: 'Invalid identifier or password' } };
+                    a.openRow = 'watch:jellyfin';
+                    a.fieldStatus = { 'Jellyfin__ApiKey': { state: 'error', message: 'HTTP 401', canForce: true, tried: 'x' } };
+                }
+                """);
+            await page.WaitForTimeoutAsync(300);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task SettingsPreferencesTab(string theme)
+    {
+        IPage page = await NewPageAsync();
+        try
+        {
+            await LoadPage(page, _baseUrl, theme, SyncIdle, ConfigFilled);
+            await OpenConfigModal(page);
+            await SwitchToSettingsTab(page, "preferences");
+            await page.ClickAsync("#panel-preferences button[role=radio]:has-text('Custom')");
+            await page.WaitForTimeoutAsync(200);
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task SettingsSecurityTab(string theme)
+    {
+        IPage page = await NewPageAsync();
+        try
+        {
+            await LoadPage(page, _baseUrl, theme, SyncIdle, ConfigFilled,
+                jsonRoutes: new Dictionary<string, string>
+                {
+                    ["**/api/keys"] = """[{"id":1,"name":"Claude","prefix":"wb_ab12","createdAt":"2026-10-01T12:00:00Z"}]"""
+                });
+            await OpenConfigModal(page);
+            await SwitchToSettingsTab(page, "security");
+            await page.ClickAsync("#forward-auth-toggle + .switch-slider");
+            await page.WaitForSelectorAsync("#forward-auth-header");
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    // Phone: the tab bar gives way to a list you tap into.
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task SettingsPhone(string theme)
+    {
+        IPage page = await NewPageAsync();
+        try
+        {
+            await page.SetViewportSizeAsync(375, 760);
+            await LoadPage(page, _baseUrl, theme, SyncIdle, ConfigFilled);
+            await OpenConfigModal(page);
+            await page.WaitForSelectorAsync(".st-more",
+                new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 3_000 });
+            await AssertNoViolations(page);
+
+            await page.ClickAsync(".st-more button:has-text('Security'), .st-more button:has-text('Seguridad')");
+            await page.WaitForSelectorAsync(".st-back",
+                new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 3_000 });
             await AssertNoViolations(page);
         }
         finally

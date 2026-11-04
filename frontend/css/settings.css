@@ -1,0 +1,556 @@
+/*
+ * Settings panel: providers as rows grouped in lists, details opening under a row.
+ * Only theme variables are used, so every theme styles it.
+ */
+
+.st-group-h {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin: 1.125rem 0.125rem 0.375rem;
+}
+
+.st-group-h:first-child {
+    margin-top: 0.25rem;
+}
+
+.st-group-h h2 {
+    margin: 0;
+    flex: none;
+    white-space: nowrap;
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--wb-text-faint);
+}
+
+.st-hint {
+    font-size: 0.75rem;
+    color: var(--wb-text-faint);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.st-list {
+    background: var(--wb-bg);
+    border: 1px solid var(--wb-border);
+    border-radius: 0.625rem;
+    overflow: hidden;
+}
+
+.st-list > * + * {
+    border-top: 1px solid var(--wb-border);
+}
+
+.st-list-inner {
+    background: var(--wb-surface);
+}
+
+/* ─── A provider row ─── */
+.st-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.75rem;
+    min-height: 3.25rem;
+}
+
+.st-row.st-open {
+    background: var(--wb-surface);
+}
+
+.st-row-main {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0;
+    min-height: 2.75rem;
+    text-align: left;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+}
+
+.st-row-main:focus-visible,
+.st-swatch:focus-visible,
+.st-seg button:focus-visible {
+    outline: 2px solid var(--wb-accent);
+    outline-offset: 2px;
+    border-radius: 0.375rem;
+}
+
+.st-logo {
+    width: 1.625rem;
+    height: 1.625rem;
+    border-radius: 0.4375rem;
+    display: grid;
+    place-items: center;
+    flex: none;
+    color: #fff;
+    background: var(--wb-switch-bg);
+}
+
+.st-logo svg {
+    width: 1rem;
+    height: 1rem;
+    fill: currentColor;
+}
+
+.st-row-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.st-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--wb-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.st-sub {
+    font-size: 0.75rem;
+    color: var(--wb-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.st-chip {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid;
+    white-space: nowrap;
+    flex: none;
+}
+
+.st-chip-ok { color: var(--wb-success-text); background: var(--wb-success-bg); border-color: var(--wb-success-border); }
+.st-chip-warn { color: var(--wb-warn-text); background: var(--wb-warn-bg); border-color: var(--wb-warn-border); }
+.st-chip-err { color: var(--wb-error-text); background: var(--wb-error-bg); border-color: var(--wb-error-border); }
+.st-chip-off { color: var(--wb-text-faint); background: transparent; border-color: var(--wb-border-light); }
+
+.st-chev {
+    color: var(--wb-text-faint);
+    flex: none;
+}
+
+.st-radio {
+    width: 1.125rem;
+    height: 1.125rem;
+    flex: none;
+    accent-color: var(--wb-accent);
+    cursor: pointer;
+}
+
+/* ─── A row's settings ─── */
+.st-detail {
+    background: var(--wb-surface);
+    padding: 0.25rem 0.875rem 0.875rem 3rem;
+    border-top: 1px dashed var(--wb-border-light);
+}
+
+.st-field {
+    margin-top: 0.625rem;
+}
+
+.st-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--wb-text-secondary);
+}
+
+.st-note {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--wb-text-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.st-input {
+    width: 100%;
+    background: var(--wb-bg);
+    border: 1px solid var(--wb-border-light);
+    border-radius: 0.5rem;
+    padding: 0.4375rem 0.625rem;
+    font-size: 0.8125rem;
+    color: var(--wb-text);
+    min-height: 2.25rem;
+}
+
+.st-input::placeholder {
+    color: var(--wb-text-faint);
+}
+
+.st-input:focus {
+    outline: none;
+    border-color: var(--wb-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--wb-accent) 25%, transparent);
+}
+
+.st-input.st-input-bad {
+    border-color: var(--wb-error-text);
+}
+
+.st-select {
+    min-width: 9rem;
+}
+
+.st-help-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+}
+
+.st-help {
+    font-size: 0.75rem;
+    color: var(--wb-text-faint);
+    margin-top: 0.25rem;
+    line-height: 1.4;
+}
+
+.st-help-err {
+    color: var(--wb-error-text);
+}
+
+.st-link {
+    font-size: 0.75rem;
+    color: var(--wb-accent-text);
+    background: none;
+    border: 0;
+    padding: 0.125rem 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.st-advanced {
+    margin-top: 0.75rem;
+}
+
+.st-disclosure {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 0.75rem;
+    color: var(--wb-text-secondary);
+    background: none;
+    border: 0;
+    padding: 0.25rem 0;
+}
+
+.st-two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 0.625rem;
+}
+
+.st-detail-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.875rem;
+}
+
+/* ─── Buttons ─── */
+.st-btn {
+    font: inherit;
+    font-size: 0.8125rem;
+    padding: 0.4375rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--wb-border-light);
+    background: var(--wb-surface);
+    color: var(--wb-text);
+    white-space: nowrap;
+}
+
+.st-btn-small {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5625rem;
+    min-height: 2rem;
+}
+
+.st-btn-primary {
+    background: var(--wb-accent);
+    color: var(--wb-on-accent);
+    border-color: var(--wb-accent);
+}
+
+.st-btn-danger {
+    color: var(--wb-error-text);
+    border-color: var(--wb-error-border);
+    background: transparent;
+}
+
+.st-icon-btn {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    border-radius: 0.375rem;
+    background: none;
+    border: 0;
+    color: var(--wb-text-secondary);
+}
+
+.st-icon-btn:hover {
+    background: var(--wb-surface-alt);
+}
+
+/* ─── Subreddit lists ─── */
+.st-map-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.375rem 0.25rem 0.625rem;
+    font-size: 0.8125rem;
+    color: var(--wb-text);
+}
+
+.st-map-show {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.st-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    justify-content: flex-end;
+}
+
+.st-pill {
+    font-size: 0.75rem;
+    padding: 0.0625rem 0.4375rem;
+    border-radius: 0.375rem;
+    background: var(--wb-filter-inactive-bg);
+    color: var(--wb-filter-inactive-text);
+    border: 1px solid var(--wb-border);
+}
+
+.st-tag {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--wb-text-faint);
+    white-space: nowrap;
+}
+
+/* ─── Preference rows ─── */
+.st-pref {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    min-height: 3rem;
+}
+
+.st-pref-stack {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.375rem;
+}
+
+.st-pref-l {
+    font-size: 0.8125rem;
+    color: var(--wb-text);
+}
+
+.st-pref-s {
+    font-size: 0.75rem;
+    color: var(--wb-text-faint);
+    line-height: 1.35;
+}
+
+.st-pref-ctl {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: none;
+}
+
+.st-days {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--wb-text-faint);
+}
+
+.st-days .st-input {
+    width: 4.5rem;
+}
+
+.st-swatches {
+    display: flex;
+    gap: 0.375rem;
+}
+
+.st-swatch {
+    width: 1.875rem;
+    height: 1.5rem;
+    border-radius: 0.375rem;
+    border: 2px solid var(--wb-border-light);
+}
+
+.st-swatch-on {
+    border-color: var(--wb-accent);
+    outline: 2px solid color-mix(in srgb, var(--wb-accent) 35%, transparent);
+}
+
+/* Each swatch shows its own theme's background, whatever theme is active. */
+[data-theme-swatch="dark"] { background: #111827; }
+[data-theme-swatch="light"] { background: #f9fafb; }
+[data-theme-swatch="solarized-dark"] { background: #002b36; }
+[data-theme-swatch="solarized-light"] { background: #fdf6e3; }
+[data-theme-swatch="monokai"] { background: #272822; }
+
+.st-seg {
+    display: inline-flex;
+    flex-wrap: wrap;
+    border: 1px solid var(--wb-border-light);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.st-seg button {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.625rem;
+    min-height: 2rem;
+    color: var(--wb-text-secondary);
+    background: none;
+    border: 0;
+    border-left: 1px solid var(--wb-border-light);
+}
+
+.st-seg button:first-child {
+    border-left: 0;
+}
+
+.st-seg button.st-seg-on {
+    background: var(--wb-accent);
+    color: var(--wb-on-accent);
+}
+
+/* ─── Notes and callouts ─── */
+.st-callout {
+    margin-top: 0.625rem;
+    font-size: 0.75rem;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid;
+    line-height: 1.45;
+}
+
+.st-callout-warn { color: var(--wb-warn-text); background: var(--wb-warn-bg); border-color: var(--wb-warn-border); }
+.st-callout-ok { color: var(--wb-success-text); background: var(--wb-success-bg); border-color: var(--wb-success-border); }
+
+.st-status-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--wb-text-faint);
+}
+
+.st-footnote {
+    font-size: 0.6875rem;
+    color: var(--wb-text-faint);
+    text-align: center;
+    margin-top: 0.875rem;
+}
+
+/* ─── Phone: a list you tap into, instead of a tab bar that overflows ─── */
+.st-back,
+.st-phone-title {
+    display: none;
+}
+
+.st-more {
+    display: none;
+}
+
+@media (width < 640px) {
+    .st-tabs {
+        display: none;
+    }
+
+    .st-more {
+        display: block;
+    }
+
+    .st-phone-title {
+        display: block;
+        margin: -0.25rem 0 0.5rem;
+        font-family: Montserrat, Inter, sans-serif;
+        font-weight: 700;
+        font-size: 1.0625rem;
+        color: var(--wb-text);
+    }
+
+    .st-group-h .st-hint {
+        display: none;
+    }
+
+    .st-row {
+        gap: 0.375rem;
+        padding: 0 0.5rem;
+    }
+
+    .st-back {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        min-height: 2.75rem;
+        margin: -0.5rem 0 0.25rem -0.25rem;
+        padding: 0 0.25rem;
+        font-size: 0.875rem;
+        color: var(--wb-accent-text);
+        background: none;
+        border: 0;
+    }
+
+    .st-detail {
+        padding-left: 0.875rem;
+    }
+
+    .st-two {
+        grid-template-columns: 1fr;
+    }
+
+    .st-chip {
+        max-width: 6rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
