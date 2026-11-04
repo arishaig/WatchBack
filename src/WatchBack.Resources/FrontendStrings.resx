@@ -422,6 +422,18 @@
         <value>Created</value>
     </data>
     <!-- Time: Relative Time Formatting -->
+    <data name="Time_TodayAt" xml:space="preserve">
+        <value>Today {0}</value>
+    </data>
+    <data name="Time_YesterdayAt" xml:space="preserve">
+        <value>Yesterday {0}</value>
+    </data>
+    <data name="Time_DaysAgo" xml:space="preserve">
+        <value>{0} days ago</value>
+    </data>
+    <data name="Time_WeekAgo" xml:space="preserve">
+        <value>1 week ago</value>
+    </data>
     <data name="Time_SecondsAgo" xml:space="preserve">
         <value>{0}s ago</value>
     </data>

@@ -466,6 +466,8 @@ export interface AppData {
     sanitizeSvg(raw: string): string;
     renderMarkdown(src: string, spoilerLabel?: string): string;
     formatDate(iso: string): string;
+    formatThoughtDate(iso: string): string;
+    formatFullTimestamp(iso: string): string;
     formatScore(n: number | null): string;
     countAllReplies(c: Record<string, unknown>): number;
     formatLogTime(iso: string): string;

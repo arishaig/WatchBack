@@ -749,6 +749,18 @@
     <data name="Time_MinutesAgo" xml:space="preserve">
         <value>Hace {0} minutos</value>
     </data>
+    <data name="Time_TodayAt" xml:space="preserve">
+        <value>Hoy {0}</value>
+    </data>
+    <data name="Time_YesterdayAt" xml:space="preserve">
+        <value>Ayer {0}</value>
+    </data>
+    <data name="Time_DaysAgo" xml:space="preserve">
+        <value>Hace {0} días</value>
+    </data>
+    <data name="Time_WeekAgo" xml:space="preserve">
+        <value>Hace 1 semana</value>
+    </data>
     <data name="Time_SecondsAgo" xml:space="preserve">
         <value>Hace {0} segundos</value>
     </data>

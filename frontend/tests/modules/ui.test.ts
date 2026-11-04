@@ -87,6 +87,58 @@ describe('formatScore', () => {
     });
 });
 
+// ── formatThoughtDate ─────────────────────────────────────────────────────────
+
+describe('formatThoughtDate', () => {
+    // Local times, so calendar days are the same wherever the tests run.
+    const now = new Date(2026, 10, 4, 14, 30);
+    beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(now); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    const ctx = { t: (key: string, ...args: unknown[]) => [key, ...args].join('|') };
+    const label = (d: Date) => methods.formatThoughtDate.call(ctx, d.toISOString());
+    const timeOf = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+    it('says "Today" with the time for a post from today', () => {
+        const d = new Date(2026, 10, 4, 0, 5);
+        expect(label(d)).toBe(`Time_TodayAt|${timeOf(d)}`);
+    });
+
+    it('says "Yesterday" with the time, by calendar day even if under 24 hours ago', () => {
+        const d = new Date(2026, 10, 3, 23, 0);
+        expect(label(d)).toBe(`Time_YesterdayAt|${timeOf(d)}`);
+    });
+
+    it('counts days from 2 to 6', () => {
+        expect(label(new Date(2026, 10, 2, 9, 0))).toBe('Time_DaysAgo|2');
+        expect(label(new Date(2026, 9, 29, 23, 59))).toBe('Time_DaysAgo|6');
+    });
+
+    it('says "1 week ago" for a post from 7 days ago', () => {
+        expect(label(new Date(2026, 9, 28, 12, 0))).toBe('Time_WeekAgo');
+    });
+
+    it('shows the date for anything older', () => {
+        const d = new Date(2026, 9, 27, 12, 0);
+        expect(label(d)).toBe(d.toLocaleDateString());
+    });
+
+    it('shows the date for a post dated in the future', () => {
+        const d = new Date(2026, 10, 5, 9, 0);
+        expect(label(d)).toBe(d.toLocaleDateString());
+    });
+
+    it('returns empty for empty input and the input for an invalid date', () => {
+        expect(methods.formatThoughtDate.call(ctx, '')).toBe('');
+        expect(methods.formatThoughtDate.call(ctx, 'not-a-date')).toBe('not-a-date');
+    });
+
+    it('gives the exact moment for the tooltip', () => {
+        const d = new Date(2026, 10, 2, 9, 0);
+        expect(methods.formatFullTimestamp.call({}, d.toISOString())).toBe(d.toLocaleString());
+    });
+});
+
 // ── formatDate ────────────────────────────────────────────────────────────────
 
 describe('formatDate', () => {
