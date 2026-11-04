@@ -367,6 +367,56 @@ public class AccessibilityTests : IAsyncLifetime, IDisposable
         }
     }
 
+    // Settings as someone who isn't an admin: a note, and only their own preferences.
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task ConfigModalNotAdmin(string theme)
+    {
+        IPage page = await NewPageAsync();
+        try
+        {
+            await LoadPage(page, _baseUrl, theme, SyncIdle, ConfigFilled,
+                jsonRoutes: new Dictionary<string, string>
+                {
+                    ["**/api/access"] =
+                        """{"restricted":true,"isAdmin":false,"admins":["a"],"decidedBy":"group","adminGroup":"admins"}"""
+                });
+            await OpenConfigModal(page);
+            await page.Locator("#access-read-only").WaitForAsync();
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
+    // Settings as an admin who can switch other watch users on.
+    [Theory]
+    [MemberData(nameof(ThemeData))]
+    public async Task ConfigModalAdmins(string theme)
+    {
+        IPage page = await NewPageAsync();
+        try
+        {
+            await LoadPage(page, _baseUrl, theme, SyncIdle, ConfigFilled,
+                jsonRoutes: new Dictionary<string, string>
+                {
+                    ["**/api/access"] =
+                        """{"restricted":true,"isAdmin":true,"admins":["a"],"decidedBy":"watchUser","adminGroup":null}""",
+                    ["**/api/watchstate/users"] = """[{"id":"a","name":"Alice"},{"id":"b","name":"Bob"}]"""
+                },
+                watchUser: "a");
+            await OpenConfigModal(page);
+            await page.Locator("#admin-b").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached });
+            await AssertNoViolations(page);
+        }
+        finally
+        {
+            await page.CloseAsync();
+        }
+    }
+
     [Theory]
     [MemberData(nameof(ThemeData))]
     public async Task ConfigModalFilled(string theme)
