@@ -78,17 +78,21 @@ public sealed class JellyfinWatchStateProvider(
             }
 
             JellyfinItemDto item = activeSession.NowPlayingItem;
-            MediaContext result = item.Type == "TvChannel"
-                ? FromLiveChannel(item)
-                : new EpisodeContext(
+            DateTimeOffset? premiere = item.PremiereDate.HasValue
+                ? new DateTimeOffset(item.PremiereDate.Value, TimeSpan.Zero)
+                : null;
+            MediaContext result = item.Type switch
+            {
+                "TvChannel" => FromLiveChannel(item),
+                "Movie" => new MediaContext(item.Name ?? "Unknown", premiere, ExternalIdsOf(item.ProviderIds)),
+                _ => new EpisodeContext(
                     item.SeriesName ?? item.Name ?? "Unknown",
-                    item.PremiereDate.HasValue
-                        ? new DateTimeOffset(item.PremiereDate.Value, TimeSpan.Zero)
-                        : null,
+                    premiere,
                     item.Name ?? "Unknown",
                     (short)(item.ParentIndexNumber ?? 0),
                     (short)(item.IndexNumber ?? 0),
-                    ExternalIdsOf(item.ProviderIds));
+                    ExternalIdsOf(item.ProviderIds))
+            };
 
             cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;

@@ -610,6 +610,39 @@ public class JellyfinWatchStateProviderTests : IDisposable
         provider.RevealSecret("SomeOther__Key").Should().BeNull();
     }
 
+    // Regression: a library movie was reported as an episode of itself at S00E00, so text searches
+    // read "Interstellar Interstellar" and Trakt looked for a show.
+    [Fact]
+    public async Task GetCurrentMediaContextAsync_LibraryMovie_IsAMovie()
+    {
+        string sessionJson = """
+                             [
+                                 {
+                                     "Id": "session1",
+                                     "NowPlayingItem": {
+                                         "Name": "Interstellar",
+                                         "Type": "Movie",
+                                         "PremiereDate": "2014-11-05T00:00:00Z",
+                                         "ProviderIds": { "Imdb": "tt0816692", "Tmdb": "157336" }
+                                     }
+                                 }
+                             ]
+                             """;
+        MockHttpMessageHandler handler = new(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sessionJson) });
+        HttpClient client = new(handler) { BaseAddress = new Uri(_options.BaseUrl) };
+        JellyfinWatchStateProvider provider = new(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache,
+            NullLogger<JellyfinWatchStateProvider>.Instance);
+
+        MediaContext? result = await provider.GetCurrentMediaContextAsync();
+
+        result.Should().BeOfType<MediaContext>();
+        result!.Title.Should().Be("Interstellar");
+        result.ReleaseDate.Should().Be(new DateTimeOffset(2014, 11, 5, 0, 0, 0, TimeSpan.Zero));
+        result.ExternalIds.Should().ContainKey(ExternalIdType.Imdb).WhoseValue.Should().Be("tt0816692");
+        IThoughtProvider.BuildTextQuery(result).Should().Be("Interstellar movie");
+    }
+
     // ---- Live TV: the channel resolves to the program airing on it ----
 
     private async Task<MediaContext?> ContextForChannelAsync(string currentProgramJson)
