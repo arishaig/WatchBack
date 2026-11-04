@@ -131,7 +131,10 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
         if (!this.data) return false;
         const tm = (this.data['timeMachineThoughts'] as unknown[]) ?? [];
         if (tm.length === 0) return false;
-        const premiere = (this.data['metadata'] as Record<string, unknown> | undefined)?.['releaseDate'] as string | undefined;
+        const metadata = this.data['metadata'] as Record<string, unknown> | undefined;
+        // Live TV with no known air date (news, sports, an unidentified rerun): nothing to go back to.
+        if (metadata?.['liveChannel'] && !metadata?.['releaseDate']) return false;
+        const premiere = metadata?.['releaseDate'] as string | undefined;
         if (premiere) {
             const cutoff = new Date(premiere);
             cutoff.setDate(cutoff.getDate() + ((this.data['timeMachineDays'] as number | undefined) ?? 14));

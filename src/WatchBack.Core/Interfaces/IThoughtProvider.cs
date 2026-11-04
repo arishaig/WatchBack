@@ -29,6 +29,12 @@ public interface IThoughtProvider : IDataProvider
     TimeSpan? MaxCacheAge => null;
 
     /// <summary>
+    ///     Whether this provider can find anything for a <see cref="LiveBroadcastContext" /> (news, sports):
+    ///     true for free-text searches of recent posts, false for sources keyed to a show or movie.
+    /// </summary>
+    bool SupportsLiveBroadcasts => false;
+
+    /// <summary>
     ///     Fetches Thoughts for the given media context. Providers should report progress
     ///     via <paramref name="progress" /> as work completes so the UI can update the progress bar.
     ///     Returns null if no relevant content was found.
@@ -81,6 +87,7 @@ public interface IThoughtProvider : IDataProvider
     ///     episode code format (e.g. S01E01, NxNN).
     ///     <list type="bullet">
     ///         <item>Movie: "movie"</item>
+    ///         <item>Live broadcast: null (the bare program name)</item>
     ///         <item>Episode with valid season/episode numbers: null</item>
     ///         <item>Episode with season/episode 0 and a premiere date: locale-neutral date string</item>
     ///         <item>Episode with season/episode 0 and an episode title: the episode title</item>
@@ -91,6 +98,11 @@ public interface IThoughtProvider : IDataProvider
     /// </summary>
     static string? GetTextSearchQualifier(MediaContext context)
     {
+        if (context is LiveBroadcastContext)
+        {
+            return null;
+        }
+
         if (context is not EpisodeContext episode)
         {
             return "movie";

@@ -447,6 +447,45 @@ public class BlueskyThoughtProviderTests : IDisposable
 
     // ---- Movie and season-0 / dateless-episode handling ----
 
+    // "Late Night with Seth Meyers" is found under its full name; cutting it to "Late Night" would add noise.
+    [Fact]
+    public async Task GetThoughtsAsync_LiveBroadcast_StopsAtTheFirstNameThatFindsPosts()
+    {
+        LiveBroadcastContext live = new("Late Night with Seth Meyers", "NBC");
+        string found = $$$"""
+                         {"posts":[{"uri":"at://did/app.bsky.feed.post/1","cid":"c1",
+                           "author":{"handle":"a.bsky.social"},
+                           "record":{"text":"Seth's opening tonight","createdAt":"{{{DateTimeOffset.UtcNow.AddMinutes(-5):O}}}"}}]}
+                         """;
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("createSession", """{"accessJwt":"test-token"}""")
+            .Default(found);
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        treeBuilder.BuildTree(Arg.Any<IEnumerable<Thought>>()).Returns(x => x.ArgAt<IEnumerable<Thought>>(0).ToList());
+        BlueskyThoughtProvider provider = new(new HttpClient(handler), new OptionsSnapshotStub<BlueskyOptions>(_options),
+            _cache, treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(live);
+
+        result!.Thoughts.Should().ContainSingle();
+        handler.RecordedUris.Select(u => Uri.UnescapeDataString(u.ToString())).Where(u => u.Contains("searchPosts"))
+            .Should().ContainSingle().Which.Should().Contain("\"Late Night with Seth Meyers\"").And.Contain("sort=latest");
+    }
+
+    [Fact]
+    public async Task GetThoughtsAsync_MusicProgramming_SearchesNothing()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler().Default("""{"posts":[]}""");
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        BlueskyThoughtProvider provider = new(new HttpClient(handler), new OptionsSnapshotStub<BlueskyOptions>(_options),
+            _cache, treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(new LiveBroadcastContext("Top Hits", "Vevo 2K", IsMusic: true));
+
+        result!.IsTransientFailure.Should().BeFalse();
+        handler.RecordedUris.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task GetThoughtsAsync_WithMovieContext_UsesMovieQuery()
     {
@@ -884,4 +923,19 @@ public class BlueskyThoughtProviderTests : IDisposable
     }
 
     private static HttpResponseMessage Ok(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json) };
+
+    [Fact]
+    public void PlanSearches_LiveBroadcast_LatestPostsOfThePastDay_ByEachName()
+    {
+        LiveBroadcastContext live = new("NBC News Daily With Morgan Radford and Vicky Nguyen", "NBC News NOW",
+            s_now.AddMinutes(-20), s_now.AddMinutes(40));
+
+        IReadOnlyList<BlueskyThoughtProvider.SearchSpec> plan = BlueskyThoughtProvider.PlanSearches(live, s_now);
+
+        plan.Should().Equal(
+            new BlueskyThoughtProvider.SearchSpec("\"NBC News Daily With Morgan Radford and Vicky Nguyen\"", "latest",
+                s_now.AddDays(-1), null),
+            new BlueskyThoughtProvider.SearchSpec("\"NBC News Daily\"", "latest", s_now.AddDays(-1), null),
+            new BlueskyThoughtProvider.SearchSpec("\"NBC News NOW\"", "latest", s_now.AddDays(-1), null));
+    }
 }

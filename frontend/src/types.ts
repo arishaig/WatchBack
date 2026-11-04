@@ -22,6 +22,7 @@ export interface SyncMetadata {
     episodeTitle?: string | null;
     seasonNumber?: number | null;
     episodeNumber?: number | null;
+    liveChannel?: string | null;
 }
 
 export interface ProviderRating {

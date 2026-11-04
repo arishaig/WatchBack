@@ -43,6 +43,13 @@ public class SyncService(
             }
 
             IThoughtProvider[] activeProviders = ActiveProviders();
+            if (mediaContext is LiveBroadcastContext live)
+            {
+                // Music programming has no names to search: nobody is asked.
+                activeProviders = live.SearchNames.Count == 0
+                    ? []
+                    : activeProviders.Where(p => p.SupportsLiveBroadcasts).ToArray();
+            }
 
             string? imdbId = null;
             mediaContext.ExternalIds?.TryGetValue(Imdb, out imdbId);
@@ -97,7 +104,8 @@ public class SyncService(
                 ratings.Count > 0 ? ratings : null,
                 ratingsProviderName);
 
-            if (mediaContext is EpisodeContext episode)
+            // On a live channel the next episode isn't what airs next, so there is nothing to warm.
+            if (mediaContext is EpisodeContext { LiveChannel: null } episode)
             {
                 prefetchService.SchedulePrefetch(episode, viewerKey);
             }

@@ -19,13 +19,15 @@ namespace WatchBack.Infrastructure.WatchStateProviders;
 [JsonSerializable(typeof(JellyfinSessionDto[]))]
 [JsonSerializable(typeof(JellyfinUserDto[]))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
+[JsonSerializable(typeof(JellyfinItemsResponseDto))]
 internal sealed partial class JellyfinJsonContext : JsonSerializerContext;
 
-public sealed class JellyfinWatchStateProvider(
+public sealed partial class JellyfinWatchStateProvider(
     HttpClient httpClient,
     IOptionsSnapshot<JellyfinOptions> options,
     IMemoryCache cache,
-    ILogger<JellyfinWatchStateProvider> logger)
+    ILogger<JellyfinWatchStateProvider> logger,
+    IMediaIdentifier? identifier = null)
     : IWatchStateProvider, IWatchUserDirectory
 {
     private readonly JellyfinOptions _options = options.Value;
@@ -77,36 +79,22 @@ public sealed class JellyfinWatchStateProvider(
                 return null;
             }
 
-            JellyfinItemDto? item = activeSession.NowPlayingItem;
-
-            Dictionary<string, string> externalIds = new();
-            if (item.ProviderIds?.GetValueOrDefault("Imdb") is { } imdb)
-            {
-                externalIds[Imdb] = imdb;
-            }
-
-            if (item.ProviderIds?.GetValueOrDefault("Tmdb") is { } tmdb)
-            {
-                externalIds[Tmdb] = tmdb;
-            }
-
-            if (item.ProviderIds?.GetValueOrDefault("Tvdb") is { } tvdb)
-            {
-                externalIds[Tvdb] = tvdb;
-            }
-
+            JellyfinItemDto item = activeSession.NowPlayingItem;
             DateTimeOffset? premiere = item.PremiereDate.HasValue
                 ? new DateTimeOffset(item.PremiereDate.Value, TimeSpan.Zero)
                 : null;
-            MediaContext result = item.Type == "Movie"
-                ? new MediaContext(item.Name ?? "Unknown", premiere, externalIds.Count > 0 ? externalIds : null)
-                : new EpisodeContext(
+            MediaContext result = item.Type switch
+            {
+                "TvChannel" => await IdentifyLiveAsync(item, activeSession.UserId, ct),
+                "Movie" => new MediaContext(item.Name ?? "Unknown", premiere, ExternalIdsOf(item.ProviderIds)),
+                _ => new EpisodeContext(
                     item.SeriesName ?? item.Name ?? "Unknown",
                     premiere,
                     item.Name ?? "Unknown",
                     (short)(item.ParentIndexNumber ?? 0),
                     (short)(item.IndexNumber ?? 0),
-                    externalIds.Count > 0 ? externalIds : null);
+                    ExternalIdsOf(item.ProviderIds))
+            };
 
             cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
@@ -116,6 +104,23 @@ public sealed class JellyfinWatchStateProvider(
             logger.LogWarning(ex, "Jellyfin watch state fetch failed");
             return null;
         }
+    }
+
+    private static readonly (string JellyfinKey, string Type)[] s_externalIdKeys =
+        [("Imdb", Imdb), ("Tmdb", Tmdb), ("Tvdb", Tvdb)];
+
+    private static Dictionary<string, string>? ExternalIdsOf(Dictionary<string, string>? providerIds)
+    {
+        Dictionary<string, string> externalIds = new();
+        foreach ((string jellyfinKey, string type) in s_externalIdKeys)
+        {
+            if (providerIds?.GetValueOrDefault(jellyfinKey) is { } id)
+            {
+                externalIds[type] = id;
+            }
+        }
+
+        return externalIds.Count > 0 ? externalIds : null;
     }
 
     public async Task<IReadOnlyList<WatchUser>> GetUsersAsync(CancellationToken ct = default)
@@ -290,7 +295,55 @@ internal sealed record JellyfinItemDto(
     [property: JsonPropertyName("PremiereDate")]
     DateTime? PremiereDate,
     [property: JsonPropertyName("ProviderIds")]
+    Dictionary<string, string>? ProviderIds,
+    [property: JsonPropertyName("CurrentProgram")]
+    JellyfinProgramDto? CurrentProgram = null);
+
+/// <summary>The guide entry airing on a live channel (Jellyfin's CurrentProgram).</summary>
+internal sealed record JellyfinProgramDto(
+    [property: JsonPropertyName("Name")] string? Name,
+    [property: JsonPropertyName("EpisodeTitle")]
+    string? EpisodeTitle,
+    [property: JsonPropertyName("ChannelName")]
+    string? ChannelName,
+    [property: JsonPropertyName("ParentIndexNumber")]
+    int? ParentIndexNumber,
+    [property: JsonPropertyName("IndexNumber")]
+    int? IndexNumber,
+    [property: JsonPropertyName("PremiereDate")]
+    DateTime? PremiereDate,
+    [property: JsonPropertyName("StartDate")]
+    DateTime? StartDate,
+    [property: JsonPropertyName("EndDate")]
+    DateTime? EndDate,
+    [property: JsonPropertyName("IsMovie")]
+    bool? IsMovie,
+    [property: JsonPropertyName("ProviderIds")]
+    Dictionary<string, string>? ProviderIds,
+    [property: JsonPropertyName("IsNews")] bool? IsNews = null,
+    [property: JsonPropertyName("IsSports")]
+    bool? IsSports = null,
+    [property: JsonPropertyName("ProductionYear")]
+    int? ProductionYear = null,
+    [property: JsonPropertyName("Genres")] string[]? Genres = null);
+
+/// <summary>A library item found by name: a series, an episode or a movie.</summary>
+internal sealed record JellyfinLibraryItemDto(
+    [property: JsonPropertyName("Id")] string? Id,
+    [property: JsonPropertyName("Name")] string? Name,
+    [property: JsonPropertyName("ParentIndexNumber")]
+    int? ParentIndexNumber,
+    [property: JsonPropertyName("IndexNumber")]
+    int? IndexNumber,
+    [property: JsonPropertyName("PremiereDate")]
+    DateTime? PremiereDate,
+    [property: JsonPropertyName("ProductionYear")]
+    int? ProductionYear,
+    [property: JsonPropertyName("ProviderIds")]
     Dictionary<string, string>? ProviderIds);
+
+internal sealed record JellyfinItemsResponseDto(
+    [property: JsonPropertyName("Items")] JellyfinLibraryItemDto[]? Items);
 
 internal sealed record JellyfinUserDto(
     [property: JsonPropertyName("Id")] string? Id,

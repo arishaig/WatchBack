@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 
 using Polly;
@@ -13,10 +14,9 @@ using WatchBack.Core.Interfaces;
 using WatchBack.Infrastructure.Caching;
 using WatchBack.Infrastructure.Http;
 using WatchBack.Infrastructure.Omdb;
+using WatchBack.Infrastructure.Services;
 using WatchBack.Infrastructure.ThoughtProviders;
 using WatchBack.Infrastructure.WatchStateProviders;
-
-using Microsoft.Extensions.Http.Resilience;
 
 namespace WatchBack.Infrastructure.Extensions;
 
@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<HostBackoffRegistry>();
         services.AddSingleton<ResultCacheStore>();
         services.AddSingleton<IDurableLookupCache, DurableLookupCache>();
+        services.AddSingleton<IMediaIdentifier, MediaIdentifier>();
         services.AddSingleton<ISubredditResolver, ArcticShiftSubredditResolver>();
         services.AddSingleton<IMediaResultCache, MediaResultCache>();
         services.AddHostedService<ResultCacheMaintenance>();

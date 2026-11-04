@@ -227,6 +227,34 @@ public class SyncIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetSync_LiveBroadcast_ReportsTheChannelInsteadOfAnEpisode()
+    {
+        LiveBroadcastContext live = new("NBC News Daily", "NBC News NOW");
+        _mockWatchProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(live);
+
+        string json = await (await _client.GetAsync("/api/sync")).Content.ReadAsStringAsync();
+
+        json.Should().Contain("\"title\":\"NBC News Daily\"");
+        json.Should().Contain("\"liveChannel\":\"NBC News NOW\"");
+        json.Should().NotContain("\"seasonNumber\":0");
+    }
+
+    [Fact]
+    public async Task GetSync_RerunOnALiveChannel_ReportsTheEpisodeAndTheChannel()
+    {
+        EpisodeContext airing = new EpisodeContext("Star Trek: The Next Generation",
+            new DateTimeOffset(1987, 10, 5, 0, 0, 0, TimeSpan.Zero), "The Naked Now", 1, 2)
+        { LiveChannel = "Trek Time" };
+        _mockWatchProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(airing);
+
+        string json = await (await _client.GetAsync("/api/sync")).Content.ReadAsStringAsync();
+
+        json.Should().Contain("\"episodeTitle\":\"The Naked Now\"");
+        json.Should().Contain("\"seasonNumber\":1");
+        json.Should().Contain("\"liveChannel\":\"Trek Time\"");
+    }
+
+    [Fact]
     public async Task GetSync_SortsThoughtsByCreatedAtDescending()
     {
         // Arrange

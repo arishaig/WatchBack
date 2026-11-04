@@ -797,4 +797,69 @@ public class SyncServiceTests
         refreshed.Should().BeFalse();
         cache.Invalidated.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task SyncAsync_LiveBroadcast_AsksOnlyProvidersThatSearchLiveDiscussion()
+    {
+        LiveBroadcastContext live = new("NBC News Daily", "NBC News NOW");
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(live);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        IThoughtProvider livePosts = Substitute.For<IThoughtProvider>();
+        livePosts.SupportsLiveBroadcasts.Returns(true);
+        IThoughtProvider showComments = Substitute.For<IThoughtProvider>();
+        showComments.SupportsLiveBroadcasts.Returns(false);
+
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [livePosts, showComments], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService,
+            new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
+
+        SyncResult result = await service.SyncAsync();
+
+        result.Status.Should().Be(SyncStatus.Watching);
+        await livePosts.Received(1).GetThoughtsAsync(live, Arg.Any<IProgress<SyncProgressTick>?>(),
+            Arg.Any<CancellationToken>());
+        await showComments.DidNotReceive().GetThoughtsAsync(Arg.Any<MediaContext>(),
+            Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
+    }
+
+    // On a live channel the next episode isn't what airs next, so prefetching it would spend quota for nothing.
+    [Fact]
+    public async Task SyncAsync_EpisodeAiringOnALiveChannel_IsNotPrefetched()
+    {
+        EpisodeContext airing = new EpisodeContext("Star Trek: The Next Generation", null, "The Naked Now", 1, 2)
+        {
+            LiveChannel = "Trek Time"
+        };
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(airing);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            Array.Empty<IThoughtProvider>(), Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService,
+            new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
+
+        await service.SyncAsync();
+
+        _prefetchService.DidNotReceiveWithAnyArgs().SchedulePrefetch(default!, default);
+    }
+
+    [Fact]
+    public async Task SyncAsync_MusicChannel_AsksNobody()
+    {
+        LiveBroadcastContext music = new("Top Hits", "Vevo 2K", IsMusic: true);
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(music);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+        IThoughtProvider livePosts = Substitute.For<IThoughtProvider>();
+        livePosts.SupportsLiveBroadcasts.Returns(true);
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [livePosts], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService,
+            new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
+
+        SyncResult result = await service.SyncAsync();
+
+        result.Status.Should().Be(SyncStatus.Watching);
+        await livePosts.DidNotReceiveWithAnyArgs().GetThoughtsAsync(default!, default, default);
+    }
 }

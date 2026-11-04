@@ -119,6 +119,28 @@ describe('showTimeMachine', () => {
         expect(get('showTimeMachine', ctx)).toBe(true);
     });
 
+    it('returns true for a rerun on a live channel whose original air date is known', () => {
+        const past = new Date(Date.now() - 60 * 86_400_000).toISOString();
+        const ctx = makeState({
+            data: {
+                timeMachineThoughts: [{ id: 1 }],
+                timeMachineDays: 14,
+                metadata: { liveChannel: 'Trek Time', releaseDate: past },
+            },
+        });
+        expect(get('showTimeMachine', ctx)).toBe(true);
+    });
+
+    it('returns false for a live broadcast, which has no later discussion to hide', () => {
+        const ctx = makeState({
+            data: {
+                timeMachineThoughts: [{ id: 1 }],
+                metadata: { liveChannel: 'NBC News NOW' },
+            },
+        });
+        expect(get('showTimeMachine', ctx)).toBe(false);
+    });
+
     it('returns true when there are thoughts and no releaseDate', () => {
         const ctx = makeState({
             data: {

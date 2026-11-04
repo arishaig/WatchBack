@@ -48,6 +48,8 @@ public sealed class LemmyThoughtProvider(
 
     public int ExpectedWeight => 1 + _options.MaxPosts;
 
+    public bool SupportsLiveBroadcasts => true;
+
     public string GetCacheKey(MediaContext mediaContext)
     {
         string host = GetInstanceHost();
@@ -63,6 +65,12 @@ public sealed class LemmyThoughtProvider(
         // padding below): the frontend shows the sync bar whenever it sees
         // intermediate progress, so a fully cached poll cycle has to stay silent
         // or the bar flashes every few seconds.
+        // Music programming has no names to search.
+        if (mediaContext is LiveBroadcastContext { SearchNames.Count: 0 })
+        {
+            return s_empty;
+        }
+
         string cacheKey = GetCacheKey(mediaContext);
         if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
         {
@@ -81,7 +89,13 @@ public sealed class LemmyThoughtProvider(
                 // Build query variants to try in order. Community posts often omit leading zeros
                 // (S1E3 vs S01E03), so if the canonical padded query returns nothing we fall back
                 // to the non-padded form before giving up.
-                List<string> queries = [IThoughtProvider.BuildTextQuery(mediaContext)];
+                // A live broadcast is searched by its names, newest first: today's posts, not the all-time top.
+                LiveBroadcastContext? live = mediaContext as LiveBroadcastContext;
+                List<string> queries = live is not null ? [.. live.SearchNames] : [IThoughtProvider.BuildTextQuery(mediaContext)];
+                string sort = live is not null ? "New" : "TopAll";
+                TimeSpan resultLifetime = live is not null
+                    ? LiveBroadcastContext.CacheLifetime
+                    : TimeSpan.FromSeconds(_options.CacheTtlSeconds);
                 if (mediaContext is EpisodeContext { SeasonNumber: > 0, EpisodeNumber: > 0 } ep)
                 {
                     string unpadded = $"{mediaContext.Title} S{ep.SeasonNumber}E{ep.EpisodeNumber}";
@@ -96,7 +110,7 @@ public sealed class LemmyThoughtProvider(
                 foreach (string query in queries)
                 {
                     string searchUrl =
-                        $"{instance}/api/v3/search?q={Uri.EscapeDataString(query)}&type_=Posts&listing_type=All&sort=TopAll&limit={_options.MaxPosts}";
+                        $"{instance}/api/v3/search?q={Uri.EscapeDataString(query)}&type_=Posts&listing_type=All&sort={sort}&limit={_options.MaxPosts}";
                     if (!string.IsNullOrWhiteSpace(_options.Community))
                         searchUrl += $"&community_name={Uri.EscapeDataString(_options.Community)}";
 
@@ -131,11 +145,13 @@ public sealed class LemmyThoughtProvider(
                     bool confirmedMiss = anySearchSucceeded && !anyRequestFailed;
                     ThoughtResult miss = confirmedMiss ? s_empty : s_failed;
                     cache.Set(cacheKey, miss,
-                        confirmedMiss ? TimeSpan.FromSeconds(_options.CacheTtlSeconds) : s_failureCacheTtl);
+                        confirmedMiss ? resultLifetime : s_failureCacheTtl);
                     return miss;
                 }
 
-                DateTimeOffset? dateFloor = IThoughtProvider.GetDateFloor(mediaContext);
+                DateTimeOffset? dateFloor = live is not null
+                    ? DateTimeOffset.UtcNow - LiveBroadcastContext.RecentWindow
+                    : IThoughtProvider.GetDateFloor(mediaContext);
                 List<Thought> allThoughts = [];
                 LemmyPostViewDto? topPost = null;
 
@@ -197,7 +213,7 @@ public sealed class LemmyThoughtProvider(
                     null,
                     IsTransientFailure: anyRequestFailed);
 
-                cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+                cache.Set(cacheKey, result, resultLifetime);
                 return result;
             }
             catch (Exception ex)

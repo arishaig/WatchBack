@@ -104,4 +104,83 @@ public class ThoughtProviderQueryTests
 
         IThoughtProvider.GetTextSearchQualifier(episode).Should().BeNull();
     }
+
+    // ---- Live broadcasts ----
+
+    [Fact]
+    public void BuildTextQuery_LiveBroadcast_IsTheBareProgramName()
+    {
+        LiveBroadcastContext live = new("NBC News Daily", "NBC News NOW");
+
+        IThoughtProvider.BuildTextQuery(live).Should().Be("NBC News Daily");
+    }
+
+    [Theory]
+    [InlineData("NBC News Daily With Morgan Radford and Vicky Nguyen", "NBC News NOW",
+        new[] { "NBC News Daily With Morgan Radford and Vicky Nguyen", "NBC News Daily", "NBC News NOW" })]
+    [InlineData("Meet the Press w/ Kristen Welker", "NBC News", new[] { "Meet the Press w/ Kristen Welker", "Meet the Press", "NBC News" })]
+    [InlineData("Dancing with the Stars", "ABC", new[] { "Dancing with the Stars" })]
+    [InlineData("Cooking with gas", "PBS Food", new[] { "Cooking with gas", "PBS Food" })]
+    // Cutting the hosts would leave a name too generic to mean the show.
+    [InlineData("The Herd With Colin Cowherd", "FOX Sports", new[] { "The Herd With Colin Cowherd", "FOX Sports" })]
+    [InlineData("Today With Jenna & Sheinelle", "TODAY All Day", new[] { "Today With Jenna & Sheinelle", "TODAY All Day" })]
+    // A single word ("Moonfall", "UFC", "QVC") matches far more than this airing.
+    [InlineData("Moonfall", "MovieSphere by Lionsgate", new[] { "MovieSphere by Lionsgate" })]
+    [InlineData("NBC News NOW", "NBC News NOW", new[] { "NBC News NOW" })]
+    [InlineData("Live at Five", "", new[] { "Live at Five" })]
+    public void LiveBroadcast_SearchNames_FullTitleThenWithoutHostsThenChannel(string title, string channel, string[] expected)
+    {
+        new LiveBroadcastContext(title, channel).SearchNames.Should().Equal(expected);
+    }
+
+    [Fact]
+    public void LiveBroadcast_NextProgramOnTheSameChannel_IsADifferentContext()
+    {
+        DateTimeOffset six = new(2026, 11, 4, 18, 0, 0, TimeSpan.Zero);
+        LiveBroadcastContext first = new("NBC News Daily", "NBC News NOW", six, six.AddHours(1));
+        LiveBroadcastContext same = new("NBC News Daily", "NBC News NOW", six, six.AddHours(1));
+        LiveBroadcastContext next = new("Top Story", "NBC News NOW", six.AddHours(1), six.AddHours(2));
+
+        first.Should().Be(same);
+        first.GetHashCode().Should().Be(same.GetHashCode());
+        first.Should().NotBe(next);
+        first.Should().NotBe(new MediaContext("NBC News Daily", null));
+    }
+
+    [Theory]
+    [InlineData("UFC Main Event", "UFC Main Event: Oliveira vs Chandler 2", "Oliveira vs Chandler 2")]
+    [InlineData("UCL Match Replay", "Feyenoord vs. Inter Milan", "Feyenoord vs. Inter Milan")]
+    [InlineData("Premier League", "Arsenal v. Chelsea", "Arsenal v. Chelsea")]
+    [InlineData("Game of the Week", "Bills vs. Rams -- Week 5", "Bills vs. Rams")]
+    [InlineData("Series Rewind", "2026 World Series - Rays vs. Brewers", "Rays vs. Brewers")]
+    public void LiveBroadcast_SearchNames_StartWithTheMatch(string title, string subtitle, string match)
+    {
+        new LiveBroadcastContext(title, "Sports Channel", Subtitle: subtitle).SearchNames
+            .Should().Equal(match, title, "Sports Channel");
+    }
+
+    [Theory]
+    [InlineData("10/29/26")]
+    [InlineData("Week 10: Magnificent Six")]
+    [InlineData("Alamodome -- San Antonio, TX")]
+    public void LiveBroadcast_SearchNames_IgnoreSubtitlesThatNameNoMatch(string subtitle)
+    {
+        new LiveBroadcastContext("Poker After Dark", "Sports Channel", Subtitle: subtitle).SearchNames
+            .Should().Equal("Poker After Dark", "Sports Channel");
+    }
+
+    [Fact]
+    public void LiveChannel_IsNotPartOfWhatAnEpisodeIs()
+    {
+        EpisodeContext library = new("Star Trek: The Next Generation", null, "The Naked Now", 1, 2);
+
+        (library with { LiveChannel = "Trek Time" }).Should().Be(library);
+    }
+
+    // Music video channels and radio streams: nothing anyone discusses by name.
+    [Fact]
+    public void LiveBroadcast_Music_HasNothingToSearch()
+    {
+        new LiveBroadcastContext("Top Hits", "Vevo 2K", IsMusic: true).SearchNames.Should().BeEmpty();
+    }
 }

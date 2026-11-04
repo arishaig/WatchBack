@@ -388,6 +388,9 @@
     <data name="Dashboard_SeasonEpisodeCode" xml:space="preserve">
         <value>T{0}E{1}</value>
     </data>
+    <data name="Dashboard_LiveOn" xml:space="preserve">
+        <value>En directo en {0}</value>
+    </data>
     <data name="Dashboard_Aired" xml:space="preserve">
         <value>Fecha de emisión</value>
     </data>

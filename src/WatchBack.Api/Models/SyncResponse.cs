@@ -35,12 +35,14 @@ public record SyncResponse(
 /// <param name="EpisodeTitle">Episode title (only populated for episodes)</param>
 /// <param name="SeasonNumber">Season number (only populated for episodes)</param>
 /// <param name="EpisodeNumber">Episode number (only populated for episodes)</param>
+/// <param name="LiveChannel">The channel it is airing on, when watched as live TV</param>
 public record MediaContextResponse(
     string Title,
     DateTime? ReleaseDate,
     string? EpisodeTitle,
     int? SeasonNumber,
-    int? EpisodeNumber);
+    int? EpisodeNumber,
+    string? LiveChannel = null);
 
 /// <summary>
 ///     A single thought (comment, review, post, etc.) from a thought provider

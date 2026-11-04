@@ -68,6 +68,8 @@ public sealed class BlueskyThoughtProvider(
 
     public int ExpectedWeight => 1;
 
+    public bool SupportsLiveBroadcasts => true;
+
     public string GetCacheKey(MediaContext mediaContext)
     {
         return mediaContext is EpisodeContext episode
@@ -82,7 +84,8 @@ public sealed class BlueskyThoughtProvider(
         // bar whenever it sees intermediate progress, so a fully cached poll
         // cycle has to stay silent or the bar flashes every few seconds.
         // searchPosts rejects unauthenticated requests, so without credentials there is nothing to ask.
-        if (!IsConfigured)
+        // Music programming has no names to search.
+        if (!IsConfigured || mediaContext is LiveBroadcastContext { SearchNames.Count: 0 })
         {
             return s_empty;
         }
@@ -113,6 +116,12 @@ public sealed class BlueskyThoughtProvider(
 
             foreach (SearchSpec search in searches)
             {
+                // A live broadcast's names go from most to least specific: stop at the first that finds posts.
+                if (mediaContext is LiveBroadcastContext && thoughts.Count > 0)
+                {
+                    break;
+                }
+
                 (BlueskyPostDto[]? posts, token) = await SearchAsync(search, token, ct);
                 if (posts is null)
                 {
@@ -152,7 +161,9 @@ public sealed class BlueskyThoughtProvider(
             { IsTransientFailure = failed > 0 };
 
             cache.Set(cacheKey, result,
-                failed > 0 ? s_failureCacheTtl : TimeSpan.FromSeconds(_options.CacheTtlSeconds));
+                failed > 0 ? s_failureCacheTtl
+                : mediaContext is LiveBroadcastContext ? LiveBroadcastContext.CacheLifetime
+                : TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
         }
         catch (Exception ex)
@@ -175,10 +186,18 @@ public sealed class BlueskyThoughtProvider(
     ///     title with the episode code, then with the episode title, then the show's hashtag in the days
     ///     around the air date (posts from while it aired, which the Time Machine view shows). Episodes that
     ///     aired more than a week ago are searched by top posts, recent ones by latest. Movies and specials
-    ///     get one search.
+    ///     get one search. A live broadcast: the latest posts of the past day under each of its names, until one finds posts.
     /// </summary>
     internal static IReadOnlyList<SearchSpec> PlanSearches(MediaContext media, DateTimeOffset now)
     {
+        if (media is LiveBroadcastContext live)
+        {
+            return live.SearchNames
+                .Select(name => new SearchSpec($"\"{name}\"", "latest", now - LiveBroadcastContext.RecentWindow, null))
+                .Take(MaxSearches)
+                .ToList();
+        }
+
         DateTimeOffset? air = media.ReleaseDate;
         string sort = air is { } aired && now - aired > s_recentFor ? "top" : "latest";
         DateTimeOffset? since = IThoughtProvider.GetDateFloor(media);

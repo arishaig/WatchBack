@@ -112,9 +112,15 @@ public sealed class MediaResultCache(
         }
 
         bool found = result?.Thoughts is { Count: > 0 };
+        // A live broadcast's discussion is still being written, so it is fetched again every few minutes.
+        TimeSpan? cap = mediaContext is LiveBroadcastContext
+            ? LiveBroadcastContext.CacheLifetime < (provider.MaxCacheAge ?? TimeSpan.MaxValue)
+                ? LiveBroadcastContext.CacheLifetime
+                : provider.MaxCacheAge
+            : provider.MaxCacheAge;
         TimeSpan ttl = found
-            ? CacheTtlPolicy.ForHit(mediaContext.ReleaseDate, now, provider.MaxCacheAge)
-            : CacheTtlPolicy.ForMiss(mediaContext.ReleaseDate, now, provider.MaxCacheAge);
+            ? CacheTtlPolicy.ForHit(mediaContext.ReleaseDate, now, cap)
+            : CacheTtlPolicy.ForMiss(mediaContext.ReleaseDate, now, cap);
         SetMemory(key, result, now + ttl);
 
         if (mediaContext.ReleaseDate is not null)

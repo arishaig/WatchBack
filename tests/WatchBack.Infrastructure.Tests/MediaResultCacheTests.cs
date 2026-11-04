@@ -430,6 +430,26 @@ public sealed class MediaResultCacheTests : IDisposable
             }
         }
     }
+
+    [Fact]
+    public async Task LiveBroadcast_IsFetchedAgainAfterTenMinutes_AndNeverPersisted()
+    {
+        IMediaResultCache cache = StartProcess().GetRequiredService<IMediaResultCache>();
+        FakeThoughtProvider provider = new();
+        LiveBroadcastContext live = new("NBC News Daily", "NBC News NOW", s_now.AddMinutes(-5), s_now.AddMinutes(55));
+
+        await cache.GetThoughtsAsync(provider, live);
+        _time.Advance(TimeSpan.FromMinutes(9));
+        await cache.GetThoughtsAsync(provider, live);
+        _time.Advance(TimeSpan.FromMinutes(2));
+        await cache.GetThoughtsAsync(provider, live);
+
+        FakeThoughtProvider afterRestart = new();
+        await StartProcess().GetRequiredService<IMediaResultCache>().GetThoughtsAsync(afterRestart, live);
+
+        provider.Calls.Should().Be(2);
+        afterRestart.Calls.Should().Be(1);
+    }
 }
 
 public sealed class CacheTtlPolicyTests
