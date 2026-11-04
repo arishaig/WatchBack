@@ -1125,6 +1125,141 @@ namespace WatchBack.Resources {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized string similar to Set it up with an AI assistant.
+        /// </summary>
+        public static string Wizard_AiSetup {
+            get {
+                return ResourceManager.GetString("Wizard_AiSetup", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Set up with an AI assistant.
+        /// </summary>
+        public static string Wizard_AiSetupTitle {
+            get {
+                return ResourceManager.GetString("Wizard_AiSetupTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to WatchBack can give an AI assistant, such as {0}, a key to connect with. The assistant then walks you through setup and changes settings for you. It can't change your password or how you log in..
+        /// </summary>
+        public static string Wizard_AiSetupBody {
+            get {
+                return ResourceManager.GetString("Wizard_AiSetupBody", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to When a step needs an API key or password, the assistant gives you a link to paste it into WatchBack, so it doesn't pass through the chat..
+        /// </summary>
+        public static string Wizard_AiSecretsNote {
+            get {
+                return ResourceManager.GetString("Wizard_AiSecretsNote", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Create a key.
+        /// </summary>
+        public static string Wizard_AiCreateKey {
+            get {
+                return ResourceManager.GetString("Wizard_AiCreateKey", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Creating….
+        /// </summary>
+        public static string Wizard_AiCreatingKey {
+            get {
+                return ResourceManager.GetString("Wizard_AiCreatingKey", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn't create a key. Try again, or set things up yourself..
+        /// </summary>
+        public static string Wizard_AiKeyFailed {
+            get {
+                return ResourceManager.GetString("Wizard_AiKeyFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Server URL.
+        /// </summary>
+        public static string Wizard_AiServerUrl {
+            get {
+                return ResourceManager.GetString("Wizard_AiServerUrl", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to API key.
+        /// </summary>
+        public static string Wizard_AiApiKey {
+            get {
+                return ResourceManager.GetString("Wizard_AiApiKey", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Shown only now. You can revoke it any time under API Keys in settings..
+        /// </summary>
+        public static string Wizard_AiKeyShownOnce {
+            get {
+                return ResourceManager.GetString("Wizard_AiKeyShownOnce", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to For {0}, run:.
+        /// </summary>
+        public static string Wizard_AiForClaudeCode {
+            get {
+                return ResourceManager.GetString("Wizard_AiForClaudeCode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Other assistants: add an HTTP MCP server with the URL above and the header {0} with this key..
+        /// </summary>
+        public static string Wizard_AiOtherAssistants {
+            get {
+                return ResourceManager.GetString("Wizard_AiOtherAssistants", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Then ask your assistant:.
+        /// </summary>
+        public static string Wizard_AiThenAsk {
+            get {
+                return ResourceManager.GetString("Wizard_AiThenAsk", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Help me set up WatchBack..
+        /// </summary>
+        public static string Wizard_AiPrompt {
+            get {
+                return ResourceManager.GetString("Wizard_AiPrompt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Done.
+        /// </summary>
+        public static string Wizard_AiDone {
+            get {
+                return ResourceManager.GetString("Wizard_AiDone", resourceCulture);
+            }
+        }
+        
         public static string Wizard_SkipSetup {
             get {
                 return ResourceManager.GetString("Wizard_SkipSetup", resourceCulture);

@@ -110,6 +110,11 @@ Alpine.data('app', (): AppData => {
         wizardSelectedWatch: null,
         wizardSelectedComments: new Set<string>(),
         wizardSaving: false,
+        // "Set it up with an AI assistant": the key is held here only while shown, never stored.
+        wizardAiMode: false,
+        wizardAiKey: null,
+        wizardAiStatus: 'idle',
+        wizardAiCopied: null,
         newProviderKeys: [] as string[],
         newProvidersActive: false,
         newProviderSelected: new Set<string>(),

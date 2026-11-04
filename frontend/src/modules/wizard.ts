@@ -14,6 +14,54 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
         this.wizardActive = false;
     },
 
+    // First start, "Set it up with an AI assistant": mint an API key for the MCP endpoint and show how to
+    // connect an assistant to it. The key is shown once and kept only in memory.
+    wizardStartAi() {
+        this.wizardAiMode = true;
+        this.wizardAiKey = null;
+        this.wizardAiStatus = 'idle';
+    },
+
+    async wizardCreateAiKey() {
+        this.wizardAiStatus = 'creating';
+        try {
+            const res = await fetch('/api/keys', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: `Setup assistant (${new Date().toISOString().slice(0, 10)})` }),
+            });
+            if (!res.ok) {
+                this.wizardAiStatus = 'error';
+                return;
+            }
+            this.wizardAiKey = (await res.json() as { key: string }).key;
+            this.wizardAiStatus = 'idle';
+        } catch {
+            this.wizardAiStatus = 'error';
+        }
+    },
+
+    async wizardAiCopy(what: string, text: string) {
+        try {
+            await navigator.clipboard.writeText(text);
+            this.wizardAiCopied = what;
+            setTimeout(() => { if (this.wizardAiCopied === what) this.wizardAiCopied = null; }, 2000);
+        } catch {
+            // Clipboard API unavailable (e.g. plain http): the text is selectable instead.
+        }
+    },
+
+    wizardAiDone() {
+        this.wizardAiKey = null;
+        this.wizardAiMode = false;
+        this.wizardComplete();
+    },
+
+    wizardAiBack() {
+        this.wizardAiKey = null;
+        this.wizardAiMode = false;
+    },
+
     wizardComplete() {
         this.wizardActive = false;
         localStorage.setItem('wb_wizardCompleted', 'true');

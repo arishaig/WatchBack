@@ -536,3 +536,47 @@ describe('settings links', () => {
         expect(window.location.hash).toBe('#something-else');
     });
 });
+
+// First start, "Set it up with an AI assistant": a key for the MCP endpoint, shown once.
+describe('AI assistant setup', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        localStorage.clear();
+    });
+
+    it('creates a dated key and keeps it only in memory', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ key: 'wb_abc123' }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const ctx = makeCtx();
+        methods['wizardStartAi'].call(ctx);
+
+        await methods['wizardCreateAiKey'].call(ctx);
+
+        expect(ctx['wizardAiMode']).toBe(true);
+        expect(ctx['wizardAiKey']).toBe('wb_abc123');
+        const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string) as { name: string };
+        expect(body.name).toMatch(/^Setup assistant \(\d{4}-\d{2}-\d{2}\)$/);
+        expect(JSON.stringify(localStorage)).not.toContain('wb_abc123');
+    });
+
+    it('reports a failure to create the key', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+        const ctx = makeCtx();
+
+        await methods['wizardCreateAiKey'].call(ctx);
+
+        expect(ctx['wizardAiStatus']).toBe('error');
+        expect(ctx['wizardAiKey']).toBeUndefined();
+    });
+
+    it('forgets the key when done, and finishes the wizard', () => {
+        const ctx = makeCtx({ wizardAiMode: true, wizardAiKey: 'wb_abc123', sync: vi.fn() });
+        ctx['wizardComplete'] = vi.fn();
+
+        methods['wizardAiDone'].call(ctx);
+
+        expect(ctx['wizardAiKey']).toBeNull();
+        expect(ctx['wizardAiMode']).toBe(false);
+        expect(ctx['wizardComplete']).toHaveBeenCalled();
+    });
+});
