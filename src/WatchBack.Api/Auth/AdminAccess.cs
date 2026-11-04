@@ -1,8 +1,10 @@
 using System.Security.Claims;
 
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 
 using WatchBack.Api.Endpoints;
+using WatchBack.Core.Options;
 
 namespace WatchBack.Api.Auth;
 
@@ -11,8 +13,9 @@ namespace WatchBack.Api.Auth;
 ///     which the frontend mirrors into the <see cref="CookieName" /> cookie. This guards against mistakes, not
 ///     attackers: anyone signed in can pick any user. With no admins stored, everyone is an admin, so
 ///     single-user setups and providers that can't tell users apart are never restricted.
+///     Behind a proxy that sends the user's groups (Authelia's Remote-Groups), the admin group decides instead.
 /// </summary>
-public sealed class AdminStore(UserConfigFile configFile)
+public sealed class AdminStore(UserConfigFile configFile, IOptionsMonitor<AuthOptions> authOptions)
 {
     /// <summary>The cookie holding the watch user ID the browser picked.</summary>
     public const string CookieName = "wb_watchUser";
@@ -87,6 +90,14 @@ public sealed class AdminStore(UserConfigFile configFile)
             return true;
         }
 
+        // Signed in through a proxy that sends groups (Authelia): membership of the admin group decides.
+        if (GroupsDecide(user))
+        {
+            string adminGroup = authOptions.CurrentValue.ForwardAuthAdminGroup;
+            return user.FindAll(ClaimTypes.Role)
+                .Any(c => string.Equals(c.Value, adminGroup, StringComparison.OrdinalIgnoreCase));
+        }
+
         IReadOnlyList<string> admins = await GetAsync(ct);
         if (admins.Count == 0)
         {
@@ -96,6 +107,10 @@ public sealed class AdminStore(UserConfigFile configFile)
         string? caller = CallerId(ctx);
         return caller is not null && admins.Contains(caller, StringComparer.Ordinal);
     }
+
+    /// <summary>Whether the proxy's groups, not the picked watch user, decide this caller's access.</summary>
+    public static bool GroupsDecide(ClaimsPrincipal user) =>
+        user.Identity?.AuthenticationType == "ForwardAuth" && user.HasClaim(c => c.Type == ForwardAuthHandler.GroupsSentClaim);
 
     private static List<string> Parse(Dictionary<string, Dictionary<string, string>> settings) =>
         settings.TryGetValue(Section, out Dictionary<string, string>? section)

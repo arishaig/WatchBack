@@ -21,7 +21,8 @@ public static class AccessEndpoints
             .WithSummary("Whether the picked watch user may change settings")
             .WithDescription(
                 "Reads the watch user from the wb_watchUser cookie. When no admins exist yet and that user is one " +
-                "the watch provider knows, they become the first admin. With no admins, everyone may change settings.");
+                "the watch provider knows, they become the first admin. With no admins, everyone may change settings. " +
+                "Behind a proxy that sends the user's groups (Authelia's Remote-Groups), the admin group decides instead.");
 
         group.MapPut("/admins", SetAdmins)
             .WithName("SetAdmins")
@@ -35,14 +36,16 @@ public static class AccessEndpoints
     private static async Task<IResult> GetAccess(
         HttpContext ctx,
         AdminStore store,
+        IOptionsSnapshot<AuthOptions> authOptions,
         [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
         IOptionsSnapshot<WatchBackOptions> options,
         CancellationToken ct)
     {
         IReadOnlyList<string> admins = await store.GetAsync(ct);
         string? caller = AdminStore.CallerId(ctx);
+        bool byGroup = AdminStore.GroupsDecide(ctx.User);
 
-        if (admins.Count == 0 && caller is not null)
+        if (admins.Count == 0 && caller is not null && !byGroup)
         {
             // Only a user the provider actually lists can claim it, so a stale or made-up ID can't.
             IReadOnlyList<WatchUser> users = await WatchUserEndpoints.ListAsync(watchStateProviders, options.Value, ct);
@@ -54,9 +57,12 @@ public static class AccessEndpoints
 
         return Results.Ok(new
         {
-            restricted = admins.Count > 0,
+            restricted = byGroup || admins.Count > 0,
             isAdmin = await store.IsAdminAsync(ctx.User, ctx, ct),
-            admins
+            admins,
+            // "group" when the proxy's groups decide (the admin list doesn't apply to this caller).
+            decidedBy = byGroup ? "group" : "watchUser",
+            adminGroup = byGroup ? authOptions.Value.ForwardAuthAdminGroup : null
         });
     }
 

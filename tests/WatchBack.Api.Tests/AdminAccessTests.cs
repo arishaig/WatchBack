@@ -24,7 +24,7 @@ using Xunit;
 
 namespace WatchBack.Api.Tests;
 
-// The first watch user picked becomes the admin; only admins change settings.
+// The first watch user picked becomes the admin; only admins change settings. Behind Authelia, its groups decide.
 public sealed class AdminAccessTests : IDisposable
 {
     private const string TestUsername = "testadmin";
@@ -52,7 +52,10 @@ public sealed class AdminAccessTests : IDisposable
                 {
                     ["Auth:Username"] = TestUsername,
                     ["Auth:PasswordHash"] = hash,
-                    ["Auth:OnboardingComplete"] = "true"
+                    ["Auth:OnboardingComplete"] = "true",
+                    // Behind Authelia: it sends Remote-User and Remote-Groups.
+                    ["Auth:ForwardAuthHeader"] = "Remote-User",
+                    ["Auth:ForwardAuthTrustedHost"] = "*"
                 }));
             builder.ConfigureServices(services =>
             {
@@ -246,6 +249,72 @@ public sealed class AdminAccessTests : IDisposable
         (await McpListTools(assistant)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await SaveConfig(assistant)).StatusCode.Should().Be(HttpStatusCode.Unauthorized,
             "a key opens /mcp only, as before");
+    }
+
+    // Signed in through Authelia as user, with the groups it sent (null: no groups header at all).
+    private HttpClient ThroughAuthelia(string user, string? groups)
+    {
+        HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        _clients.Add(client);
+        client.DefaultRequestHeaders.Add("Remote-User", user);
+        if (groups is not null)
+        {
+            client.DefaultRequestHeaders.Add("Remote-Groups", groups);
+        }
+
+        return client;
+    }
+
+    [Fact]
+    public async Task BehindAuthelia_TheAdminsGroupDecides()
+    {
+        HttpClient admin = ThroughAuthelia("isaac", "dev, admins");
+        HttpClient user = ThroughAuthelia("guest", "users");
+
+        (await SaveConfig(admin)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await admin.GetAsync("/api/keys")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await SaveConfig(user)).StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "the groups decide even before anyone has claimed admin by picking a user");
+        (await McpListTools(user)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        JsonElement access = await user.GetFromJsonAsync<JsonElement>("/api/access");
+        access.GetProperty("restricted").GetBoolean().Should().BeTrue();
+        access.GetProperty("isAdmin").GetBoolean().Should().BeFalse();
+        access.GetProperty("decidedBy").GetString().Should().Be("group");
+        access.GetProperty("adminGroup").GetString().Should().Be("admins");
+    }
+
+    [Fact]
+    public async Task BehindAuthelia_APickedUserDoesNotClaimAdmin()
+    {
+        HttpClient guest = ThroughAuthelia("guest", "users");
+        guest.DefaultRequestHeaders.Add("Cookie", "wb_watchUser=alice");
+
+        (await AccessAsync(guest)).IsAdmin.Should().BeFalse();
+        SavedAdmins().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AProxyThatSendsNoGroups_FallsBackToThePickedUser()
+    {
+        HttpClient noGroups = ThroughAuthelia("isaac", null);
+
+        (await SaveConfig(noGroups)).StatusCode.Should().Be(HttpStatusCode.OK, "no admins stored yet");
+        await AccessAsync(await BrowserAsync("alice"));
+        (await SaveConfig(noGroups)).StatusCode.Should().Be(HttpStatusCode.Forbidden, "alice claimed it");
+    }
+
+    [Fact]
+    public async Task AGroupAdmin_CannotRenameTheAdminGroupToOneTheyAreNotIn()
+    {
+        HttpClient admin = ThroughAuthelia("isaac", "admins");
+
+        (await admin.PostAsJsonAsync("/api/auth/forward-auth",
+                new { header = "Remote-User", trustedHost = "*", groupsHeader = "Remote-Groups", adminGroup = "wb-admins" }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await admin.PostAsJsonAsync("/api/auth/forward-auth",
+                new { header = "Remote-User", trustedHost = "*", groupsHeader = "Remote-Groups", adminGroup = "Admins" }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     private sealed record Access(bool Restricted, bool IsAdmin, string[] Admins);

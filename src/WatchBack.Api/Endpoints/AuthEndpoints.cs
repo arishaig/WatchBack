@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
+using WatchBack.Api.Auth;
 using WatchBack.Core.Options;
 using WatchBack.Resources;
 
@@ -89,7 +90,9 @@ public static class AuthEndpoints
             authMethod,
             containerName = Environment.MachineName,
             forwardAuthHeader = isAuthenticated ? opts.ForwardAuthHeader : null,
-            forwardAuthTrustedHost = isAuthenticated ? opts.ForwardAuthTrustedHost : null
+            forwardAuthTrustedHost = isAuthenticated ? opts.ForwardAuthTrustedHost : null,
+            forwardAuthGroupsHeader = isAuthenticated ? opts.ForwardAuthGroupsHeader : null,
+            forwardAuthAdminGroup = isAuthenticated ? opts.ForwardAuthAdminGroup : null
         });
     }
 
@@ -277,6 +280,7 @@ public static class AuthEndpoints
     }
 
     private static async Task<IResult> SaveForwardAuth(
+        HttpContext ctx,
         [FromBody] ForwardAuthSettingsRequest body,
         UserConfigFile configFile,
         IOptionsSnapshot<AuthOptions> authOptions,
@@ -284,6 +288,19 @@ public static class AuthEndpoints
         CancellationToken ct)
     {
         string newTrustedHost = body.TrustedHost?.Trim() ?? "";
+        string? newAdminGroup = body.AdminGroup?.Trim();
+
+        // Someone who is an admin through their proxy group can't rename the admin group to one they're not in.
+        if (newAdminGroup is not null && AdminStore.GroupsDecide(ctx.User)
+                                      && !ctx.User.FindAll(ClaimTypes.Role).Any(c =>
+                                          string.Equals(c.Value, newAdminGroup, StringComparison.OrdinalIgnoreCase)))
+        {
+            return Results.BadRequest(new
+            {
+                ok = false,
+                message = $"You're not in the group \"{newAdminGroup}\", so you'd lose admin access."
+            });
+        }
 
         // The trusted host feeds ForwardedHeadersOptions.KnownProxies/KnownNetworks
         // (Program.cs), which ForwardedHeadersMiddleware only reads once at startup —
@@ -305,6 +322,16 @@ public static class AuthEndpoints
 
             authSection["ForwardAuthHeader"] = body.Header?.Trim() ?? "";
             authSection["ForwardAuthTrustedHost"] = newTrustedHost;
+            // Older clients don't send these; leave them as they are.
+            if (body.GroupsHeader is not null)
+            {
+                authSection["ForwardAuthGroupsHeader"] = body.GroupsHeader.Trim();
+            }
+
+            if (newAdminGroup is not null)
+            {
+                authSection["ForwardAuthAdminGroup"] = newAdminGroup;
+            }
 
             await WriteConfigFile(configFile.Path, existing, ct);
         }
@@ -472,5 +499,9 @@ public static class AuthEndpoints
 
     private sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
-    private sealed record ForwardAuthSettingsRequest(string? Header, string? TrustedHost);
+    private sealed record ForwardAuthSettingsRequest(
+        string? Header,
+        string? TrustedHost,
+        string? GroupsHeader = null,
+        string? AdminGroup = null);
 }
