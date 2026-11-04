@@ -98,7 +98,11 @@ Admins can change WatchBack's settings; everyone else can watch and pick their o
 - **Behind Authelia (or another proxy that sends groups):** members of the admin group are admins. The defaults are the `Remote-Groups` header and the `admins` group; you can change both next to the forward auth settings. A proxy that sends no groups header falls back to the next rule.
 - **Otherwise:** the first person who picks their name in the Jellyfin user picker becomes the admin. They can make other users admins under Settings → Admins. If there's only one Jellyfin user, or the watch source can't tell users apart (Trakt, manual), everyone is an admin.
 
-To reset the admin list, delete the `Access` section from `user-settings.json` (next to the database). The next person to pick their name becomes the admin again.
+With Traefik, the forward-auth middleware must list `Remote-Groups` in `authResponseHeaders`. Without it, WatchBack never sees the groups and uses the picker rule instead.
+
+If your Authelia admin group isn't called `admins`, set `Auth__ForwardAuthAdminGroup` to its name before upgrading. Otherwise nobody will be an admin. Setting `Auth__ForwardAuthGroupsHeader` to an empty value ignores groups completely. Once the forward auth settings have been saved in WatchBack, the saved values win over these environment variables. To change them after that, edit the `Auth` section of `user-settings.json`, which sits next to the database.
+
+To reset the picker-based admin list, delete the `Access` section from `user-settings.json`. The next person to pick their name becomes the admin.
 
 ## Credits
 
