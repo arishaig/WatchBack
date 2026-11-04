@@ -226,6 +226,18 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         }
     },
 
+    // Comments and replies: a post from the last day also shows its time, since on live TV
+    // the conversation moves by the hour and several posts share a date.
+    formatThoughtDate(iso: string): string {
+        if (!iso) return '';
+        const posted = new Date(iso);
+        if (isNaN(posted.getTime())) return iso;
+        const date = posted.toLocaleDateString();
+        const age = Date.now() - posted.getTime();
+        if (age < 0 || age >= 24 * 60 * 60 * 1000) return date;
+        return `${date} ${posted.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    },
+
     formatScore(n: number | null): string {
         if (n == null) return '';
         if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';

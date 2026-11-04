@@ -87,6 +87,42 @@ describe('formatScore', () => {
     });
 });
 
+// ── formatThoughtDate ─────────────────────────────────────────────────────────
+
+describe('formatThoughtDate', () => {
+    const now = new Date('2026-11-04T19:30:00Z');
+    beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(now); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    const timeOf = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+    it('shows the time as well as the date for a post from the last day', () => {
+        const iso = '2026-11-04T18:05:00Z';
+        expect(methods.formatThoughtDate.call({}, iso))
+            .toBe(`${new Date(iso).toLocaleDateString()} ${timeOf(iso)}`);
+    });
+
+    it('shows the time for last night\'s post the next morning', () => {
+        const iso = '2026-11-03T23:00:00Z';
+        expect(methods.formatThoughtDate.call({}, iso)).toContain(timeOf(iso));
+    });
+
+    it('shows only the date for an older post', () => {
+        const iso = '2026-11-02T18:05:00Z';
+        expect(methods.formatThoughtDate.call({}, iso)).toBe(new Date(iso).toLocaleDateString());
+    });
+
+    it('shows only the date for a post dated in the future', () => {
+        const iso = '2026-11-05T18:05:00Z';
+        expect(methods.formatThoughtDate.call({}, iso)).toBe(new Date(iso).toLocaleDateString());
+    });
+
+    it('returns empty for empty input and the input for an invalid date', () => {
+        expect(methods.formatThoughtDate.call({}, '')).toBe('');
+        expect(methods.formatThoughtDate.call({}, 'not-a-date')).toBe('not-a-date');
+    });
+});
+
 // ── formatDate ────────────────────────────────────────────────────────────────
 
 describe('formatDate', () => {
