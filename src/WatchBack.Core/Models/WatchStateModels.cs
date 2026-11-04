@@ -134,28 +134,49 @@ public record LiveBroadcastContext(
     private static readonly string[] s_hostSeparators = [" with ", " w/ "];
 
     /// <summary>
-    ///     What people call it: the program's name without the hosts guides append
-    ///     ("NBC News Daily With Morgan Radford" → "NBC News Daily"), then the channel's name if different.
+    ///     The names to search, in order, for the first that finds posts: the program's name as the guide
+    ///     gives it; then without the hosts guides append ("NBC News Daily With Morgan Radford" →
+    ///     "NBC News Daily"), unless that would cut a title apart ("Dancing with the Stars"); then the channel's.
     /// </summary>
     public IReadOnlyList<string> SearchNames
     {
         get
         {
-            string program = Title;
-            foreach (string separator in s_hostSeparators)
+            List<string> names = [Title.Trim()];
+            if (WithoutHosts(names[0]) is { } shorter)
             {
-                int at = program.IndexOf(separator, StringComparison.OrdinalIgnoreCase);
-                if (at > 0)
-                {
-                    program = program[..at];
-                }
+                names.Add(shorter);
             }
 
-            program = program.Trim();
-            return string.IsNullOrWhiteSpace(ChannelName) || ChannelName.Equals(program, StringComparison.OrdinalIgnoreCase)
-                ? [program]
-                : [program, ChannelName.Trim()];
+            if (!string.IsNullOrWhiteSpace(ChannelName))
+            {
+                names.Add(ChannelName.Trim());
+            }
+
+            return names.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
+    }
+
+    // "X With A and B": the hosts are named people, so what follows starts with a capital and isn't "the".
+    private static string? WithoutHosts(string title)
+    {
+        foreach (string separator in s_hostSeparators)
+        {
+            int at = title.IndexOf(separator, StringComparison.OrdinalIgnoreCase);
+            if (at <= 0)
+            {
+                continue;
+            }
+
+            string hosts = title[(at + separator.Length)..].TrimStart();
+            if (hosts.Length > 0 && char.IsUpper(hosts[0]) &&
+                !hosts.StartsWith("The ", StringComparison.OrdinalIgnoreCase))
+            {
+                return title[..at].Trim();
+            }
+        }
+
+        return null;
     }
 
     public virtual bool Equals(LiveBroadcastContext? other)

@@ -781,9 +781,10 @@ public class LemmyThoughtProviderTests : IDisposable
 
         await CreateProvider(new HttpClient(handler)).GetThoughtsAsync(live);
 
-        searches.Should().HaveCount(2);
-        searches[0].Should().Contain("q=NBC News Daily&").And.Contain("sort=New");
-        searches[1].Should().Contain("q=NBC News NOW&").And.Contain("sort=New");
+        searches.Should().HaveCount(3);
+        searches[0].Should().Contain("q=NBC News Daily With Morgan Radford&").And.Contain("sort=New");
+        searches[1].Should().Contain("q=NBC News Daily&").And.Contain("sort=New");
+        searches[2].Should().Contain("q=NBC News NOW&").And.Contain("sort=New");
     }
 
     [Fact]
@@ -806,9 +807,11 @@ public class LemmyThoughtProviderTests : IDisposable
         clock.UtcNow += TimeSpan.FromMinutes(9);
         await provider.GetThoughtsAsync(live);
         clock.UtcNow += TimeSpan.FromMinutes(2);
-        await provider.GetThoughtsAsync(live);
+        System.Collections.Concurrent.ConcurrentBag<SyncProgressTick> refreshTicks = [];
+        await provider.GetThoughtsAsync(live, new CapturingProgress(refreshTicks));
 
         searches.Should().Be(4, "two names searched, twice: once at first and once after ten minutes");
+        refreshTicks.Should().BeEmpty("a refresh while it airs must not flash the loading bar");
     }
 
 #pragma warning disable CS0618 // MemoryCacheOptions.Clock is the cache's only time seam

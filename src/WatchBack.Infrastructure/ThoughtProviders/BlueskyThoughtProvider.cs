@@ -115,6 +115,12 @@ public sealed class BlueskyThoughtProvider(
 
             foreach (SearchSpec search in searches)
             {
+                // A live broadcast's names go from most to least specific: stop at the first that finds posts.
+                if (mediaContext is LiveBroadcastContext && thoughts.Count > 0)
+                {
+                    break;
+                }
+
                 (BlueskyPostDto[]? posts, token) = await SearchAsync(search, token, ct);
                 if (posts is null)
                 {
@@ -179,7 +185,7 @@ public sealed class BlueskyThoughtProvider(
     ///     title with the episode code, then with the episode title, then the show's hashtag in the days
     ///     around the air date (posts from while it aired, which the Time Machine view shows). Episodes that
     ///     aired more than a week ago are searched by top posts, recent ones by latest. Movies and specials
-    ///     get one search. A live broadcast: the latest posts of the past day naming the program, then the channel.
+    ///     get one search. A live broadcast: the latest posts of the past day under each of its names, until one finds posts.
     /// </summary>
     internal static IReadOnlyList<SearchSpec> PlanSearches(MediaContext media, DateTimeOffset now)
     {

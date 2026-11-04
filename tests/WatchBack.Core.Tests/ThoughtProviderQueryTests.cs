@@ -116,11 +116,14 @@ public class ThoughtProviderQueryTests
     }
 
     [Theory]
-    [InlineData("NBC News Daily With Morgan Radford and Vicky Nguyen", "NBC News NOW", new[] { "NBC News Daily", "NBC News NOW" })]
-    [InlineData("Meet the Press w/ Kristen Welker", "NBC", new[] { "Meet the Press", "NBC" })]
+    [InlineData("NBC News Daily With Morgan Radford and Vicky Nguyen", "NBC News NOW",
+        new[] { "NBC News Daily With Morgan Radford and Vicky Nguyen", "NBC News Daily", "NBC News NOW" })]
+    [InlineData("Meet the Press w/ Kristen Welker", "NBC", new[] { "Meet the Press w/ Kristen Welker", "Meet the Press", "NBC" })]
+    [InlineData("Dancing with the Stars", "ABC", new[] { "Dancing with the Stars", "ABC" })]
+    [InlineData("Cooking with gas", "PBS", new[] { "Cooking with gas", "PBS" })]
     [InlineData("NBC News NOW", "NBC News NOW", new[] { "NBC News NOW" })]
     [InlineData("Live at Five", "", new[] { "Live at Five" })]
-    public void LiveBroadcast_SearchNames_DropHostsAndAddTheChannel(string title, string channel, string[] expected)
+    public void LiveBroadcast_SearchNames_FullTitleThenWithoutHostsThenChannel(string title, string channel, string[] expected)
     {
         new LiveBroadcastContext(title, channel).SearchNames.Should().Equal(expected);
     }
