@@ -110,7 +110,8 @@ public sealed partial class JellyfinWatchStateProvider
                 titled ? program.EpisodeTitle! : program.Name,
                 (short)(numbered ? program.ParentIndexNumber!.Value : 0),
                 (short)(numbered ? program.IndexNumber!.Value : 0),
-                ExternalIdsOf(program.ProviderIds)) { LiveChannel = channelName };
+                ExternalIdsOf(program.ProviderIds))
+            { LiveChannel = channelName };
         }
 
         return new LiveBroadcastContext(
@@ -119,7 +120,8 @@ public sealed partial class JellyfinWatchStateProvider
             program.StartDate is { } start ? new DateTimeOffset(start, TimeSpan.Zero) : null,
             program.EndDate is { } end ? new DateTimeOffset(end, TimeSpan.Zero) : null,
             program.EpisodeTitle,
-            IsMusic(program)) { LiveChannel = program.ChannelName ?? channelName };
+            IsMusic(program))
+        { LiveChannel = program.ChannelName ?? channelName };
     }
 
     private static bool IsMusic(JellyfinProgramDto program) =>

@@ -243,7 +243,8 @@ public class SyncIntegrationTests : IAsyncLifetime
     public async Task GetSync_RerunOnALiveChannel_ReportsTheEpisodeAndTheChannel()
     {
         EpisodeContext airing = new EpisodeContext("Star Trek: The Next Generation",
-            new DateTimeOffset(1987, 10, 5, 0, 0, 0, TimeSpan.Zero), "The Naked Now", 1, 2) { LiveChannel = "Trek Time" };
+            new DateTimeOffset(1987, 10, 5, 0, 0, 0, TimeSpan.Zero), "The Naked Now", 1, 2)
+        { LiveChannel = "Trek Time" };
         _mockWatchProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(airing);
 
         string json = await (await _client.GetAsync("/api/sync")).Content.ReadAsStringAsync();
