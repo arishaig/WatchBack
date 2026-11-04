@@ -101,7 +101,8 @@ public class SyncService(
                 ratings.Count > 0 ? ratings : null,
                 ratingsProviderName);
 
-            if (mediaContext is EpisodeContext episode)
+            // On a live channel the next episode isn't what airs next, so there is nothing to warm.
+            if (mediaContext is EpisodeContext { LiveChannel: null } episode)
             {
                 prefetchService.SchedulePrefetch(episode, viewerKey);
             }

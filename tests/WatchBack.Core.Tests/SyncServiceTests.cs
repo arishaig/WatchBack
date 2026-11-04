@@ -823,4 +823,24 @@ public class SyncServiceTests
         await showComments.DidNotReceive().GetThoughtsAsync(Arg.Any<MediaContext>(),
             Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
     }
+
+    // On a live channel the next episode isn't what airs next, so prefetching it would spend quota for nothing.
+    [Fact]
+    public async Task SyncAsync_EpisodeAiringOnALiveChannel_IsNotPrefetched()
+    {
+        EpisodeContext airing = new EpisodeContext("Star Trek: The Next Generation", null, "The Naked Now", 1, 2)
+        {
+            LiveChannel = "Trek Time"
+        };
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(airing);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            Array.Empty<IThoughtProvider>(), Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService,
+            new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
+
+        await service.SyncAsync();
+
+        _prefetchService.DidNotReceiveWithAnyArgs().SchedulePrefetch(default!, default);
+    }
 }

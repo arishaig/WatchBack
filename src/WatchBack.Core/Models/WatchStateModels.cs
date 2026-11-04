@@ -16,6 +16,13 @@ public record MediaContext(
     DateTimeOffset? ReleaseDate,
     IReadOnlyDictionary<string, string>? ExternalIds = null)
 {
+    /// <summary>
+    ///     The channel this is airing on, when it is being watched as live TV (an episode or movie in a
+    ///     channel's schedule, or a <see cref="LiveBroadcastContext" />). Not part of its identity: the same
+    ///     episode is the same whether it airs live or plays from a library.
+    /// </summary>
+    public string? LiveChannel { get; init; }
+
     public virtual bool Equals(MediaContext? other)
     {
         return other is not null &&
@@ -118,11 +125,13 @@ public record EpisodeContext(
 /// <param name="ChannelName">The channel it airs on</param>
 /// <param name="StartsAt">When this airing began, if the guide says</param>
 /// <param name="EndsAt">When this airing ends, if the guide says</param>
+/// <param name="Subtitle">The guide's episode title for this airing, e.g. the match ("Feyenoord vs. Inter Milan")</param>
 public record LiveBroadcastContext(
     string Title,
     string ChannelName,
     DateTimeOffset? StartsAt = null,
-    DateTimeOffset? EndsAt = null
+    DateTimeOffset? EndsAt = null,
+    string? Subtitle = null
 ) : MediaContext(Title, null)
 {
     /// <summary>How long results for a live broadcast stay fresh: the conversation moves while it airs.</summary>
@@ -134,7 +143,8 @@ public record LiveBroadcastContext(
     private static readonly string[] s_hostSeparators = [" with ", " w/ "];
 
     /// <summary>
-    ///     The names to search, in order, for the first that finds posts: the program's name as the guide
+    ///     The names to search, in order, for the first that finds posts: the match, when the guide names
+    ///     one ("UFC Main Event: Oliveira vs Chandler 2" → "Oliveira vs Chandler 2"); the program's name as the guide
     ///     gives it; then without the hosts guides append ("NBC News Daily With Morgan Radford" →
     ///     "NBC News Daily"), unless that would cut a title apart ("Dancing with the Stars"); then the channel's.
     /// </summary>
@@ -142,7 +152,13 @@ public record LiveBroadcastContext(
     {
         get
         {
-            List<string> names = [Title.Trim()];
+            List<string> names = [];
+            if (Matchup(Subtitle) is { } matchup)
+            {
+                names.Add(matchup);
+            }
+
+            names.Add(Title.Trim());
             if (WithoutHosts(names[0]) is { } shorter)
             {
                 names.Add(shorter);
@@ -155,6 +171,21 @@ public record LiveBroadcastContext(
 
             return names.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
+    }
+
+    // "A vs. B" or "A v. B", after any "Event name: " prefix. Other subtitles ("Week 10", "10/29/26") name nothing
+    // people would search for.
+    private static string? Matchup(string? subtitle)
+    {
+        if (string.IsNullOrWhiteSpace(subtitle) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(subtitle, @"\s(vs\.?|v\.)\s",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        {
+            return null;
+        }
+
+        int colon = subtitle.LastIndexOf(": ", StringComparison.Ordinal);
+        return (colon >= 0 ? subtitle[(colon + 2)..] : subtitle).Trim();
     }
 
     // "X With A and B": the hosts are named people, so what follows starts with a capital and isn't "the".
@@ -185,11 +216,12 @@ public record LiveBroadcastContext(
                base.Equals(other) &&
                ChannelName == other.ChannelName &&
                StartsAt == other.StartsAt &&
-               EndsAt == other.EndsAt;
+               EndsAt == other.EndsAt &&
+               Subtitle == other.Subtitle;
     }
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(base.GetHashCode(), ChannelName, StartsAt, EndsAt);
+        return HashCode.Combine(base.GetHashCode(), ChannelName, StartsAt, EndsAt, Subtitle);
     }
 }

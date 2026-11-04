@@ -141,4 +141,32 @@ public class ThoughtProviderQueryTests
         first.Should().NotBe(next);
         first.Should().NotBe(new MediaContext("NBC News Daily", null));
     }
+
+    [Theory]
+    [InlineData("UFC Main Event", "UFC Main Event: Oliveira vs Chandler 2", "Oliveira vs Chandler 2")]
+    [InlineData("UCL Match Replay", "Feyenoord vs. Inter Milan", "Feyenoord vs. Inter Milan")]
+    [InlineData("Premier League", "Arsenal v. Chelsea", "Arsenal v. Chelsea")]
+    public void LiveBroadcast_SearchNames_StartWithTheMatch(string title, string subtitle, string match)
+    {
+        new LiveBroadcastContext(title, "Sports Channel", Subtitle: subtitle).SearchNames
+            .Should().Equal(match, title, "Sports Channel");
+    }
+
+    [Theory]
+    [InlineData("10/29/26")]
+    [InlineData("Week 10: Magnificent Six")]
+    [InlineData("Alamodome -- San Antonio, TX")]
+    public void LiveBroadcast_SearchNames_IgnoreSubtitlesThatNameNoMatch(string subtitle)
+    {
+        new LiveBroadcastContext("Poker After Dark", "Sports Channel", Subtitle: subtitle).SearchNames
+            .Should().Equal("Poker After Dark", "Sports Channel");
+    }
+
+    [Fact]
+    public void LiveChannel_IsNotPartOfWhatAnEpisodeIs()
+    {
+        EpisodeContext library = new("Star Trek: The Next Generation", null, "The Naked Now", 1, 2);
+
+        (library with { LiveChannel = "Trek Time" }).Should().Be(library);
+    }
 }
