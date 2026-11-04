@@ -293,6 +293,19 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
 
         fields.Should().HaveCount(1);
         fields[0].GetProperty("key").GetString().Should().Be("TestWatch__Url");
+        fields[0].GetProperty("label").GetString().Should().Be("Server URL");
+        fields[0].GetProperty("value").GetString().Should().Be("http://test:8096");
+        fields[0].GetProperty("secret").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetConfig_Integration_IncludesProviderDescription()
+    {
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+        JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        doc.RootElement.GetProperty("integrations").GetProperty("testthought")
+            .GetProperty("description").GetString().Should().Be("Test thought provider");
     }
 
     // ---- GET /api/status ----

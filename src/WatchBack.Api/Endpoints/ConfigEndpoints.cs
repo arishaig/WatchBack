@@ -121,9 +121,23 @@ public static class ConfigEndpoints
                 i => (object)new
                 {
                     name = i.Primary.Metadata.DisplayName,
+                    description = i.Primary.Metadata.Description,
                     logoSvg = i.Primary.Metadata.BrandData?.LogoSvg ?? "",
                     brandColor = i.Primary.Metadata.BrandData?.Color ?? "",
-                    fields = i.Fields,
+                    // "secret" marks credentials shown as plain text (Trakt's client ID) so the UI never
+                    // echoes them into a row summary.
+                    fields = i.Fields.Select(f => new
+                    {
+                        f.Key,
+                        f.Label,
+                        f.Type,
+                        f.Placeholder,
+                        f.HasValue,
+                        f.Value,
+                        f.EnvValue,
+                        f.IsOverridden,
+                        Secret = IntegrationCatalog.IsSecret(f)
+                    }),
                     configured = i.Configured,
                     providerTypes = i.Roles,
                     disabled = i.Disabled
