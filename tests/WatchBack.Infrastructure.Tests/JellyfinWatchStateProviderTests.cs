@@ -609,6 +609,117 @@ public class JellyfinWatchStateProviderTests : IDisposable
         provider.RevealSecret("Jellyfin__BaseUrl").Should().BeNull();
         provider.RevealSecret("SomeOther__Key").Should().BeNull();
     }
+
+    // ---- Live TV: the channel resolves to the program airing on it ----
+
+    private async Task<MediaContext?> ContextForChannelAsync(string currentProgramJson)
+    {
+        string sessionJson = $$"""
+                               [
+                                   {
+                                       "Id": "session1",
+                                       "NowPlayingItem": {
+                                           "Name": "NBC News NOW",
+                                           "Type": "TvChannel",
+                                           "ChannelNumber": "334",
+                                           "ProviderIds": { "ExternalServiceId": "Emby" }
+                                           {{(currentProgramJson.Length > 0 ? ", \"CurrentProgram\": " + currentProgramJson : "")}}
+                                       }
+                                   }
+                               ]
+                               """;
+        MockHttpMessageHandler handler = new(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sessionJson) });
+        HttpClient client = new(handler) { BaseAddress = new Uri(_options.BaseUrl) };
+        JellyfinWatchStateProvider provider = new(client, new OptionsSnapshotStub<JellyfinOptions>(_options), _cache,
+            NullLogger<JellyfinWatchStateProvider>.Instance);
+        return await provider.GetCurrentMediaContextAsync();
+    }
+
+    // Regression: a live channel was reported as an episode named after the channel, at S00E00.
+    [Fact]
+    public async Task LiveChannel_AiringNews_IsALiveBroadcastOfTheProgram()
+    {
+        MediaContext? result = await ContextForChannelAsync("""
+            {
+                "Name": "NBC News Daily With Morgan Radford and Vicky Nguyen",
+                "ChannelName": "NBC News NOW",
+                "Type": "Program",
+                "ProductionYear": 1970,
+                "ProviderIds": { "ProgramEtag": "xmltv-sha256-v1:FCC3" },
+                "StartDate": "2026-11-04T18:00:00.0000000Z",
+                "EndDate": "2026-11-04T19:00:00.0000000Z",
+                "IsLive": true,
+                "IsNews": true
+            }
+            """);
+
+        LiveBroadcastContext live = result.Should().BeOfType<LiveBroadcastContext>().Subject;
+        live.Title.Should().Be("NBC News Daily With Morgan Radford and Vicky Nguyen");
+        live.ChannelName.Should().Be("NBC News NOW");
+        live.StartsAt.Should().Be(new DateTimeOffset(2026, 11, 4, 18, 0, 0, TimeSpan.Zero));
+        live.EndsAt.Should().Be(new DateTimeOffset(2026, 11, 4, 19, 0, 0, TimeSpan.Zero));
+        live.ReleaseDate.Should().BeNull();
+        live.ExternalIds.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task LiveChannel_AiringAnEpisode_IsThatEpisode()
+    {
+        // As Tunarr's guide describes a rerun: show title, episode title and numbers, no air date or ids.
+        MediaContext? result = await ContextForChannelAsync("""
+            {
+                "Name": "Star Trek: The Next Generation",
+                "EpisodeTitle": "The Naked Now",
+                "ParentIndexNumber": 1,
+                "IndexNumber": 2,
+                "ProductionYear": 1987,
+                "StartDate": "2026-11-04T17:17:00.0000000Z",
+                "EndDate": "2026-11-04T18:03:00.0000000Z",
+                "IsSeries": true,
+                "IsRepeat": true,
+                "ProviderIds": { "ProgramEtag": "xmltv-sha256-v1:1405" },
+                "Type": "Program"
+            }
+            """);
+
+        EpisodeContext episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        episode.Title.Should().Be("Star Trek: The Next Generation");
+        episode.EpisodeTitle.Should().Be("The Naked Now");
+        episode.SeasonNumber.Should().Be(1);
+        episode.EpisodeNumber.Should().Be(2);
+        episode.ReleaseDate.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task LiveChannel_AiringAMovie_IsThatMovie()
+    {
+        MediaContext? result = await ContextForChannelAsync("""
+            {
+                "Name": "Galaxy Quest",
+                "IsMovie": true,
+                "PremiereDate": "1999-12-25T00:00:00.0000000Z",
+                "ProviderIds": { "Imdb": "tt0177789" },
+                "Type": "Program"
+            }
+            """);
+
+        result.Should().BeOfType<MediaContext>();
+        result!.Title.Should().Be("Galaxy Quest");
+        result.ReleaseDate.Should().Be(new DateTimeOffset(1999, 12, 25, 0, 0, 0, TimeSpan.Zero));
+        result.ExternalIds.Should().ContainKey(ExternalIdType.Imdb).WhoseValue.Should().Be("tt0177789");
+    }
+
+    [Fact]
+    public async Task LiveChannel_WithoutGuideData_IsALiveBroadcastOfTheChannel()
+    {
+        MediaContext? result = await ContextForChannelAsync("");
+
+        LiveBroadcastContext live = result.Should().BeOfType<LiveBroadcastContext>().Subject;
+        live.Title.Should().Be("NBC News NOW");
+        live.ChannelName.Should().Be("NBC News NOW");
+        live.StartsAt.Should().BeNull();
+    }
 }
 
 internal sealed class MockHttpMessageHandler : HttpMessageHandler
@@ -639,4 +750,5 @@ internal sealed class MockHttpMessageHandler : HttpMessageHandler
         HttpResponseMessage response = _fixedResponse ?? _requestFactory?.Invoke(request) ?? _responseFactory!();
         return Task.FromResult(response);
     }
+
 }

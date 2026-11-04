@@ -77,33 +77,18 @@ public sealed class JellyfinWatchStateProvider(
                 return null;
             }
 
-            JellyfinItemDto? item = activeSession.NowPlayingItem;
-
-            Dictionary<string, string> externalIds = new();
-            if (item.ProviderIds?.GetValueOrDefault("Imdb") is { } imdb)
-            {
-                externalIds[Imdb] = imdb;
-            }
-
-            if (item.ProviderIds?.GetValueOrDefault("Tmdb") is { } tmdb)
-            {
-                externalIds[Tmdb] = tmdb;
-            }
-
-            if (item.ProviderIds?.GetValueOrDefault("Tvdb") is { } tvdb)
-            {
-                externalIds[Tvdb] = tvdb;
-            }
-
-            EpisodeContext result = new(
-                item.SeriesName ?? item.Name ?? "Unknown",
-                item.PremiereDate.HasValue
-                    ? new DateTimeOffset(item.PremiereDate.Value, TimeSpan.Zero)
-                    : null,
-                item.Name ?? "Unknown",
-                (short)(item.ParentIndexNumber ?? 0),
-                (short)(item.IndexNumber ?? 0),
-                externalIds.Count > 0 ? externalIds : null);
+            JellyfinItemDto item = activeSession.NowPlayingItem;
+            MediaContext result = item.Type == "TvChannel"
+                ? FromLiveChannel(item)
+                : new EpisodeContext(
+                    item.SeriesName ?? item.Name ?? "Unknown",
+                    item.PremiereDate.HasValue
+                        ? new DateTimeOffset(item.PremiereDate.Value, TimeSpan.Zero)
+                        : null,
+                    item.Name ?? "Unknown",
+                    (short)(item.ParentIndexNumber ?? 0),
+                    (short)(item.IndexNumber ?? 0),
+                    ExternalIdsOf(item.ProviderIds));
 
             cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
@@ -113,6 +98,59 @@ public sealed class JellyfinWatchStateProvider(
             logger.LogWarning(ex, "Jellyfin watch state fetch failed");
             return null;
         }
+    }
+
+    // A live channel is identified by what the guide says is airing on it: an episode (a Tunarr
+    // channel of reruns, a scheduled series) or a movie is looked up like one from the library;
+    // anything else (news, sports) is a live broadcast, discussed now under its own name.
+    internal static MediaContext FromLiveChannel(JellyfinItemDto channel)
+    {
+        string channelName = channel.Name ?? "Unknown";
+        JellyfinProgramDto? program = channel.CurrentProgram;
+        if (program is null || string.IsNullOrWhiteSpace(program.Name))
+        {
+            return new LiveBroadcastContext(channelName, channelName);
+        }
+
+        DateTimeOffset? premiere = program.PremiereDate is { } date ? new DateTimeOffset(date, TimeSpan.Zero) : null;
+        if (program.IsMovie == true)
+        {
+            return new MediaContext(program.Name, premiere, ExternalIdsOf(program.ProviderIds));
+        }
+
+        if (program is { ParentIndexNumber: > 0, IndexNumber: > 0 })
+        {
+            return new EpisodeContext(
+                program.Name,
+                premiere,
+                string.IsNullOrWhiteSpace(program.EpisodeTitle) ? program.Name : program.EpisodeTitle,
+                (short)program.ParentIndexNumber.Value,
+                (short)program.IndexNumber.Value,
+                ExternalIdsOf(program.ProviderIds));
+        }
+
+        return new LiveBroadcastContext(
+            program.Name,
+            program.ChannelName ?? channelName,
+            program.StartDate is { } start ? new DateTimeOffset(start, TimeSpan.Zero) : null,
+            program.EndDate is { } end ? new DateTimeOffset(end, TimeSpan.Zero) : null);
+    }
+
+    private static readonly (string JellyfinKey, string Type)[] s_externalIdKeys =
+        [("Imdb", Imdb), ("Tmdb", Tmdb), ("Tvdb", Tvdb)];
+
+    private static Dictionary<string, string>? ExternalIdsOf(Dictionary<string, string>? providerIds)
+    {
+        Dictionary<string, string> externalIds = new();
+        foreach ((string jellyfinKey, string type) in s_externalIdKeys)
+        {
+            if (providerIds?.GetValueOrDefault(jellyfinKey) is { } id)
+            {
+                externalIds[type] = id;
+            }
+        }
+
+        return externalIds.Count > 0 ? externalIds : null;
     }
 
     public async Task<IReadOnlyList<WatchUser>> GetUsersAsync(CancellationToken ct = default)
@@ -277,6 +315,7 @@ internal sealed record JellyfinSessionDto(
 
 internal sealed record JellyfinItemDto(
     [property: JsonPropertyName("Name")] string? Name,
+    [property: JsonPropertyName("Type")] string? Type,
     [property: JsonPropertyName("SeriesName")]
     string? SeriesName,
     [property: JsonPropertyName("ParentIndexNumber")]
@@ -285,6 +324,30 @@ internal sealed record JellyfinItemDto(
     int? IndexNumber,
     [property: JsonPropertyName("PremiereDate")]
     DateTime? PremiereDate,
+    [property: JsonPropertyName("ProviderIds")]
+    Dictionary<string, string>? ProviderIds,
+    [property: JsonPropertyName("CurrentProgram")]
+    JellyfinProgramDto? CurrentProgram = null);
+
+/// <summary>The guide entry airing on a live channel (Jellyfin's CurrentProgram).</summary>
+internal sealed record JellyfinProgramDto(
+    [property: JsonPropertyName("Name")] string? Name,
+    [property: JsonPropertyName("EpisodeTitle")]
+    string? EpisodeTitle,
+    [property: JsonPropertyName("ChannelName")]
+    string? ChannelName,
+    [property: JsonPropertyName("ParentIndexNumber")]
+    int? ParentIndexNumber,
+    [property: JsonPropertyName("IndexNumber")]
+    int? IndexNumber,
+    [property: JsonPropertyName("PremiereDate")]
+    DateTime? PremiereDate,
+    [property: JsonPropertyName("StartDate")]
+    DateTime? StartDate,
+    [property: JsonPropertyName("EndDate")]
+    DateTime? EndDate,
+    [property: JsonPropertyName("IsMovie")]
+    bool? IsMovie,
     [property: JsonPropertyName("ProviderIds")]
     Dictionary<string, string>? ProviderIds);
 
