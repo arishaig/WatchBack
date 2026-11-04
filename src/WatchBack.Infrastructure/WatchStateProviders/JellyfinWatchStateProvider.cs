@@ -95,15 +95,18 @@ public sealed class JellyfinWatchStateProvider(
                 externalIds[Tvdb] = tvdb;
             }
 
-            EpisodeContext result = new(
-                item.SeriesName ?? item.Name ?? "Unknown",
-                item.PremiereDate.HasValue
-                    ? new DateTimeOffset(item.PremiereDate.Value, TimeSpan.Zero)
-                    : null,
-                item.Name ?? "Unknown",
-                (short)(item.ParentIndexNumber ?? 0),
-                (short)(item.IndexNumber ?? 0),
-                externalIds.Count > 0 ? externalIds : null);
+            DateTimeOffset? premiere = item.PremiereDate.HasValue
+                ? new DateTimeOffset(item.PremiereDate.Value, TimeSpan.Zero)
+                : null;
+            MediaContext result = item.Type == "Movie"
+                ? new MediaContext(item.Name ?? "Unknown", premiere, externalIds.Count > 0 ? externalIds : null)
+                : new EpisodeContext(
+                    item.SeriesName ?? item.Name ?? "Unknown",
+                    premiere,
+                    item.Name ?? "Unknown",
+                    (short)(item.ParentIndexNumber ?? 0),
+                    (short)(item.IndexNumber ?? 0),
+                    externalIds.Count > 0 ? externalIds : null);
 
             cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
             return result;
@@ -277,6 +280,7 @@ internal sealed record JellyfinSessionDto(
 
 internal sealed record JellyfinItemDto(
     [property: JsonPropertyName("Name")] string? Name,
+    [property: JsonPropertyName("Type")] string? Type,
     [property: JsonPropertyName("SeriesName")]
     string? SeriesName,
     [property: JsonPropertyName("ParentIndexNumber")]
