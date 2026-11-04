@@ -5,6 +5,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using NSubstitute;
+
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
@@ -753,6 +755,151 @@ public class JellyfinWatchStateProviderTests : IDisposable
         live.ChannelName.Should().Be("NBC News NOW");
         live.StartsAt.Should().BeNull();
     }
+
+    // ---- Live TV: guide entries without numbers, and finding the ids guides leave out ----
+
+    private static string ChannelSession(string channel, string currentProgramJson) => $$"""
+        [ { "Id": "s1", "UserId": "u1",
+            "NowPlayingItem": { "Name": "{{channel}}", "Type": "TvChannel", "CurrentProgram": {{currentProgramJson}} } } ]
+        """;
+
+    private const string TrekProgram = """
+        { "Name": "Star Trek: The Next Generation", "EpisodeTitle": "The Naked Now",
+          "ParentIndexNumber": 1, "IndexNumber": 2, "ProductionYear": 1987, "IsSeries": true, "Type": "Program" }
+        """;
+
+    private JellyfinWatchStateProvider LiveProvider(HttpMessageHandler handler, IMediaIdentifier? identifier = null) =>
+        new(new HttpClient(handler), new OptionsSnapshotStub<JellyfinOptions>(_options), _cache,
+            NullLogger<JellyfinWatchStateProvider>.Instance, identifier);
+
+    [Fact]
+    public async Task LiveChannel_SeriesWithAnEpisodeTitleButNoNumbers_IsThatEpisodeNotALiveBroadcast()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("Columbo", """
+                { "Name": "Columbo", "EpisodeTitle": "Murder Under Glass", "ProductionYear": 1970, "IsLive": true }
+                """))
+            .Default("""{"Items":[]}""");
+
+        MediaContext? result = await LiveProvider(handler).GetCurrentMediaContextAsync();
+
+        EpisodeContext episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        episode.EpisodeTitle.Should().Be("Murder Under Glass");
+        episode.SeasonNumber.Should().Be(0);
+        episode.LiveChannel.Should().Be("Columbo");
+    }
+
+    [Fact]
+    public async Task LiveChannel_SportsWithAMatch_IsALiveBroadcastSearchedByTheMatch()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("beIN Sports Xtra", """
+                { "Name": "UCL Match Replay", "EpisodeTitle": "Feyenoord vs. Inter Milan", "IsSports": true, "IsLive": true }
+                """));
+
+        MediaContext? result = await LiveProvider(handler).GetCurrentMediaContextAsync();
+
+        LiveBroadcastContext live = result.Should().BeOfType<LiveBroadcastContext>().Subject;
+        live.SearchNames[0].Should().Be("Feyenoord vs. Inter Milan");
+        live.LiveChannel.Should().Be("beIN Sports Xtra");
+    }
+
+    [Fact]
+    public async Task LiveChannel_EpisodeFromTheLibrary_GetsItsIdsAndAirDate()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("Trek Time", TrekProgram))
+            .RespondTo("IncludeItemTypes=Series", """
+                {"Items":[{"Id":"show1","Name":"Star Trek: The Next Generation","ProviderIds":{"Imdb":"tt0092455"}}]}
+                """)
+            .RespondTo("/Shows/show1/Episodes", """
+                {"Items":[
+                  {"Id":"e1","Name":"Encounter at Farpoint","ParentIndexNumber":1,"IndexNumber":1,"ProviderIds":{"Imdb":"tt0094030"}},
+                  {"Id":"e2","Name":"The Naked Now","ParentIndexNumber":1,"IndexNumber":2,"PremiereDate":"1987-10-05T00:00:00Z",
+                   "ProviderIds":{"Imdb":"tt0708810","Tvdb":"46510"}}]}
+                """);
+        IMediaIdentifier identifier = Substitute.For<IMediaIdentifier>();
+
+        MediaContext? result = await LiveProvider(handler, identifier).GetCurrentMediaContextAsync();
+
+        EpisodeContext episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        episode.ExternalIds.Should().Contain(ExternalIdType.Imdb, "tt0708810").And.Contain(ExternalIdType.Tvdb, "46510");
+        episode.ReleaseDate.Should().Be(new DateTimeOffset(1987, 10, 5, 0, 0, 0, TimeSpan.Zero));
+        episode.LiveChannel.Should().Be("Trek Time");
+        handler.RecordedUris.Should().Contain(u => u.Query.Contains("season=1") && u.Query.Contains("userId=u1"));
+        await identifier.DidNotReceiveWithAnyArgs().IdentifyAsync(default!, default, default);
+    }
+
+    [Fact]
+    public async Task LiveChannel_EpisodeKnownOnlyByTitle_GetsItsNumbersFromTheLibrary()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("Classic TV", """
+                { "Name": "Columbo", "EpisodeTitle": "Murder Under Glass" }
+                """))
+            .RespondTo("IncludeItemTypes=Series", """{"Items":[{"Id":"c","Name":"Columbo","ProviderIds":{"Imdb":"tt1466074"}}]}""")
+            .RespondTo("/Shows/c/Episodes", """
+                {"Items":[{"Id":"x","Name":"Murder Under Glass","ParentIndexNumber":7,"IndexNumber":4,
+                  "PremiereDate":"1978-01-30T00:00:00Z","ProviderIds":{}}]}
+                """);
+
+        MediaContext? result = await LiveProvider(handler).GetCurrentMediaContextAsync();
+
+        EpisodeContext episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        (episode.SeasonNumber, episode.EpisodeNumber).Should().Be(((short)7, (short)4));
+        episode.ExternalIds.Should().Contain(ExternalIdType.Imdb, "tt1466074", "an episode without ids is known by its show's");
+        handler.RecordedUris.Should().NotContain(u => u.Query.Contains("season="), "the season isn't known yet");
+    }
+
+    [Fact]
+    public async Task LiveChannel_NotInTheLibrary_IsIdentifiedByNameAndTheGuidesYear()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("Pluto TV Sci-Fi", TrekProgram))
+            .Default("""{"Items":[]}""");
+        IMediaIdentifier identifier = Substitute.For<IMediaIdentifier>();
+        identifier.IdentifyAsync(Arg.Any<MediaContext>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+            .Returns(c => c.Arg<MediaContext>() with
+            {
+                ExternalIds = new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0708810" }
+            });
+
+        MediaContext? result = await LiveProvider(handler, identifier).GetCurrentMediaContextAsync();
+
+        result!.ExternalIds.Should().Contain(ExternalIdType.Imdb, "tt0708810");
+        result.LiveChannel.Should().Be("Pluto TV Sci-Fi");
+        await identifier.Received(1).IdentifyAsync(Arg.Any<MediaContext>(), 1987, Arg.Any<CancellationToken>());
+    }
+
+    // Guides with no year for a program give 1970, which must not be taken for one.
+    [Theory]
+    [InlineData(1970, null)]
+    [InlineData(null, null)]
+    [InlineData(1, null)]
+    [InlineData(1987, 1987)]
+    public void YearHint_IgnoresTheEpochPlaceholder(int? guideYear, int? expected)
+    {
+        JellyfinWatchStateProvider.YearHint(guideYear).Should().Be(expected);
+    }
+
+    // A failed lookup must never turn playback into "nothing playing".
+    [Fact]
+    public async Task LiveChannel_WhenLibraryAndIdentifierFail_StillReportsWhatIsAiring()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("Trek Time", TrekProgram))
+            .Default("""{"error":"boom"}""", HttpStatusCode.InternalServerError);
+        IMediaIdentifier identifier = Substitute.For<IMediaIdentifier>();
+        identifier.IdentifyAsync(Arg.Any<MediaContext>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+            .Returns<Task<MediaContext>>(_ => throw new HttpRequestException("OMDb down"));
+
+        MediaContext? result = await LiveProvider(handler, identifier).GetCurrentMediaContextAsync();
+
+        EpisodeContext episode = result.Should().BeOfType<EpisodeContext>().Subject;
+        episode.Title.Should().Be("Star Trek: The Next Generation");
+        (episode.SeasonNumber, episode.EpisodeNumber).Should().Be(((short)1, (short)2));
+    }
+
 }
 
 internal sealed class MockHttpMessageHandler : HttpMessageHandler
