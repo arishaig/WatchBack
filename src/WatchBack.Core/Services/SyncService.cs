@@ -43,6 +43,10 @@ public class SyncService(
             }
 
             IThoughtProvider[] activeProviders = ActiveProviders();
+            if (mediaContext is LiveBroadcastContext)
+            {
+                activeProviders = activeProviders.Where(p => p.SupportsLiveBroadcasts).ToArray();
+            }
 
             string? imdbId = null;
             mediaContext.ExternalIds?.TryGetValue(Imdb, out imdbId);

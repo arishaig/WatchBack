@@ -104,4 +104,38 @@ public class ThoughtProviderQueryTests
 
         IThoughtProvider.GetTextSearchQualifier(episode).Should().BeNull();
     }
+
+    // ---- Live broadcasts ----
+
+    [Fact]
+    public void BuildTextQuery_LiveBroadcast_IsTheBareProgramName()
+    {
+        LiveBroadcastContext live = new("NBC News Daily", "NBC News NOW");
+
+        IThoughtProvider.BuildTextQuery(live).Should().Be("NBC News Daily");
+    }
+
+    [Theory]
+    [InlineData("NBC News Daily With Morgan Radford and Vicky Nguyen", "NBC News NOW", new[] { "NBC News Daily", "NBC News NOW" })]
+    [InlineData("Meet the Press w/ Kristen Welker", "NBC", new[] { "Meet the Press", "NBC" })]
+    [InlineData("NBC News NOW", "NBC News NOW", new[] { "NBC News NOW" })]
+    [InlineData("Live at Five", "", new[] { "Live at Five" })]
+    public void LiveBroadcast_SearchNames_DropHostsAndAddTheChannel(string title, string channel, string[] expected)
+    {
+        new LiveBroadcastContext(title, channel).SearchNames.Should().Equal(expected);
+    }
+
+    [Fact]
+    public void LiveBroadcast_NextProgramOnTheSameChannel_IsADifferentContext()
+    {
+        DateTimeOffset six = new(2026, 11, 4, 18, 0, 0, TimeSpan.Zero);
+        LiveBroadcastContext first = new("NBC News Daily", "NBC News NOW", six, six.AddHours(1));
+        LiveBroadcastContext same = new("NBC News Daily", "NBC News NOW", six, six.AddHours(1));
+        LiveBroadcastContext next = new("Top Story", "NBC News NOW", six.AddHours(1), six.AddHours(2));
+
+        first.Should().Be(same);
+        first.GetHashCode().Should().Be(same.GetHashCode());
+        first.Should().NotBe(next);
+        first.Should().NotBe(new MediaContext("NBC News Daily", null));
+    }
 }

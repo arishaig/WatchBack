@@ -108,3 +108,64 @@ public record EpisodeContext(
         return HashCode.Combine(base.GetHashCode(), EpisodeTitle, SeasonNumber, EpisodeNumber);
     }
 }
+
+/// <summary>
+///     A live broadcast that isn't a known episode or movie: news, sports, a talk show without
+///     episode numbers. Discussion of it is happening now, so providers search recent posts by the
+///     program's name and the channel's, and results are kept only briefly.
+/// </summary>
+/// <param name="Title">The program's name from the guide, or the channel's when the guide has none</param>
+/// <param name="ChannelName">The channel it airs on</param>
+/// <param name="StartsAt">When this airing began, if the guide says</param>
+/// <param name="EndsAt">When this airing ends, if the guide says</param>
+public record LiveBroadcastContext(
+    string Title,
+    string ChannelName,
+    DateTimeOffset? StartsAt = null,
+    DateTimeOffset? EndsAt = null
+) : MediaContext(Title, null)
+{
+    /// <summary>How long results for a live broadcast stay fresh: the conversation moves while it airs.</summary>
+    public static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(10);
+
+    private static readonly string[] s_hostSeparators = [" with ", " w/ "];
+
+    /// <summary>
+    ///     What people call it: the program's name without the hosts guides append
+    ///     ("NBC News Daily With Morgan Radford" → "NBC News Daily"), then the channel's name if different.
+    /// </summary>
+    public IReadOnlyList<string> SearchNames
+    {
+        get
+        {
+            string program = Title;
+            foreach (string separator in s_hostSeparators)
+            {
+                int at = program.IndexOf(separator, StringComparison.OrdinalIgnoreCase);
+                if (at > 0)
+                {
+                    program = program[..at];
+                }
+            }
+
+            program = program.Trim();
+            return string.IsNullOrWhiteSpace(ChannelName) || ChannelName.Equals(program, StringComparison.OrdinalIgnoreCase)
+                ? [program]
+                : [program, ChannelName.Trim()];
+        }
+    }
+
+    public virtual bool Equals(LiveBroadcastContext? other)
+    {
+        return other is not null &&
+               base.Equals(other) &&
+               ChannelName == other.ChannelName &&
+               StartsAt == other.StartsAt &&
+               EndsAt == other.EndsAt;
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(base.GetHashCode(), ChannelName, StartsAt, EndsAt);
+    }
+}

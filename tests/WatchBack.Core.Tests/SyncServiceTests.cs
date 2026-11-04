@@ -797,4 +797,30 @@ public class SyncServiceTests
         refreshed.Should().BeFalse();
         cache.Invalidated.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task SyncAsync_LiveBroadcast_AsksOnlyProvidersThatSearchLiveDiscussion()
+    {
+        LiveBroadcastContext live = new("NBC News Daily", "NBC News NOW");
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(live);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        IThoughtProvider livePosts = Substitute.For<IThoughtProvider>();
+        livePosts.SupportsLiveBroadcasts.Returns(true);
+        IThoughtProvider showComments = Substitute.For<IThoughtProvider>();
+        showComments.SupportsLiveBroadcasts.Returns(false);
+
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            [livePosts, showComments], Array.Empty<IRatingsProvider>(), _timeMachineFilter, _prefetchService,
+            new PassThroughResultCache(), _options, NullLogger<SyncService>.Instance);
+
+        SyncResult result = await service.SyncAsync();
+
+        result.Status.Should().Be(SyncStatus.Watching);
+        await livePosts.Received(1).GetThoughtsAsync(live, Arg.Any<IProgress<SyncProgressTick>?>(),
+            Arg.Any<CancellationToken>());
+        await showComments.DidNotReceive().GetThoughtsAsync(Arg.Any<MediaContext>(),
+            Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<CancellationToken>());
+    }
 }
