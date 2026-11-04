@@ -126,12 +126,14 @@ public record EpisodeContext(
 /// <param name="StartsAt">When this airing began, if the guide says</param>
 /// <param name="EndsAt">When this airing ends, if the guide says</param>
 /// <param name="Subtitle">The guide's episode title for this airing, e.g. the match ("Feyenoord vs. Inter Milan")</param>
+/// <param name="IsMusic">Music programming (a music video channel, a radio stream): nothing anyone discusses by name</param>
 public record LiveBroadcastContext(
     string Title,
     string ChannelName,
     DateTimeOffset? StartsAt = null,
     DateTimeOffset? EndsAt = null,
-    string? Subtitle = null
+    string? Subtitle = null,
+    bool IsMusic = false
 ) : MediaContext(Title, null)
 {
     /// <summary>How long results for a live broadcast stay fresh: the conversation moves while it airs.</summary>
@@ -142,16 +144,25 @@ public record LiveBroadcastContext(
 
     private static readonly string[] s_hostSeparators = [" with ", " w/ "];
 
+    private static readonly string[] s_segmentSeparators = [": ", " -- ", " - ", " | "];
+
     /// <summary>
     ///     The names to search, in order, for the first that finds posts: the match, when the guide names
-    ///     one ("UFC Main Event: Oliveira vs Chandler 2" → "Oliveira vs Chandler 2"); the program's name as the guide
+    ///     one ("2026 World Series - Rays vs. Brewers" → "Rays vs. Brewers"); the program's name as the guide
     ///     gives it; then without the hosts guides append ("NBC News Daily With Morgan Radford" →
-    ///     "NBC News Daily"), unless that would cut a title apart ("Dancing with the Stars"); then the channel's.
+    ///     "NBC News Daily"), when what's left is still distinctive; then the channel's. A single word ("Today",
+    ///     "UFC") would match far more than this airing, so it is never searched, and music programming has
+    ///     no names at all.
     /// </summary>
     public IReadOnlyList<string> SearchNames
     {
         get
         {
+            if (IsMusic)
+            {
+                return [];
+            }
+
             List<string> names = [];
             if (Matchup(Subtitle) is { } matchup)
             {
@@ -159,7 +170,7 @@ public record LiveBroadcastContext(
             }
 
             names.Add(Title.Trim());
-            if (WithoutHosts(names[0]) is { } shorter)
+            if (WithoutHosts(Title) is { } shorter)
             {
                 names.Add(shorter);
             }
@@ -169,23 +180,26 @@ public record LiveBroadcastContext(
                 names.Add(ChannelName.Trim());
             }
 
-            return names.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return names
+                .Where(n => n.Contains(' ', StringComparison.Ordinal))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
     }
 
-    // "A vs. B" or "A v. B", after any "Event name: " prefix. Other subtitles ("Week 10", "10/29/26") name nothing
-    // people would search for.
+    // The part of the subtitle that names "A vs. B" or "A v. B", without the event, round or week around it.
+    // Other subtitles ("Week 10", "10/29/26") name nothing people would search for.
     private static string? Matchup(string? subtitle)
     {
-        if (string.IsNullOrWhiteSpace(subtitle) ||
-            !System.Text.RegularExpressions.Regex.IsMatch(subtitle, @"\s(vs\.?|v\.)\s",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        if (string.IsNullOrWhiteSpace(subtitle))
         {
             return null;
         }
 
-        int colon = subtitle.LastIndexOf(": ", StringComparison.Ordinal);
-        return (colon >= 0 ? subtitle[(colon + 2)..] : subtitle).Trim();
+        return subtitle
+            .Split(s_segmentSeparators, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault(segment => System.Text.RegularExpressions.Regex.IsMatch(segment, @"\s(vs\.?|v\.)\s",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase));
     }
 
     // "X With A and B": the hosts are named people, so what follows starts with a capital and isn't "the".
@@ -199,11 +213,15 @@ public record LiveBroadcastContext(
                 continue;
             }
 
+            // "The Herd With Colin Cowherd" → "The Herd" is too generic to mean the show.
             string hosts = title[(at + separator.Length)..].TrimStart();
+            string program = title[..at].Trim();
             if (hosts.Length > 0 && char.IsUpper(hosts[0]) &&
-                !hosts.StartsWith("The ", StringComparison.OrdinalIgnoreCase))
+                !hosts.StartsWith("The ", StringComparison.OrdinalIgnoreCase) &&
+                program.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 3 &&
+                !program.StartsWith("The ", StringComparison.OrdinalIgnoreCase))
             {
-                return title[..at].Trim();
+                return program;
             }
         }
 
@@ -217,11 +235,12 @@ public record LiveBroadcastContext(
                ChannelName == other.ChannelName &&
                StartsAt == other.StartsAt &&
                EndsAt == other.EndsAt &&
-               Subtitle == other.Subtitle;
+               Subtitle == other.Subtitle &&
+               IsMusic == other.IsMusic;
     }
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(base.GetHashCode(), ChannelName, StartsAt, EndsAt, Subtitle);
+        return HashCode.Combine(base.GetHashCode(), ChannelName, StartsAt, EndsAt, Subtitle, IsMusic);
     }
 }

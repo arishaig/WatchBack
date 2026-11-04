@@ -84,7 +84,8 @@ public sealed class BlueskyThoughtProvider(
         // bar whenever it sees intermediate progress, so a fully cached poll
         // cycle has to stay silent or the bar flashes every few seconds.
         // searchPosts rejects unauthenticated requests, so without credentials there is nothing to ask.
-        if (!IsConfigured)
+        // Music programming has no names to search.
+        if (!IsConfigured || mediaContext is LiveBroadcastContext { SearchNames.Count: 0 })
         {
             return s_empty;
         }

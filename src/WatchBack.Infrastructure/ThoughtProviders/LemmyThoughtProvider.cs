@@ -65,6 +65,12 @@ public sealed class LemmyThoughtProvider(
         // padding below): the frontend shows the sync bar whenever it sees
         // intermediate progress, so a fully cached poll cycle has to stay silent
         // or the bar flashes every few seconds.
+        // Music programming has no names to search.
+        if (mediaContext is LiveBroadcastContext { SearchNames.Count: 0 })
+        {
+            return s_empty;
+        }
+
         string cacheKey = GetCacheKey(mediaContext);
         if (cache.TryGetValue(cacheKey, out ThoughtResult? cached))
         {

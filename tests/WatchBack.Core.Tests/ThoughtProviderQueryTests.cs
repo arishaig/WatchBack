@@ -118,9 +118,14 @@ public class ThoughtProviderQueryTests
     [Theory]
     [InlineData("NBC News Daily With Morgan Radford and Vicky Nguyen", "NBC News NOW",
         new[] { "NBC News Daily With Morgan Radford and Vicky Nguyen", "NBC News Daily", "NBC News NOW" })]
-    [InlineData("Meet the Press w/ Kristen Welker", "NBC", new[] { "Meet the Press w/ Kristen Welker", "Meet the Press", "NBC" })]
-    [InlineData("Dancing with the Stars", "ABC", new[] { "Dancing with the Stars", "ABC" })]
-    [InlineData("Cooking with gas", "PBS", new[] { "Cooking with gas", "PBS" })]
+    [InlineData("Meet the Press w/ Kristen Welker", "NBC News", new[] { "Meet the Press w/ Kristen Welker", "Meet the Press", "NBC News" })]
+    [InlineData("Dancing with the Stars", "ABC", new[] { "Dancing with the Stars" })]
+    [InlineData("Cooking with gas", "PBS Food", new[] { "Cooking with gas", "PBS Food" })]
+    // Cutting the hosts would leave a name too generic to mean the show.
+    [InlineData("The Herd With Colin Cowherd", "FOX Sports", new[] { "The Herd With Colin Cowherd", "FOX Sports" })]
+    [InlineData("Today With Jenna & Sheinelle", "TODAY All Day", new[] { "Today With Jenna & Sheinelle", "TODAY All Day" })]
+    // A single word ("Moonfall", "UFC", "QVC") matches far more than this airing.
+    [InlineData("Moonfall", "MovieSphere by Lionsgate", new[] { "MovieSphere by Lionsgate" })]
     [InlineData("NBC News NOW", "NBC News NOW", new[] { "NBC News NOW" })]
     [InlineData("Live at Five", "", new[] { "Live at Five" })]
     public void LiveBroadcast_SearchNames_FullTitleThenWithoutHostsThenChannel(string title, string channel, string[] expected)
@@ -146,6 +151,8 @@ public class ThoughtProviderQueryTests
     [InlineData("UFC Main Event", "UFC Main Event: Oliveira vs Chandler 2", "Oliveira vs Chandler 2")]
     [InlineData("UCL Match Replay", "Feyenoord vs. Inter Milan", "Feyenoord vs. Inter Milan")]
     [InlineData("Premier League", "Arsenal v. Chelsea", "Arsenal v. Chelsea")]
+    [InlineData("Game of the Week", "Bills vs. Rams -- Week 5", "Bills vs. Rams")]
+    [InlineData("Series Rewind", "2026 World Series - Rays vs. Brewers", "Rays vs. Brewers")]
     public void LiveBroadcast_SearchNames_StartWithTheMatch(string title, string subtitle, string match)
     {
         new LiveBroadcastContext(title, "Sports Channel", Subtitle: subtitle).SearchNames
@@ -168,5 +175,12 @@ public class ThoughtProviderQueryTests
         EpisodeContext library = new("Star Trek: The Next Generation", null, "The Naked Now", 1, 2);
 
         (library with { LiveChannel = "Trek Time" }).Should().Be(library);
+    }
+
+    // Music video channels and radio streams: nothing anyone discusses by name.
+    [Fact]
+    public void LiveBroadcast_Music_HasNothingToSearch()
+    {
+        new LiveBroadcastContext("Top Hits", "Vevo 2K", IsMusic: true).SearchNames.Should().BeEmpty();
     }
 }

@@ -473,6 +473,20 @@ public class BlueskyThoughtProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task GetThoughtsAsync_MusicProgramming_SearchesNothing()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler().Default("""{"posts":[]}""");
+        IReplyTreeBuilder treeBuilder = Substitute.For<IReplyTreeBuilder>();
+        BlueskyThoughtProvider provider = new(new HttpClient(handler), new OptionsSnapshotStub<BlueskyOptions>(_options),
+            _cache, treeBuilder, NullLogger<BlueskyThoughtProvider>.Instance);
+
+        ThoughtResult? result = await provider.GetThoughtsAsync(new LiveBroadcastContext("Top Hits", "Vevo 2K", IsMusic: true));
+
+        result!.IsTransientFailure.Should().BeFalse();
+        handler.RecordedUris.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task GetThoughtsAsync_WithMovieContext_UsesMovieQuery()
     {
         MediaContext mediaContext = new(

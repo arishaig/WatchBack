@@ -43,9 +43,12 @@ public class SyncService(
             }
 
             IThoughtProvider[] activeProviders = ActiveProviders();
-            if (mediaContext is LiveBroadcastContext)
+            if (mediaContext is LiveBroadcastContext live)
             {
-                activeProviders = activeProviders.Where(p => p.SupportsLiveBroadcasts).ToArray();
+                // Music programming has no names to search: nobody is asked.
+                activeProviders = live.SearchNames.Count == 0
+                    ? []
+                    : activeProviders.Where(p => p.SupportsLiveBroadcasts).ToArray();
             }
 
             string? imdbId = null;
