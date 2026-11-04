@@ -91,6 +91,15 @@ All provider settings can be configured in the UI under the gear icon, or via en
 
 If you run WatchBack behind an auth proxy that passes a trusted header (e.g. `X-Remote-User`), you can enable forward auth in the Security section of the config UI. When active, the login screen is bypassed entirely.
 
+### Who can change settings
+
+Admins can change WatchBack's settings; everyone else can watch and pick their own theme and language. This protects against accidental changes. It is not a security boundary.
+
+- **Behind Authelia (or another proxy that sends groups):** members of the admin group are admins. The defaults are the `Remote-Groups` header and the `admins` group; you can change both next to the forward auth settings. A proxy that sends no groups header falls back to the next rule.
+- **Otherwise:** the first person who picks their name in the Jellyfin user picker becomes the admin. They can make other users admins under Settings → Admins. If there's only one Jellyfin user, or the watch source can't tell users apart (Trakt, manual), everyone is an admin.
+
+To reset the admin list, delete the `Access` section from `user-settings.json` (next to the database). The next person to pick their name becomes the admin again.
+
 ## Credits
 
 Reddit discussion comes from two volunteer-run archives. Please be considerate of them: WatchBack looks each episode up once, caches the answer, and backs off when they ask it to.
