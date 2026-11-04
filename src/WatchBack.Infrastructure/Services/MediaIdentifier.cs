@@ -5,9 +5,11 @@ using System.Text.RegularExpressions;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
+using WatchBack.Core.Options;
 using WatchBack.Infrastructure.Caching;
 
 namespace WatchBack.Infrastructure.Services;
@@ -21,6 +23,7 @@ namespace WatchBack.Infrastructure.Services;
 public sealed partial class MediaIdentifier(
     IServiceScopeFactory scopeFactory,
     IDurableLookupCache lookups,
+    IOptionsMonitor<WatchBackOptions> watchBack,
     ILogger<MediaIdentifier> logger) : IMediaIdentifier
 {
     private const string LookupKind = "media-identity";
@@ -86,8 +89,12 @@ public sealed partial class MediaIdentifier(
     private async Task<Identity?> LookUpAndRememberAsync(string key, MediaContext media, int? year)
     {
         await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
+        // A provider turned off in settings (to save its quota, say) isn't used here either.
+        HashSet<string> disabled = watchBack.CurrentValue.DisabledProviders
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         IMediaSearchProvider? search = scope.ServiceProvider.GetServices<IMediaSearchProvider>()
-            .FirstOrDefault(p => p.IsConfigured);
+            .FirstOrDefault(p => p.IsConfigured && (p.ConfigSection is null || !disabled.Contains(p.ConfigSection)));
         if (search is null)
         {
             return null; // Nothing to ask; not a miss, so nothing is remembered.
@@ -142,7 +149,8 @@ public sealed partial class MediaIdentifier(
             return new Identity(numbered?.ImdbId ?? title.ImdbId, numbered?.AirDate, null, null);
         }
 
-        if (!string.IsNullOrWhiteSpace(episode.EpisodeTitle))
+        // "Episode 8" or "Episodio 44" names no episode: reading every season for it would only spend quota.
+        if (!string.IsNullOrWhiteSpace(episode.EpisodeTitle) && !GenericEpisodeTitle().IsMatch(episode.EpisodeTitle))
         {
             IReadOnlyList<SeasonInfo> seasons = await search.GetSeasonsAsync(title.ImdbId, ct);
             foreach (SeasonInfo s in seasons.OrderBy(s => s.SeasonNumber).Take(MaxSeasonsScanned))
@@ -201,6 +209,10 @@ public sealed partial class MediaIdentifier(
 
     [GeneratedRegex(@"\d{4}")]
     private static partial Regex YearPattern();
+
+    [GeneratedRegex(@"^\s*(episode|episodio|épisode|folge|ep\.?|chapter|cap[ií]tulo|part|parte)\s*\d+\s*$",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex GenericEpisodeTitle();
 }
 
 /// <summary>What a lookup found: an IMDb id, and for an episode its air date and (if the guide lacked them) numbers.</summary>

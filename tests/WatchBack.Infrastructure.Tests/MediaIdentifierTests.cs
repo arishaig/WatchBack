@@ -2,11 +2,13 @@ using FluentAssertions;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using NSubstitute;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
+using WatchBack.Core.Options;
 using WatchBack.Infrastructure.Caching;
 using WatchBack.Infrastructure.Services;
 
@@ -18,6 +20,7 @@ public sealed class MediaIdentifierTests
 {
     private readonly IMediaSearchProvider _search = Substitute.For<IMediaSearchProvider>();
     private readonly MemoryLookups _lookups = new();
+    private WatchBackOptions _watchBack = new();
 
     public MediaIdentifierTests()
     {
@@ -28,8 +31,10 @@ public sealed class MediaIdentifierTests
     {
         ServiceCollection services = new();
         services.AddScoped(_ => _search);
+        IOptionsMonitor<WatchBackOptions> monitor = Substitute.For<IOptionsMonitor<WatchBackOptions>>();
+        monitor.CurrentValue.Returns(_ => _watchBack);
         return new MediaIdentifier(services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
-            _lookups, NullLogger<MediaIdentifier>.Instance);
+            _lookups, monitor, NullLogger<MediaIdentifier>.Instance);
     }
 
     private static MediaSearchResult Series(string id, string title, string years) =>
@@ -202,6 +207,34 @@ public sealed class MediaIdentifierTests
         (await Identifier().IdentifyAsync(known, 2014)).Should().BeSameAs(known);
         (await Identifier().IdentifyAsync(news, null)).Should().BeSameAs(news);
         await _search.DidNotReceiveWithAnyArgs().SearchAsync(default!, default);
+    }
+
+    // Turning OMDb off (to save its quota, say) must stop live TV from spending it too.
+    [Fact]
+    public async Task SearchProviderTurnedOffInSettings_IsNotAsked()
+    {
+        _search.ConfigSection.Returns("Omdb");
+        _watchBack = new WatchBackOptions { DisabledProviders = "Reddit, Omdb" };
+
+        MediaContext result = await Identifier().IdentifyAsync(new MediaContext("Grease 2", null), 1982);
+
+        result.ExternalIds.Should().BeNull();
+        await _search.DidNotReceiveWithAnyArgs().SearchAsync(default!, default);
+        _lookups.Lifetimes.Should().BeEmpty("turning it back on must take effect at once");
+    }
+
+    [Theory]
+    [InlineData("Episode 8")]
+    [InlineData("Episodio 44")]
+    [InlineData("Part 2")]
+    public async Task Episode_WithAGenericTitle_IsNotSearchedForSeasonBySeason(string generic)
+    {
+        _search.SearchAsync("Top Gear", Arg.Any<CancellationToken>()).Returns([Series("tt1628033", "Top Gear", "2002–")]);
+
+        MediaContext result = await Identifier().IdentifyAsync(new EpisodeContext("Top Gear", null, generic, 0, 0), null);
+
+        result.ExternalIds.Should().Contain(ExternalIdType.Imdb, "tt1628033");
+        await _search.DidNotReceiveWithAnyArgs().GetSeasonsAsync(default!, default);
     }
 
     private sealed class MemoryLookups : IDurableLookupCache
