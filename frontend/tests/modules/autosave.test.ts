@@ -84,6 +84,24 @@ describe('commitField', () => {
         expect(ctx.lastTestResults['bluesky'].status).toBe('ok');
     });
 
+    it('saves the other fields it tested with too: a handle that failed alone is kept once the password works', async () => {
+        const ctx = makeCtx();
+        ctx.configData.integrations.bluesky.fields[0] = { key: 'Bluesky__Handle', type: 'text', value: '', hasValue: false };
+        ctx.configEdits['Bluesky__Handle'] = 'new.bsky.social';
+        respond({ ok: true, json: { ok: false, message: 'App password required' } });
+        await ctx.commitField('bluesky', 'Bluesky__Handle');
+        expect(ctx.fieldStatus['Bluesky__Handle'].state).toBe('error');
+
+        ctx.configEdits['Bluesky__AppPassword'] = 'abcd-efgh';
+        const fetchMock = respond({ ok: true, json: { ok: true } }, { ok: true });
+        await ctx.commitField('bluesky', 'Bluesky__AppPassword');
+
+        expect(bodyOf(fetchMock.mock.calls[1])).toEqual({ 'Bluesky__Handle': 'new.bsky.social', 'Bluesky__AppPassword': 'abcd-efgh' });
+        expect(ctx.configData.integrations.bluesky.fields[0].value).toBe('new.bsky.social');
+        expect(ctx.fieldStatus['Bluesky__Handle'].state).toBe('saved');
+        expect(ctx.fieldStatus['Bluesky__AppPassword'].state).toBe('saved');
+    });
+
     it('does not save a value that fails its test, and offers Save anyway', async () => {
         const ctx = makeCtx();
         ctx.configEdits['Bluesky__AppPassword'] = 'wrong';

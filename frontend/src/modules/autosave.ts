@@ -97,18 +97,35 @@ const autosaveMethods: Record<string, unknown> & ThisType<AppData> = {
             tested = true;
         }
 
-        this._setFieldStatus(fieldKey, { state: 'saving' });
-        if (!await this._postSettings({ [fieldKey]: value })) {
-            this._setFieldStatus(fieldKey, { state: 'error', message: this.t('Settings_SaveFailed'), canForce: true, tried: value });
+        // A passing test vouches for every value it was run with, so the other unsaved edits go too: a handle
+        // whose own test failed (no app password yet) is saved once the pasted password makes it work.
+        const values: Record<string, string> = { [fieldKey]: value };
+        if (tested) {
+            for (const other of integration.fields) {
+                if (other.key === fieldKey || other.type === 'number') continue;
+                const edit = (this.configEdits[other.key] ?? '').trim();
+                const changed = other.type === 'password' ? edit !== '' : edit !== (other.value ?? '');
+                if (changed) values[other.key] = edit;
+            }
+        }
+
+        for (const key of Object.keys(values)) this._setFieldStatus(key, { state: 'saving' });
+        if (!await this._postSettings(values)) {
+            for (const key of Object.keys(values)) {
+                this._setFieldStatus(key, { state: 'error', message: this.t('Settings_SaveFailed'), canForce: true, tried: values[key] });
+            }
             return;
         }
 
-        field.isOverridden = true;
-        field.hasValue = value !== '';
-        if (isSecret) this.configEdits[fieldKey] = '';
-        else field.value = value;
+        for (const [key, saved] of Object.entries(values)) {
+            const f = integration.fields.find(x => x.key === key)!;
+            f.isOverridden = true;
+            f.hasValue = saved !== '';
+            if (f.type === 'password') this.configEdits[key] = '';
+            else f.value = saved;
+            this._flashSaved(key);
+        }
         if (tested) integration.configured = true;
-        this._flashSaved(fieldKey);
     },
 
     /** Drops the value saved here, so the environment variable (or the default) applies again. */
