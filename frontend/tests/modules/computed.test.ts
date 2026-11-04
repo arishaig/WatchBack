@@ -769,3 +769,86 @@ describe('groupedThoughts memoization', () => {
         expect((second as { title: string }[])[0].title).toBe('B');
     });
 });
+
+// ── settings tabs and rows ────────────────────────────────────────────────────
+
+describe('settingsTabs / settingsTab', () => {
+    const t = (k: string) => k;
+
+    it('gives an admin all four tabs', () => {
+        const ids = get('settingsTabs', { t, access: { isAdmin: true } }).map((x: { id: string }) => x.id);
+        expect(ids).toEqual(['sources', 'preferences', 'security', 'diagnostics']);
+    });
+
+    it('gives everyone else Preferences and Diagnostics only', () => {
+        const ids = get('settingsTabs', { t, access: { isAdmin: false } }).map((x: { id: string }) => x.id);
+        expect(ids).toEqual(['preferences', 'diagnostics']);
+    });
+
+    it('falls back to the first allowed tab when the stored one is out of reach', () => {
+        const ctx: Record<string, unknown> = { t, access: { isAdmin: false }, configTab: 'sources' };
+        Object.defineProperty(ctx, 'settingsTabs', { get: () => get('settingsTabs', ctx) });
+        expect(get('settingsTab', ctx)).toBe('preferences');
+        ctx.configTab = 'diagnostics';
+        expect(get('settingsTab', ctx)).toBe('diagnostics');
+    });
+});
+
+describe('settingsGroups', () => {
+    const t = (k: string, ...a: unknown[]) => a.length ? `${k}(${a.join(',')})` : k;
+    const integ = (name: string, providerTypes: string[], extra: Record<string, unknown> = {}) =>
+        ({ name, providerTypes, fields: [], configured: true, disabled: false, ...extra });
+
+    function ctx() {
+        return {
+            t,
+            rowSummary: (k: string) => 'sum-' + k,
+            rowStatus: (k: string, w?: boolean) => ({ kind: 'ok', label: w ? 'watch-' + k : k }),
+            configData: {
+                integrations: {
+                    jellyfin: integ('Jellyfin', ['watchState']),
+                    trakt: integ('Trakt', ['watchState', 'thought']),
+                    reddit: integ('Reddit', ['thought']),
+                    lemmy: integ('Lemmy', ['thought'], { disabled: true }),
+                    omdb: integ('OMDb', ['ratings', 'search']),
+                },
+                preferences: {
+                    watchProviders: [
+                        { value: 'jellyfin', label: 'Jellyfin' },
+                        { value: 'trakt', label: 'Trakt' },
+                        { value: 'manual', label: 'Manual' },
+                    ],
+                },
+            },
+        };
+    }
+
+    it('groups rows into watching from, discussion and ratings', () => {
+        const groups = get('settingsGroups', ctx());
+        expect(groups.map((g: { id: string }) => g.id)).toEqual(['watch', 'thought', 'ratings']);
+        const ids = (i: number) => groups[i].rows.map((r: { id: string }) => r.id);
+        expect(ids(0)).toEqual(['watch:jellyfin', 'watch:trakt', 'watch:manual']);
+        expect(ids(1)).toEqual(['thought:trakt', 'thought:reddit', 'thought:lemmy']);
+        expect(ids(2)).toEqual(['ratings:omdb']);
+    });
+
+    it('shows Trakt twice: as a watch source and as comments using that connection', () => {
+        const [watch, thought] = get('settingsGroups', ctx());
+        expect(watch.rows[1]).toMatchObject({ kind: 'watch', name: 'Trakt', status: { label: 'watch-trakt' } });
+        expect(thought.rows[0]).toMatchObject({ kind: 'toggle', name: 'Config_CommentsFrom(Trakt)', sub: 'Settings_UsesConnection(Trakt)' });
+    });
+
+    it('gives Manual, which has no settings, a row without a status', () => {
+        const manual = get('settingsGroups', ctx())[0].rows[2];
+        expect(manual).toMatchObject({ integration: undefined, sub: 'Settings_ManualSub', status: { label: '' } });
+        expect(manual.logo).toContain('<svg');
+    });
+
+    it('counts the discussion sources that are on', () => {
+        expect(get('settingsGroups', ctx())[1].hint).toBe('Settings_OnCount(2,3)');
+    });
+
+    it('is empty before the settings load', () => {
+        expect(get('settingsGroups', { t, configData: null })).toEqual([]);
+    });
+});

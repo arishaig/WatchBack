@@ -8,7 +8,41 @@ function parseSubreddits(raw: string): string[] {
     )];
 }
 
+type MappingSource = AppData['mappingSources'][number];
+type MappingEntry = MappingSource['entries'][number];
+
+// How many matches the built-in list search shows at once.
+const MAX_MAPPING_MATCHES = 20;
+
 const subredditMappingsMethods: Record<string, unknown> & ThisType<AppData> = {
+    /** The mappings you added yourself, shown first in the Reddit row. */
+    localMappings(): MappingEntry[] {
+        return (this.mappingSources as MappingSource[]).find(s => s.id === 'local')?.entries ?? [];
+    },
+
+    /** How many shows the built-in and imported lists cover. */
+    otherMappingCount(): number {
+        return (this.mappingSources as MappingSource[])
+            .filter(s => s.id !== 'local')
+            .reduce((n, s) => n + s.entries.length, 0);
+    },
+
+    /** Built-in and imported mappings matching the search box: a title or a subreddit, case-insensitive. */
+    matchingMappings(): { source: MappingSource; entry: MappingEntry }[] {
+        const q = (this.mappingFilter as string).trim().toLowerCase().replace(/^\/?r\//, '');
+        if (!q) return [];
+        const matches: { source: MappingSource; entry: MappingEntry }[] = [];
+        for (const source of (this.mappingSources as MappingSource[]).filter(s => s.id !== 'local')) {
+            for (const entry of source.entries) {
+                if ((entry.title ?? '').toLowerCase().includes(q) || entry.subreddits.some(r => r.toLowerCase().includes(q))) {
+                    matches.push({ source, entry });
+                    if (matches.length >= MAX_MAPPING_MATCHES) return matches;
+                }
+            }
+        }
+        return matches;
+    },
+
     async fetchMappings() {
         try {
             const res = await fetch('/api/subreddit-mappings');

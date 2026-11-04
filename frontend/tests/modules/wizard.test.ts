@@ -16,8 +16,7 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
         newProviderSaving: false,
         checklistDismissed: false,
         showConfig: false,
-        configTab: 'settings',
-        collapsedSections: {} as Record<string, boolean>,
+        configTab: 'sources',
         configData: {
             integrations: {
                 jellyfin: {
@@ -440,25 +439,24 @@ describe('openConfigForItem', () => {
         expect(ctx.showConfig).toBe(true);
     });
 
-    it('sets configTab to settings', () => {
+    it('opens the Sources tab', () => {
         const ctx = makeCtx({ configTab: 'diagnostics' });
         methods.openConfigForItem.call(ctx, 'watchState');
-        expect(ctx.configTab).toBe('settings');
+        expect(ctx.configTab).toBe('sources');
     });
 
-    it('uncollapses the first matching integration for watchState', () => {
-        const ctx = makeCtx({ collapsedSections: { jellyfin: true, trakt: true } });
+    it('opens the first watch source row', () => {
+        const ctx = makeCtx({ openRow: null });
         methods.openConfigForItem.call(ctx, 'watchState');
-        expect((ctx.collapsedSections as Record<string, boolean>).jellyfin).toBe(false);
-        // trakt also has watchState but we only uncollapse the first match
-        expect((ctx.collapsedSections as Record<string, boolean>).trakt).toBe(true);
+        // trakt also has watchState but only the first match opens
+        expect(ctx.openRow).toBe('watch:jellyfin');
     });
 
-    it('uncollapses the first matching integration for thought', () => {
-        const ctx = makeCtx({ collapsedSections: { reddit: true } });
+    it('opens the first discussion row', () => {
+        const ctx = makeCtx({ openRow: null });
         methods.openConfigForItem.call(ctx, 'thought');
         // trakt comes before reddit in the test data, and trakt has 'thought'
-        expect((ctx.collapsedSections as Record<string, boolean>).trakt).toBe(false);
+        expect(ctx.openRow).toBe('thought:trakt');
     });
 });
 
@@ -471,6 +469,7 @@ describe('settings links', () => {
                 integrations: {
                     bluesky: {
                         name: 'Bluesky',
+                        providerTypes: ['thought'],
                         fields: [
                             { key: 'Bluesky__Handle', type: 'text', hasValue: true },
                             { key: 'Bluesky__AppPassword', type: 'password', hasValue: false },
@@ -496,6 +495,7 @@ describe('settings links', () => {
 
     it('opens the panel on the integration, expanded, with the empty secret focused', () => {
         const ctx = linkCtx();
+        ctx['toggleRow'] = function (this: Record<string, unknown>, id: string) { this['openRow'] = id; };
 
         const opened = methods['openSettingsLink'].call(ctx, 'bluesky');
         vi.runAllTimers();
@@ -503,7 +503,8 @@ describe('settings links', () => {
         expect(opened).toBe(true);
         expect(ctx['showConfig']).toBe(true);
         expect(ctx['wizardActive']).toBe(false);
-        expect((ctx['collapsedSections'] as Record<string, boolean>)['bluesky']).toBe(false);
+        expect(ctx['configTab']).toBe('sources');
+        expect(ctx['openRow']).toBe('thought:bluesky');
         expect(document.activeElement?.id).toBe('field-Bluesky__AppPassword');
     });
 

@@ -1,4 +1,4 @@
-import type { AppData, ConfigData, ConfigIntegration, FieldStatus } from '../types';
+import type { AppData, ConfigData, ConfigField, ConfigIntegration, FieldStatus } from '../types';
 import { buildFieldPayload, postJson } from '../utils/api';
 
 // How long the quiet "Saved" note stays next to a field.
@@ -152,9 +152,17 @@ const autosaveMethods: Record<string, unknown> & ThisType<AppData> = {
         return true;
     },
 
+    /** The watch source in use: the saved one, else the first (the server falls back the same way). */
+    activeWatchProvider(): string {
+        const prefs = (this.configData as ConfigData | null)?.preferences;
+        const options = prefs?.watchProviders ?? [];
+        const saved = (prefs?.watchProvider ?? '').toLowerCase();
+        return options.find(o => o.value.toLowerCase() === saved)?.value ?? options[0]?.value ?? '';
+    },
+
     async chooseWatchProvider(value: string) {
         const prefs = (this.configData as ConfigData | null)?.preferences;
-        if (!prefs || prefs.watchProvider === value) return;
+        if (!prefs || this.activeWatchProvider() === value) return;
         const previous = prefs.watchProvider;
         prefs.watchProvider = value;
         this.prefEdits = { ...this.prefEdits, watchProvider: value };
@@ -226,9 +234,36 @@ const autosaveMethods: Record<string, unknown> & ThisType<AppData> = {
         return parts.length ? parts.join(' · ') : (integration.description ?? '');
     },
 
-    /** Opens one settings row and closes any other. */
+    /** Opens one settings row and closes any other. Reddit's row loads the subreddit lists. */
     toggleRow(id: string) {
         this.openRow = this.openRow === id ? null : id;
+        if (this.openRow?.endsWith(':reddit')) void this.fetchMappings();
+    },
+
+    /** The quiet note beside a field's label: its save state, else where its value comes from. */
+    fieldNote(field: ConfigField): string {
+        const note = this._statusNote(field.key);
+        if (note) return note;
+        if (field.envValue && !field.isOverridden) return this.t('Settings_FromEnv', field.key);
+        return '';
+    },
+
+    /** Same, for an app preference. */
+    prefNote(key: string): string {
+        const note = this._statusNote(key);
+        if (note) return note;
+        const prefs = (this.configData as ConfigData | null)?.preferences;
+        if (prefs?.envValues?.[key] && !prefs.overrides?.[key]) return this.t('Settings_FromEnv', key);
+        return '';
+    },
+
+    _statusNote(key: string): string {
+        switch (this.fieldStatus[key]?.state) {
+            case 'testing': return this.t('Common_Testing');
+            case 'saving': return this.t('Common_Saving');
+            case 'saved': return '\u2713 ' + this.t('Common_Saved');
+            default: return '';
+        }
     },
 };
 

@@ -56,29 +56,6 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
         }, 3000);
     },
 
-    async saveAllConfig() {
-        const integrations = (this.configData?.['integrations'] as IntegrationMap | undefined) ?? {};
-        const allFields = Object.values(integrations).flatMap(i => i.fields);
-        const payload = buildFieldPayload(allFields, this.configEdits);
-
-        this.saveAllStatus = 'saving';
-        try {
-            const res = await postJson('/api/config', payload);
-            if (res.ok) {
-                this.saveAllStatus = 'saved';
-                const cRes = await fetch('/api/config');
-                if (cRes.ok) {
-                    this.configData = await cRes.json() as ConfigData;
-                }
-            } else {
-                this.saveAllStatus = 'error';
-            }
-        } catch {
-            this.saveAllStatus = 'error';
-        }
-        setTimeout(() => { this.saveAllStatus = null; }, 3000);
-    },
-
     redditSearchUrl(title: string, season: number, episode: number): string {
         // This is for both bad data from Watch Providers and edge cases like specials that Jellyfin classifies as "Season 0"
         const querySeason = season === 0 ? '' : 'S' + String(season).padStart(2, '0');

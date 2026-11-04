@@ -33,7 +33,7 @@ function makeCtx(overrides: Ctx = {}): Ctx {
                     fields: [{ key: 'Jellyfin__BaseUrl', type: 'text', value: 'http://saved', envValue: 'http://env', isOverridden: true, hasValue: true }],
                 },
             },
-            preferences: { timeMachineDays: 14, watchProvider: 'jellyfin', searchEngine: 'google', customSearchUrl: '', overrides: {} },
+            preferences: { timeMachineDays: 14, watchProvider: 'jellyfin', watchProviders: [{ value: 'jellyfin', label: 'Jellyfin' }, { value: 'trakt', label: 'Trakt' }], searchEngine: 'google', customSearchUrl: '', overrides: {} },
         },
         configEdits: { 'Bluesky__Handle': 'me.bsky.social', 'Bluesky__AppPassword': '', 'Reddit__MaxThreads': '3', 'Jellyfin__BaseUrl': 'http://saved' },
         prefEdits: { timeMachineDays: 14, watchProvider: 'jellyfin', searchEngine: 'google', customSearchUrl: '' },
@@ -217,6 +217,23 @@ describe('preferences', () => {
         expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ 'WatchBack__WatchProvider': 'trakt' });
         expect(ctx.configData.preferences.watchProvider).toBe('trakt');
         expect(ctx.configData.preferences.overrides['WatchBack__WatchProvider']).toBe(true);
+    });
+
+    it('activeWatchProvider falls back to the first source when none is saved, like the server', () => {
+        const ctx = makeCtx();
+        ctx.configData.preferences.watchProviders = [{ value: 'jellyfin', label: 'Jellyfin' }, { value: 'trakt', label: 'Trakt' }];
+        ctx.configData.preferences.watchProvider = '';
+        expect(ctx.activeWatchProvider()).toBe('jellyfin');
+        ctx.configData.preferences.watchProvider = 'Trakt';
+        expect(ctx.activeWatchProvider()).toBe('trakt');
+    });
+
+    it('chooseWatchProvider does nothing for the source already in use', async () => {
+        const ctx = makeCtx();
+        ctx.configData.preferences.watchProviders = [{ value: 'jellyfin', label: 'Jellyfin' }];
+        const fetchMock = respond();
+        await ctx.chooseWatchProvider('jellyfin');
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('chooseWatchProvider puts the old choice back when the save fails', async () => {

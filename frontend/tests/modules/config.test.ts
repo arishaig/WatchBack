@@ -15,7 +15,6 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
             segmentedProgressBar: false,
         },
         saveStatus: {} as Record<string, string>,
-        saveAllStatus: null,
         prefSaveStatus: null,
         testResults: {} as Record<string, unknown>,
         lastTestResults: {} as Record<string, unknown>,

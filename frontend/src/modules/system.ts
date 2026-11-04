@@ -180,10 +180,12 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
 
     switchConfigTab(tab: string) {
         this.configTab = tab;
-        if (tab === 'diagnostics') void this.loadDiagnostics();
-        else if (tab === 'mappings') void this.fetchMappings();
-        else if (tab === 'apikeys') void this.loadApiKeys();
-        else this.closeLogStream();
+        if (tab === 'diagnostics') {
+            void this.loadDiagnostics();
+            return;
+        }
+        this.closeLogStream();
+        if (tab === 'security') void this.loadApiKeys();
     },
 
     async loadDiagnostics() {

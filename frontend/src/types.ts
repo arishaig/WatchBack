@@ -202,7 +202,6 @@ export interface AppData {
     configData: ConfigData | null;
     configEdits: Record<string, string>;
     saveStatus: Record<string, string>;
-    saveAllStatus: SaveStatus;
     prefEdits: Record<string, unknown>;
     prefSaveStatus: SaveStatus;
     fieldStatus: Record<string, FieldStatus>;
@@ -216,7 +215,6 @@ export interface AppData {
     showUserPicker: boolean;
     groupByThread: boolean;
     theme: string;
-    collapsedSections: Record<string, boolean>;
     testResults: Record<string, unknown>;
     lastTestResults: Record<string, unknown>;
     testAllStatus: TestStatus;
@@ -308,6 +306,7 @@ export interface AppData {
     mappingImportStatus: SaveStatus;
     mappingDropActive: boolean;
     mappingShareCopied: string;
+    mappingFilter: string;
     sentimentCategory: string;
     apiKeys: ApiKeyEntry[];
     newApiKeyName: string;
@@ -334,7 +333,6 @@ export interface AppData {
 
     _initConfigEdits(configData: ConfigData): void;
     saveConfig(integrationKey: string): Promise<void>;
-    saveAllConfig(): Promise<void>;
     resetConfigKeys(keys: string[], refetch?: boolean): Promise<void>;
     toggleDisabled(key: string): Promise<void>;
     savePreferences(): Promise<void>;
@@ -350,6 +348,7 @@ export interface AppData {
     commitField(integrationKey: string, fieldKey: string, force?: boolean): Promise<void>;
     useEnvValue(integrationKey: string, fieldKey: string): Promise<void>;
     setPreference(key: string, value: string): Promise<boolean>;
+    activeWatchProvider(): string;
     chooseWatchProvider(value: string): Promise<void>;
     commitTimeMachine(): Promise<void>;
     setSearchEngine(engine: string): Promise<void>;
@@ -358,6 +357,12 @@ export interface AppData {
     rowStatus(key: string, asWatchSource?: boolean): { kind: 'ok' | 'warn' | 'err' | 'off'; label: string };
     rowSummary(key: string): string;
     toggleRow(id: string): void;
+    fieldNote(field: ConfigField): string;
+    prefNote(key: string): string;
+    _statusNote(key: string): string;
+    readonly settingsTabs: { id: string; label: string; sub: string }[];
+    readonly settingsTab: string;
+    readonly settingsGroups: { id: string; title: string; hint: string; rows: unknown[] }[];
 
     sync(): Promise<void>;
     searchMedia(): Promise<void>;
@@ -436,6 +441,9 @@ export interface AppData {
     dismissGeneratedKey(): void;
 
     handleMappingFileDrop(e: DragEvent): void;
+    localMappings(): AppData['mappingSources'][number]['entries'];
+    otherMappingCount(): number;
+    matchingMappings(): { source: AppData['mappingSources'][number]; entry: AppData['mappingSources'][number]['entries'][number] }[];
     shareMappingSource(id: string, name: string): Promise<void>;
     fetchMappings(): Promise<void>;
     searchForMapping(): Promise<void>;
@@ -453,7 +461,6 @@ export interface AppData {
     toggleSource(src: string): void;
     sourceActive(src: string): boolean;
     sourceCount(src: string): number;
-    toggleSection(key: string): void;
     toggleAlwaysShowSearch(): void;
     sanitizeSvg(raw: string): string;
     renderMarkdown(src: string, spoilerLabel?: string): string;

@@ -190,3 +190,37 @@ describe('setupSSE', () => {
         expect(ctx.showSyncBar).toBe(true);
     });
 });
+// ── switchConfigTab ───────────────────────────────────────────────────────────
+
+describe('switchConfigTab', () => {
+    function tabCtx() {
+        return {
+            configTab: 'sources',
+            loadDiagnostics: vi.fn(),
+            loadApiKeys: vi.fn(),
+            closeLogStream: vi.fn(),
+        };
+    }
+
+    it('loads the logs for Diagnostics', () => {
+        const ctx = tabCtx();
+        methods.switchConfigTab.call(ctx, 'diagnostics');
+        expect(ctx.configTab).toBe('diagnostics');
+        expect(ctx.loadDiagnostics).toHaveBeenCalled();
+        expect(ctx.closeLogStream).not.toHaveBeenCalled();
+    });
+
+    it('loads the API keys for Security, which now holds them', () => {
+        const ctx = tabCtx();
+        methods.switchConfigTab.call(ctx, 'security');
+        expect(ctx.loadApiKeys).toHaveBeenCalled();
+        expect(ctx.closeLogStream).toHaveBeenCalled();
+    });
+
+    it('stops the log stream when leaving Diagnostics', () => {
+        const ctx = tabCtx();
+        methods.switchConfigTab.call(ctx, 'preferences');
+        expect(ctx.closeLogStream).toHaveBeenCalled();
+        expect(ctx.loadApiKeys).not.toHaveBeenCalled();
+    });
+});

@@ -1,11 +1,88 @@
-import type { AppData } from '../types';
+import type { AppData, ConfigIntegration } from '../types';
 
 /**
  * Computed getters for the Alpine component.
  * Exported as property descriptors so main.ts can merge them via
  * Object.defineProperties, preserving the getter semantics.
  */
+// Manual has no integration (and so no brand logo): a pencil.
+const MANUAL_LOGO = '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z"/></svg>';
+
+export interface SettingsRow {
+    id: string;
+    key: string;
+    kind: 'watch' | 'toggle';
+    integration: ConfigIntegration | undefined;
+    name: string;
+    sub: string;
+    status: { kind: string; label: string };
+    logo: string;
+    color: string;
+}
+
+export interface SettingsGroup {
+    id: string;
+    title: string;
+    hint: string;
+    rows: SettingsRow[];
+}
+
 const _computed: Record<string, unknown> & ThisType<AppData> = {
+    /** The settings tabs this person can open: everyone gets Preferences and Diagnostics. */
+    get settingsTabs(): { id: string; label: string; sub: string }[] {
+        const tabs = [
+            { id: 'sources', label: this.t('Settings_TabSources'), sub: '', admin: true },
+            { id: 'preferences', label: this.t('Preferences_Title'), sub: this.t('Settings_PreferencesSub'), admin: false },
+            { id: 'security', label: this.t('Settings_TabSecurity'), sub: this.t('Settings_SecuritySub'), admin: true },
+            { id: 'diagnostics', label: this.t('Nav_Diagnostics'), sub: this.t('Settings_DiagnosticsSub'), admin: false },
+        ];
+        return tabs.filter(t => !t.admin || this.access.isAdmin).map(({ id, label, sub }) => ({ id, label, sub }));
+    },
+
+    /** The open tab, falling back to the first one this person may see. */
+    get settingsTab(): string {
+        const tabs = this.settingsTabs;
+        return tabs.some(t => t.id === this.configTab) ? this.configTab : tabs[0].id;
+    },
+
+    /** The Sources tab: where WatchBack sees what's playing, then discussion, then ratings. */
+    get settingsGroups(): SettingsGroup[] {
+        const cfg = this.configData;
+        if (!cfg) return [];
+        const integrations = cfg.integrations ?? {};
+        const entries = Object.entries(integrations);
+        const make = (group: string, key: string, kind: SettingsRow['kind'], name: string, sub: string,
+            status: SettingsRow['status']): SettingsRow => {
+            const integration = integrations[key];
+            return {
+                id: group + ':' + key, key, kind, integration, name, sub, status,
+                logo: integration?.logoSvg || (integration ? '' : MANUAL_LOGO),
+                color: integration?.brandColor ?? '',
+            };
+        };
+
+        const watch = (cfg.preferences?.watchProviders ?? []).map(wp => integrations[wp.value]
+            ? make('watch', wp.value, 'watch', integrations[wp.value].name, this.rowSummary(wp.value), this.rowStatus(wp.value, true))
+            : make('watch', wp.value, 'watch', wp.label, this.t('Settings_ManualSub'), { kind: 'ok', label: '' }));
+
+        const thought = entries.filter(([, i]) => i.providerTypes.includes('thought')).map(([key, i]) =>
+            i.providerTypes.includes('watchState')
+                ? make('thought', key, 'toggle', this.t('Config_CommentsFrom', i.name), this.t('Settings_UsesConnection', i.name), this.rowStatus(key))
+                : make('thought', key, 'toggle', i.name, this.rowSummary(key), this.rowStatus(key)));
+
+        const ratings = entries
+            .filter(([, i]) => (i.providerTypes.includes('ratings') || i.providerTypes.includes('search'))
+                && !i.providerTypes.includes('thought') && !i.providerTypes.includes('watchState'))
+            .map(([key, i]) => make('ratings', key, 'toggle', i.name, this.rowSummary(key), this.rowStatus(key)));
+
+        const on = thought.filter(r => !r.integration?.disabled).length;
+        return [
+            { id: 'watch', title: this.t('Settings_WatchingFrom'), hint: this.t('Settings_WatchingHint'), rows: watch },
+            { id: 'thought', title: this.t('Settings_DiscussionGroup'), hint: this.t('Settings_OnCount', on, thought.length), rows: thought },
+            { id: 'ratings', title: this.t('Settings_RatingsGroup'), hint: '', rows: ratings },
+        ].filter(g => g.rows.length > 0);
+    },
+
     get filteredLogs(): unknown[] {
         const levels = ['Trace', 'Debug', 'Information', 'Warning', 'Error', 'Critical'];
         const minIdx = this.logLevel === 'All' ? -1 : levels.indexOf(this.logLevel);
