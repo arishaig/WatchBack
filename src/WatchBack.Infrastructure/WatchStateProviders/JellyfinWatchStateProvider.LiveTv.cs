@@ -19,15 +19,38 @@ public sealed partial class JellyfinWatchStateProvider
     private const int EarliestPlausibleYear = 1900;
     private const int EpochYear = 1970;
 
+    // Movie channels' guides often call a film a "Series" with no year: a long program with no episode
+    // title that isn't news, sports or music may be one, and is looked up as one before being taken for a
+    // live broadcast.
+    private static readonly TimeSpan s_filmLength = TimeSpan.FromMinutes(80);
+
     private async Task<MediaContext> IdentifyLiveAsync(JellyfinItemDto channel, string? userId, CancellationToken ct)
     {
         MediaContext media = FromLiveChannel(channel);
-        if (media is LiveBroadcastContext || media.ExternalIds is { Count: > 0 })
+        int? year = YearHint(channel.CurrentProgram?.ProductionYear);
+        if (media is LiveBroadcastContext live)
         {
-            return media;
+            if (!MightBeAFilm(channel.CurrentProgram, live))
+            {
+                return live;
+            }
+
+            MediaContext film = await IdentifyByNameAsync(
+                new MediaContext(live.Title, null) { LiveChannel = live.LiveChannel }, year, userId, ct);
+            return film.ExternalIds is { Count: > 0 } ? film : live;
         }
 
-        int? year = YearHint(channel.CurrentProgram?.ProductionYear);
+        return media.ExternalIds is { Count: > 0 } ? media : await IdentifyByNameAsync(media, year, userId, ct);
+    }
+
+    internal static bool MightBeAFilm(JellyfinProgramDto? program, LiveBroadcastContext live) =>
+        program is { IsNews: not true, IsSports: not true, StartDate: { } start, EndDate: { } end } &&
+        !live.IsMusic && string.IsNullOrWhiteSpace(program.EpisodeTitle) && end - start >= s_filmLength;
+
+    // The library first (free, exact, and where Tunarr's programs come from), then the media search provider.
+    private async Task<MediaContext> IdentifyByNameAsync(MediaContext media, int? year, string? userId,
+        CancellationToken ct)
+    {
         try
         {
             media = await FindInLibraryAsync(media, year, userId, ct) ?? media;
@@ -95,8 +118,13 @@ public sealed partial class JellyfinWatchStateProvider
             program.ChannelName ?? channelName,
             program.StartDate is { } start ? new DateTimeOffset(start, TimeSpan.Zero) : null,
             program.EndDate is { } end ? new DateTimeOffset(end, TimeSpan.Zero) : null,
-            program.EpisodeTitle) { LiveChannel = program.ChannelName ?? channelName };
+            program.EpisodeTitle,
+            IsMusic(program)) { LiveChannel = program.ChannelName ?? channelName };
     }
+
+    private static bool IsMusic(JellyfinProgramDto program) =>
+        program.IsNews != true && program.IsSports != true &&
+        program.Genres?.Any(g => g.Equals("Music", StringComparison.OrdinalIgnoreCase)) == true;
 
     // Tunarr airs library items, so the library knows them exactly: ids, air date, and the episode's
     // numbers when the guide gave only its title. Null when there's no exact match by name.

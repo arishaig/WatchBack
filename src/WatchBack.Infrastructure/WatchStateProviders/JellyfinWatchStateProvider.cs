@@ -324,7 +324,8 @@ internal sealed record JellyfinProgramDto(
     [property: JsonPropertyName("IsSports")]
     bool? IsSports = null,
     [property: JsonPropertyName("ProductionYear")]
-    int? ProductionYear = null);
+    int? ProductionYear = null,
+    [property: JsonPropertyName("Genres")] string[]? Genres = null);
 
 /// <summary>A library item found by name: a series, an episode or a movie.</summary>
 internal sealed record JellyfinLibraryItemDto(

@@ -900,6 +900,81 @@ public class JellyfinWatchStateProviderTests : IDisposable
         (episode.SeasonNumber, episode.EpisodeNumber).Should().Be(((short)1, (short)2));
     }
 
+
+    [Fact]
+    public async Task LiveChannel_MusicProgramming_IsALiveBroadcastWithNothingToSearch()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("Vevo 2K", """
+                { "Name": "Top Hits", "Genres": ["Pop", "Series", "Music"], "IsLive": true,
+                  "StartDate": "2026-11-04T18:00:00Z", "EndDate": "2026-11-04T19:00:00Z" }
+                """));
+
+        MediaContext? result = await LiveProvider(handler).GetCurrentMediaContextAsync();
+
+        LiveBroadcastContext live = result.Should().BeOfType<LiveBroadcastContext>().Subject;
+        live.IsMusic.Should().BeTrue();
+        live.SearchNames.Should().BeEmpty();
+    }
+
+    // Movie channels' guides call a film a "Series" with no year; a long untitled program is tried as one.
+    [Fact]
+    public async Task LiveChannel_LongProgramWithoutAnEpisodeTitle_FoundAsAFilm_IsThatFilm()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("Cent Action", """
+                { "Name": "Conan the Barbarian", "Genres": ["Series", "Entertainment"], "ProductionYear": 1970,
+                  "StartDate": "2026-11-04T18:00:00Z", "EndDate": "2026-11-04T20:00:00Z" }
+                """))
+            .Default("""{"Items":[]}""");
+        IMediaIdentifier identifier = Substitute.For<IMediaIdentifier>();
+        identifier.IdentifyAsync(Arg.Is<MediaContext>(m => m.GetType() == typeof(MediaContext)), null,
+                Arg.Any<CancellationToken>())
+            .Returns(c => c.Arg<MediaContext>() with
+            {
+                ExternalIds = new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0082198" }
+            });
+
+        MediaContext? result = await LiveProvider(handler, identifier).GetCurrentMediaContextAsync();
+
+        result.Should().BeOfType<MediaContext>();
+        result!.Title.Should().Be("Conan the Barbarian");
+        result.ExternalIds.Should().Contain(ExternalIdType.Imdb, "tt0082198");
+        result.LiveChannel.Should().Be("Cent Action");
+    }
+
+    [Fact]
+    public async Task LiveChannel_LongProgramNotFoundAsAFilm_StaysALiveBroadcast()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("QVC", """
+                { "Name": "Gourmet Holiday", "Genres": ["Series", "Home & Lifestyle"],
+                  "StartDate": "2026-11-04T18:00:00Z", "EndDate": "2026-11-04T20:00:00Z" }
+                """))
+            .Default("""{"Items":[]}""");
+        IMediaIdentifier identifier = Substitute.For<IMediaIdentifier>();
+        identifier.IdentifyAsync(Arg.Any<MediaContext>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+            .Returns(c => c.Arg<MediaContext>());
+
+        MediaContext? result = await LiveProvider(handler, identifier).GetCurrentMediaContextAsync();
+
+        result.Should().BeOfType<LiveBroadcastContext>().Which.Title.Should().Be("Gourmet Holiday");
+    }
+
+    [Fact]
+    public async Task LiveChannel_ShortProgramOrNews_IsNotLookedUpAsAFilm()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("The Price Is Right", """
+                { "Name": "The Price Is Right", "StartDate": "2026-11-04T18:00:00Z", "EndDate": "2026-11-04T19:03:00Z" }
+                """));
+        IMediaIdentifier identifier = Substitute.For<IMediaIdentifier>();
+
+        await LiveProvider(handler, identifier).GetCurrentMediaContextAsync();
+
+        await identifier.DidNotReceiveWithAnyArgs().IdentifyAsync(default!, default, default);
+    }
+
 }
 
 internal sealed class MockHttpMessageHandler : HttpMessageHandler
