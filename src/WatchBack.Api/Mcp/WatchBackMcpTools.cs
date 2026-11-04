@@ -143,7 +143,7 @@ public sealed class WatchBackMcpTools(
 
     [McpServerTool]
     [Description(
-        "Update configuration values. Keys must use Section__Key format (e.g. 'WatchBack__WatchProvider', 'Jellyfin__Url'). " +
+        "Update configuration values. Keys must use Section__Key format (e.g. 'WatchBack__WatchProvider', 'Jellyfin__BaseUrl'). " +
         "Only known sections are accepted; unknown sections are silently ignored for security. " +
         "Changes are persisted to user-settings.json and take effect on the next request.")]
     public async Task<string> UpdateConfig(
@@ -205,7 +205,7 @@ public sealed class WatchBackMcpTools(
         "Reset configuration keys to their environment variable or compiled defaults by removing them from user-settings.json. " +
         "Keys must use Section__Key format (e.g. 'WatchBack__TimeMachineDays').")]
     public async Task<string> ResetConfig(
-        [Description("Array of Section__Key keys to reset. Example: [\"WatchBack__TimeMachineDays\", \"Jellyfin__Url\"]")] string[] keys,
+        [Description("Array of Section__Key keys to reset. Example: [\"WatchBack__TimeMachineDays\", \"Jellyfin__BaseUrl\"]")] string[] keys,
         CancellationToken cancellationToken)
     {
         HashSet<string> allowedSections = ConfigEndpoints.GetAllowedSections(
@@ -259,14 +259,14 @@ public sealed class WatchBackMcpTools(
     [McpServerTool]
     [Description(
         "Set the manual watch state to a specific movie or TV episode. Use this when the automatic watch state provider is not available " +
-        "or you want to override what is currently being watched. Pass external IDs (e.g. imdbId, tmdbId) when available for better search accuracy.")]
+        "or you want to override what is currently being watched. Pass external IDs (keys imdb, tmdb, tvdb) when available for better search accuracy.")]
     public string SetManualWatchState(
         [Description("Title of the movie or TV show")] string title,
         [Description("Release date in ISO 8601 format (e.g. '2013-09-22'). Optional.")] DateTimeOffset? releaseDate,
         [Description("Episode title. Provide this (along with seasonNumber and episodeNumber) to set a TV episode.")] string? episodeTitle,
         [Description("Season number (required when setting a TV episode)")] short? seasonNumber,
         [Description("Episode number (required when setting a TV episode)")] short? episodeNumber,
-        [Description("External IDs for the media, e.g. {\"imdbId\": \"tt0903747\", \"tmdbId\": \"1396\"}. Optional.")] Dictionary<string, string>? externalIds)
+        [Description("External IDs for the media, e.g. {\"imdb\": \"tt0903747\", \"tmdb\": \"1396\"}. Optional.")] Dictionary<string, string>? externalIds)
     {
         if (string.IsNullOrWhiteSpace(title))
         {
