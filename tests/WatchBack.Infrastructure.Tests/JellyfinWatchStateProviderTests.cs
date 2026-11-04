@@ -975,6 +975,25 @@ public class JellyfinWatchStateProviderTests : IDisposable
         await identifier.DidNotReceiveWithAnyArgs().IdentifyAsync(default!, default, default);
     }
 
+
+    // A failing library lookup isn't retried on every session refresh: those calls share the
+    // Jellyfin client's retries and circuit breaker with /Sessions.
+    [Fact]
+    public async Task LiveChannel_FailedLibraryLookup_IsNotRetriedOnTheNextRefresh()
+    {
+        RoutableMockHttpHandler handler = new RoutableMockHttpHandler()
+            .RespondTo("/Sessions", ChannelSession("Trek Time", TrekProgram))
+            .Default("""{"error":"boom"}""", HttpStatusCode.InternalServerError);
+        JellyfinWatchStateProvider provider = LiveProvider(handler);
+
+        await provider.GetCurrentMediaContextAsync();
+        _cache.Remove("jellyfin:session:any");
+        MediaContext? again = await provider.GetCurrentMediaContextAsync();
+
+        again.Should().BeOfType<EpisodeContext>();
+        handler.RecordedUris.Count(u => u.AbsolutePath == "/Items").Should().Be(1);
+    }
+
 }
 
 internal sealed class MockHttpMessageHandler : HttpMessageHandler

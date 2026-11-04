@@ -14,6 +14,7 @@ namespace WatchBack.Infrastructure.WatchStateProviders;
 public sealed partial class JellyfinWatchStateProvider
 {
     private static readonly TimeSpan s_libraryLookupLifetime = TimeSpan.FromHours(6);
+    private static readonly TimeSpan s_libraryFailureLifetime = TimeSpan.FromMinutes(5);
 
     // Guides with no year for a program give 1970 (the Unix epoch), which would mismatch every title.
     private const int EarliestPlausibleYear = 1900;
@@ -51,13 +52,19 @@ public sealed partial class JellyfinWatchStateProvider
     private async Task<MediaContext> IdentifyByNameAsync(MediaContext media, int? year, string? userId,
         CancellationToken ct)
     {
-        try
+        string failedKey = $"jellyfin:library:failed:{media.Title}";
+        if (!cache.TryGetValue(failedKey, out _))
         {
-            media = await FindInLibraryAsync(media, year, userId, ct) ?? media;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
-        {
-            logger.LogWarning(ex, "Jellyfin: library lookup failed for '{Title}'", media.Title);
+            try
+            {
+                media = await FindInLibraryAsync(media, year, userId, ct) ?? media;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+            {
+                // Not retried on every session refresh: those calls share /Sessions' retries and circuit breaker.
+                logger.LogWarning(ex, "Jellyfin: library lookup failed for '{Title}'", media.Title);
+                cache.Set(failedKey, true, s_libraryFailureLifetime);
+            }
         }
 
         if (media.ExternalIds is { Count: > 0 } || identifier is null)
