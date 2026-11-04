@@ -78,8 +78,8 @@ public sealed partial class WatchBackMcpTools
     [Description(
         "Test an integration's connection. With no values, tests the saved settings: call it once after the person " +
         "saves, rather than repeatedly (some services, like Bluesky, allow only a few sign-ins a day). With values " +
-        "(Section__Key to value), tests those before saving; never put a secret in values unless the person pasted " +
-        "it into this chat themselves.")]
+        "(Section__Key to value), tests only those, never combined with stored secrets; never put a secret in values " +
+        "unless the person pasted it into this chat themselves.")]
     public async Task<string> TestIntegration(
         [Description("The integration's section, e.g. \"Jellyfin\" (from describe_integrations).")] string section,
         [Description("Optional unsaved values to test, e.g. {\"Jellyfin__BaseUrl\": \"http://jellyfin:8096\"}.")]
@@ -98,7 +98,8 @@ public sealed partial class WatchBackMcpTools
             // The saved settings are tested the way a sync uses them (Bluesky reuses its session); only new
             // values need a fresh sign-in.
             ServiceHealth health = values is { Count: > 0 }
-                ? await integration.Primary.TestConnectionAsync(values, cancellationToken)
+                ? await integration.Primary.TestConnectionAsync(
+                    IntegrationCatalog.TestValuesWithoutStoredSecrets(values), cancellationToken)
                 : await integration.Primary.GetServiceHealthAsync(cancellationToken);
             return JsonSerializer.Serialize(new
             {

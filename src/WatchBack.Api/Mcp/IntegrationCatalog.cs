@@ -37,9 +37,33 @@ public static class IntegrationCatalog
         "WatchBack__DisabledProviders"
     ];
 
-    /// <summary>Password fields hold secrets: their values are never sent to an assistant.</summary>
+    // Credentials whose settings field is plain text (Trakt shows its client ID, which it receives as the
+    // trakt-api-key header). Treated as secret everywhere an assistant could read or be handed them.
+    private static readonly HashSet<string> s_secretTextKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Trakt__ClientId"
+    };
+
+    /// <summary>
+    ///     The value the settings UI sends for a password it didn't change, meaning "use the stored one"
+    ///     (see FormValueExtensions.ResolveFormValue).
+    /// </summary>
+    public const string StoredSecretSentinel = "__EXISTING__";
+
+    /// <summary>Password fields and known credentials hold secrets: their values never go to an assistant.</summary>
     public static bool IsSecret(ProviderConfigField field) =>
-        string.Equals(field.Type, "password", StringComparison.OrdinalIgnoreCase);
+        string.Equals(field.Type, "password", StringComparison.OrdinalIgnoreCase) || s_secretTextKeys.Contains(field.Key);
+
+    /// <summary>
+    ///     Values an assistant asked to test, safe to pass to a provider's connection test: the "use the stored
+    ///     secret" sentinel is blanked, so a test against a URL the assistant chose can never carry the stored
+    ///     key to it. A test of new values only uses what the caller supplied.
+    /// </summary>
+    public static Dictionary<string, string> TestValuesWithoutStoredSecrets(IReadOnlyDictionary<string, string> values) =>
+        values.ToDictionary(
+            kv => kv.Key,
+            kv => kv.Value.Trim() == StoredSecretSentinel ? "" : kv.Value,
+            StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The integrations, grouped by config section, in registration order.</summary>
     public static IReadOnlyList<Integration> Build(

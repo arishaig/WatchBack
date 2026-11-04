@@ -28,7 +28,8 @@ public sealed class McpSetupToolTests : IDisposable
         ["Jellyfin:ApiKey"] = "jf-secret-4f9a1c",
         ["Bluesky:AppPassword"] = "bsky-secret-77e2",
         ["Trakt:AccessToken"] = "trakt-secret-0b3d",
-        ["Omdb:ApiKey"] = "omdb-secret-91aa"
+        ["Omdb:ApiKey"] = "omdb-secret-91aa",
+        ["Trakt:ClientId"] = "trakt-client-5c6e"
     };
 
     private static readonly string[] s_resetKeys = ["WatchBack__TimeMachineDays", "Auth__PasswordHash"];
@@ -182,6 +183,46 @@ public sealed class McpSetupToolTests : IDisposable
 
         json.GetProperty("applied").GetArrayLength().Should().Be(0);
         Saved().Should().NotContainKey("Auth");
+    }
+
+    // Regression: test_integration passed values straight to the provider's connection test, where
+    // "__EXISTING__" means "use the stored secret". An API key holder could test Jellyfin against a URL of
+    // their choosing with the stored Jellyfin key, sending it there.
+    [Fact]
+    public async Task TestIntegration_NeverSendsTheStoredSecretWithCallerValues()
+    {
+        using HttpClient client = await ClientAsync();
+
+        (_, JsonElement json) = await CallAsync(client, "test_integration", new
+        {
+            section = "Jellyfin",
+            values = new Dictionary<string, string>
+            {
+                ["Jellyfin__BaseUrl"] = "http://127.0.0.1:9/",
+                ["Jellyfin__ApiKey"] = "__EXISTING__"
+            }
+        });
+
+        json.GetProperty("ok").GetBoolean().Should().BeFalse();
+        json.GetProperty("message").GetString().Should().Contain("API Key",
+            "the stored key must not be used, so the test stops at the missing key before any request");
+    }
+
+    [Fact]
+    public void TestValuesWithoutStoredSecrets_BlanksTheSentinel_AndKeepsTheRest()
+    {
+        Dictionary<string, string> safe = WatchBack.Api.Mcp.IntegrationCatalog.TestValuesWithoutStoredSecrets(
+            new Dictionary<string, string>
+            {
+                ["Jellyfin__BaseUrl"] = "http://media:8096",
+                ["Jellyfin__ApiKey"] = " __EXISTING__ "
+            });
+
+        safe.Should().Equal(new Dictionary<string, string>
+        {
+            ["Jellyfin__BaseUrl"] = "http://media:8096",
+            ["Jellyfin__ApiKey"] = ""
+        });
     }
 
     [Fact]
