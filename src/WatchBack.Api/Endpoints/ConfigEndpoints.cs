@@ -3,6 +3,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
+using WatchBack.Api.Mcp;
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
 using WatchBack.Core.Options;
@@ -108,42 +109,20 @@ public static class ConfigEndpoints
             return userSettings.TryGetValue(section, out Dictionary<string, string>? s) && s.ContainsKey(key);
         }
 
-        // Tag every provider with its interface role, then group by config section.
         // Providers sharing a section (e.g. Trakt as both watch-state and thought) merge into one card.
-        IEnumerable<(IDataProvider, string)> tagged = watchStateProviderList
-            .Select(p => ((IDataProvider)p, "watchState"))
-            .Concat(thoughtProviderList.Select(p => ((IDataProvider)p, "thought")))
-            .Concat(ratingsProviderList.Select(p => ((IDataProvider)p, "ratings")))
-            .Concat(mediaSearchProviderList.Select(p => ((IDataProvider)p, "search")));
-
-        HashSet<string> disabledProviders = w.DisabledProviders
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        Dictionary<string, object> integrations = tagged
-            .Where(t => t.Item1.ConfigSection is not null)
-            .GroupBy(t => t.Item1.ConfigSection!, StringComparer.OrdinalIgnoreCase)
+        Dictionary<string, object> integrations = IntegrationCatalog.Build(watchStateProviderList, thoughtProviderList,
+                ratingsProviderList, mediaSearchProviderList, EnvVal, IsOverridden, w.DisabledProviders)
             .ToDictionary(
-                g => g.Key.ToLowerInvariant(),
-                g =>
+                i => i.Section.ToLowerInvariant(),
+                i => (object)new
                 {
-                    List<IDataProvider> providers = g.Select(t => t.Item1).ToList();
-                    IDataProvider primary = providers[0];
-                    string[] providerTypes = g.Select(t => t.Item2).Distinct().ToArray();
-                    // Use fields from the first provider that declares any
-                    IReadOnlyList<ProviderConfigField> fields = providers
-                        .Select(p => p.GetConfigSchema(EnvVal, IsOverridden))
-                        .FirstOrDefault(f => f is { Count: > 0 }) ?? (IReadOnlyList<ProviderConfigField>)[];
-                    return (object)new
-                    {
-                        name = primary.Metadata.DisplayName,
-                        logoSvg = primary.Metadata.BrandData?.LogoSvg ?? "",
-                        brandColor = primary.Metadata.BrandData?.Color ?? "",
-                        fields,
-                        configured = providers.Any(p => p.IsConfigured),
-                        providerTypes,
-                        disabled = disabledProviders.Contains(g.Key)
-                    };
+                    name = i.Primary.Metadata.DisplayName,
+                    logoSvg = i.Primary.Metadata.BrandData?.LogoSvg ?? "",
+                    brandColor = i.Primary.Metadata.BrandData?.Color ?? "",
+                    fields = i.Fields,
+                    configured = i.Configured,
+                    providerTypes = i.Roles,
+                    disabled = i.Disabled
                 });
 
         return new
