@@ -333,6 +333,8 @@ export interface AppData {
     wizardSaveAndContinue(): Promise<void>;
     dismissChecklist(): void;
     openConfigForItem(type: string): void;
+    openSettingsLink(key: string): boolean;
+    handleSettingsHash(): void;
     newProviderToggle(key: string): void;
     dismissNewProviders(): void;
     saveAndDismissNewProviders(): Promise<void>;

@@ -461,3 +461,78 @@ describe('openConfigForItem', () => {
         expect((ctx.collapsedSections as Record<string, boolean>).trakt).toBe(false);
     });
 });
+
+// #settings/<key> links come from the MCP setup tools: they open an integration's settings with the
+// first empty secret focused, so a pasted key goes into WatchBack rather than into an assistant's chat.
+describe('settings links', () => {
+    function linkCtx() {
+        return makeCtx({
+            configData: {
+                integrations: {
+                    bluesky: {
+                        name: 'Bluesky',
+                        fields: [
+                            { key: 'Bluesky__Handle', type: 'text', hasValue: true },
+                            { key: 'Bluesky__AppPassword', type: 'password', hasValue: false },
+                        ],
+                    },
+                },
+            },
+        });
+    }
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        document.body.innerHTML =
+            '<div data-integration="bluesky"><input id="field-Bluesky__Handle"><input id="field-Bluesky__AppPassword" type="password"></div>';
+        Element.prototype.scrollIntoView = vi.fn();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        document.body.innerHTML = '';
+        window.history.replaceState(null, '', '/');
+    });
+
+    it('opens the panel on the integration, expanded, with the empty secret focused', () => {
+        const ctx = linkCtx();
+
+        const opened = methods['openSettingsLink'].call(ctx, 'bluesky');
+        vi.runAllTimers();
+
+        expect(opened).toBe(true);
+        expect(ctx['showConfig']).toBe(true);
+        expect(ctx['wizardActive']).toBe(false);
+        expect((ctx['collapsedSections'] as Record<string, boolean>)['bluesky']).toBe(false);
+        expect(document.activeElement?.id).toBe('field-Bluesky__AppPassword');
+    });
+
+    it('ignores an unknown integration', () => {
+        const ctx = linkCtx();
+
+        expect(methods['openSettingsLink'].call(ctx, 'plex')).toBe(false);
+        expect(ctx['showConfig']).toBe(false);
+    });
+
+    it('follows #settings/<key> and then clears the fragment', () => {
+        const ctx = linkCtx();
+        ctx['openSettingsLink'] = vi.fn();
+        window.history.replaceState(null, '', '/#settings/bluesky');
+
+        methods['handleSettingsHash'].call(ctx);
+
+        expect(ctx['openSettingsLink']).toHaveBeenCalledWith('bluesky');
+        expect(window.location.hash).toBe('');
+    });
+
+    it('leaves other fragments alone', () => {
+        const ctx = linkCtx();
+        ctx['openSettingsLink'] = vi.fn();
+        window.history.replaceState(null, '', '/#something-else');
+
+        methods['handleSettingsHash'].call(ctx);
+
+        expect(ctx['openSettingsLink']).not.toHaveBeenCalled();
+        expect(window.location.hash).toBe('#something-else');
+    });
+});

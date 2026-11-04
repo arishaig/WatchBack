@@ -96,6 +96,40 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
         this.checklistDismissed = true;
     },
 
+    // Opens an integration's settings: the panel, its card expanded and scrolled to, and the first secret
+    // field without a value focused, ready for a paste. Used by #settings/<key> links, which the MCP
+    // setup tools hand to people so secrets go into WatchBack rather than into an assistant's chat.
+    openSettingsLink(key: string): boolean {
+        const integrations = (this.configData?.['integrations'] as IntegrationMap | undefined) ?? {};
+        const integration = integrations[key] as unknown as
+            { fields?: Array<{ key: string; type: string; hasValue: boolean }> } | undefined;
+        if (!integration) return false;
+
+        this.wizardActive = false;
+        this.showConfig = true;
+        this.configTab = 'settings';
+        this.collapsedSections = { ...this.collapsedSections, [key]: false };
+
+        // After the panel and card have rendered.
+        setTimeout(() => {
+            const card = document.querySelector(`[data-integration="${CSS.escape(key)}"]`);
+            card?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+            const fields = integration.fields ?? [];
+            const target = fields.find(f => f.type === 'password' && !f.hasValue) ?? fields.find(f => !f.hasValue);
+            const input = target ? document.getElementById('field-' + target.key) : null;
+            (input as HTMLInputElement | null)?.focus({ preventScroll: true });
+        }, 350);
+        return true;
+    },
+
+    handleSettingsHash() {
+        const match = /^#settings\/([a-z0-9_-]+)$/i.exec(window.location.hash);
+        if (!match || !this.configData) return;
+        // Drop the fragment so a reload doesn't reopen the panel.
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+        this.openSettingsLink(match[1].toLowerCase());
+    },
+
     openConfigForItem(type: string) {
         this.showConfig = true;
         this.configTab = 'settings';

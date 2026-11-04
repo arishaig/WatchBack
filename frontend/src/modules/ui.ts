@@ -16,6 +16,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         uiLog("app.init", "App initializing", undefined, "Information");
         this.applyTheme(this.theme);
         this.$watch('showConfig', (v: unknown) => { if (!v) this.closeLogStream(); });
+        window.addEventListener('hashchange', () => this.handleSettingsHash());
 
         await window.loadAllStrings();
         this.supportedLocales = window._supportedLocales;
@@ -157,6 +158,9 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
             uiLog("app.initApp.wizard", "No wizard/checklist completion flag — showing wizard", undefined, "Information");
             this.wizardActive = true;
         }
+
+        // A #settings/<integration> link (from the MCP setup tools) opens that integration's settings.
+        this.handleSettingsHash();
     },
 
     showError(msg: string) {
