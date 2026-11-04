@@ -39,7 +39,9 @@ Then open `http://localhost:5000` — you'll be prompted to set a username and p
 
 WatchBack has an MCP server at `/mcp`, so an AI assistant can walk you through setup. On first start, choose **Set it up with an AI assistant**. WatchBack creates an API key and shows the command to connect Claude Code, plus the URL and header that other assistants need. Then ask your assistant to "Help me set up WatchBack", or use its `set_up_watchback` prompt.
 
-The assistant can read and change your provider settings and preferences, but not your password or login settings. Whenever a step needs an API key or password, it gives you a link that opens that provider's settings, so you paste the secret into WatchBack and not into the chat. You can revoke the key any time under **API Keys** in settings.
+The assistant can read and change your provider settings and preferences, but not your password or login settings. It never sees a stored secret. Whenever a step needs an API key or password, it gives you a link that opens that provider's settings, so you paste the secret into WatchBack and not into the chat.
+
+Anyone holding the key can still change where WatchBack connects, for example your Jellyfin server's address, so give it only to an assistant you trust. Revoke it under **API Keys** in settings once setup is done. The assistant must be able to reach WatchBack at the address shown. An assistant running outside your network can't reach a LAN-only address, and a reverse proxy that requires a login must let `/mcp` through with the bearer key.
 
 ### Running locally
 

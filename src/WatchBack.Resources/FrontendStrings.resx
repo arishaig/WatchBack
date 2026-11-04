@@ -821,13 +821,13 @@
         <value>API key</value>
     </data>
     <data name="Wizard_AiKeyShownOnce" xml:space="preserve">
-        <value>Shown only now. You can revoke it any time under API Keys in settings.</value>
+        <value>Shown only now. Give it only to an assistant you trust, and revoke it under API Keys in settings once setup is done.</value>
     </data>
     <data name="Wizard_AiForClaudeCode" xml:space="preserve">
         <value>For {0}, run:</value>
     </data>
     <data name="Wizard_AiOtherAssistants" xml:space="preserve">
-        <value>Other assistants: add an HTTP MCP server with the URL above and the header {0} with this key.</value>
+        <value>Other assistants: add an HTTP MCP server with the URL above and the header {0} with this key. The assistant must be able to reach this address.</value>
     </data>
     <data name="Wizard_AiThenAsk" xml:space="preserve">
         <value>Then ask your assistant:</value>

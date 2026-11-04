@@ -1207,7 +1207,7 @@ namespace WatchBack.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Shown only now. You can revoke it any time under API Keys in settings..
+        ///   Looks up a localized string similar to Shown only now. Give it only to an assistant you trust, and revoke it under API Keys in settings once setup is done..
         /// </summary>
         public static string Wizard_AiKeyShownOnce {
             get {

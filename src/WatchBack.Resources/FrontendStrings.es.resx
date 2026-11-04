@@ -786,13 +786,13 @@
         <value>Clave de API</value>
     </data>
     <data name="Wizard_AiKeyShownOnce" xml:space="preserve">
-        <value>Solo se muestra ahora. Puedes revocarla cuando quieras en Claves de API, en la configuración.</value>
+        <value>Solo se muestra ahora. Dásela solo a un asistente de confianza y revócala en Claves de API, en la configuración, al terminar.</value>
     </data>
     <data name="Wizard_AiForClaudeCode" xml:space="preserve">
         <value>Para {0}, ejecuta:</value>
     </data>
     <data name="Wizard_AiOtherAssistants" xml:space="preserve">
-        <value>Otros asistentes: añade un servidor MCP HTTP con la URL de arriba y el encabezado {0} con esta clave.</value>
+        <value>Otros asistentes: añade un servidor MCP HTTP con la URL de arriba y el encabezado {0} con esta clave. El asistente debe poder acceder a esta dirección.</value>
     </data>
     <data name="Wizard_AiThenAsk" xml:space="preserve">
         <value>Luego pídele a tu asistente:</value>
