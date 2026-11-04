@@ -119,6 +119,16 @@ describe('showTimeMachine', () => {
         expect(get('showTimeMachine', ctx)).toBe(true);
     });
 
+    it('returns false for a live broadcast, which has no later discussion to hide', () => {
+        const ctx = makeState({
+            data: {
+                timeMachineThoughts: [{ id: 1 }],
+                metadata: { liveChannel: 'NBC News NOW' },
+            },
+        });
+        expect(get('showTimeMachine', ctx)).toBe(false);
+    });
+
     it('returns true when there are thoughts and no releaseDate', () => {
         const ctx = makeState({
             data: {

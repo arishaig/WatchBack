@@ -221,6 +221,11 @@ public static partial class SyncEndpoints
                 episode.EpisodeNumber);
         }
 
+        if (context is LiveBroadcastContext live)
+        {
+            return new MediaContextResponse(live.Title, null, null, null, null, live.ChannelName);
+        }
+
         return new MediaContextResponse(
             context.Title,
             context.ReleaseDate?.DateTime,

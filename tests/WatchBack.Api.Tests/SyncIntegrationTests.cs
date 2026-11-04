@@ -227,6 +227,19 @@ public class SyncIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetSync_LiveBroadcast_ReportsTheChannelInsteadOfAnEpisode()
+    {
+        LiveBroadcastContext live = new("NBC News Daily", "NBC News NOW");
+        _mockWatchProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(live);
+
+        string json = await (await _client.GetAsync("/api/sync")).Content.ReadAsStringAsync();
+
+        json.Should().Contain("\"title\":\"NBC News Daily\"");
+        json.Should().Contain("\"liveChannel\":\"NBC News NOW\"");
+        json.Should().NotContain("\"seasonNumber\":0");
+    }
+
+    [Fact]
     public async Task GetSync_SortsThoughtsByCreatedAtDescending()
     {
         // Arrange

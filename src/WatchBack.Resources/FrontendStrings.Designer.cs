@@ -891,6 +891,12 @@ namespace WatchBack.Resources {
             }
         }
         
+        public static string Dashboard_LiveOn {
+            get {
+                return ResourceManager.GetString("Dashboard_LiveOn", resourceCulture);
+            }
+        }
+        
         public static string Dashboard_Aired {
             get {
                 return ResourceManager.GetString("Dashboard_Aired", resourceCulture);
