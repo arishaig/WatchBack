@@ -41,7 +41,7 @@ WatchBack has an MCP server at `/mcp`, so an AI assistant can walk you through s
 
 The assistant can read and change your provider settings and preferences, but not your password or login settings. It never sees a stored secret. Whenever a step needs an API key or password, it gives you a link that opens that provider's settings, so you paste the secret into WatchBack and not into the chat.
 
-Anyone holding the key can still change where WatchBack connects, for example your Jellyfin server's address, so give it only to an assistant you trust. Revoke it under **API Keys** in settings once setup is done. The assistant must be able to reach WatchBack at the address shown. An assistant running outside your network can't reach a LAN-only address, and a reverse proxy that requires a login must let `/mcp` through with the bearer key.
+Anyone holding the key can still change where WatchBack connects, for example your Jellyfin server's address, so give it only to an assistant you trust. Revoke it under **Security → API keys** in settings once setup is done. The assistant must be able to reach WatchBack at the address shown. An assistant running outside your network can't reach a LAN-only address, and a reverse proxy that requires a login must let `/mcp` through with the bearer key.
 
 ### Running locally
 
@@ -51,7 +51,7 @@ dotnet run --project src/WatchBack.Api
 
 ## Configuration
 
-All provider settings can be configured in the UI under the gear icon, or via environment variables / `appsettings.json`. Environment variables use double-underscore as the section separator (e.g. `Jellyfin__ApiKey`).
+All provider settings can be configured in the UI under the gear icon, or via environment variables / `appsettings.json`. In the UI, each provider is a row under **Sources**; changes save as you make them, and a pasted key is tested with the provider before it's saved. A value set by an environment variable is shown as such, and one saved in the UI overrides it until you choose **Use environment value**. Environment variables use double-underscore as the section separator (e.g. `Jellyfin__ApiKey`).
 
 ### Watch providers
 
@@ -89,14 +89,14 @@ All provider settings can be configured in the UI under the gear icon, or via en
 
 ### Forward auth
 
-If you run WatchBack behind an auth proxy that passes a trusted header (e.g. `X-Remote-User`), you can enable forward auth in the Security section of the config UI. When active, the login screen is bypassed entirely.
+If you run WatchBack behind an auth proxy that passes a trusted header (e.g. `X-Remote-User`), you can enable forward auth under **Security** in settings. When active, the login screen is bypassed entirely.
 
 ### Who can change settings
 
 Admins can change WatchBack's settings; everyone else can watch and pick their own theme and language. This protects against accidental changes. It is not a security boundary.
 
 - **Behind Authelia (or another proxy that sends groups):** members of the admin group are admins. The defaults are the `Remote-Groups` header and the `admins` group; you can change both next to the forward auth settings. A proxy that sends no groups header falls back to the next rule.
-- **Otherwise:** the first person who picks their name in the Jellyfin user picker becomes the admin. They can make other users admins under Settings → Admins. If there's only one Jellyfin user, or the watch source can't tell users apart (Trakt, manual), everyone is an admin.
+- **Otherwise:** the first person who picks their name in the Jellyfin user picker becomes the admin. They can make other users admins under Settings → Security → Admins. If there's only one Jellyfin user, or the watch source can't tell users apart (Trakt, manual), everyone is an admin.
 
 With Traefik, the forward-auth middleware must list `Remote-Groups` in `authResponseHeaders`. Without it, WatchBack never sees the groups and uses the picker rule instead.
 

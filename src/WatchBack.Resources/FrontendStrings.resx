@@ -821,7 +821,7 @@
         <value>API key</value>
     </data>
     <data name="Wizard_AiKeyShownOnce" xml:space="preserve">
-        <value>Shown only now. Give it only to an assistant you trust, and revoke it under API Keys in settings once setup is done.</value>
+        <value>Shown only now. Give it only to an assistant you trust, and revoke it under Security, API keys, in settings once setup is done.</value>
     </data>
     <data name="Wizard_AiForClaudeCode" xml:space="preserve">
         <value>For {0}, run:</value>
@@ -864,5 +864,218 @@
     </data>
     <data name="DangerZone_GroupsHelp" xml:space="preserve">
         <value>Members of the admin group can change settings; everyone else can only watch. {0} sends {1}. Leave the header blank to ignore groups.</value>
+    </data>
+    <data name="Settings_TabSources" xml:space="preserve">
+        <value>Sources</value>
+    </data>
+    <data name="Settings_TabSecurity" xml:space="preserve">
+        <value>Security</value>
+    </data>
+    <data name="Settings_PreferencesSub" xml:space="preserve">
+        <value>Theme, Time Machine, search shortcut</value>
+    </data>
+    <data name="Settings_SecuritySub" xml:space="preserve">
+        <value>Password, forward auth, admins, API keys</value>
+    </data>
+    <data name="Settings_DiagnosticsSub" xml:space="preserve">
+        <value>Logs, sync history, cache, restart</value>
+    </data>
+    <data name="Settings_More" xml:space="preserve">
+        <value>More</value>
+    </data>
+    <data name="Settings_WatchingFrom" xml:space="preserve">
+        <value>Watching from</value>
+    </data>
+    <data name="Settings_WatchingHint" xml:space="preserve">
+        <value>Where WatchBack sees what's playing</value>
+    </data>
+    <data name="Settings_WatchFrom" xml:space="preserve">
+        <value>Watch from {0}</value>
+    </data>
+    <data name="Settings_DiscussionGroup" xml:space="preserve">
+        <value>Discussion</value>
+    </data>
+    <data name="Settings_RatingsGroup" xml:space="preserve">
+        <value>Ratings &amp; reviews</value>
+    </data>
+    <data name="Settings_OnCount" xml:space="preserve">
+        <value>{0} of {1} on</value>
+    </data>
+    <data name="Settings_UsesConnection" xml:space="preserve">
+        <value>Uses your {0} connection</value>
+    </data>
+    <data name="Settings_UseSource" xml:space="preserve">
+        <value>Use {0}</value>
+    </data>
+    <data name="Settings_ManualSub" xml:space="preserve">
+        <value>Pick what you're watching by hand</value>
+    </data>
+    <data name="Settings_ManualHelp" xml:space="preserve">
+        <value>Nothing to set up. Search for a show or film on the main page to say what you're watching.</value>
+    </data>
+    <data name="Settings_RedditHelp" xml:space="preserve">
+        <value>No account needed. Threads come from the {0} archive, with {1} as a fallback for older episodes.</value>
+    </data>
+    <data name="Settings_StatusReady" xml:space="preserve">
+        <value>Ready</value>
+    </data>
+    <data name="Settings_StatusOff" xml:space="preserve">
+        <value>Off</value>
+    </data>
+    <data name="Settings_StatusFailed" xml:space="preserve">
+        <value>Failed</value>
+    </data>
+    <data name="Settings_StatusNeedsSetup" xml:space="preserve">
+        <value>Needs setup</value>
+    </data>
+    <data name="Settings_FromEnv" xml:space="preserve">
+        <value>From {0}</value>
+    </data>
+    <data name="Settings_UseEnv" xml:space="preserve">
+        <value>Use environment value</value>
+    </data>
+    <data name="Settings_ClearSaved" xml:space="preserve">
+        <value>Clear saved value</value>
+    </data>
+    <data name="Settings_UseDefault" xml:space="preserve">
+        <value>Use default</value>
+    </data>
+    <data name="Settings_SaveAnyway" xml:space="preserve">
+        <value>Save anyway</value>
+    </data>
+    <data name="Settings_SecretSaved" xml:space="preserve">
+        <value>Saved. Paste a new one to replace it.</value>
+    </data>
+    <data name="Settings_SaveFailed" xml:space="preserve">
+        <value>Couldn't save. Try again.</value>
+    </data>
+    <data name="Settings_NumberInvalid" xml:space="preserve">
+        <value>Enter a whole number of 1 or more.</value>
+    </data>
+    <data name="Settings_DaysInvalid" xml:space="preserve">
+        <value>Enter a number of days from 1 to 365.</value>
+    </data>
+    <data name="Settings_Advanced" xml:space="preserve">
+        <value>Advanced</value>
+    </data>
+    <data name="Settings_AutoSaveNote" xml:space="preserve">
+        <value>Changes save as you make them</value>
+    </data>
+    <data name="Settings_YourSubreddits" xml:space="preserve">
+        <value>Your subreddits</value>
+    </data>
+    <data name="Settings_NoSubreddits" xml:space="preserve">
+        <value>None yet. Add one to choose where a show is searched.</value>
+    </data>
+    <data name="Settings_RemoveMapping" xml:space="preserve">
+        <value>Remove {0}</value>
+    </data>
+    <data name="Settings_AddSubreddits" xml:space="preserve">
+        <value>Add subreddits for a show</value>
+    </data>
+    <data name="Settings_MappingShow" xml:space="preserve">
+        <value>Show</value>
+    </data>
+    <data name="Settings_MappingShowPlaceholder" xml:space="preserve">
+        <value>Show title, e.g. Saturday Night Live</value>
+    </data>
+    <data name="Settings_LookUpShow" xml:space="preserve">
+        <value>Look up the show</value>
+    </data>
+    <data name="Settings_MappingSubreddits" xml:space="preserve">
+        <value>Subreddits</value>
+    </data>
+    <data name="Settings_MappingSubredditsPlaceholder" xml:space="preserve">
+        <value>Subreddits, comma-separated, e.g. snl, LiveFromNewYork</value>
+    </data>
+    <data name="Settings_Add" xml:space="preserve">
+        <value>Add</value>
+    </data>
+    <data name="Settings_OtherLists" xml:space="preserve">
+        <value>Built-in and imported lists</value>
+    </data>
+    <data name="Settings_ShowCount" xml:space="preserve">
+        <value>{0} shows</value>
+    </data>
+    <data name="Settings_SearchMappings" xml:space="preserve">
+        <value>Search by show or subreddit, e.g. Severance</value>
+    </data>
+    <data name="Settings_NoMappingMatch" xml:space="preserve">
+        <value>No list has that show. It gets its subreddit looked up when you watch it.</value>
+    </data>
+    <data name="Settings_MappingsHelp" xml:space="preserve">
+        <value>A show on no list gets its subreddit looked up once and remembered.</value>
+    </data>
+    <data name="Settings_BuiltIn" xml:space="preserve">
+        <value>Built-in</value>
+    </data>
+    <data name="Settings_CopyToYours" xml:space="preserve">
+        <value>Copy {0} to your subreddits</value>
+    </data>
+    <data name="Settings_ImportExport" xml:space="preserve">
+        <value>Import and export lists</value>
+    </data>
+    <data name="Settings_ShareList" xml:space="preserve">
+        <value>Share</value>
+    </data>
+    <data name="Settings_ExportList" xml:space="preserve">
+        <value>Export</value>
+    </data>
+    <data name="Settings_DeleteList" xml:space="preserve">
+        <value>Delete</value>
+    </data>
+    <data name="Settings_ImportName" xml:space="preserve">
+        <value>Name for the imported list (optional)</value>
+    </data>
+    <data name="Settings_ImportJson" xml:space="preserve">
+        <value>Mapping file contents</value>
+    </data>
+    <data name="Settings_ImportHelp" xml:space="preserve">
+        <value>Paste a mapping file, or drop one here.</value>
+    </data>
+    <data name="Settings_Import" xml:space="preserve">
+        <value>Import</value>
+    </data>
+    <data name="Settings_Imported" xml:space="preserve">
+        <value>Imported</value>
+    </data>
+    <data name="Settings_ImportFailed" xml:space="preserve">
+        <value>Couldn't import. Check the file's format.</value>
+    </data>
+    <data name="Settings_Appearance" xml:space="preserve">
+        <value>Appearance</value>
+    </data>
+    <data name="Settings_SegmentedHelp" xml:space="preserve">
+        <value>One segment per source while syncing</value>
+    </data>
+    <data name="Settings_TimeMachineHelp" xml:space="preserve">
+        <value>Show reactions from the first days after airing</value>
+    </data>
+    <data name="Settings_Days" xml:space="preserve">
+        <value>days</value>
+    </data>
+    <data name="Settings_SentimentHelp" xml:space="preserve">
+        <value>Tint comments by tone</value>
+    </data>
+    <data name="Settings_PrefsSaveNote" xml:space="preserve">
+        <value>Every change here saves immediately.</value>
+    </data>
+    <data name="Settings_PrefsLocalNote" xml:space="preserve">
+        <value>These choices are kept in this browser.</value>
+    </data>
+    <data name="Settings_Account" xml:space="preserve">
+        <value>Account</value>
+    </data>
+    <data name="Settings_ForwardAuthHint" xml:space="preserve">
+        <value>For running behind an auth proxy</value>
+    </data>
+    <data name="Settings_ForwardAuthSaveNote" xml:space="preserve">
+        <value>Saved with the button: a wrong value can lock you out.</value>
+    </data>
+    <data name="Settings_SaveForwardAuth" xml:space="preserve">
+        <value>Save forward auth</value>
+    </data>
+    <data name="Settings_Maintenance" xml:space="preserve">
+        <value>Maintenance</value>
     </data>
 </root>

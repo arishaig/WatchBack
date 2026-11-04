@@ -7,6 +7,7 @@ import { uiLog, flushNow } from './utils/uiLogger';
 import type { AppData } from './types';
 import authMethods from './modules/auth';
 import configMethods from './modules/config';
+import autosaveMethods from './modules/autosave';
 import syncMethods from './modules/sync';
 import systemMethods from './modules/system';
 import wizardMethods from './modules/wizard';
@@ -30,9 +31,10 @@ Alpine.data('app', (): AppData => {
         configData: null,
         configEdits: {},
         saveStatus: {},
-        saveAllStatus: null,
         prefEdits: {},
         prefSaveStatus: null,
+        fieldStatus: {},
+        openRow: null,
         lightboxImg: null,
         watchUsers: [],
         watchUserId: (() => {
@@ -56,10 +58,6 @@ Alpine.data('app', (): AppData => {
         })(),
         groupByThread: localStorage.getItem('wb_groupByThread') === 'true',
         theme: localStorage.getItem('wb_theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
-        collapsedSections: (() => {
-            try { return JSON.parse(localStorage.getItem('wb_collapsed_sections') || '{}') as Record<string, boolean>; }
-            catch { return {} as Record<string, boolean>; }
-        })(),
         testResults: {},
         lastTestResults: {},
         testAllStatus: null,
@@ -102,7 +100,7 @@ Alpine.data('app', (): AppData => {
         forwardAuthSaveStatus: null,
         needsOnboarding: false,
         containerName: 'watchback',
-        configTab: 'settings',
+        configTab: 'sources',
         logEntries: [],
         logLevel: 'Information',
         logSse: null,
@@ -157,6 +155,7 @@ Alpine.data('app', (): AppData => {
         mappingImportStatus: null,
         mappingDropActive: false,
         mappingShareCopied: '',
+        mappingFilter: '',
         sentimentCategory: 'all',
         apiKeys: [],
         newApiKeyName: '',
@@ -169,6 +168,7 @@ Alpine.data('app', (): AppData => {
 
         ...authMethods,
         ...configMethods,
+        ...autosaveMethods,
         ...syncMethods,
         ...systemMethods,
         ...wizardMethods,

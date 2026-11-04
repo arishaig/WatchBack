@@ -208,11 +208,6 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         return (this.activeThoughts as { source: string }[]).filter(c => c.source === src).length;
     },
 
-    toggleSection(key: string) {
-        this.collapsedSections[key] = !this.collapsedSections[key];
-        localStorage.setItem('wb_collapsed_sections', JSON.stringify(this.collapsedSections));
-    },
-
     toggleAlwaysShowSearch() {
         this.alwaysShowSearch = !this.alwaysShowSearch;
         if (this.alwaysShowSearch) {

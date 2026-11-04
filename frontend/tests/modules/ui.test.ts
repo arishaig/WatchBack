@@ -13,7 +13,6 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
         sourceFilter: new Set<string>(),
         groupByThread: false,
         alwaysShowSearch: false,
-        collapsedSections: {} as Record<string, boolean>,
         error: null as string | null,
         errorTimer: null,
         t: (key: string, ...args: unknown[]) => {
@@ -282,29 +281,6 @@ describe('toggleSource', () => {
         const ctx = makeCtx({ sourceFilter: original });
         methods.toggleSource.call(ctx, 'reddit');
         expect(ctx.sourceFilter).not.toBe(original);
-    });
-});
-
-// ── toggleSection ─────────────────────────────────────────────────────────────
-
-describe('toggleSection', () => {
-    it('sets section to true when it was false/undefined', () => {
-        const ctx = makeCtx({ collapsedSections: {} });
-        methods.toggleSection.call(ctx, 'thoughts');
-        expect((ctx.collapsedSections as Record<string, boolean>).thoughts).toBe(true);
-    });
-
-    it('sets section to false when it was true', () => {
-        const ctx = makeCtx({ collapsedSections: { thoughts: true } });
-        methods.toggleSection.call(ctx, 'thoughts');
-        expect((ctx.collapsedSections as Record<string, boolean>).thoughts).toBe(false);
-    });
-
-    it('persists to localStorage', () => {
-        const ctx = makeCtx({ collapsedSections: {} });
-        methods.toggleSection.call(ctx, 'mySection');
-        const stored = JSON.parse(localStorage.getItem('wb_collapsed_sections') ?? '{}');
-        expect(stored.mySection).toBe(true);
     });
 });
 

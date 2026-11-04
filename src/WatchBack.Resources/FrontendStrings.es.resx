@@ -786,7 +786,7 @@
         <value>Clave de API</value>
     </data>
     <data name="Wizard_AiKeyShownOnce" xml:space="preserve">
-        <value>Solo se muestra ahora. Dásela solo a un asistente de confianza y revócala en Claves de API, en la configuración, al terminar.</value>
+        <value>Solo se muestra ahora. Dásela solo a un asistente de confianza y revócala en Seguridad, Claves de API, en la configuración, al terminar.</value>
     </data>
     <data name="Wizard_AiForClaudeCode" xml:space="preserve">
         <value>Para {0}, ejecuta:</value>
@@ -829,5 +829,218 @@
     </data>
     <data name="DangerZone_GroupsHelp" xml:space="preserve">
         <value>Los miembros del grupo de administradores pueden cambiar la configuración; los demás solo pueden ver. {0} envía {1}. Deja la cabecera vacía para ignorar los grupos.</value>
+    </data>
+    <data name="Settings_TabSources" xml:space="preserve">
+        <value>Fuentes</value>
+    </data>
+    <data name="Settings_TabSecurity" xml:space="preserve">
+        <value>Seguridad</value>
+    </data>
+    <data name="Settings_PreferencesSub" xml:space="preserve">
+        <value>Tema, Time Machine, atajo de búsqueda</value>
+    </data>
+    <data name="Settings_SecuritySub" xml:space="preserve">
+        <value>Contraseña, autenticación por proxy, administradores, claves de API</value>
+    </data>
+    <data name="Settings_DiagnosticsSub" xml:space="preserve">
+        <value>Registros, historial de sincronización, caché, reinicio</value>
+    </data>
+    <data name="Settings_More" xml:space="preserve">
+        <value>Más</value>
+    </data>
+    <data name="Settings_WatchingFrom" xml:space="preserve">
+        <value>Viendo desde</value>
+    </data>
+    <data name="Settings_WatchingHint" xml:space="preserve">
+        <value>Dónde ve WatchBack lo que se reproduce</value>
+    </data>
+    <data name="Settings_WatchFrom" xml:space="preserve">
+        <value>Ver desde {0}</value>
+    </data>
+    <data name="Settings_DiscussionGroup" xml:space="preserve">
+        <value>Conversación</value>
+    </data>
+    <data name="Settings_RatingsGroup" xml:space="preserve">
+        <value>Valoraciones y reseñas</value>
+    </data>
+    <data name="Settings_OnCount" xml:space="preserve">
+        <value>{0} de {1} activas</value>
+    </data>
+    <data name="Settings_UsesConnection" xml:space="preserve">
+        <value>Usa tu conexión con {0}</value>
+    </data>
+    <data name="Settings_UseSource" xml:space="preserve">
+        <value>Usar {0}</value>
+    </data>
+    <data name="Settings_ManualSub" xml:space="preserve">
+        <value>Elige a mano lo que estás viendo</value>
+    </data>
+    <data name="Settings_ManualHelp" xml:space="preserve">
+        <value>No hay nada que configurar. Busca una serie o película en la página principal para indicar lo que estás viendo.</value>
+    </data>
+    <data name="Settings_RedditHelp" xml:space="preserve">
+        <value>No hace falta cuenta. Los hilos vienen del archivo de {0}, con {1} como respaldo para episodios antiguos.</value>
+    </data>
+    <data name="Settings_StatusReady" xml:space="preserve">
+        <value>Lista</value>
+    </data>
+    <data name="Settings_StatusOff" xml:space="preserve">
+        <value>Desactivada</value>
+    </data>
+    <data name="Settings_StatusFailed" xml:space="preserve">
+        <value>Falló</value>
+    </data>
+    <data name="Settings_StatusNeedsSetup" xml:space="preserve">
+        <value>Falta configurar</value>
+    </data>
+    <data name="Settings_FromEnv" xml:space="preserve">
+        <value>De {0}</value>
+    </data>
+    <data name="Settings_UseEnv" xml:space="preserve">
+        <value>Usar el valor del entorno</value>
+    </data>
+    <data name="Settings_ClearSaved" xml:space="preserve">
+        <value>Borrar el valor guardado</value>
+    </data>
+    <data name="Settings_UseDefault" xml:space="preserve">
+        <value>Usar el predeterminado</value>
+    </data>
+    <data name="Settings_SaveAnyway" xml:space="preserve">
+        <value>Guardar de todos modos</value>
+    </data>
+    <data name="Settings_SecretSaved" xml:space="preserve">
+        <value>Guardada. Pega una nueva para sustituirla.</value>
+    </data>
+    <data name="Settings_SaveFailed" xml:space="preserve">
+        <value>No se pudo guardar. Inténtalo de nuevo.</value>
+    </data>
+    <data name="Settings_NumberInvalid" xml:space="preserve">
+        <value>Escribe un número entero igual o mayor que 1.</value>
+    </data>
+    <data name="Settings_DaysInvalid" xml:space="preserve">
+        <value>Escribe un número de días entre 1 y 365.</value>
+    </data>
+    <data name="Settings_Advanced" xml:space="preserve">
+        <value>Avanzado</value>
+    </data>
+    <data name="Settings_AutoSaveNote" xml:space="preserve">
+        <value>Los cambios se guardan al hacerlos</value>
+    </data>
+    <data name="Settings_YourSubreddits" xml:space="preserve">
+        <value>Tus subreddits</value>
+    </data>
+    <data name="Settings_NoSubreddits" xml:space="preserve">
+        <value>Aún no hay ninguno. Añade uno para elegir dónde se busca una serie.</value>
+    </data>
+    <data name="Settings_RemoveMapping" xml:space="preserve">
+        <value>Quitar {0}</value>
+    </data>
+    <data name="Settings_AddSubreddits" xml:space="preserve">
+        <value>Añadir subreddits para una serie</value>
+    </data>
+    <data name="Settings_MappingShow" xml:space="preserve">
+        <value>Serie</value>
+    </data>
+    <data name="Settings_MappingShowPlaceholder" xml:space="preserve">
+        <value>Título de la serie, p. ej. Saturday Night Live</value>
+    </data>
+    <data name="Settings_LookUpShow" xml:space="preserve">
+        <value>Buscar la serie</value>
+    </data>
+    <data name="Settings_MappingSubreddits" xml:space="preserve">
+        <value>Subreddits</value>
+    </data>
+    <data name="Settings_MappingSubredditsPlaceholder" xml:space="preserve">
+        <value>Subreddits separados por comas, p. ej. snl, LiveFromNewYork</value>
+    </data>
+    <data name="Settings_Add" xml:space="preserve">
+        <value>Añadir</value>
+    </data>
+    <data name="Settings_OtherLists" xml:space="preserve">
+        <value>Listas integradas e importadas</value>
+    </data>
+    <data name="Settings_ShowCount" xml:space="preserve">
+        <value>{0} series</value>
+    </data>
+    <data name="Settings_SearchMappings" xml:space="preserve">
+        <value>Busca por serie o subreddit, p. ej. Severance</value>
+    </data>
+    <data name="Settings_NoMappingMatch" xml:space="preserve">
+        <value>Ninguna lista tiene esa serie. Su subreddit se busca cuando la ves.</value>
+    </data>
+    <data name="Settings_MappingsHelp" xml:space="preserve">
+        <value>Para una serie que no está en ninguna lista, su subreddit se busca una vez y se recuerda.</value>
+    </data>
+    <data name="Settings_BuiltIn" xml:space="preserve">
+        <value>Integrada</value>
+    </data>
+    <data name="Settings_CopyToYours" xml:space="preserve">
+        <value>Copiar {0} a tus subreddits</value>
+    </data>
+    <data name="Settings_ImportExport" xml:space="preserve">
+        <value>Importar y exportar listas</value>
+    </data>
+    <data name="Settings_ShareList" xml:space="preserve">
+        <value>Compartir</value>
+    </data>
+    <data name="Settings_ExportList" xml:space="preserve">
+        <value>Exportar</value>
+    </data>
+    <data name="Settings_DeleteList" xml:space="preserve">
+        <value>Eliminar</value>
+    </data>
+    <data name="Settings_ImportName" xml:space="preserve">
+        <value>Nombre de la lista importada (opcional)</value>
+    </data>
+    <data name="Settings_ImportJson" xml:space="preserve">
+        <value>Contenido del archivo de correspondencias</value>
+    </data>
+    <data name="Settings_ImportHelp" xml:space="preserve">
+        <value>Pega un archivo de correspondencias o suéltalo aquí.</value>
+    </data>
+    <data name="Settings_Import" xml:space="preserve">
+        <value>Importar</value>
+    </data>
+    <data name="Settings_Imported" xml:space="preserve">
+        <value>Importada</value>
+    </data>
+    <data name="Settings_ImportFailed" xml:space="preserve">
+        <value>No se pudo importar. Revisa el formato del archivo.</value>
+    </data>
+    <data name="Settings_Appearance" xml:space="preserve">
+        <value>Apariencia</value>
+    </data>
+    <data name="Settings_SegmentedHelp" xml:space="preserve">
+        <value>Un segmento por fuente durante la sincronización</value>
+    </data>
+    <data name="Settings_TimeMachineHelp" xml:space="preserve">
+        <value>Muestra las reacciones de los primeros días tras la emisión</value>
+    </data>
+    <data name="Settings_Days" xml:space="preserve">
+        <value>días</value>
+    </data>
+    <data name="Settings_SentimentHelp" xml:space="preserve">
+        <value>Colorea los comentarios según su tono</value>
+    </data>
+    <data name="Settings_PrefsSaveNote" xml:space="preserve">
+        <value>Cada cambio de aquí se guarda al momento.</value>
+    </data>
+    <data name="Settings_PrefsLocalNote" xml:space="preserve">
+        <value>Estas opciones se guardan en este navegador.</value>
+    </data>
+    <data name="Settings_Account" xml:space="preserve">
+        <value>Cuenta</value>
+    </data>
+    <data name="Settings_ForwardAuthHint" xml:space="preserve">
+        <value>Para usar WatchBack detrás de un proxy de autenticación</value>
+    </data>
+    <data name="Settings_ForwardAuthSaveNote" xml:space="preserve">
+        <value>Se guarda con el botón: un valor erróneo puede dejarte fuera.</value>
+    </data>
+    <data name="Settings_SaveForwardAuth" xml:space="preserve">
+        <value>Guardar autenticación por proxy</value>
+    </data>
+    <data name="Settings_Maintenance" xml:space="preserve">
+        <value>Mantenimiento</value>
     </data>
 </root>

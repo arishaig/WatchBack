@@ -155,8 +155,12 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
 
         this.wizardActive = false;
         this.showConfig = true;
-        this.configTab = 'settings';
-        this.collapsedSections = { ...this.collapsedSections, [key]: false };
+        this.configTab = 'sources';
+        // A watch source's settings sit in its "Watching from" row (Trakt's too, though it also gives comments).
+        const types = (integration as unknown as { providerTypes?: string[] }).providerTypes ?? [];
+        const group = types.includes('watchState') ? 'watch' : types.includes('thought') ? 'thought' : 'ratings';
+        this.openRow = null;
+        this.toggleRow(group + ':' + key);
 
         // After the panel and card have rendered.
         setTimeout(() => {
@@ -180,13 +184,14 @@ const wizardMethods: Record<string, unknown> & ThisType<AppData> = {
 
     openConfigForItem(type: string) {
         this.showConfig = true;
-        this.configTab = 'settings';
-        // Uncollapse the first matching integration card
+        this.configTab = 'sources';
+        // Open the first row of that kind
         const integrations = (this.configData?.['integrations'] as IntegrationMap | undefined) ?? {};
+        const group = type === 'watchState' ? 'watch' : type === 'thought' ? 'thought' : 'ratings';
         for (const [key, integration] of Object.entries(integrations)) {
             const types = (integration as unknown as { providerTypes?: string[] }).providerTypes ?? [];
             if (types.includes(type)) {
-                this.collapsedSections = { ...this.collapsedSections, [key]: false };
+                this.openRow = group + ':' + key;
                 break;
             }
         }

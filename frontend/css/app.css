@@ -19,5 +19,8 @@
 /* UI components */
 @import "./components.css";
 
+/* Settings panel */
+@import "./settings.css";
+
 /* Animations & transitions */
 @import "./animations.css";

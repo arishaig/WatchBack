@@ -65,14 +65,36 @@ export interface ConfigPreferences {
     overrides: Record<string, boolean>;
 }
 
+export interface ConfigField {
+    key: string;
+    label?: string;
+    type: string;
+    placeholder?: string;
+    value?: string;
+    hasValue?: boolean;
+    envValue?: string;
+    isOverridden?: boolean;
+    /** A credential, even when shown as plain text (Trakt's client ID). */
+    secret?: boolean;
+}
+
 export interface ConfigIntegration {
     name: string;
+    description?: string;
     logoSvg?: string;
     brandColor?: string;
-    fields: { key: string; type: string; value?: string; hasValue?: boolean }[];
+    fields: ConfigField[];
     configured: boolean;
     providerTypes: string[];
     disabled: boolean;
+}
+
+/** Auto-save state of one setting. `tried` is the value that failed, so it isn't tested again unchanged. */
+export interface FieldStatus {
+    state: 'testing' | 'saving' | 'saved' | 'error';
+    message?: string;
+    canForce?: boolean;
+    tried?: string;
 }
 
 export interface ConfigData {
@@ -180,9 +202,10 @@ export interface AppData {
     configData: ConfigData | null;
     configEdits: Record<string, string>;
     saveStatus: Record<string, string>;
-    saveAllStatus: SaveStatus;
     prefEdits: Record<string, unknown>;
     prefSaveStatus: SaveStatus;
+    fieldStatus: Record<string, FieldStatus>;
+    openRow: string | null;
     lightboxImg: string | null;
     watchUsers: WatchUser[];
     watchUserId: string;
@@ -192,7 +215,6 @@ export interface AppData {
     showUserPicker: boolean;
     groupByThread: boolean;
     theme: string;
-    collapsedSections: Record<string, boolean>;
     testResults: Record<string, unknown>;
     lastTestResults: Record<string, unknown>;
     testAllStatus: TestStatus;
@@ -284,6 +306,7 @@ export interface AppData {
     mappingImportStatus: SaveStatus;
     mappingDropActive: boolean;
     mappingShareCopied: string;
+    mappingFilter: string;
     sentimentCategory: string;
     apiKeys: ApiKeyEntry[];
     newApiKeyName: string;
@@ -310,7 +333,6 @@ export interface AppData {
 
     _initConfigEdits(configData: ConfigData): void;
     saveConfig(integrationKey: string): Promise<void>;
-    saveAllConfig(): Promise<void>;
     resetConfigKeys(keys: string[], refetch?: boolean): Promise<void>;
     toggleDisabled(key: string): Promise<void>;
     savePreferences(): Promise<void>;
@@ -318,6 +340,29 @@ export interface AppData {
     testService(service: string): Promise<void>;
     testAll(): Promise<void>;
     redditSearchUrl(title: string, season: number, episode: number): string;
+
+    _integration(key: string): ConfigIntegration | undefined;
+    _setFieldStatus(key: string, status: FieldStatus | null): void;
+    _flashSaved(key: string): void;
+    _postSettings(values: Record<string, string>): Promise<boolean>;
+    commitField(integrationKey: string, fieldKey: string, force?: boolean): Promise<void>;
+    useEnvValue(integrationKey: string, fieldKey: string): Promise<void>;
+    setPreference(key: string, value: string): Promise<boolean>;
+    activeWatchProvider(): string;
+    chooseWatchProvider(value: string): Promise<void>;
+    commitTimeMachine(): Promise<void>;
+    setSearchEngine(engine: string): Promise<void>;
+    commitCustomSearchUrl(): Promise<void>;
+    setPreferenceSwitch(prefKey: 'segmentedProgressBar' | 'enableSentimentAnalysis', on: boolean): Promise<void>;
+    rowStatus(key: string, asWatchSource?: boolean): { kind: 'ok' | 'warn' | 'err' | 'off'; label: string };
+    rowSummary(key: string): string;
+    toggleRow(id: string): void;
+    fieldNote(field: ConfigField): string;
+    prefNote(key: string): string;
+    _statusNote(key: string): string;
+    readonly settingsTabs: { id: string; label: string; sub: string }[];
+    readonly settingsTab: string;
+    readonly settingsGroups: { id: string; title: string; hint: string; rows: unknown[] }[];
 
     sync(): Promise<void>;
     searchMedia(): Promise<void>;
@@ -396,6 +441,9 @@ export interface AppData {
     dismissGeneratedKey(): void;
 
     handleMappingFileDrop(e: DragEvent): void;
+    localMappings(): AppData['mappingSources'][number]['entries'];
+    otherMappingCount(): number;
+    matchingMappings(): { source: AppData['mappingSources'][number]; entry: AppData['mappingSources'][number]['entries'][number] }[];
     shareMappingSource(id: string, name: string): Promise<void>;
     fetchMappings(): Promise<void>;
     searchForMapping(): Promise<void>;
@@ -413,7 +461,6 @@ export interface AppData {
     toggleSource(src: string): void;
     sourceActive(src: string): boolean;
     sourceCount(src: string): number;
-    toggleSection(key: string): void;
     toggleAlwaysShowSearch(): void;
     sanitizeSvg(raw: string): string;
     renderMarkdown(src: string, spoilerLabel?: string): string;

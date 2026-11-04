@@ -92,6 +92,19 @@ main h2 {
         display: none;
     }
 
+    /* Hidden on screen but still read out: the page keeps its one heading. */
+    .sr-only-on-mobile {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
     .show-on-mobile {
         display: flex;
     }
