@@ -25,6 +25,9 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
         forwardAuthEnabled: false,
         forwardAuthHeaderEdit: 'X-Remote-User',
         forwardAuthTrustedHostEdit: '',
+        forwardAuthGroupsHeaderEdit: 'Remote-Groups',
+        forwardAuthAdminGroupEdit: 'admins',
+        forwardAuthError: '',
         forwardAuthSaveStatus: null,
         data: null,
         configData: null,
@@ -326,6 +329,19 @@ describe('saveForwardAuth', () => {
         const ctx = makeCtx({ forwardAuthEnabled: true, forwardAuthHeaderEdit: '' });
         await methods.saveForwardAuth.call(ctx);
         expect(capturedBody.header).toBe('X-Remote-User');
+    });
+
+    it('sends the groups header and admin group, and shows why a save was refused', async () => {
+        let capturedBody: Record<string, string> = {};
+        vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, opts: RequestInit) => {
+            capturedBody = JSON.parse(opts.body as string);
+            return Promise.resolve({ json: async () => ({ ok: false, message: 'not in that group' }) });
+        }));
+        const ctx = makeCtx({ forwardAuthEnabled: true, forwardAuthAdminGroupEdit: ' wb-admins ' });
+        await methods.saveForwardAuth.call(ctx);
+        expect(capturedBody.groupsHeader).toBe('Remote-Groups');
+        expect(capturedBody.adminGroup).toBe('wb-admins');
+        expect(ctx.forwardAuthError).toBe('not in that group');
     });
 
     it('sets forwardAuthSaveStatus to "saved" on success', async () => {

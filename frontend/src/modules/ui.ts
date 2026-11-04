@@ -102,6 +102,8 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
                 this.forwardAuthEnabled = !!(me.forwardAuthHeader);
                 this.forwardAuthHeaderEdit = me.forwardAuthHeader || 'X-Remote-User';
                 this.forwardAuthTrustedHostEdit = me.forwardAuthTrustedHost || '';
+                this.forwardAuthGroupsHeaderEdit = me.forwardAuthGroupsHeader ?? 'Remote-Groups';
+                this.forwardAuthAdminGroupEdit = me.forwardAuthAdminGroup ?? 'admins';
             }
             return me;
         } catch (e) {
@@ -151,10 +153,14 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         this.initialized = true;
         uiLog("app.initApp.ready", "App initialized, starting SSE and sync", undefined, "Information");
         await this.loadWatchUsers();
+        // The cookie the admin check reads: re-sent from the stored choice in case it expired.
+        if (this.watchUserId) this.storeWatchUser(this.watchUserId);
+        await this.loadAccess();
         this.setupSSE();
         void this.sync();
 
-        if (!localStorage.getItem('wb_wizardCompleted') && !localStorage.getItem('wb_checklistCompleted')) {
+        // Setup is for whoever may change settings; anyone else just watches.
+        if (this.access.isAdmin && !localStorage.getItem('wb_wizardCompleted') && !localStorage.getItem('wb_checklistCompleted')) {
             uiLog("app.initApp.wizard", "No wizard/checklist completion flag — showing wizard", undefined, "Information");
             this.wizardActive = true;
         }

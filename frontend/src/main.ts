@@ -40,6 +40,9 @@ Alpine.data('app', (): AppData => {
             catch { return ''; }
         })(),
         showUserPicker: false,
+        // Until the server answers, assume the unrestricted default (no admins yet).
+        access: { restricted: false, isAdmin: true, admins: [], decidedBy: 'watchUser', adminGroup: null },
+        adminSaveError: '',
         // Random per-browser key so the manually chosen episode is not shared between viewers.
         clientId: (() => {
             const fresh = () => crypto.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -93,6 +96,9 @@ Alpine.data('app', (): AppData => {
         forwardAuthEnabled: false,
         forwardAuthHeaderEdit: '',
         forwardAuthTrustedHostEdit: '',
+        forwardAuthGroupsHeaderEdit: '',
+        forwardAuthAdminGroupEdit: '',
+        forwardAuthError: '',
         forwardAuthSaveStatus: null,
         needsOnboarding: false,
         containerName: 'watchback',
