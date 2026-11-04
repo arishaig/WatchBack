@@ -131,7 +131,14 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         const integrations = (this.configData?.['integrations'] as Record<string, IntegrationEntry> | undefined) ?? {};
         const currentKeys = Object.keys(integrations);
 
-        if (localStorage.getItem('wb_wizardCompleted') || localStorage.getItem('wb_checklistCompleted')) {
+        this.initialized = true;
+        uiLog("app.initApp.ready", "App initialized, starting SSE and sync", undefined, "Information");
+        await this.loadWatchUsers();
+        // The cookie the admin check reads: re-sent from the stored choice in case it expired.
+        if (this.watchUserId) this.storeWatchUser(this.watchUserId);
+        await this.loadAccess();
+        // New providers are offered to admins only: anyone else couldn't save them.
+        if (this.access.isAdmin && (localStorage.getItem('wb_wizardCompleted') || localStorage.getItem('wb_checklistCompleted'))) {
             const raw = localStorage.getItem('wb_seenProviders');
             let seen: string[];
             if (raw === null) {
@@ -150,12 +157,6 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
             if (this.newProviderKeys.length > 0) this.newProvidersActive = true;
         }
 
-        this.initialized = true;
-        uiLog("app.initApp.ready", "App initialized, starting SSE and sync", undefined, "Information");
-        await this.loadWatchUsers();
-        // The cookie the admin check reads: re-sent from the stored choice in case it expired.
-        if (this.watchUserId) this.storeWatchUser(this.watchUserId);
-        await this.loadAccess();
         this.setupSSE();
         void this.sync();
 

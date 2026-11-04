@@ -463,6 +463,15 @@ describe('initApp — new-provider discovery', () => {
         expect(seen).not.toContain('lemmy');
     });
 
+    it('does not offer new providers to someone who is not an admin', async () => {
+        stubFetchConfig({ lemmy: { fields: [{ hasValue: false }] } });
+        localStorage.setItem('wb_wizardCompleted', 'true');
+        localStorage.setItem('wb_seenProviders', JSON.stringify([]));
+        const ctx = makeInitCtx({ access: { isAdmin: false } });
+        await methods.initApp.call(ctx);
+        expect(ctx.newProvidersActive).toBe(false);
+    });
+
     it('flags a no-fields provider (e.g. Reddit) as seen on upgrade (never prompts about it)', async () => {
         stubFetchConfig({
             reddit: { fields: [] },
