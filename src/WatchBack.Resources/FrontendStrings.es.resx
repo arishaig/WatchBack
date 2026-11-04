@@ -803,4 +803,31 @@
     <data name="Wizard_AiDone" xml:space="preserve">
         <value>Listo</value>
     </data>
+    <data name="Access_ReadOnly" xml:space="preserve">
+        <value>Solo un administrador puede cambiar la configuración de WatchBack. El tema y el idioma los sigues eligiendo tú.</value>
+    </data>
+    <data name="Access_ReadOnlyGroup" xml:space="preserve">
+        <value>Solo los miembros del grupo {0} pueden cambiar la configuración de WatchBack. El tema y el idioma los sigues eligiendo tú.</value>
+    </data>
+    <data name="Access_AdminsTitle" xml:space="preserve">
+        <value>Administradores</value>
+    </data>
+    <data name="Access_AdminsHelp" xml:space="preserve">
+        <value>Los administradores pueden cambiar la configuración de WatchBack; los demás solo pueden ver. La primera persona que eligió su nombre se convirtió en uno.</value>
+    </data>
+    <data name="Access_AdminsByGroup" xml:space="preserve">
+        <value>Tu proveedor de inicio de sesión decide quién es administrador: los miembros del grupo {0}.</value>
+    </data>
+    <data name="Access_You" xml:space="preserve">
+        <value>(tú)</value>
+    </data>
+    <data name="DangerZone_GroupsHeader" xml:space="preserve">
+        <value>Cabecera de grupos</value>
+    </data>
+    <data name="DangerZone_AdminGroup" xml:space="preserve">
+        <value>Grupo de administradores</value>
+    </data>
+    <data name="DangerZone_GroupsHelp" xml:space="preserve">
+        <value>Los miembros del grupo de administradores pueden cambiar la configuración; los demás solo pueden ver. {0} envía {1}. Deja la cabecera vacía para ignorar los grupos.</value>
+    </data>
 </root>

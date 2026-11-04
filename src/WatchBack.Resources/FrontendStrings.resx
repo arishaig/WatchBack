@@ -838,4 +838,31 @@
     <data name="Wizard_AiDone" xml:space="preserve">
         <value>Done</value>
     </data>
+    <data name="Access_ReadOnly" xml:space="preserve">
+        <value>Only an admin can change WatchBack's settings. Your theme and language are still yours to choose.</value>
+    </data>
+    <data name="Access_ReadOnlyGroup" xml:space="preserve">
+        <value>Only members of the {0} group can change WatchBack's settings. Your theme and language are still yours to choose.</value>
+    </data>
+    <data name="Access_AdminsTitle" xml:space="preserve">
+        <value>Admins</value>
+    </data>
+    <data name="Access_AdminsHelp" xml:space="preserve">
+        <value>Admins can change WatchBack's settings; everyone else can only watch. The first person to pick their name became one.</value>
+    </data>
+    <data name="Access_AdminsByGroup" xml:space="preserve">
+        <value>Your sign-in provider decides who is an admin: members of the {0} group.</value>
+    </data>
+    <data name="Access_You" xml:space="preserve">
+        <value>(you)</value>
+    </data>
+    <data name="DangerZone_GroupsHeader" xml:space="preserve">
+        <value>Groups header</value>
+    </data>
+    <data name="DangerZone_AdminGroup" xml:space="preserve">
+        <value>Admin group</value>
+    </data>
+    <data name="DangerZone_GroupsHelp" xml:space="preserve">
+        <value>Members of the admin group can change settings; everyone else can only watch. {0} sends {1}. Leave the header blank to ignore groups.</value>
+    </data>
 </root>

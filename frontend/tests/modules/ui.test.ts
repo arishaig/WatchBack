@@ -399,6 +399,9 @@ describe('initApp — new-provider discovery', () => {
             fetchMappings: vi.fn(),
             setupSSE: vi.fn(),
             loadWatchUsers: vi.fn(),
+            storeWatchUser: vi.fn(),
+            loadAccess: vi.fn(),
+            access: { isAdmin: true },
             handleSettingsHash: vi.fn(),
             sync: vi.fn(),
             ...overrides,
@@ -458,6 +461,15 @@ describe('initApp — new-provider discovery', () => {
         const seen = JSON.parse(localStorage.getItem('wb_seenProviders') ?? 'null') as string[];
         expect(seen).toContain('jellyfin');
         expect(seen).not.toContain('lemmy');
+    });
+
+    it('does not offer new providers to someone who is not an admin', async () => {
+        stubFetchConfig({ lemmy: { fields: [{ hasValue: false }] } });
+        localStorage.setItem('wb_wizardCompleted', 'true');
+        localStorage.setItem('wb_seenProviders', JSON.stringify([]));
+        const ctx = makeInitCtx({ access: { isAdmin: false } });
+        await methods.initApp.call(ctx);
+        expect(ctx.newProvidersActive).toBe(false);
     });
 
     it('flags a no-fields provider (e.g. Reddit) as seen on upgrade (never prompts about it)', async () => {

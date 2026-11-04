@@ -25,6 +25,10 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
         showError: vi.fn(),
         sync: vi.fn(),
         setManualWatchState: vi.fn(),
+        storeWatchUser: methods.storeWatchUser,
+        loadAccess: vi.fn(),
+        access: { restricted: false, isAdmin: true, admins: [], decidedBy: 'watchUser', adminGroup: null },
+        adminSaveError: '',
         ...overrides,
     };
 }
@@ -421,6 +425,63 @@ describe('loadWatchUsers', () => {
         await methods.loadWatchUsers.call(ctx);
         expect(ctx.showUserPicker).toBe(false);
     });
+
+    // The admin check keys on this choice; a Jellyfin hiccup mustn't sign an admin out of it.
+    it.each([
+        ['fails', () => vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => null }))],
+        ['rejects', () => vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')))],
+    ])('keeps the stored choice when the request %s', async (_, stub) => {
+        localStorage.setItem('wb_watchUser', 'a');
+        stub();
+        const ctx = makeCtx({ watchUserId: 'a' });
+        await methods.loadWatchUsers.call(ctx);
+        expect(ctx.watchUserId).toBe('a');
+        expect(localStorage.getItem('wb_watchUser')).toBe('a');
+    });
+});
+
+describe('storeWatchUser', () => {
+    afterEach(() => {
+        localStorage.clear();
+        document.cookie = 'wb_watchUser=; path=/; max-age=0';
+    });
+
+    it('mirrors the choice into the cookie the server reads', () => {
+        const ctx = makeCtx();
+        methods.storeWatchUser.call(ctx, 'user 1');
+        expect(document.cookie).toContain('wb_watchUser=user%201');
+        methods.storeWatchUser.call(ctx, '');
+        expect(document.cookie).not.toContain('wb_watchUser=');
+        expect(localStorage.getItem('wb_watchUser')).toBeNull();
+    });
+});
+
+describe('access', () => {
+    const access = { restricted: true, isAdmin: true, admins: ['a'], decidedBy: 'watchUser', adminGroup: null };
+
+    it('loads who may change settings', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => access }));
+        const ctx = makeCtx({ loadAccess: methods.loadAccess });
+        await methods.loadAccess.call(ctx);
+        expect(ctx.access).toEqual(access);
+    });
+
+    it('adds an admin with the whole list, and shows why a change was refused', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+            .mockResolvedValueOnce({ ok: false, json: async () => ({ message: 'nope' }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const ctx = makeCtx({ access });
+
+        await methods.toggleAdmin.call(ctx, 'b', true);
+        expect(fetchMock.mock.calls[0]![0]).toBe('/api/access/admins');
+        expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ ids: ['a', 'b'] });
+        expect(ctx.loadAccess as ReturnType<typeof vi.fn>).toHaveBeenCalled();
+
+        await methods.toggleAdmin.call(ctx, 'a', false);
+        expect(JSON.parse(fetchMock.mock.calls[1]![1].body as string)).toEqual({ ids: [] });
+        expect(ctx.adminSaveError).toBe('nope');
+    });
 });
 
 describe('selectWatchUser', () => {
@@ -433,5 +494,6 @@ describe('selectWatchUser', () => {
         expect(ctx.showUserPicker).toBe(false);
         expect(localStorage.getItem('wb_watchUser')).toBe('b');
         expect(ctx.setupSSE as ReturnType<typeof vi.fn>).toHaveBeenCalled();
+        expect(ctx.loadAccess as ReturnType<typeof vi.fn>).toHaveBeenCalled();
     });
 });

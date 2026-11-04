@@ -210,6 +210,8 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
     get showChecklist(): boolean {
         if (this.authState !== 'app') return false;
         if (this.wizardActive) return false;
+        // Setup steps are for admins; anyone else can't change settings.
+        if (this.access?.isAdmin === false) return false;
         if (this.checklistAutoComplete) return true;
         if (this.checklistAllComplete) return false;
         if (this.checklistDismissed) return false;

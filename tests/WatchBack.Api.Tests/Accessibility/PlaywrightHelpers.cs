@@ -367,8 +367,16 @@ internal static class PlaywrightHelpers
         Dictionary<string, object?>? config = null,
         object[]? diagnosticsLogs = null,
         object? diagnosticsStatus = null,
-        bool needsOnboarding = false)
+        bool needsOnboarding = false,
+        IReadOnlyDictionary<string, string>? jsonRoutes = null)
     {
+        // Extra canned JSON responses, by route glob (e.g. "**/api/access").
+        foreach ((string glob, string body) in jsonRoutes ?? new Dictionary<string, string>())
+        {
+            await page.RouteAsync(glob, route =>
+                route.FulfillAsync(new RouteFulfillOptions { Status = 200, ContentType = "application/json", Body = body }));
+        }
+
         string authBody = needsOnboarding
             ? """{"authenticated":true,"username":"test","needsOnboarding":true,"authMethod":"cookie","forwardAuthHeader":""}"""
             : """{"authenticated":true,"username":"test","needsOnboarding":false,"authMethod":"cookie","forwardAuthHeader":""}""";
@@ -471,12 +479,19 @@ internal static class PlaywrightHelpers
         Dictionary<string, object?>? config = null,
         object[]? diagnosticsLogs = null,
         object? diagnosticsStatus = null,
-        bool needsOnboarding = false)
+        bool needsOnboarding = false,
+        IReadOnlyDictionary<string, string>? jsonRoutes = null,
+        string? watchUser = null)
     {
         await SetupApiRoutes(page, sync, config,
             diagnosticsLogs, diagnosticsStatus,
-            needsOnboarding);
+            needsOnboarding, jsonRoutes);
         await page.GotoAsync(url);
+
+        if (watchUser is not null)
+        {
+            await page.EvaluateAsync("id => localStorage.setItem('wb_watchUser', id)", watchUser);
+        }
 
         // Mark wizard/checklist as completed so the overlay doesn't block non-wizard tests
         await page.EvaluateAsync("localStorage.setItem('wb_wizardCompleted', 'true')");

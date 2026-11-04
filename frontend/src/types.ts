@@ -142,12 +142,24 @@ export interface ApiKeyEntry {
     createdAt: string;
 }
 
+/** Who may change settings (GET /api/access). */
+export interface Access {
+    restricted: boolean;
+    isAdmin: boolean;
+    admins: string[];
+    /** "group" when the sign-in proxy's groups decide, "watchUser" when the picked user does. */
+    decidedBy: string;
+    adminGroup: string | null;
+}
+
 export interface AuthMeResponse {
     authenticated: boolean;
     needsOnboarding?: boolean;
     containerName?: string;
     forwardAuthHeader?: string;
     forwardAuthTrustedHost?: string;
+    forwardAuthGroupsHeader?: string;
+    forwardAuthAdminGroup?: string;
     username?: string;
     authMethod?: string;
 }
@@ -174,6 +186,8 @@ export interface AppData {
     lightboxImg: string | null;
     watchUsers: WatchUser[];
     watchUserId: string;
+    access: Access;
+    adminSaveError: string;
     clientId: string;
     showUserPicker: boolean;
     groupByThread: boolean;
@@ -216,6 +230,9 @@ export interface AppData {
     forwardAuthEnabled: boolean;
     forwardAuthHeaderEdit: string;
     forwardAuthTrustedHostEdit: string;
+    forwardAuthGroupsHeaderEdit: string;
+    forwardAuthAdminGroupEdit: string;
+    forwardAuthError: string;
     forwardAuthSaveStatus: string | null;
     needsOnboarding: boolean;
     containerName: string;
@@ -315,6 +332,10 @@ export interface AppData {
     manualStateUrl(): string;
     loadWatchUsers(): Promise<void>;
     selectWatchUser(id: string): void;
+    storeWatchUser(id: string): void;
+    loadAccess(): Promise<void>;
+    isAdminUser(id: string): boolean;
+    toggleAdmin(id: string, on: boolean): Promise<void>;
     currentWatchUserName(): string;
     clearCache(): Promise<void>;
     restart(): Promise<void>;

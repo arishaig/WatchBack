@@ -172,9 +172,15 @@ const authMethods: Record<string, unknown> & ThisType<AppData> = {
             const res = await fetch('/api/auth/forward-auth', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ header, trustedHost }),
+                body: JSON.stringify({
+                    header,
+                    trustedHost,
+                    groupsHeader: this.forwardAuthGroupsHeaderEdit.trim(),
+                    adminGroup: this.forwardAuthAdminGroupEdit.trim() || 'admins',
+                }),
             });
             const data = await res.json() as Record<string, unknown>;
+            this.forwardAuthError = typeof data['message'] === 'string' ? data['message'] : '';
             if (data['ok'] && data['restarting']) {
                 // The trusted-proxy network is only resolved at startup, so a change
                 // to it can't take effect until the process restarts.

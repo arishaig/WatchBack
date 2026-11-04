@@ -651,6 +651,11 @@ describe('showChecklist', () => {
         expect(get('showChecklist', ctx)).toBe(false);
     });
 
+    it('returns false for someone who is not an admin', () => {
+        const ctx = makeState({ authState: 'app', access: { isAdmin: false } });
+        expect(get('showChecklist', ctx)).toBe(false);
+    });
+
     it('returns false when all checklist items are complete', () => {
         const ctx = makeState({
             authState: 'app',

@@ -1391,5 +1391,59 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("WatchUser_Change", resourceCulture);
             }
         }
+        
+        public static string Access_ReadOnly {
+            get {
+                return ResourceManager.GetString("Access_ReadOnly", resourceCulture);
+            }
+        }
+        
+        public static string Access_ReadOnlyGroup {
+            get {
+                return ResourceManager.GetString("Access_ReadOnlyGroup", resourceCulture);
+            }
+        }
+        
+        public static string Access_AdminsTitle {
+            get {
+                return ResourceManager.GetString("Access_AdminsTitle", resourceCulture);
+            }
+        }
+        
+        public static string Access_AdminsHelp {
+            get {
+                return ResourceManager.GetString("Access_AdminsHelp", resourceCulture);
+            }
+        }
+        
+        public static string Access_AdminsByGroup {
+            get {
+                return ResourceManager.GetString("Access_AdminsByGroup", resourceCulture);
+            }
+        }
+        
+        public static string Access_You {
+            get {
+                return ResourceManager.GetString("Access_You", resourceCulture);
+            }
+        }
+        
+        public static string DangerZone_GroupsHeader {
+            get {
+                return ResourceManager.GetString("DangerZone_GroupsHeader", resourceCulture);
+            }
+        }
+        
+        public static string DangerZone_AdminGroup {
+            get {
+                return ResourceManager.GetString("DangerZone_AdminGroup", resourceCulture);
+            }
+        }
+        
+        public static string DangerZone_GroupsHelp {
+            get {
+                return ResourceManager.GetString("DangerZone_GroupsHelp", resourceCulture);
+            }
+        }
     }
 }

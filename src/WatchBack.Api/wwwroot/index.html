@@ -797,7 +797,7 @@
                             id="tab-mappings"
                             role="tab"
                             type="button"
-                            x-show="!configData?.integrations?.['reddit']?.disabled"
+                            x-show="access.isAdmin && !configData?.integrations?.['reddit']?.disabled"
                             x-text="'Subreddits'">
                     </button>
                     <button :aria-selected="configTab === 'apikeys'" :class="configTab === 'apikeys'
@@ -809,6 +809,7 @@
                             id="tab-apikeys"
                             role="tab"
                             type="button"
+                            x-show="access.isAdmin"
                             x-text="t('Mcp_ApiKeys')">
                     </button>
                 </nav>
@@ -817,6 +818,14 @@
             <!-- ─── Settings tab ─── -->
             <div :aria-label="t('Nav_Settings')" aria-labelledby="tab-settings" id="panel-settings" role="tabpanel" x-show="configTab === 'settings'">
 
+                <!-- Not an admin: the server settings are hidden; theme and language stay. -->
+                <p class="rounded-lg px-3 py-2 mb-4 text-xs leading-relaxed wb-surface-alt wb-border border wb-text-muted"
+                   id="access-read-only"
+                   role="note"
+                   x-show="!access.isAdmin"
+                   x-text="access.decidedBy === 'group' ? t('Access_ReadOnlyGroup', access.adminGroup) : t('Access_ReadOnly')"></p>
+
+                <div x-show="access.isAdmin">
                 <!-- ═══════════════════ Integrations ═══════════════════ -->
                 <h2 class="text-sm font-semibold wb-text-secondary mb-3" x-text="t('Config_Integrations')"></h2>
 
@@ -985,8 +994,10 @@
                     </template>
                 </div>
 
+                </div><!-- /admin-only integrations -->
+
                 <!-- ═══════════════════ Preferences ═══════════════════ -->
-                <div class="wb-border border-t mt-5 pt-5">
+                <div :class="access.isAdmin ? 'wb-border border-t mt-5 pt-5' : ''">
                     <button :aria-expanded="!collapsedSections.preferences" @click="toggleSection('preferences')"
                             class="w-full flex items-center justify-between gap-2 mb-3 cursor-pointer"
                             type="button">
@@ -1035,7 +1046,7 @@
                             </div>
                         </template>
 
-                        <template x-if="(configData?.preferences?.watchProviders || []).length > 0">
+                        <template x-if="access.isAdmin && (configData?.preferences?.watchProviders || []).length > 0">
                             <div>
                                 <div class="flex justify-between mb-1">
                                     <label class="text-xs font-medium wb-text-muted"
@@ -1060,7 +1071,7 @@
                             </div>
                         </template>
 
-                        <div>
+                        <div x-show="access.isAdmin">
                             <div class="flex justify-between mb-1">
                                 <label class="text-xs font-medium wb-text-muted" for="time-machine-days"
                                        x-text="t('Preferences_TimeMachineWindow')"></label>
@@ -1078,7 +1089,7 @@
                                    x-model.number="prefEdits.timeMachineDays">
                         </div>
 
-                        <div>
+                        <div x-show="access.isAdmin">
                             <div class="flex justify-between mb-1">
                                 <label class="text-xs font-medium wb-text-muted"
                                        x-text="t('Preferences_RedditSearchEngine')"></label>
@@ -1112,7 +1123,7 @@
                         </div>
 
                         <!-- Segmented progress bar toggle -->
-                        <div class="flex items-center justify-between py-1">
+                        <div class="flex items-center justify-between py-1" x-show="access.isAdmin">
                             <label class="text-xs font-medium wb-text-muted cursor-pointer" for="segmented-bar-toggle"
                                    x-text="t('Preferences_SegmentedProgressBar')"></label>
                             <label class="switch-container">
@@ -1127,7 +1138,7 @@
                         </div>
 
                         <!-- Sentiment analysis toggle -->
-                        <div class="flex items-center justify-between py-1">
+                        <div class="flex items-center justify-between py-1" x-show="access.isAdmin">
                             <label class="text-xs font-medium wb-text-muted cursor-pointer"
                                    for="pref-sentiment"
                                    x-text="t('Preferences_SentimentAnalysis')"></label>
@@ -1161,6 +1172,7 @@
                                 :disabled="prefSaveStatus === 'saving'"
                                 @click="void savePreferences()"
                                 aria-live="polite"
+                                x-show="access.isAdmin"
                                 class="w-full py-2.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
                                        cursor-pointer disabled:opacity-50 wb-btn
                                        hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
@@ -1169,8 +1181,38 @@
                     </div>
                 </div>
 
+                <!-- ═══════════════════ Admins ═══════════════════ -->
+                <div class="wb-border border-t mt-5 pt-5" id="admins-section"
+                     x-show="access.isAdmin && (access.decidedBy === 'group' || watchUsers.length > 1)">
+                    <h2 class="text-sm font-semibold wb-text-secondary mb-1" x-text="t('Access_AdminsTitle')"></h2>
+                    <p class="text-xs wb-text-faint mb-3 leading-relaxed"
+                       x-text="access.decidedBy === 'group' ? t('Access_AdminsByGroup', access.adminGroup) : t('Access_AdminsHelp')"></p>
+                    <ul class="space-y-1" x-show="access.decidedBy !== 'group'">
+                        <template :key="u.id" x-for="u in watchUsers">
+                            <li class="flex items-center justify-between py-1">
+                                <label :for="'admin-' + u.id" class="text-xs font-medium wb-text-muted cursor-pointer">
+                                    <span x-text="u.name"></span>
+                                    <span class="wb-text-faint" x-show="u.id === watchUserId" x-text="' ' + t('Access_You')"></span>
+                                </label>
+                                <label class="switch-container">
+                                    <input :aria-label="t('Access_AdminsTitle') + ': ' + u.name"
+                                           :checked="isAdminUser(u.id)"
+                                           :disabled="u.id === watchUserId && isAdminUser(u.id)"
+                                           :id="'admin-' + u.id"
+                                           @change="void toggleAdmin(u.id, $event.target.checked)"
+                                           class="switch-input"
+                                           type="checkbox">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </li>
+                        </template>
+                    </ul>
+                    <p class="text-xs mt-2" role="alert" style="color:var(--wb-error-text)"
+                       x-show="adminSaveError" x-text="adminSaveError"></p>
+                </div>
+
                 <!-- ═══════════════════ Danger zone ═══════════════════ -->
-                <div class="mt-5 rounded-xl overflow-hidden" style="border:1px solid var(--wb-error-border)">
+                <div class="mt-5 rounded-xl overflow-hidden" style="border:1px solid var(--wb-error-border)" x-show="access.isAdmin">
                     <button :aria-expanded="!collapsedSections.dangerZone"
                             :style="collapsedSections.dangerZone ? '' : 'border-bottom:1px solid var(--wb-error-border)'"
                             @click="toggleSection('dangerZone')"
@@ -1292,6 +1334,28 @@
                                         <p class="text-xs wb-text-faint mt-1"
                                            x-text="t('DangerZone_TrustedHostHelp')"></p>
                                     </div>
+                                    <div>
+                                        <label class="text-xs font-medium wb-text-muted block mb-1"
+                                               for="forward-auth-groups-header"
+                                               x-text="t('DangerZone_GroupsHeader')">
+                                        </label>
+                                        <input class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
+                                               id="forward-auth-groups-header" placeholder="Remote-Groups"
+                                               type="text"
+                                               x-model="forwardAuthGroupsHeaderEdit">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium wb-text-muted block mb-1"
+                                               for="forward-auth-admin-group"
+                                               x-text="t('DangerZone_AdminGroup')">
+                                        </label>
+                                        <input class="w-full wb-surface wb-border wb-text-secondary rounded-lg px-3 py-2 text-sm border"
+                                               id="forward-auth-admin-group" placeholder="admins"
+                                               type="text"
+                                               x-model="forwardAuthAdminGroupEdit">
+                                        <p class="text-xs wb-text-faint mt-1"
+                                           x-text="t('DangerZone_GroupsHelp', 'Authelia', 'Remote-Groups')"></p>
+                                    </div>
                                     <div class="rounded-lg px-3 py-2 text-xs leading-relaxed"
                                          style="background:var(--wb-error-bg);color:var(--wb-error-text);border:1px solid var(--wb-error-border)">
                                         <span x-text="t('DangerZone_ForwardAuthWarning')"></span>
@@ -1302,12 +1366,15 @@
                                     :disabled="forwardAuthSaveStatus === 'saving'"
                                     @click="void saveForwardAuth()"
                                     aria-live="polite"
+                                    :aria-describedby="forwardAuthError ? 'forward-auth-error' : null"
                                     class="mt-auto w-full py-2 rounded-lg text-xs font-medium cursor-pointer
                                            disabled:opacity-50 wb-btn
                                            hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                                     style="border:1px solid var(--wb-error-border);color:var(--wb-error-text)"
                                     x-text="forwardAuthSaveStatus === 'saving' ? t('Common_Saving') : forwardAuthSaveStatus === 'saved' ? t('Common_Saved') : forwardAuthSaveStatus === 'error' ? t('Common_Error') : t('Common_Save')">
                             </button>
+                            <p class="text-xs" id="forward-auth-error" role="alert" style="color:var(--wb-error-text)"
+                               x-show="forwardAuthError" x-text="forwardAuthError"></p>
                         </div>
 
                     </div>
@@ -1366,7 +1433,7 @@
                 <div class="mb-5">
                     <div class="flex items-center justify-between mb-3">
                         <h2 class="text-sm font-semibold wb-text-secondary" x-text="t('Diagnostics_SyncHistory')"></h2>
-                        <button @click="void clearSyncHistory()" class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                        <button @click="void clearSyncHistory()" x-show="access.isAdmin" class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
                                        wb-text-muted cursor-pointer wb-btn
                                        hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                                 type="button"
@@ -1463,7 +1530,7 @@
                                     type="button"
                                     x-text="copyLogsStatus === 'copied' ? t('Common_Copied') : copyLogsStatus === 'error' ? t('Common_Error') : t('Common_Copy')">
                             </button>
-                            <button @click="void clearLogs()" class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
+                            <button @click="void clearLogs()" x-show="access.isAdmin" class="px-3 py-1.5 rounded-lg text-xs font-medium wb-border border wb-surface-alt
                                            wb-text-muted cursor-pointer wb-btn
                                            hover:scale-[1.01] active:scale-95 transition-all duration-200 active:duration-75 transform-gpu"
                                     type="button"

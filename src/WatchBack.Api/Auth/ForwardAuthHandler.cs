@@ -32,6 +32,9 @@ public partial class ForwardAuthHandler(
     /// </summary>
     public const string PeerIpItemKey = "WatchBack.PeerIpAddress";
 
+    /// <summary>Present when the proxy sent a groups header; the groups themselves are role claims.</summary>
+    public const string GroupsSentClaim = "watchback:groups-sent";
+
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         AuthOptions opts = authOptions.CurrentValue;
@@ -69,7 +72,19 @@ public partial class ForwardAuthHandler(
             }
         }
 
-        Claim[] claims = [new(ClaimTypes.Name, headerValue)];
+        List<Claim> claims = [new(ClaimTypes.Name, headerValue)];
+
+        // The proxy's group list (Authelia: Remote-Groups), trusted for the same reason the user header is.
+        // Present but empty means "in no groups", which differs from a proxy that doesn't send it at all.
+        if (!string.IsNullOrEmpty(opts.ForwardAuthGroupsHeader)
+            && Request.Headers.TryGetValue(opts.ForwardAuthGroupsHeader, out Microsoft.Extensions.Primitives.StringValues groups))
+        {
+            claims.Add(new Claim(GroupsSentClaim, "true"));
+            claims.AddRange(groups
+                .SelectMany(g => (g ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .Select(g => new Claim(ClaimTypes.Role, g)));
+        }
+
         ClaimsIdentity identity = new(claims, Scheme.Name);
         AuthenticationTicket ticket = new(new ClaimsPrincipal(identity), Scheme.Name);
         return AuthenticateResult.Success(ticket);

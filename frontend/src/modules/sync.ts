@@ -1,4 +1,4 @@
-import type { AppData, MediaSearchResult, SeasonSummary, EpisodeResult, WatchUser } from '../types';
+import type { Access, AppData, MediaSearchResult, SeasonSummary, EpisodeResult, WatchUser } from '../types';
 import { uiLog } from '../utils/uiLogger';
 
 const syncMethods: Record<string, unknown> & ThisType<AppData> = {
@@ -30,35 +30,88 @@ const syncMethods: Record<string, unknown> & ThisType<AppData> = {
 
     // Asks the server who can be followed. The picker is only offered when the
     // watch source has more than one user; a single user needs no choice.
+    // A failed request keeps the stored choice: a brief Jellyfin outage mustn't cost an admin their pick.
     async loadWatchUsers() {
-        let users: WatchUser[] = [];
+        let users: WatchUser[];
         try {
             const res = await fetch('/api/watchstate/users', { signal: AbortSignal.timeout(8000) });
-            if (res.ok) users = await res.json() as WatchUser[];
+            if (!res.ok) {
+                this.watchUsers = [];
+                this.showUserPicker = false;
+                return;
+            }
+            users = await res.json() as WatchUser[];
         } catch (e) {
             uiLog("watchUsers.error", "Watch user list failed", { error: String(e) }, "Warning");
+            this.watchUsers = [];
+            this.showUserPicker = false;
+            return;
         }
         this.watchUsers = users;
         if (users.length < 2) {
-            this.watchUserId = '';
+            this.storeWatchUser('');
             this.showUserPicker = false;
-            try { localStorage.removeItem('wb_watchUser'); } catch { /* storage unavailable */ }
             return;
         }
         if (!users.some(u => u.id === this.watchUserId)) {
-            this.watchUserId = '';
+            this.storeWatchUser('');
             this.showUserPicker = true;
         }
     },
 
     selectWatchUser(id: string) {
         uiLog("watchUsers.select", "Watch user selected", { id });
-        this.watchUserId = id;
+        this.storeWatchUser(id);
         this.showUserPicker = false;
-        try { localStorage.setItem('wb_watchUser', id); } catch { /* storage unavailable */ }
         this.data = null;
         this.setupSSE();
         void this.sync();
+        void this.loadAccess();
+    },
+
+    // The choice lives in localStorage and, for the server's admin check, in the wb_watchUser cookie.
+    storeWatchUser(id: string) {
+        this.watchUserId = id;
+        try {
+            if (id) localStorage.setItem('wb_watchUser', id);
+            else localStorage.removeItem('wb_watchUser');
+        } catch { /* storage unavailable */ }
+        document.cookie = id
+            ? `wb_watchUser=${encodeURIComponent(id)}; path=/; max-age=31536000; SameSite=Lax`
+            : 'wb_watchUser=; path=/; max-age=0; SameSite=Lax';
+    },
+
+    // Whether this browser may change settings. The first watch user picked becomes the admin.
+    async loadAccess() {
+        try {
+            const res = await fetch('/api/access', { signal: AbortSignal.timeout(8000) });
+            if (res.ok) this.access = await res.json() as Access;
+        } catch (e) {
+            uiLog("access.error", "Access check failed", { error: String(e) }, "Warning");
+        }
+    },
+
+    isAdminUser(id: string) {
+        return this.access.admins.includes(id);
+    },
+
+    async toggleAdmin(id: string, on: boolean) {
+        const ids = on
+            ? [...this.access.admins.filter(a => a !== id), id]
+            : this.access.admins.filter(a => a !== id);
+        this.adminSaveError = '';
+        try {
+            const res = await fetch('/api/access/admins', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids }),
+            });
+            const body = await res.json().catch(() => ({})) as { message?: string };
+            if (!res.ok) this.adminSaveError = body.message || this.t('Common_Error');
+        } catch {
+            this.adminSaveError = this.t('Common_Error');
+        }
+        await this.loadAccess();
     },
 
     currentWatchUserName() {

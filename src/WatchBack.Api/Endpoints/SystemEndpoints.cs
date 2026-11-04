@@ -19,10 +19,12 @@ public static class SystemEndpoints
 
         group.MapPost("/clear-cache", ClearCache)
             .WithName("ClearCache")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Evict all in-memory cache entries");
 
         group.MapPost("/restart", Restart)
             .WithName("Restart")
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Gracefully stop the application (expects host to restart it)");
     }
 
