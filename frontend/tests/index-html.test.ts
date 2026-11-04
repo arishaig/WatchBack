@@ -67,3 +67,42 @@ describe('index.html Alpine attributes', () => {
         expect(failures).toEqual([]);
     });
 });
+// Opening tags, read quote-aware: Alpine expressions carry `>` (arrow
+// functions, comparisons) inside attribute values.
+function openingTags(source: string): { text: string; line: number }[] {
+    const tags: { text: string; line: number }[] = [];
+    for (let i = source.indexOf('<'); i !== -1; i = source.indexOf('<', i + 1)) {
+        if (!/[a-zA-Z]/.test(source[i + 1] ?? '')) continue;
+        let quote: string | null = null;
+        let j = i + 1;
+        for (; j < source.length; j++) {
+            const c = source[j];
+            if (quote) { if (c === quote) quote = null; }
+            else if (c === '"' || c === "'") quote = c;
+            else if (c === '>') break;
+        }
+        tags.push({ text: source.slice(i, j + 1), line: source.slice(0, i).split('\n').length });
+        i = j;
+    }
+    return tags;
+}
+
+describe('index.html x-show elements', () => {
+    // Alpine applies a string-valued :style by replacing the whole style
+    // attribute, which drops the `display: none` x-show wrote there. Whenever
+    // the binding re-runs (e.g. once settings load) the element shows again
+    // regardless of x-show: the sync bar flashed on every idle poll this way.
+    // Object-valued :style sets single properties and leaves display alone.
+    it('bind :style as an object, never a string', () => {
+        const failures: string[] = [];
+        for (const tag of openingTags(html)) {
+            const attrs = extractAlpineAttrs(tag.text);
+            const style = attrs.find(a => a.name === ':style');
+            if (!attrs.some(a => a.name === 'x-show') || !style) continue;
+            if (!style.value.trim().startsWith('{')) {
+                failures.push(`L${tag.line} :style="${style.value.slice(0, 80)}"`);
+            }
+        }
+        expect(failures).toEqual([]);
+    });
+});
