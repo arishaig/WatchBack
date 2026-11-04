@@ -7,6 +7,7 @@ import { uiLog, flushNow } from './utils/uiLogger';
 import type { AppData } from './types';
 import authMethods from './modules/auth';
 import configMethods from './modules/config';
+import autosaveMethods from './modules/autosave';
 import syncMethods from './modules/sync';
 import systemMethods from './modules/system';
 import wizardMethods from './modules/wizard';
@@ -33,6 +34,8 @@ Alpine.data('app', (): AppData => {
         saveAllStatus: null,
         prefEdits: {},
         prefSaveStatus: null,
+        fieldStatus: {},
+        openRow: null,
         lightboxImg: null,
         watchUsers: [],
         watchUserId: (() => {
@@ -169,6 +172,7 @@ Alpine.data('app', (): AppData => {
 
         ...authMethods,
         ...configMethods,
+        ...autosaveMethods,
         ...syncMethods,
         ...systemMethods,
         ...wizardMethods,

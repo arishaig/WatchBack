@@ -65,14 +65,36 @@ export interface ConfigPreferences {
     overrides: Record<string, boolean>;
 }
 
+export interface ConfigField {
+    key: string;
+    label?: string;
+    type: string;
+    placeholder?: string;
+    value?: string;
+    hasValue?: boolean;
+    envValue?: string;
+    isOverridden?: boolean;
+    /** A credential, even when shown as plain text (Trakt's client ID). */
+    secret?: boolean;
+}
+
 export interface ConfigIntegration {
     name: string;
+    description?: string;
     logoSvg?: string;
     brandColor?: string;
-    fields: { key: string; type: string; value?: string; hasValue?: boolean }[];
+    fields: ConfigField[];
     configured: boolean;
     providerTypes: string[];
     disabled: boolean;
+}
+
+/** Auto-save state of one setting. `tried` is the value that failed, so it isn't tested again unchanged. */
+export interface FieldStatus {
+    state: 'testing' | 'saving' | 'saved' | 'error';
+    message?: string;
+    canForce?: boolean;
+    tried?: string;
 }
 
 export interface ConfigData {
@@ -183,6 +205,8 @@ export interface AppData {
     saveAllStatus: SaveStatus;
     prefEdits: Record<string, unknown>;
     prefSaveStatus: SaveStatus;
+    fieldStatus: Record<string, FieldStatus>;
+    openRow: string | null;
     lightboxImg: string | null;
     watchUsers: WatchUser[];
     watchUserId: string;
@@ -318,6 +342,22 @@ export interface AppData {
     testService(service: string): Promise<void>;
     testAll(): Promise<void>;
     redditSearchUrl(title: string, season: number, episode: number): string;
+
+    _integration(key: string): ConfigIntegration | undefined;
+    _setFieldStatus(key: string, status: FieldStatus | null): void;
+    _flashSaved(key: string): void;
+    _postSettings(values: Record<string, string>): Promise<boolean>;
+    commitField(integrationKey: string, fieldKey: string, force?: boolean): Promise<void>;
+    useEnvValue(integrationKey: string, fieldKey: string): Promise<void>;
+    setPreference(key: string, value: string): Promise<boolean>;
+    chooseWatchProvider(value: string): Promise<void>;
+    commitTimeMachine(): Promise<void>;
+    setSearchEngine(engine: string): Promise<void>;
+    commitCustomSearchUrl(): Promise<void>;
+    setPreferenceSwitch(prefKey: 'segmentedProgressBar' | 'enableSentimentAnalysis', on: boolean): Promise<void>;
+    rowStatus(key: string, asWatchSource?: boolean): { kind: 'ok' | 'warn' | 'err' | 'off'; label: string };
+    rowSummary(key: string): string;
+    toggleRow(id: string): void;
 
     sync(): Promise<void>;
     searchMedia(): Promise<void>;

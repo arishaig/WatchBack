@@ -1,4 +1,6 @@
-export type IntegrationField = { key: string; type: string; value?: string; hasValue?: boolean };
+import type { ConfigField } from '../types';
+
+export type IntegrationField = ConfigField;
 export type IntegrationMap = Record<string, { fields: IntegrationField[]; configured?: boolean; disabled?: boolean }>;
 
 // Must stay in sync with FormValueExtensions.ExistingSentinel on the server
