@@ -675,6 +675,41 @@ public class SyncServiceTests
     }
 
     [Fact]
+    public async Task SyncAsync_DisabledRatingsProvider_IsNotAsked()
+    {
+        // Regression: turning OMDb off in settings used to stop nothing; ratings were still fetched.
+        EpisodeContext episode = new(
+            "Breaking Bad",
+            new DateTimeOffset(2008, 1, 20, 0, 0, 0, TimeSpan.Zero),
+            "Pilot",
+            1,
+            1,
+            ExternalIds: new Dictionary<string, string> { [ExternalIdType.Imdb] = "tt0903747" });
+        _watchStateProvider.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>()).Returns(episode);
+        _timeMachineFilter.Apply(Arg.Any<IEnumerable<Thought>>(), Arg.Any<DateTimeOffset?>(), Arg.Any<int>())
+            .Returns([]);
+
+        IRatingsProvider ratingsProvider = Substitute.For<IRatingsProvider>();
+        ratingsProvider.Metadata.Returns(new DataProviderMetadata("OMDb", "OMDb ratings"));
+        ratingsProvider.ConfigSection.Returns("Omdb");
+
+        IOptionsSnapshot<WatchBackOptions> options = new OptionsSnapshotStub<WatchBackOptions>(new WatchBackOptions
+        {
+            TimeMachineDays = 14,
+            WatchProvider = "jellyfin",
+            DisabledProviders = "omdb"
+        });
+        SyncService service = new([_watchStateProvider], Array.Empty<IManualWatchStateProvider>(),
+            Array.Empty<IThoughtProvider>(), [ratingsProvider], _timeMachineFilter,
+            _prefetchService, new PassThroughResultCache(), options, NullLogger<SyncService>.Instance);
+
+        SyncResult result = await service.SyncAsync();
+
+        await ratingsProvider.DidNotReceive().GetRatingsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        result.RatingsProvider.Should().BeNull();
+    }
+
+    [Fact]
     public async Task SyncAsync_WithWatchUserId_AsksProviderForThatUsersPlayback()
     {
         // Arrange

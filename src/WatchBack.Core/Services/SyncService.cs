@@ -46,7 +46,10 @@ public class SyncService(
 
             string? imdbId = null;
             mediaContext.ExternalIds?.TryGetValue(Imdb, out imdbId);
-            List<IRatingsProvider> ratingsProviderList = ratingsProviders.ToList();
+            HashSet<string> disabled = DisabledSections();
+            List<IRatingsProvider> ratingsProviderList = ratingsProviders
+                .Where(p => p.ConfigSection is null || !disabled.Contains(p.ConfigSection))
+                .ToList();
             Task<IReadOnlyList<MediaRating>[]> ratingsTask = !string.IsNullOrEmpty(imdbId)
                 ? Task.WhenAll(ratingsProviderList.Select(p => resultCache.GetRatingsAsync(p, mediaContext, imdbId, ct)))
                 : Task.FromResult<IReadOnlyList<MediaRating>[]>([]);
@@ -175,11 +178,14 @@ public class SyncService(
         }
     }
 
-    private IThoughtProvider[] ActiveProviders()
-    {
-        HashSet<string> disabledSet = options.Value.DisabledProviders
+    private HashSet<string> DisabledSections() =>
+        options.Value.DisabledProviders
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private IThoughtProvider[] ActiveProviders()
+    {
+        HashSet<string> disabledSet = DisabledSections();
 
         return thoughtProviders
             .Where(p => p.ConfigSection is null || !disabledSet.Contains(p.ConfigSection))
