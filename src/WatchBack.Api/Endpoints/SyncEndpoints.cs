@@ -211,6 +211,7 @@ public static partial class SyncEndpoints
 
     private static MediaContextResponse MapMediaContext(MediaContext context)
     {
+        string? liveChannel = context.LiveChannel ?? (context as LiveBroadcastContext)?.ChannelName;
         if (context is EpisodeContext episode)
         {
             return new MediaContextResponse(
@@ -218,12 +219,8 @@ public static partial class SyncEndpoints
                 episode.ReleaseDate?.DateTime,
                 episode.EpisodeTitle,
                 episode.SeasonNumber,
-                episode.EpisodeNumber);
-        }
-
-        if (context is LiveBroadcastContext live)
-        {
-            return new MediaContextResponse(live.Title, null, null, null, null, live.ChannelName);
+                episode.EpisodeNumber,
+                liveChannel);
         }
 
         return new MediaContextResponse(
@@ -231,7 +228,8 @@ public static partial class SyncEndpoints
             context.ReleaseDate?.DateTime,
             null,
             null,
-            null);
+            null,
+            liveChannel);
     }
 
     private static ThoughtResponse MapThought(
