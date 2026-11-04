@@ -164,6 +164,7 @@ public sealed class AdminAccessTests : IDisposable
             new(HttpMethod.Post, "/api/system/restart"),
             new(HttpMethod.Post, "/api/auth/change-password") { Content = JsonContent.Create(new { currentPassword = "x", newPassword = "y" }) },
             new(HttpMethod.Post, "/api/auth/reset-password"),
+            new(HttpMethod.Post, "/api/auth/setup") { Content = JsonContent.Create(new { newUsername = "me", newPassword = "Mine1!@#4567" }) },
             new(HttpMethod.Post, "/api/auth/forward-auth") { Content = JsonContent.Create(new { header = "", trustedHost = "" }) },
             new(HttpMethod.Delete, "/api/diagnostics/logs"),
             new(HttpMethod.Delete, "/api/diagnostics/sync-history"),

@@ -49,6 +49,8 @@ public static class AuthEndpoints
 
         group.MapPost("/setup", Setup)
             .WithName("Setup")
+            // Replaces the shared login, so admin-only once admins exist (onboarding happens before then).
+            .RequireAuthorization(AccessEndpoints.AdminPolicy)
             .WithSummary("Complete onboarding by setting a permanent username and password")
             .RequireAuthorization();
 
