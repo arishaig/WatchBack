@@ -13,7 +13,7 @@ using WatchBack.Core.Options;
 namespace WatchBack.Api.Mcp;
 
 [McpServerToolType]
-public sealed class WatchBackMcpTools(
+public sealed partial class WatchBackMcpTools(
     ISyncService syncService,
     SyncTrigger syncTrigger,
     IManualWatchStateProvider manualWatchStateProvider,
@@ -22,7 +22,8 @@ public sealed class WatchBackMcpTools(
     IEnumerable<IRatingsProvider> ratingsProviders,
     IEnumerable<IMediaSearchProvider> mediaSearchProviders,
     IOptionsSnapshot<WatchBackOptions> watchback,
-    UserConfigFile configFile)
+    UserConfigFile configFile,
+    IHttpContextAccessor httpContextAccessor)
 {
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
@@ -82,7 +83,8 @@ public sealed class WatchBackMcpTools(
     [McpServerTool]
     [Description(
         "Get configuration: current preferences (watch provider, time machine days, etc.) and which integrations are configured. " +
-        "Also returns the user-overridden settings from user-settings.json.")]
+        "Also returns the user-overridden settings from user-settings.json. " +
+        "For setting WatchBack up, use describe_integrations instead: it lists every setting, which are secret, and where each value comes from.")]
     public async Task<string> GetConfig(CancellationToken cancellationToken)
     {
         WatchBackOptions w = watchback.Value;
@@ -139,121 +141,6 @@ public sealed class WatchBackMcpTools(
         };
 
         return JsonSerializer.Serialize(response, s_jsonOptions);
-    }
-
-    [McpServerTool]
-    [Description(
-        "Update configuration values. Keys must use Section__Key format (e.g. 'WatchBack__WatchProvider', 'Jellyfin__BaseUrl'). " +
-        "Only known sections are accepted; unknown sections are silently ignored for security. " +
-        "Changes are persisted to user-settings.json and take effect on the next request.")]
-    public async Task<string> UpdateConfig(
-        [Description("Dictionary mapping Section__Key to new value. Example: {\"WatchBack__WatchProvider\": \"jellyfin\"}")] Dictionary<string, string> values,
-        CancellationToken cancellationToken)
-    {
-        HashSet<string> allowedSections = ConfigEndpoints.GetAllowedSections(
-            ConfigEndpoints.GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders));
-
-        List<string> applied = [];
-        List<string> rejected = [];
-
-        await AuthEndpoints.ConfigFileLock.WaitAsync(cancellationToken);
-        try
-        {
-            Dictionary<string, Dictionary<string, string>> existing =
-                await AuthEndpoints.ReadConfigFile(configFile.Path, cancellationToken);
-
-            foreach ((string flatKey, string value) in values)
-            {
-                int sep = flatKey.IndexOf("__", StringComparison.Ordinal);
-                if (sep < 0)
-                {
-                    rejected.Add(flatKey);
-                    continue;
-                }
-
-                string section = flatKey[..sep];
-                string key = flatKey[(sep + 2)..];
-
-                if (!allowedSections.Contains(section))
-                {
-                    rejected.Add(flatKey);
-                    continue;
-                }
-
-                if (!existing.TryGetValue(section, out Dictionary<string, string>? sectionDict))
-                {
-                    sectionDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    existing[section] = sectionDict;
-                }
-
-                sectionDict[key] = value;
-                applied.Add(flatKey);
-            }
-
-            await AuthEndpoints.WriteConfigFile(configFile.Path, existing, cancellationToken);
-        }
-        finally
-        {
-            AuthEndpoints.ConfigFileLock.Release();
-        }
-
-        return JsonSerializer.Serialize(new { applied, rejected }, s_jsonOptions);
-    }
-
-    [McpServerTool]
-    [Description(
-        "Reset configuration keys to their environment variable or compiled defaults by removing them from user-settings.json. " +
-        "Keys must use Section__Key format (e.g. 'WatchBack__TimeMachineDays').")]
-    public async Task<string> ResetConfig(
-        [Description("Array of Section__Key keys to reset. Example: [\"WatchBack__TimeMachineDays\", \"Jellyfin__BaseUrl\"]")] string[] keys,
-        CancellationToken cancellationToken)
-    {
-        HashSet<string> allowedSections = ConfigEndpoints.GetAllowedSections(
-            ConfigEndpoints.GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders));
-
-        List<string> reset = [];
-        List<string> rejected = [];
-
-        await AuthEndpoints.ConfigFileLock.WaitAsync(cancellationToken);
-        try
-        {
-            Dictionary<string, Dictionary<string, string>> existing =
-                await AuthEndpoints.ReadConfigFile(configFile.Path, cancellationToken);
-
-            foreach (string flatKey in keys)
-            {
-                int sep = flatKey.IndexOf("__", StringComparison.Ordinal);
-                if (sep < 0)
-                {
-                    rejected.Add(flatKey);
-                    continue;
-                }
-
-                string section = flatKey[..sep];
-                string key = flatKey[(sep + 2)..];
-
-                if (!allowedSections.Contains(section))
-                {
-                    rejected.Add(flatKey);
-                    continue;
-                }
-
-                if (existing.TryGetValue(section, out Dictionary<string, string>? sect))
-                {
-                    sect.Remove(key);
-                }
-
-                reset.Add(flatKey);
-            }
-
-            await AuthEndpoints.WriteConfigFile(configFile.Path, existing, cancellationToken);
-        }
-        finally
-        {
-            AuthEndpoints.ConfigFileLock.Release();
-        }
-
-        return JsonSerializer.Serialize(new { reset, rejected }, s_jsonOptions);
     }
 
     [McpServerTool]

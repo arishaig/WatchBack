@@ -2,17 +2,17 @@ using System.Net;
 using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authentication;
-using Serilog;
-using Serilog.Events;
-using Serilog.Formatting.Compact;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-using Microsoft.AspNetCore.HttpOverrides;
+using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 
 using WatchBack.Api;
 using WatchBack.Api.Auth;
@@ -270,9 +270,11 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddMcpServer()
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddMcpServer(o => o.ServerInstructions = McpSetupGuide.ServerInstructions)
     .WithHttpTransport(o => o.Stateless = true)
-    .WithTools<WatchBackMcpTools>();
+    .WithTools<WatchBackMcpTools>()
+    .WithPrompts<WatchBackMcpPrompts>();
 
 WebApplication app = builder.Build();
 
