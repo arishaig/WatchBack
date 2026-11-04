@@ -38,15 +38,16 @@ html[data-theme="solarized-dark"] {
     --wb-reply-bg: #05333e;
 
     /* Status — lightened from pure Solarized for WCAG AA on dark surfaces */
-    --wb-success-text: #98ad00;
-    --wb-success-bg: #1a4538;
+    --wb-success-text: #b0c62a;
+    --wb-success-bg: #173b2e;
     --wb-success-border: #33592b;
     --wb-error-text: #f28b8b;
     --wb-error-bg: #1a3d48;
     --wb-error-border: #424b54;
-    --wb-warn-text: #b58900;
-    --wb-warn-bg: #1a3520;
-    --wb-warn-border: #3a4820;
+    /* Brightened Solarized yellow on a yellow-tinted (not green) background: 6.4:1 */
+    --wb-warn-text: #d6a520;
+    --wb-warn-bg: #2a2a12;
+    --wb-warn-border: #4a4418;
 
     --wb-logo-filter: brightness(0) invert(1);
 }
