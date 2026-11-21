@@ -357,27 +357,44 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
         string json = await response.Content.ReadAsStringAsync();
         json.Should().Contain("\"autoTranslate\":false");
         json.Should().Contain("\"translateTargetLanguage\":\"en\"");
-        json.Should().Contain("\"ollamaBaseUrl\":");
-        json.Should().Contain("\"ollamaModel\":");
+        json.Should().Contain("\"translationProvider\":\"ollama\"");
     }
 
     [Fact]
-    public async Task SaveConfig_TranslationSettingsAndOllamaSection_AreAllowed()
+    public async Task GetConfig_Integrations_ListTranslationProviderConnections()
     {
-        // Ollama is not a provider, but it is the translation backend and must be configurable from the UI
+        JsonElement integrations = (await _client.GetFromJsonAsync<JsonElement>("/api/config")).GetProperty("integrations");
+
+        foreach (string name in new[] { "ollama", "libretranslate" })
+        {
+            integrations.GetProperty(name).GetProperty("providerTypes").EnumerateArray()
+                .Select(t => t.GetString()).Should().Contain("translation");
+        }
+
+        integrations.GetProperty("ollama").GetProperty("fields").EnumerateArray().Select(f => f.GetProperty("key").GetString())
+            .Should().BeEquivalentTo("Ollama__BaseUrl", "Ollama__Model", "Ollama__ApiKey");
+    }
+
+    [Fact]
+    public async Task SaveConfig_TranslationSettingsAndTranslatorConnections_AreAllowed()
+    {
+        // Translators are connections like any other, so their sections are writable
         Dictionary<string, string> payload = new()
         {
             ["WatchBack__TranslateTargetLanguage"] = "es",
             ["WatchBack__AutoTranslate"] = "true",
             ["Ollama__BaseUrl"] = "http://ollama.test:11434",
-            ["Ollama__Model"] = "qwen3"
+            ["Ollama__Model"] = "qwen3",
+            ["WatchBack__TranslationProvider"] = "libretranslate",
+            ["LibreTranslate__BaseUrl"] = "http://libre.test:5000"
         };
 
         HttpResponseMessage response = await _client.PostAsJsonAsync("/api/config", payload);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         string saved = await File.ReadAllTextAsync(_tempConfigPath);
-        saved.Should().Contain("http://ollama.test:11434").And.Contain("qwen3").And.Contain("\"es\"");
+        saved.Should().Contain("http://ollama.test:11434").And.Contain("qwen3").And.Contain("\"es\"")
+            .And.Contain("http://libre.test:5000");
     }
 
     [Fact]

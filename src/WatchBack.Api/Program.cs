@@ -110,6 +110,12 @@ builder.Services
     .ValidateOnStart();
 
 builder.Services
+    .AddOptions<LibreTranslateOptions>()
+    .BindConfiguration("LibreTranslate")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services
     .AddOptions<OllamaOptions>()
     .BindConfiguration("Ollama")
     .ValidateDataAnnotations()

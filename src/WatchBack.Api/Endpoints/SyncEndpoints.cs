@@ -259,7 +259,10 @@ public static partial class SyncEndpoints
             brand?.LogoSvg,
             Sentiment: sentiment,
             TranslatedFrom: thought.TranslatedFrom,
-            OriginalContent: thought.OriginalContent);
+            OriginalContent: thought.OriginalContent,
+            PostTranslatedFrom: thought.PostTranslatedFrom,
+            OriginalPostTitle: thought.OriginalPostTitle,
+            OriginalPostBody: thought.OriginalPostBody);
     }
 
     private static SourceResultResponse MapSourceResult(

@@ -6,7 +6,7 @@ namespace WatchBack.Api.Mcp;
 /// <summary>One configurable integration: the providers sharing a config section (Trakt is two).</summary>
 /// <param name="Section">The config section, e.g. "Bluesky"; settings are "Section__Key".</param>
 /// <param name="Providers">The providers in the section; the first is the primary.</param>
-/// <param name="Roles">What the section provides: watchState, thought, ratings, search.</param>
+/// <param name="Roles">What the section provides: watchState, thought, ratings, search, translation.</param>
 /// <param name="Fields">The settings the UI shows for it, with their current values.</param>
 public sealed record Integration(
     string Section,
@@ -35,6 +35,7 @@ public static class IntegrationCatalog
         "WatchBack__SegmentedProgressBar",
         "WatchBack__EnableSentimentAnalysis",
         "WatchBack__AutoTranslate",
+        "WatchBack__TranslationProvider",
         "WatchBack__TranslateTargetLanguage",
         "WatchBack__DisabledProviders"
     ];
@@ -73,6 +74,7 @@ public static class IntegrationCatalog
         IEnumerable<IThoughtProvider> thoughtProviders,
         IEnumerable<IRatingsProvider> ratingsProviders,
         IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+        IEnumerable<ITranslator> translators,
         Func<string, string> envValue,
         Func<string, string, bool> isSaved,
         string disabledProviders)
@@ -85,7 +87,8 @@ public static class IntegrationCatalog
             .Select(p => ((IDataProvider)p, "watchState"))
             .Concat(thoughtProviders.Select(p => ((IDataProvider)p, "thought")))
             .Concat(ratingsProviders.Select(p => ((IDataProvider)p, "ratings")))
-            .Concat(mediaSearchProviders.Select(p => ((IDataProvider)p, "search")));
+            .Concat(mediaSearchProviders.Select(p => ((IDataProvider)p, "search")))
+            .Concat(translators.Select(p => ((IDataProvider)p, "translation")));
 
         return tagged
             .Where(t => t.Provider.ConfigSection is not null)

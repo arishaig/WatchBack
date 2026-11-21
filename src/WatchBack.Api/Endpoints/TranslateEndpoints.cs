@@ -23,12 +23,13 @@ public static class TranslateEndpoints
 
     private static async Task<IResult> Translate(
         TranslateRequest request,
-        ITranslator translator,
+        IEnumerable<ITranslator> translators,
         IOptionsSnapshot<WatchBackOptions> options,
         CancellationToken ct)
     {
         string target = options.Value.TranslateTargetLanguage;
-        if (string.IsNullOrWhiteSpace(request.Text) || string.IsNullOrWhiteSpace(target))
+        ITranslator? translator = TranslatorSelection.Select(translators, options.Value.TranslationProvider);
+        if (string.IsNullOrWhiteSpace(request.Text) || string.IsNullOrWhiteSpace(target) || translator is null)
         {
             return Results.BadRequest();
         }
