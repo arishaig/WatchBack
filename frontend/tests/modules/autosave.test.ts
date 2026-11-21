@@ -298,6 +298,60 @@ describe('preferences', () => {
 
         expect(ctx.prefEdits.enableSentimentAnalysis).toBe(false);
     });
+
+    it('setPreferenceSwitch saves auto-translate under its own key', async () => {
+        const ctx = makeCtx();
+        ctx.prefEdits.autoTranslate = false;
+        const fetchMock = respond({ ok: true });
+
+        await ctx.setPreferenceSwitch('autoTranslate', true);
+
+        expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ 'WatchBack__AutoTranslate': 'true' });
+        expect(ctx.prefEdits.autoTranslate).toBe(true);
+        expect(ctx.configData.preferences.autoTranslate).toBe(true);
+    });
+
+    it('setTranslateLanguage saves the language and forgets translations made for the old one', async () => {
+        const ctx = makeCtx({ manualTranslations: { a: { text: 'Hola', translatedFrom: 'en' } }, showOriginal: { a: true } });
+        const fetchMock = respond({ ok: true });
+
+        await ctx.setTranslateLanguage('es');
+
+        expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ 'WatchBack__TranslateTargetLanguage': 'es' });
+        expect(ctx.configData.preferences.translateTargetLanguage).toBe('es');
+        expect(ctx.manualTranslations).toEqual({});
+        expect(ctx.showOriginal).toEqual({});
+    });
+
+    it('setTranslateLanguage reverts the choice when the save fails', async () => {
+        const ctx = makeCtx();
+        ctx.prefEdits.translateTargetLanguage = 'fr';
+        ctx.configData.preferences.translateTargetLanguage = 'fr';
+        respond({ ok: false });
+
+        await ctx.setTranslateLanguage('es');
+
+        expect(ctx.prefEdits.translateTargetLanguage).toBe('fr');
+        expect(ctx.configData.preferences.translateTargetLanguage).toBe('fr');
+    });
+
+    it('commitOllama saves a changed server URL and model, and skips unchanged or empty ones', async () => {
+        const ctx = makeCtx();
+        ctx.configData.preferences.ollamaBaseUrl = 'http://ollama:11434';
+        ctx.configData.preferences.ollamaModel = 'llama3.2';
+        const fetchMock = respond({ ok: true });
+
+        ctx.prefEdits.ollamaBaseUrl = 'http://ollama:11434';
+        await ctx.commitOllama('baseUrl');
+        ctx.prefEdits.ollamaModel = '  ';
+        await ctx.commitOllama('model');
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        ctx.prefEdits.ollamaModel = ' qwen3 ';
+        await ctx.commitOllama('model');
+        expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ 'Ollama__Model': 'qwen3' });
+        expect(ctx.configData.preferences.ollamaModel).toBe('qwen3');
+    });
 });
 
 describe('rowStatus', () => {

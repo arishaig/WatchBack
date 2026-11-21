@@ -204,6 +204,29 @@ const autosaveMethods: Record<string, unknown> & ThisType<AppData> = {
         if (await this.setPreference(key, String(n)) && prefs) prefs.timeMachineDays = n;
     },
 
+    /** The language comments are translated into; an empty code turns translation off. */
+    async setTranslateLanguage(code: string) {
+        const prefs = (this.configData as ConfigData | null)?.preferences;
+        const previous = prefs?.translateTargetLanguage ?? '';
+        this.prefEdits = { ...this.prefEdits, translateTargetLanguage: code };
+        if (await this.setPreference('WatchBack__TranslateTargetLanguage', code)) {
+            if (prefs) prefs.translateTargetLanguage = code;
+            // Translations made for the old language no longer apply.
+            this.manualTranslations = {};
+            this.showOriginal = {};
+        } else {
+            this.prefEdits = { ...this.prefEdits, translateTargetLanguage: previous };
+        }
+    },
+
+    async commitOllama(key: 'baseUrl' | 'model') {
+        const prefKey = key === 'baseUrl' ? 'ollamaBaseUrl' : 'ollamaModel';
+        const prefs = (this.configData as ConfigData | null)?.preferences as unknown as Record<string, unknown> | undefined;
+        const value = String((this.prefEdits as Record<string, unknown>)[prefKey] ?? '').trim();
+        if (!value || prefs?.[prefKey] === value) return;
+        if (await this.setPreference(key === 'baseUrl' ? 'Ollama__BaseUrl' : 'Ollama__Model', value) && prefs) prefs[prefKey] = value;
+    },
+
     async setSearchEngine(engine: string) {
         const prefs = (this.configData as ConfigData | null)?.preferences;
         this.prefEdits = { ...this.prefEdits, searchEngine: engine };
@@ -217,8 +240,12 @@ const autosaveMethods: Record<string, unknown> & ThisType<AppData> = {
         if (await this.setPreference('WatchBack__CustomSearchUrl', url) && prefs) prefs.customSearchUrl = url;
     },
 
-    async setPreferenceSwitch(prefKey: 'segmentedProgressBar' | 'enableSentimentAnalysis', on: boolean) {
-        const keys = { segmentedProgressBar: 'WatchBack__SegmentedProgressBar', enableSentimentAnalysis: 'WatchBack__EnableSentimentAnalysis' };
+    async setPreferenceSwitch(prefKey: 'segmentedProgressBar' | 'enableSentimentAnalysis' | 'autoTranslate', on: boolean) {
+        const keys = {
+            segmentedProgressBar: 'WatchBack__SegmentedProgressBar',
+            enableSentimentAnalysis: 'WatchBack__EnableSentimentAnalysis',
+            autoTranslate: 'WatchBack__AutoTranslate',
+        };
         const previous = (this.prefEdits as Record<string, unknown>)[prefKey];
         this.prefEdits = { ...this.prefEdits, [prefKey]: on };
         if (!await this.setPreference(keys[prefKey], String(on))) {
