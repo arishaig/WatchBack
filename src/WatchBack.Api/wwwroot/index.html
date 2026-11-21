@@ -1323,6 +1323,24 @@
                             </label>
                         </span>
                     </div>
+                    <div class="st-pref" x-show="access.isAdmin">
+                        <div>
+                            <label class="st-pref-l" for="pref-summary-mode" x-text="t('Settings_SummaryMode')"></label>
+                            <p class="st-pref-s" x-text="summaryModelConfigured() ? t('Settings_SummaryModeHelp') : t('Summary_NeedsModel')"></p>
+                        </div>
+                        <span class="st-pref-ctl">
+                            <span :class="fieldStatus['WatchBack__SummaryMode']?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="prefNote('WatchBack__SummaryMode')"></span>
+                            <div class="wb-select-wrap">
+                                <select @change="void setSummaryMode($event.target.value)"
+                                        class="wb-select st-input st-select"
+                                        id="pref-summary-mode">
+                                    <template :key="m" x-for="m in ['hidden', 'collapsed', 'open']">
+                                        <option :selected="summaryMode() === m" :value="m" x-text="t('Settings_Summary' + m.charAt(0).toUpperCase() + m.slice(1))"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </span>
+                    </div>
                     <!-- Kept in this browser only: no server save -->
                     <div class="st-pref">
                         <label class="st-pref-l cursor-pointer" for="always-show-search-toggle" x-text="t('Preferences_AlwaysShowSearch')"></label>
@@ -2113,6 +2131,33 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Summary of the discussion: hidden, collapsed or open (a setting) -->
+                <section aria-labelledby="summary-title" class="wb-summary" x-cloak x-show="summaryShown()">
+                    <button :aria-expanded="summaryExpanded"
+                            @click="toggleSummary()"
+                            aria-controls="summary-body"
+                            class="wb-summary-head cursor-pointer"
+                            type="button">
+                        <span class="wb-summary-title" id="summary-title" x-text="t('Summary_Title')"></span>
+                        <span class="st-note" x-show="!summaryExpanded" x-text="summaryHint()"></span>
+                        <ion-icon :class="{ '-rotate-90': !summaryExpanded }"
+                                  aria-hidden="true"
+                                  class="text-sm transition-transform block ml-auto"
+                                  name="chevron-down"></ion-icon>
+                    </button>
+                    <div class="wb-summary-body" id="summary-body" x-show="summaryExpanded">
+                        <p :aria-busy="summary?.status === 'pending'"
+                           :class="summary?.status === 'ready' ? '' : 'wb-text-muted'"
+                           aria-live="polite"
+                           x-text="summaryText()"></p>
+                        <button @click="void refreshSummary(true)"
+                                class="wb-tr-tag mt-2"
+                                type="button"
+                                x-show="summary?.status === 'failed'"
+                                x-text="t('Summary_Retry')"></button>
+                    </div>
+                </section>
 
                 <!-- Comments list -->
                 <div class="pb-8">
