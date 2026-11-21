@@ -426,6 +426,7 @@ protectedGroup.MapSystemEndpoints();
 protectedGroup.MapDiagnosticsEndpoints();
 protectedGroup.MapManualWatchStateEndpoints();
 protectedGroup.MapSearchEndpoints();
+protectedGroup.MapTranslateEndpoints();
 protectedGroup.MapSubredditMappingEndpoints();
 protectedGroup.MapApiKeyEndpoints();
 protectedGroup.MapAccessEndpoints();
