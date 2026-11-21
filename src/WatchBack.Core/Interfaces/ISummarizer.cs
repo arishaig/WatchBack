@@ -13,8 +13,10 @@ public interface ISummarizer
 
     /// <summary>
     ///     Summarizes <paramref name="comments" /> about <paramref name="title" /> in <paramref name="language" /> (a
-    ///     two-letter code). Never throws for upstream failures: it returns <c>IsTransientFailure = true</c> instead.
+    ///     two-letter code). With <paramref name="earlyComments" /> (reactions from the first days after release), the
+    ///     summary also compares them with <paramref name="comments" />, the later ones. Never throws for upstream
+    ///     failures: it returns <c>IsTransientFailure = true</c> instead.
     /// </summary>
     Task<SummaryResult> SummarizeAsync(string title, IReadOnlyList<string> comments, string language,
-        CancellationToken ct = default);
+        IReadOnlyList<string>? earlyComments = null, CancellationToken ct = default);
 }

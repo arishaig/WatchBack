@@ -33,11 +33,16 @@ public sealed class OllamaSummarizer(
         "debates. Only use what the comments say; do not invent details or add your own opinion. No headings, lists or " +
         "markdown.";
 
+    private const string ComparisonPrompt =
+        "The comments come in two groups: early reactions, from the first days after release, and later comments. " +
+        "Summarize the discussion overall, then add one sentence comparing the early reactions with the later ones: " +
+        "say whether opinion shifted or stayed much the same, and how. Only compare what the comments support.";
+
     public bool IsConfigured =>
         !string.IsNullOrWhiteSpace(options.CurrentValue.BaseUrl) && !string.IsNullOrWhiteSpace(options.CurrentValue.Model);
 
     public async Task<SummaryResult> SummarizeAsync(string title, IReadOnlyList<string> comments, string language,
-        CancellationToken ct = default)
+        IReadOnlyList<string>? earlyComments = null, CancellationToken ct = default)
     {
         OllamaOptions opts = options.CurrentValue;
         string lang = language.Trim().ToLowerInvariant();
@@ -46,7 +51,7 @@ public sealed class OllamaSummarizer(
             return new SummaryResult(null);
         }
 
-        string key = CacheKey(opts.Model, lang, title, comments);
+        string key = CacheKey(opts.Model, lang, title, comments, earlyComments);
         LookupAnswer? remembered = await cache.GetAsync(key, ct);
         if (remembered is { Value: { Length: > 0 } stored })
         {
@@ -55,7 +60,7 @@ public sealed class OllamaSummarizer(
 
         try
         {
-            string text = await RequestAsync(title, comments, lang, opts, ct);
+            string text = await RequestAsync(title, comments, earlyComments, lang, opts, ct);
             await cache.SetAsync(key, CacheKind, text, s_cacheLifetime, ct);
             return new SummaryResult(text);
         }
@@ -68,15 +73,19 @@ public sealed class OllamaSummarizer(
         }
     }
 
-    private async Task<string> RequestAsync(string title, IReadOnlyList<string> comments, string language,
-        OllamaOptions opts, CancellationToken ct)
+    private async Task<string> RequestAsync(string title, IReadOnlyList<string> comments,
+        IReadOnlyList<string>? earlyComments, string language, OllamaOptions opts, CancellationToken ct)
     {
+        bool compare = earlyComments is { Count: > 0 };
         StringBuilder user = new();
-        user.Append("Title: ").AppendLine(title).AppendLine().AppendLine("Comments:");
-        for (int i = 0; i < comments.Count; i++)
+        user.Append("Title: ").AppendLine(title).AppendLine();
+        if (compare)
         {
-            user.Append(i + 1).Append(". ").AppendLine(comments[i].ReplaceLineEndings(" "));
+            AppendNumbered(user, "Early reactions", earlyComments!);
+            user.AppendLine();
         }
+
+        AppendNumbered(user, compare ? "Later comments" : "Comments", comments);
 
         JsonObject body = new()
         {
@@ -87,7 +96,8 @@ public sealed class OllamaSummarizer(
                 new JsonObject
                 {
                     ["role"] = "system",
-                    ["content"] = $"{SystemPrompt}\nWrite the summary in the language with ISO 639-1 code: {language}."
+                    ["content"] = $"{SystemPrompt}{(compare ? "\n" + ComparisonPrompt : "")}\n" +
+                                  $"Write the summary in the language with ISO 639-1 code: {language}."
                 },
                 new JsonObject { ["role"] = "user", ["content"] = user.ToString() })
         };
@@ -111,7 +121,18 @@ public sealed class OllamaSummarizer(
             : text;
     }
 
-    internal static string CacheKey(string model, string language, string title, IReadOnlyList<string> comments) =>
+    private static void AppendNumbered(StringBuilder sb, string heading, IReadOnlyList<string> comments)
+    {
+        sb.Append(heading).AppendLine(":");
+        for (int i = 0; i < comments.Count; i++)
+        {
+            sb.Append(i + 1).Append(". ").AppendLine(comments[i].ReplaceLineEndings(" "));
+        }
+    }
+
+    internal static string CacheKey(string model, string language, string title, IReadOnlyList<string> comments,
+        IReadOnlyList<string>? early = null) =>
         $"summary:{model}:{language}:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            title + "\n" + string.Join("\n\u0001", comments))));
+            title + "\n" + string.Join("\n\u0001", comments) +
+            (early is { Count: > 0 } ? "\n\u0002early\n" + string.Join("\n\u0001", early) : ""))));
 }

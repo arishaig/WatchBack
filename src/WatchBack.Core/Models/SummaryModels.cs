@@ -52,4 +52,5 @@ public enum SummaryStatus
 /// <param name="Status">Where the summary stands</param>
 /// <param name="Text">The summary when <paramref name="Status" /> is Ready</param>
 /// <param name="CommentCount">How many comments it was written from</param>
-public record ThoughtSummary(SummaryStatus Status, string? Text = null, int CommentCount = 0);
+/// <param name="Compared">True when it also compares the early reactions with the later ones</param>
+public record ThoughtSummary(SummaryStatus Status, string? Text = null, int CommentCount = 0, bool Compared = false);
