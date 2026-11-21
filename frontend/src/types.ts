@@ -72,6 +72,7 @@ export interface ConfigPreferences {
     autoTranslate: boolean;
     translateTargetLanguage: string;
     translationProvider: string;
+    summaryMode: string;
     envValues: Record<string, string>;
     overrides: Record<string, boolean>;
 }
@@ -319,6 +320,12 @@ export interface AppData {
     mappingShareCopied: string;
     mappingFilter: string;
     sentimentCategory: string;
+    summary: { status: string; text: string | null; commentCount: number; compared?: boolean } | null;
+    summaryExpanded: boolean;
+    _summaryKey: string;
+    _summaryAt: number;
+    _summaryTicket: number;
+    _summaryTimer: ReturnType<typeof setTimeout> | null;
     showOriginal: Record<string, boolean>;
     manualTranslations: Record<string, { text: string; translatedFrom: string | null }>;
     translateState: Record<string, 'busy' | 'failed'>;
@@ -483,6 +490,15 @@ export interface AppData {
     sanitizeSvg(raw: string): string;
     renderMarkdown(src: string, spoilerLabel?: string): string;
     formatDate(iso: string): string;
+    summaryMode(): 'hidden' | 'collapsed' | 'open';
+    summaryShown(): boolean;
+    summaryText(): string;
+    summaryHint(): string;
+    toggleSummary(): void;
+    refreshSummary(force?: boolean): Promise<void>;
+    setSummaryMode(mode: 'hidden' | 'collapsed' | 'open'): Promise<void>;
+    summaryModelConfigured(): boolean;
+    translatorConfigured(): boolean;
     translationTarget(): string;
     postText(text: string | null | undefined, original: string | null | undefined, key: string): string;
     postKey(title: string | null | undefined, originalTitle: string | null | undefined): string;

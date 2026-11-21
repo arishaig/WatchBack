@@ -101,10 +101,16 @@ const translateMethods: Record<string, unknown> & ThisType<AppData> = {
         this.showOriginal = { ...this.showOriginal, [thought.id]: !this.showOriginal[thought.id] };
     },
 
-    /** The Translate button: only when a language is chosen, auto-translate is off, and it hasn't been asked yet. */
+    /** Whether the chosen translation connection has been set up, so offering to translate can work. */
+    translatorConfigured(): boolean {
+        const integrations = (this.configData as ConfigData | null)?.integrations ?? {};
+        return !!integrations[this.activeTranslationProvider()]?.configured;
+    },
+
+    /** The Translate button: only when a language is chosen, auto-translate is off, a translator is set up, and it hasn't been asked yet. */
     canTranslate(thought: TranslatableThought): boolean {
         const prefs = (this.configData as ConfigData | null)?.preferences;
-        if (!prefs?.translateTargetLanguage || prefs.autoTranslate) return false;
+        if (!prefs?.translateTargetLanguage || prefs.autoTranslate || !this.translatorConfigured()) return false;
         if (!thought.content || thought.translatedFrom) return false;
         return !this.manualTranslations[thought.id];
     },

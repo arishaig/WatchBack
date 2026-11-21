@@ -38,6 +38,7 @@ function makeCtx(overrides: Record<string, unknown> = {}): Record<string, unknow
     return {
         syncProgress: null,
         showSyncBar: false,
+        refreshSummary: vi.fn(),
         syncSegments: [],
         data: null,
         watchUserId: '',
@@ -101,6 +102,16 @@ describe('setupSSE', () => {
 
         vi.advanceTimersByTime(500);
         expect(ctx.showSyncBar).toBe(false);
+    });
+
+    it('asks for a fresh summary when new sync data arrives', () => {
+        const sse = installFakeEventSource();
+        const ctx = makeCtx();
+        methods.setupSSE.call(ctx);
+
+        send(sse, { status: 'Watching', title: 'Show', metadata: null });
+
+        expect(ctx.refreshSummary).toHaveBeenCalledTimes(1);
     });
 
     it('shows the bar after the debounce when intermediate progress arrives', () => {
