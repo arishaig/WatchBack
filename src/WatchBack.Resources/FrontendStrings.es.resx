@@ -1058,4 +1058,49 @@
     <data name="Settings_Maintenance" xml:space="preserve">
         <value>Mantenimiento</value>
     </data>
+    <data name="Comments_TranslatedFrom" xml:space="preserve">
+        <value>Traducido del {0}</value>
+    </data>
+    <data name="Comments_ShowingOriginal" xml:space="preserve">
+        <value>Original ({0})</value>
+    </data>
+    <data name="Comments_ShowOriginal" xml:space="preserve">
+        <value>Mostrar original</value>
+    </data>
+    <data name="Comments_ShowTranslation" xml:space="preserve">
+        <value>Mostrar traducción</value>
+    </data>
+    <data name="Comments_Translate" xml:space="preserve">
+        <value>Traducir</value>
+    </data>
+    <data name="Comments_Translating" xml:space="preserve">
+        <value>Traduciendo…</value>
+    </data>
+    <data name="Comments_TranslateFailed" xml:space="preserve">
+        <value>No se pudo traducir</value>
+    </data>
+    <data name="Settings_TranslateLanguage" xml:space="preserve">
+        <value>Traducir comentarios a</value>
+    </data>
+    <data name="Settings_TranslateLanguageHelp" xml:space="preserve">
+        <value>Los comentarios en otros idiomas se pueden traducir a este</value>
+    </data>
+    <data name="Settings_TranslateOff" xml:space="preserve">
+        <value>No traducir</value>
+    </data>
+    <data name="Settings_AutoTranslate" xml:space="preserve">
+        <value>Traducir automáticamente</value>
+    </data>
+    <data name="Settings_AutoTranslateHelp" xml:space="preserve">
+        <value>Si no, cada comentario muestra un botón Traducir</value>
+    </data>
+    <data name="Settings_OllamaUrl" xml:space="preserve">
+        <value>Servidor de Ollama</value>
+    </data>
+    <data name="Settings_OllamaModel" xml:space="preserve">
+        <value>Modelo de traducción</value>
+    </data>
+    <data name="Settings_OllamaHelp" xml:space="preserve">
+        <value>La traducción se ejecuta en tu propio servidor de Ollama</value>
+    </data>
 </root>

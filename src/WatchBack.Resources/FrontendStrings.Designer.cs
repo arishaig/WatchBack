@@ -1902,5 +1902,95 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("Settings_Maintenance", resourceCulture);
             }
         }
+        
+        public static string Comments_TranslatedFrom {
+            get {
+                return ResourceManager.GetString("Comments_TranslatedFrom", resourceCulture);
+            }
+        }
+        
+        public static string Comments_ShowingOriginal {
+            get {
+                return ResourceManager.GetString("Comments_ShowingOriginal", resourceCulture);
+            }
+        }
+        
+        public static string Comments_ShowOriginal {
+            get {
+                return ResourceManager.GetString("Comments_ShowOriginal", resourceCulture);
+            }
+        }
+        
+        public static string Comments_ShowTranslation {
+            get {
+                return ResourceManager.GetString("Comments_ShowTranslation", resourceCulture);
+            }
+        }
+        
+        public static string Comments_Translate {
+            get {
+                return ResourceManager.GetString("Comments_Translate", resourceCulture);
+            }
+        }
+        
+        public static string Comments_Translating {
+            get {
+                return ResourceManager.GetString("Comments_Translating", resourceCulture);
+            }
+        }
+        
+        public static string Comments_TranslateFailed {
+            get {
+                return ResourceManager.GetString("Comments_TranslateFailed", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslateLanguage {
+            get {
+                return ResourceManager.GetString("Settings_TranslateLanguage", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslateLanguageHelp {
+            get {
+                return ResourceManager.GetString("Settings_TranslateLanguageHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslateOff {
+            get {
+                return ResourceManager.GetString("Settings_TranslateOff", resourceCulture);
+            }
+        }
+        
+        public static string Settings_AutoTranslate {
+            get {
+                return ResourceManager.GetString("Settings_AutoTranslate", resourceCulture);
+            }
+        }
+        
+        public static string Settings_AutoTranslateHelp {
+            get {
+                return ResourceManager.GetString("Settings_AutoTranslateHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_OllamaUrl {
+            get {
+                return ResourceManager.GetString("Settings_OllamaUrl", resourceCulture);
+            }
+        }
+        
+        public static string Settings_OllamaModel {
+            get {
+                return ResourceManager.GetString("Settings_OllamaModel", resourceCulture);
+            }
+        }
+        
+        public static string Settings_OllamaHelp {
+            get {
+                return ResourceManager.GetString("Settings_OllamaHelp", resourceCulture);
+            }
+        }
     }
 }
