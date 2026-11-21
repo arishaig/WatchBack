@@ -61,6 +61,8 @@ public record MediaContextResponse(
 /// <param name="PostTitle">Title of the parent post (e.g., Reddit thread title)</param>
 /// <param name="PostUrl">URL of the parent post</param>
 /// <param name="PostBody">Body text of the parent post (e.g., Reddit OP selftext)</param>
+/// <param name="TranslatedFrom">Two-letter source language when <c>Content</c> was machine-translated; otherwise null</param>
+/// <param name="OriginalContent">The untranslated text, present only when <c>Content</c> was machine-translated</param>
 public record ThoughtResponse(
     string Id,
     string? ParentId,
@@ -78,7 +80,9 @@ public record ThoughtResponse(
     string? PostBody = null,
     string? BrandColor = null,
     string? BrandLogoSvg = null,
-    float? Sentiment = null);
+    float? Sentiment = null,
+    string? TranslatedFrom = null,
+    string? OriginalContent = null);
 
 /// <summary>
 ///     An image associated with a thought
