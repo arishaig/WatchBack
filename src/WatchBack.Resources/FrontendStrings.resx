@@ -1141,4 +1141,40 @@
     <data name="Settings_TranslateWith" xml:space="preserve">
         <value>Translate with {0}</value>
     </data>
+    <data name="Summary_Title" xml:space="preserve">
+        <value>Summary</value>
+    </data>
+    <data name="Summary_Writing" xml:space="preserve">
+        <value>Writing the summary…</value>
+    </data>
+    <data name="Summary_Failed" xml:space="preserve">
+        <value>Couldn't write the summary</value>
+    </data>
+    <data name="Summary_Retry" xml:space="preserve">
+        <value>Try again</value>
+    </data>
+    <data name="Summary_NeedsModel" xml:space="preserve">
+        <value>Set up Ollama in Settings to get summaries</value>
+    </data>
+    <data name="Summary_Basis" xml:space="preserve">
+        <value>From {0} comments</value>
+    </data>
+    <data name="Settings_SummaryMode" xml:space="preserve">
+        <value>Discussion summary</value>
+    </data>
+    <data name="Settings_SummaryModeHelp" xml:space="preserve">
+        <value>Written by your Ollama server</value>
+    </data>
+    <data name="Settings_SummaryHidden" xml:space="preserve">
+        <value>Hidden</value>
+    </data>
+    <data name="Settings_SummaryCollapsed" xml:space="preserve">
+        <value>Collapsed</value>
+    </data>
+    <data name="Settings_SummaryOpen" xml:space="preserve">
+        <value>Open</value>
+    </data>
+    <data name="Summary_BasisCompared" xml:space="preserve">
+        <value>From {0} comments, early vs. later</value>
+    </data>
 </root>

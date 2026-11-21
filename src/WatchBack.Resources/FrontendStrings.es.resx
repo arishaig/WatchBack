@@ -1106,4 +1106,40 @@
     <data name="Settings_TranslateWith" xml:space="preserve">
         <value>Traducir con {0}</value>
     </data>
+    <data name="Summary_Title" xml:space="preserve">
+        <value>Resumen</value>
+    </data>
+    <data name="Summary_Writing" xml:space="preserve">
+        <value>Escribiendo el resumen…</value>
+    </data>
+    <data name="Summary_Failed" xml:space="preserve">
+        <value>No se pudo escribir el resumen</value>
+    </data>
+    <data name="Summary_Retry" xml:space="preserve">
+        <value>Reintentar</value>
+    </data>
+    <data name="Summary_NeedsModel" xml:space="preserve">
+        <value>Configura Ollama en los ajustes para obtener resúmenes</value>
+    </data>
+    <data name="Summary_Basis" xml:space="preserve">
+        <value>De {0} comentarios</value>
+    </data>
+    <data name="Settings_SummaryMode" xml:space="preserve">
+        <value>Resumen de la discusión</value>
+    </data>
+    <data name="Settings_SummaryModeHelp" xml:space="preserve">
+        <value>Lo escribe tu servidor de Ollama</value>
+    </data>
+    <data name="Settings_SummaryHidden" xml:space="preserve">
+        <value>Oculto</value>
+    </data>
+    <data name="Settings_SummaryCollapsed" xml:space="preserve">
+        <value>Plegado</value>
+    </data>
+    <data name="Settings_SummaryOpen" xml:space="preserve">
+        <value>Abierto</value>
+    </data>
+    <data name="Summary_BasisCompared" xml:space="preserve">
+        <value>De {0} comentarios, al principio vs. después</value>
+    </data>
 </root>
