@@ -34,6 +34,8 @@ public static class IntegrationCatalog
         "WatchBack__CustomSearchUrl",
         "WatchBack__SegmentedProgressBar",
         "WatchBack__EnableSentimentAnalysis",
+        "WatchBack__AutoTranslate",
+        "WatchBack__TranslateTargetLanguage",
         "WatchBack__DisabledProviders"
     ];
 

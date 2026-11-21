@@ -283,8 +283,11 @@ public sealed partial class WatchBackMcpTools
                 $"Not a watch provider. Options: {string.Join(", ", watchStateProviders.Select(p => p.Metadata.Name.ToLowerInvariant()))}.",
             "WATCHBACK__TIMEMACHINEDAYS" when !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture,
                 out int days) || days is < 0 or > 365 => "Must be a whole number of days from 0 to 365.",
-            "WATCHBACK__SEGMENTEDPROGRESSBAR" or "WATCHBACK__ENABLESENTIMENTANALYSIS" when !bool.TryParse(value, out _) =>
+            "WATCHBACK__SEGMENTEDPROGRESSBAR" or "WATCHBACK__ENABLESENTIMENTANALYSIS" or "WATCHBACK__AUTOTRANSLATE" when !bool.TryParse(value, out _) =>
                 "Must be true or false.",
+            "WATCHBACK__TRANSLATETARGETLANGUAGE" when value.Length != 0 &&
+                                                       !(value.Length == 2 && value.All(char.IsAsciiLetter)) =>
+                "Must be a two-letter language code such as es or fr, or empty to turn translation off.",
             _ => null
         };
     }
@@ -328,6 +331,8 @@ public sealed partial class WatchBackMcpTools
             "CustomSearchUrl" => w.CustomSearchUrl,
             "SegmentedProgressBar" => w.SegmentedProgressBar,
             "EnableSentimentAnalysis" => w.EnableSentimentAnalysis,
+            "AutoTranslate" => w.AutoTranslate,
+            "TranslateTargetLanguage" => w.TranslateTargetLanguage,
             "DisabledProviders" => w.DisabledProviders,
             _ => null
         };

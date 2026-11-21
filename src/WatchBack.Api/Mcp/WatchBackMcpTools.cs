@@ -136,6 +136,8 @@ public sealed partial class WatchBackMcpTools(
                 customSearchUrl = w.CustomSearchUrl,
                 segmentedProgressBar = w.SegmentedProgressBar,
                 enableSentimentAnalysis = w.EnableSentimentAnalysis,
+                autoTranslate = w.AutoTranslate,
+                translateTargetLanguage = w.TranslateTargetLanguage,
                 disabledProviders = w.DisabledProviders
             },
             integrations,

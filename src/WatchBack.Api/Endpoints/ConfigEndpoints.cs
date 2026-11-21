@@ -86,6 +86,7 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         IOptionsSnapshot<WatchBackOptions> watchback,
+        IOptionsSnapshot<OllamaOptions> ollama,
         IConfiguration configuration,
         UserConfigFile configFile,
         CancellationToken ct)
@@ -164,13 +165,20 @@ public static class ConfigEndpoints
                 customSearchUrl = w.CustomSearchUrl,
                 segmentedProgressBar = w.SegmentedProgressBar,
                 enableSentimentAnalysis = w.EnableSentimentAnalysis,
+                autoTranslate = w.AutoTranslate,
+                translateTargetLanguage = w.TranslateTargetLanguage,
+                ollamaBaseUrl = ollama.Value.BaseUrl,
+                ollamaModel = ollama.Value.Model,
                 envValues = new Dictionary<string, string>
                 {
                     ["WatchBack__TimeMachineDays"] = EnvVal("WatchBack__TimeMachineDays"),
                     ["WatchBack__WatchProvider"] = EnvVal("WatchBack__WatchProvider"),
                     ["WatchBack__SearchEngine"] = EnvVal("WatchBack__SearchEngine"),
                     ["WatchBack__CustomSearchUrl"] = EnvVal("WatchBack__CustomSearchUrl"),
-                    ["WatchBack__DisabledProviders"] = EnvVal("WatchBack__DisabledProviders")
+                    ["WatchBack__DisabledProviders"] = EnvVal("WatchBack__DisabledProviders"),
+                    ["WatchBack__TranslateTargetLanguage"] = EnvVal("WatchBack__TranslateTargetLanguage"),
+                    ["Ollama__BaseUrl"] = EnvVal("Ollama__BaseUrl"),
+                    ["Ollama__Model"] = EnvVal("Ollama__Model")
                 },
                 overrides = new Dictionary<string, bool>
                 {
@@ -178,7 +186,10 @@ public static class ConfigEndpoints
                     ["WatchBack__WatchProvider"] = IsOverridden("WatchBack", "WatchProvider"),
                     ["WatchBack__SearchEngine"] = IsOverridden("WatchBack", "SearchEngine"),
                     ["WatchBack__CustomSearchUrl"] = IsOverridden("WatchBack", "CustomSearchUrl"),
-                    ["WatchBack__DisabledProviders"] = IsOverridden("WatchBack", "DisabledProviders")
+                    ["WatchBack__DisabledProviders"] = IsOverridden("WatchBack", "DisabledProviders"),
+                    ["WatchBack__TranslateTargetLanguage"] = IsOverridden("WatchBack", "TranslateTargetLanguage"),
+                    ["Ollama__BaseUrl"] = IsOverridden("Ollama", "BaseUrl"),
+                    ["Ollama__Model"] = IsOverridden("Ollama", "Model")
                 }
             }
         };
@@ -197,7 +208,7 @@ public static class ConfigEndpoints
             .Concat(mediaSearchProviders);
     }
 
-    /// <summary>Derives the set of allowable config sections from registered providers plus WatchBack itself.</summary>
+    /// <summary>Derives the set of allowable config sections from registered providers plus WatchBack and Ollama (translation) themselves.</summary>
     internal static HashSet<string> GetAllowedSections(IEnumerable<IDataProvider> providers)
     {
         HashSet<string> sections = providers
@@ -206,6 +217,7 @@ public static class ConfigEndpoints
             .Select(s => s!)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         sections.Add("WatchBack");
+        sections.Add("Ollama"); // the translation backend: not a provider, so it has no card of its own
         return sections;
     }
 

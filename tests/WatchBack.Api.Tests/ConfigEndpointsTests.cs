@@ -350,6 +350,37 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task GetConfig_Preferences_IncludeTranslationSettings()
+    {
+        HttpResponseMessage response = await _client.GetAsync("/api/config");
+
+        string json = await response.Content.ReadAsStringAsync();
+        json.Should().Contain("\"autoTranslate\":false");
+        json.Should().Contain("\"translateTargetLanguage\":\"\"");
+        json.Should().Contain("\"ollamaBaseUrl\":");
+        json.Should().Contain("\"ollamaModel\":");
+    }
+
+    [Fact]
+    public async Task SaveConfig_TranslationSettingsAndOllamaSection_AreAllowed()
+    {
+        // Ollama is not a provider, but it is the translation backend and must be configurable from the UI
+        Dictionary<string, string> payload = new()
+        {
+            ["WatchBack__TranslateTargetLanguage"] = "es",
+            ["WatchBack__AutoTranslate"] = "true",
+            ["Ollama__BaseUrl"] = "http://ollama.test:11434",
+            ["Ollama__Model"] = "qwen3"
+        };
+
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/config", payload);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        string saved = await File.ReadAllTextAsync(_tempConfigPath);
+        saved.Should().Contain("http://ollama.test:11434").And.Contain("qwen3").And.Contain("\"es\"");
+    }
+
+    [Fact]
     public async Task SaveConfig_RejectsUnknownSections()
     {
         Dictionary<string, string> payload = new()
