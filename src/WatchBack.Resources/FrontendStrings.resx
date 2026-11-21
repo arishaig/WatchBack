@@ -1129,13 +1129,16 @@
     <data name="Settings_AutoTranslateHelp" xml:space="preserve">
         <value>Otherwise each comment gets a Translate button</value>
     </data>
-    <data name="Settings_OllamaUrl" xml:space="preserve">
-        <value>Ollama server</value>
-    </data>
-    <data name="Settings_OllamaModel" xml:space="preserve">
-        <value>Translation model</value>
-    </data>
     <data name="Settings_OllamaHelp" xml:space="preserve">
         <value>Translation runs on your own Ollama server</value>
+    </data>
+    <data name="Settings_TranslationGroup" xml:space="preserve">
+        <value>Translation</value>
+    </data>
+    <data name="Settings_TranslationHint" xml:space="preserve">
+        <value>Used for the comment language above</value>
+    </data>
+    <data name="Settings_TranslateWith" xml:space="preserve">
+        <value>Translate with {0}</value>
     </data>
 </root>

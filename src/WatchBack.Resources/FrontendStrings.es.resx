@@ -1094,13 +1094,16 @@
     <data name="Settings_AutoTranslateHelp" xml:space="preserve">
         <value>Si no, cada comentario muestra un botón Traducir</value>
     </data>
-    <data name="Settings_OllamaUrl" xml:space="preserve">
-        <value>Servidor de Ollama</value>
-    </data>
-    <data name="Settings_OllamaModel" xml:space="preserve">
-        <value>Modelo de traducción</value>
-    </data>
     <data name="Settings_OllamaHelp" xml:space="preserve">
         <value>La traducción se ejecuta en tu propio servidor de Ollama</value>
+    </data>
+    <data name="Settings_TranslationGroup" xml:space="preserve">
+        <value>Traducción</value>
+    </data>
+    <data name="Settings_TranslationHint" xml:space="preserve">
+        <value>Se usa para el idioma de comentarios elegido arriba</value>
+    </data>
+    <data name="Settings_TranslateWith" xml:space="preserve">
+        <value>Traducir con {0}</value>
     </data>
 </root>

@@ -1975,21 +1975,27 @@ namespace WatchBack.Resources {
             }
         }
         
-        public static string Settings_OllamaUrl {
-            get {
-                return ResourceManager.GetString("Settings_OllamaUrl", resourceCulture);
-            }
-        }
-        
-        public static string Settings_OllamaModel {
-            get {
-                return ResourceManager.GetString("Settings_OllamaModel", resourceCulture);
-            }
-        }
-        
         public static string Settings_OllamaHelp {
             get {
                 return ResourceManager.GetString("Settings_OllamaHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslationGroup {
+            get {
+                return ResourceManager.GetString("Settings_TranslationGroup", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslationHint {
+            get {
+                return ResourceManager.GetString("Settings_TranslationHint", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslateWith {
+            get {
+                return ResourceManager.GetString("Settings_TranslateWith", resourceCulture);
             }
         }
     }
