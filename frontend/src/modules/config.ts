@@ -22,8 +22,6 @@ const configMethods: Record<string, unknown> & ThisType<AppData> = {
             enableSentimentAnalysis: prefs.enableSentimentAnalysis ?? false,
             autoTranslate: prefs.autoTranslate ?? false,
             translateTargetLanguage: prefs.translateTargetLanguage ?? '',
-            ollamaBaseUrl: prefs.ollamaBaseUrl ?? '',
-            ollamaModel: prefs.ollamaModel ?? '',
         };
     },
 

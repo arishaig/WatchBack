@@ -219,12 +219,29 @@ const autosaveMethods: Record<string, unknown> & ThisType<AppData> = {
         }
     },
 
-    async commitOllama(key: 'baseUrl' | 'model') {
-        const prefKey = key === 'baseUrl' ? 'ollamaBaseUrl' : 'ollamaModel';
-        const prefs = (this.configData as ConfigData | null)?.preferences as unknown as Record<string, unknown> | undefined;
-        const value = String((this.prefEdits as Record<string, unknown>)[prefKey] ?? '').trim();
-        if (!value || prefs?.[prefKey] === value) return;
-        if (await this.setPreference(key === 'baseUrl' ? 'Ollama__BaseUrl' : 'Ollama__Model', value) && prefs) prefs[prefKey] = value;
+    /** The translation connections, by key. They are the integrations that translate. */
+    translationProviderKeys(): string[] {
+        const integrations = (this.configData as ConfigData | null)?.integrations ?? {};
+        return Object.entries(integrations)
+            .filter(([, i]) => i.providerTypes.includes('translation'))
+            .map(([key]) => key);
+    },
+
+    /** The translator in use: the saved one, else the first (the server falls back the same way). */
+    activeTranslationProvider(): string {
+        const keys = this.translationProviderKeys();
+        const saved = ((this.configData as ConfigData | null)?.preferences?.translationProvider ?? '').toLowerCase();
+        return keys.find(k => k.toLowerCase() === saved) ?? keys[0] ?? '';
+    },
+
+    async chooseTranslationProvider(key: string) {
+        const prefs = (this.configData as ConfigData | null)?.preferences;
+        if (!prefs || this.activeTranslationProvider() === key) return;
+        const previous = prefs.translationProvider;
+        prefs.translationProvider = key;
+        if (!await this.setPreference('WatchBack__TranslationProvider', key)) {
+            prefs.translationProvider = previous;
+        }
     },
 
     async setSearchEngine(engine: string) {

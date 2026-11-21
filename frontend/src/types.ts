@@ -17,6 +17,10 @@ export interface Thought {
     /** Two-letter source language when the server translated `content`; the untranslated text is in `originalContent`. */
     translatedFrom?: string | null;
     originalContent?: string | null;
+    /** Set when the server translated the thread's title or body; the originals are alongside. */
+    postTranslatedFrom?: string | null;
+    originalPostTitle?: string | null;
+    originalPostBody?: string | null;
 }
 
 export interface SyncMetadata {
@@ -67,8 +71,7 @@ export interface ConfigPreferences {
     enableSentimentAnalysis: boolean;
     autoTranslate: boolean;
     translateTargetLanguage: string;
-    ollamaBaseUrl: string;
-    ollamaModel: string;
+    translationProvider: string;
     envValues: Record<string, string>;
     overrides: Record<string, boolean>;
 }
@@ -365,7 +368,9 @@ export interface AppData {
     setSearchEngine(engine: string): Promise<void>;
     commitCustomSearchUrl(): Promise<void>;
     setTranslateLanguage(code: string): Promise<void>;
-    commitOllama(key: 'baseUrl' | 'model'): Promise<void>;
+    translationProviderKeys(): string[];
+    activeTranslationProvider(): string;
+    chooseTranslationProvider(key: string): Promise<void>;
     setPreferenceSwitch(prefKey: 'segmentedProgressBar' | 'enableSentimentAnalysis' | 'autoTranslate', on: boolean): Promise<void>;
     rowStatus(key: string, asWatchSource?: boolean): { kind: 'ok' | 'warn' | 'err' | 'off'; label: string };
     rowSummary(key: string): string;
@@ -479,6 +484,10 @@ export interface AppData {
     renderMarkdown(src: string, spoilerLabel?: string): string;
     formatDate(iso: string): string;
     translationTarget(): string;
+    postText(text: string | null | undefined, original: string | null | undefined, key: string): string;
+    postKey(title: string | null | undefined, originalTitle: string | null | undefined): string;
+    postBadge(from: string, key: string): string;
+    togglePostOriginal(key: string): void;
     languageName(code: string): string;
     translateLanguageOptions(): { code: string; name: string }[];
     translationOf(thought: { id: string; content: string; translatedFrom?: string | null; originalContent?: string | null }): { from: string; text: string; original: string } | null;

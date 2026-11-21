@@ -816,6 +816,16 @@
                                                    name="watch-provider"
                                                    type="radio">
                                         </template>
+                                        <!-- Translation: one engine, saved as soon as it's picked -->
+                                        <template x-if="row.kind === 'translation'">
+                                            <input :aria-label="t('Settings_TranslateWith', row.name)"
+                                                   :checked="activeTranslationProvider() === row.key"
+                                                   :id="'translation-' + row.key"
+                                                   @change="void chooseTranslationProvider(row.key)"
+                                                   class="st-radio"
+                                                   name="translation-provider"
+                                                   type="radio">
+                                        </template>
                                         <button :aria-controls="'st-detail-' + row.id.replace(':', '-')"
                                                 :aria-expanded="openRow === row.id"
                                                 @click="toggleRow(row.id)"
@@ -851,6 +861,9 @@
                                         <div :id="'st-detail-' + row.id.replace(':', '-')" class="st-detail">
                                             <template x-if="!row.integration">
                                                 <p class="st-help" x-text="t('Settings_ManualHelp')"></p>
+                                            </template>
+                                            <template x-if="row.key === 'ollama'">
+                                                <p class="st-help" x-text="t('Settings_OllamaHelp')"></p>
                                             </template>
                                             <template x-if="row.key === 'reddit'">
                                                 <p class="st-help" x-text="t('Settings_RedditHelp', 'Arctic Shift', 'PullPush')"></p>
@@ -1309,27 +1322,6 @@
                                 <span class="switch-slider"></span>
                             </label>
                         </span>
-                    </div>
-                    <div class="st-pref st-pref-stack" x-show="access.isAdmin &amp;&amp; prefEdits.translateTargetLanguage">
-                        <label class="st-pref-l" for="pref-ollama-url" x-text="t('Settings_OllamaUrl')"></label>
-                        <p class="st-pref-s" x-text="t('Settings_OllamaHelp')"></p>
-                        <input @change="void commitOllama('baseUrl')"
-                               @keydown.enter.prevent="void commitOllama('baseUrl')"
-                               class="st-input"
-                               id="pref-ollama-url"
-                               placeholder="http://ollama:11434"
-                               type="url"
-                               x-model="prefEdits.ollamaBaseUrl">
-                        <span :class="fieldStatus['Ollama__BaseUrl']?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="prefNote('Ollama__BaseUrl')"></span>
-                        <label class="st-pref-l" for="pref-ollama-model" x-text="t('Settings_OllamaModel')"></label>
-                        <input @change="void commitOllama('model')"
-                               @keydown.enter.prevent="void commitOllama('model')"
-                               class="st-input"
-                               id="pref-ollama-model"
-                               placeholder="llama3.2"
-                               type="text"
-                               x-model="prefEdits.ollamaModel">
-                        <span :class="fieldStatus['Ollama__Model']?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="prefNote('Ollama__Model')"></span>
                     </div>
                     <!-- Kept in this browser only: no server save -->
                     <div class="st-pref">
@@ -2148,11 +2140,19 @@
                                                class="block text-xs thread-title truncate leading-tight font-semibold"
                                                rel="noopener noreferrer"
                                                target="_blank"
-                                               x-text="group.title">
+                                               x-text="postText(group.title, group.originalTitle, postKey(group.title, group.originalTitle))">
                                             </a>
+                                            <template x-if="group.translatedFrom">
+                                                <button :aria-pressed="!!showOriginal['post:' + postKey(group.title, group.originalTitle)]"
+                                                        :title="t(showOriginal['post:' + postKey(group.title, group.originalTitle)] ? 'Comments_ShowTranslation' : 'Comments_ShowOriginal')"
+                                                        @click.stop="togglePostOriginal(postKey(group.title, group.originalTitle))"
+                                                        class="wb-tr-tag shrink-0 ml-1"
+                                                        type="button"
+                                                        x-text="postBadge(group.translatedFrom, postKey(group.title, group.originalTitle))"></button>
+                                            </template>
                                         </div>
                                         <div class="text-xs wb-text-muted leading-relaxed mb-2 wb-md"
-                                             x-html="renderMarkdown(group.body || '')"
+                                             x-html="renderMarkdown(postText(group.body, group.originalBody, postKey(group.title, group.originalTitle)))"
                                              x-show="group.body && !collapsed">
                                         </div>
                                     </div>
@@ -2197,7 +2197,7 @@
                                                            class="text-[11px] thread-title truncate leading-tight block"
                                                            rel="noopener noreferrer"
                                                            target="_blank"
-                                                           x-text="thought.postTitle">
+                                                           x-text="postText(thought.postTitle, thought.originalPostTitle, postKey(thought.postTitle, thought.originalPostTitle))">
                                                         </a>
                                                     </div>
                                                     <div :class="groupByThread || !thought.postTitle ? 'ml-auto' : 'shrink-0'"

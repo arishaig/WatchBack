@@ -74,6 +74,38 @@ describe('translationBadge', () => {
     });
 });
 
+describe('post titles and bodies', () => {
+    it('shows the translation of a thread, and its original once asked', () => {
+        const ctx = makeCtx();
+        const key = ctx.postKey('Title', 'Titre');
+        expect(key).toBe('Titre');
+        expect(ctx.postText('Title', 'Titre', key)).toBe('Title');
+        expect(ctx.postBadge('fr', key)).toBe('Comments_TranslatedFrom:French');
+
+        ctx.togglePostOriginal(key);
+        expect(ctx.postText('Title', 'Titre', key)).toBe('Titre');
+        expect(ctx.postBadge('fr', key)).toBe('Comments_ShowingOriginal:French');
+    });
+
+    it('keys a thread the same before and after it is translated', () => {
+        const ctx = makeCtx();
+        expect(ctx.postKey('Titre', null)).toBe(ctx.postKey('Title', 'Titre'));
+    });
+
+    it('leaves an untranslated or missing post text alone', () => {
+        const ctx = makeCtx();
+        ctx.togglePostOriginal('Titre');
+        expect(ctx.postText('Titre', null, 'Titre')).toBe('Titre');
+        expect(ctx.postText(null, null, 'x')).toBe('');
+    });
+
+    it('does not mix a comment toggle with a thread toggle', () => {
+        const ctx = makeCtx();
+        ctx.toggleOriginal({ id: 'Titre' });
+        expect(ctx.postText('Title', 'Titre', 'Titre')).toBe('Title');
+    });
+});
+
 describe('translateLanguageOptions', () => {
     it('lists languages by name in the viewer\'s language, in order', () => {
         const names = makeCtx().translateLanguageOptions().map((o: Ctx) => o.name);

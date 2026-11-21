@@ -35,6 +35,26 @@ const translateMethods: Record<string, unknown> & ThisType<AppData> = {
         }
     },
 
+    /** A thread's title or body: the translation, or the original once the viewer asks for it. */
+    postText(text: string | null | undefined, original: string | null | undefined, key: string): string {
+        if (!text) return '';
+        return original && this.showOriginal['post:' + key] ? original : text;
+    },
+
+    /** Identifies a thread the same way before and after it is translated. */
+    postKey(title: string | null | undefined, originalTitle: string | null | undefined): string {
+        return originalTitle || title || '';
+    },
+
+    postBadge(from: string, key: string): string {
+        const language = this.languageName(from);
+        return this.t(this.showOriginal['post:' + key] ? 'Comments_ShowingOriginal' : 'Comments_TranslatedFrom', language);
+    },
+
+    togglePostOriginal(key: string) {
+        this.showOriginal = { ...this.showOriginal, ['post:' + key]: !this.showOriginal['post:' + key] };
+    },
+
     /** The target-language choices, named in the viewer's language. A saved code outside the list stays selectable. */
     translateLanguageOptions(): { code: string; name: string }[] {
         const saved = this.translationTarget();

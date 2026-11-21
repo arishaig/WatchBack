@@ -335,24 +335,43 @@ describe('preferences', () => {
         expect(ctx.configData.preferences.translateTargetLanguage).toBe('fr');
     });
 
-    it('commitOllama saves a changed server URL and model, and skips unchanged or empty ones', async () => {
-        const ctx = makeCtx();
-        ctx.configData.preferences.ollamaBaseUrl = 'http://ollama:11434';
-        ctx.configData.preferences.ollamaModel = 'llama3.2';
+    it('lists the translation connections and falls back to the first when none is saved', () => {
+        const ctx = translationCtx('');
+        expect(ctx.translationProviderKeys()).toEqual(['ollama', 'libretranslate']);
+        expect(ctx.activeTranslationProvider()).toBe('ollama');
+        expect(translationCtx('LibreTranslate').activeTranslationProvider()).toBe('libretranslate');
+    });
+
+    it('chooseTranslationProvider saves the choice and reverts it when the save fails', async () => {
+        const ctx = translationCtx('ollama');
         const fetchMock = respond({ ok: true });
 
-        ctx.prefEdits.ollamaBaseUrl = 'http://ollama:11434';
-        await ctx.commitOllama('baseUrl');
-        ctx.prefEdits.ollamaModel = '  ';
-        await ctx.commitOllama('model');
-        expect(fetchMock).not.toHaveBeenCalled();
+        await ctx.chooseTranslationProvider('libretranslate');
+        expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ 'WatchBack__TranslationProvider': 'libretranslate' });
+        expect(ctx.configData.preferences.translationProvider).toBe('libretranslate');
 
-        ctx.prefEdits.ollamaModel = ' qwen3 ';
-        await ctx.commitOllama('model');
-        expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ 'Ollama__Model': 'qwen3' });
-        expect(ctx.configData.preferences.ollamaModel).toBe('qwen3');
+        respond({ ok: false });
+        await ctx.chooseTranslationProvider('ollama');
+        expect(ctx.configData.preferences.translationProvider).toBe('libretranslate');
+    });
+
+    it('chooseTranslationProvider does nothing for the engine already in use', async () => {
+        const ctx = translationCtx('ollama');
+        const fetchMock = respond({ ok: true });
+
+        await ctx.chooseTranslationProvider('ollama');
+
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });
+
+function translationCtx(saved: string): Ctx {
+    const engine = (name: string) => ({ name, configured: true, disabled: false, providerTypes: ['translation'], fields: [] });
+    const ctx = makeCtx();
+    ctx.configData.integrations = { ...ctx.configData.integrations, ollama: engine('Ollama'), libretranslate: engine('LibreTranslate') };
+    ctx.configData.preferences.translationProvider = saved;
+    return ctx;
+}
 
 describe('rowStatus', () => {
     it('reports off, failed, connected, ready and needs setup', () => {
