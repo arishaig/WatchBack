@@ -15,6 +15,10 @@ jobs:
   test:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      # Every WebApplicationFactory host registers inotify watchers for its config files;
+      # the runner's 128-instance limit is exhausted partway through the suite.
+      DOTNET_USE_POLLING_FILE_WATCHER: "true"
     steps:
       - uses: actions/checkout@v6.0.2
 
