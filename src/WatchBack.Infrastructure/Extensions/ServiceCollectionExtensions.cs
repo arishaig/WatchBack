@@ -11,6 +11,7 @@ using Polly.Retry;
 using Polly.Timeout;
 
 using WatchBack.Core.Interfaces;
+using WatchBack.Core.Services;
 using WatchBack.Infrastructure.Caching;
 using WatchBack.Infrastructure.Http;
 using WatchBack.Infrastructure.Omdb;
@@ -76,6 +77,13 @@ public static class ServiceCollectionExtensions
         // model can take a while on the first request while it loads.
         services.AddWatchBackClient<OllamaTranslator>(TimeSpan.FromSeconds(60), ClientPolicy.None);
         services.AddScoped<ITranslator>(sp => sp.GetRequiredService<OllamaTranslator>());
+
+        // Singleton: it holds the in-flight translations and failure cool-down shared by every sync.
+        // The translator is a transient typed client, so each translation gets a fresh one.
+        services.AddSingleton<IThoughtTranslationService>(sp => new ThoughtTranslationService(
+            () => sp.GetRequiredService<OllamaTranslator>(),
+            sp.GetRequiredService<ILogger<ThoughtTranslationService>>(),
+            sp.GetRequiredService<TimeProvider>()));
 
         return services;
     }
