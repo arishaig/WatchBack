@@ -14,6 +14,13 @@ export interface Thought {
     postUrl?: string;
     postBody?: string;
     sentiment?: number | null;
+    /** Two-letter source language when the server translated `content`; the untranslated text is in `originalContent`. */
+    translatedFrom?: string | null;
+    originalContent?: string | null;
+    /** Set when the server translated the thread's title or body; the originals are alongside. */
+    postTranslatedFrom?: string | null;
+    originalPostTitle?: string | null;
+    originalPostBody?: string | null;
 }
 
 export interface SyncMetadata {
@@ -62,6 +69,9 @@ export interface ConfigPreferences {
     customSearchUrl: string;
     segmentedProgressBar: boolean;
     enableSentimentAnalysis: boolean;
+    autoTranslate: boolean;
+    translateTargetLanguage: string;
+    translationProvider: string;
     envValues: Record<string, string>;
     overrides: Record<string, boolean>;
 }
@@ -309,6 +319,9 @@ export interface AppData {
     mappingShareCopied: string;
     mappingFilter: string;
     sentimentCategory: string;
+    showOriginal: Record<string, boolean>;
+    manualTranslations: Record<string, { text: string; translatedFrom: string | null }>;
+    translateState: Record<string, 'busy' | 'failed'>;
     apiKeys: ApiKeyEntry[];
     newApiKeyName: string;
     apiKeySaveStatus: SaveStatus;
@@ -354,7 +367,11 @@ export interface AppData {
     commitTimeMachine(): Promise<void>;
     setSearchEngine(engine: string): Promise<void>;
     commitCustomSearchUrl(): Promise<void>;
-    setPreferenceSwitch(prefKey: 'segmentedProgressBar' | 'enableSentimentAnalysis', on: boolean): Promise<void>;
+    setTranslateLanguage(code: string): Promise<void>;
+    translationProviderKeys(): string[];
+    activeTranslationProvider(): string;
+    chooseTranslationProvider(key: string): Promise<void>;
+    setPreferenceSwitch(prefKey: 'segmentedProgressBar' | 'enableSentimentAnalysis' | 'autoTranslate', on: boolean): Promise<void>;
     rowStatus(key: string, asWatchSource?: boolean): { kind: 'ok' | 'warn' | 'err' | 'off'; label: string };
     rowSummary(key: string): string;
     toggleRow(id: string): void;
@@ -466,6 +483,21 @@ export interface AppData {
     sanitizeSvg(raw: string): string;
     renderMarkdown(src: string, spoilerLabel?: string): string;
     formatDate(iso: string): string;
+    translationTarget(): string;
+    postText(text: string | null | undefined, original: string | null | undefined, key: string): string;
+    postKey(title: string | null | undefined, originalTitle: string | null | undefined): string;
+    postBadge(from: string, key: string): string;
+    togglePostOriginal(key: string): void;
+    languageName(code: string): string;
+    translateLanguageOptions(): { code: string; name: string }[];
+    translationOf(thought: { id: string; content: string; translatedFrom?: string | null; originalContent?: string | null }): { from: string; text: string; original: string } | null;
+    thoughtText(thought: { id: string; content: string; translatedFrom?: string | null; originalContent?: string | null }): string;
+    translationBadge(thought: { id: string; content: string; translatedFrom?: string | null; originalContent?: string | null }): string;
+    translationToggleTitle(thought: { id: string }): string;
+    toggleOriginal(thought: { id: string }): void;
+    canTranslate(thought: { id: string; content: string; translatedFrom?: string | null }): boolean;
+    translateButtonLabel(thought: { id: string }): string;
+    translateThought(thought: { id: string; content: string }): Promise<void>;
     formatThoughtDate(iso: string): string;
     formatFullTimestamp(iso: string): string;
     formatScore(n: number | null): string;

@@ -110,6 +110,18 @@ builder.Services
     .ValidateOnStart();
 
 builder.Services
+    .AddOptions<LibreTranslateOptions>()
+    .BindConfiguration("LibreTranslate")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<OllamaOptions>()
+    .BindConfiguration("Ollama")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services
     .AddOptions<TraktOptions>()
     .BindConfiguration("Trakt")
     .ValidateDataAnnotations()
@@ -420,6 +432,7 @@ protectedGroup.MapSystemEndpoints();
 protectedGroup.MapDiagnosticsEndpoints();
 protectedGroup.MapManualWatchStateEndpoints();
 protectedGroup.MapSearchEndpoints();
+protectedGroup.MapTranslateEndpoints();
 protectedGroup.MapSubredditMappingEndpoints();
 protectedGroup.MapApiKeyEndpoints();
 protectedGroup.MapAccessEndpoints();

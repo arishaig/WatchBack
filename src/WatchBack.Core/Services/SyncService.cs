@@ -18,7 +18,8 @@ public class SyncService(
     IPrefetchService prefetchService,
     IMediaResultCache resultCache,
     IOptionsSnapshot<WatchBackOptions> options,
-    ILogger<SyncService> logger)
+    ILogger<SyncService> logger,
+    IThoughtTranslationService? translation = null)
     : ISyncService
 {
     public async Task<SyncResult> SyncAsync(IProgress<SyncProgressTick>? progress = null,
@@ -64,11 +65,19 @@ public class SyncService(
             ThoughtResult?[] rawResults = await Task.WhenAll(
                 activeProviders.Select(p => resultCache.GetThoughtsAsync(p, mediaContext, progress, ct)));
 
-            List<ThoughtResult> sourceResults = activeProviders
+            IReadOnlyList<ThoughtResult> sourceResults = activeProviders
                 .Zip(rawResults)
                 .Where(pair => pair.Second != null)
                 .Select(pair => NormalizeThoughts(pair.First, pair.Second!))
                 .ToList();
+
+            // After the cache, so cached results stay in their original language and changing the target
+            // language never invalidates them. Silent: translation never reports progress ticks.
+            string targetLanguage = options.Value.TranslateTargetLanguage;
+            if (translation is not null && options.Value.AutoTranslate && !string.IsNullOrWhiteSpace(targetLanguage))
+            {
+                sourceResults = await translation.TranslateAsync(sourceResults, targetLanguage, ct);
+            }
 
             // Replies stay nested inside each thought — we only flatten the top level.
             List<Thought> allThoughts = sourceResults

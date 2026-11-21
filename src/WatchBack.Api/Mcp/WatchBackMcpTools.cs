@@ -21,6 +21,7 @@ public sealed partial class WatchBackMcpTools(
     IEnumerable<IThoughtProvider> thoughtProviders,
     IEnumerable<IRatingsProvider> ratingsProviders,
     IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+    IEnumerable<ITranslator> translators,
     IOptionsSnapshot<WatchBackOptions> watchback,
     UserConfigFile configFile,
     IHttpContextAccessor httpContextAccessor)
@@ -103,7 +104,7 @@ public sealed partial class WatchBackMcpTools(
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         IEnumerable<IDataProvider> allProviders = ConfigEndpoints.GetAllDataProviders(
-            watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders);
+            watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders, translators);
 
         Dictionary<string, object> integrations = allProviders
             .Where(p => p.ConfigSection is not null)
@@ -136,6 +137,9 @@ public sealed partial class WatchBackMcpTools(
                 customSearchUrl = w.CustomSearchUrl,
                 segmentedProgressBar = w.SegmentedProgressBar,
                 enableSentimentAnalysis = w.EnableSentimentAnalysis,
+                autoTranslate = w.AutoTranslate,
+                translationProvider = w.TranslationProvider,
+                translateTargetLanguage = w.TranslateTargetLanguage,
                 disabledProviders = w.DisabledProviders
             },
             integrations,

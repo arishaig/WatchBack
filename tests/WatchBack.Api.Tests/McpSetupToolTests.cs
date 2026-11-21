@@ -143,6 +143,39 @@ public sealed class McpSetupToolTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateConfig_TranslationSettings_AreValidated()
+    {
+        using HttpClient client = await ClientAsync();
+
+        (_, JsonElement json) = await CallAsync(client, "update_config", new
+        {
+            values = new Dictionary<string, string>
+            {
+                ["WatchBack__TranslateTargetLanguage"] = "es",
+                ["WatchBack__AutoTranslate"] = "true",
+                ["WatchBack__TranslationProvider"] = "libretranslate"
+            }
+        });
+        (_, JsonElement bad) = await CallAsync(client, "update_config", new
+        {
+            values = new Dictionary<string, string>
+            {
+                ["WatchBack__TranslateTargetLanguage"] = "spanish",
+                ["WatchBack__AutoTranslate"] = "yes",
+                ["WatchBack__TranslationProvider"] = "deepl"
+            }
+        });
+
+        json.GetProperty("applied").EnumerateArray().Select(a => a.GetString())
+            .Should().BeEquivalentTo("WatchBack__TranslateTargetLanguage", "WatchBack__AutoTranslate",
+                "WatchBack__TranslationProvider");
+        bad.GetProperty("applied").GetArrayLength().Should().Be(0);
+        bad.GetProperty("rejected").EnumerateArray().Select(r => r.GetProperty("key").GetString())
+            .Should().BeEquivalentTo("WatchBack__TranslateTargetLanguage", "WatchBack__AutoTranslate",
+                "WatchBack__TranslationProvider");
+    }
+
+    [Fact]
     public async Task UpdateConfig_SavesKnownSettings_AndExplainsEachRejection()
     {
         using HttpClient client = await ClientAsync();

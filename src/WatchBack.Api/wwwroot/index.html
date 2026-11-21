@@ -816,6 +816,16 @@
                                                    name="watch-provider"
                                                    type="radio">
                                         </template>
+                                        <!-- Translation: one engine, saved as soon as it's picked -->
+                                        <template x-if="row.kind === 'translation'">
+                                            <input :aria-label="t('Settings_TranslateWith', row.name)"
+                                                   :checked="activeTranslationProvider() === row.key"
+                                                   :id="'translation-' + row.key"
+                                                   @change="void chooseTranslationProvider(row.key)"
+                                                   class="st-radio"
+                                                   name="translation-provider"
+                                                   type="radio">
+                                        </template>
                                         <button :aria-controls="'st-detail-' + row.id.replace(':', '-')"
                                                 :aria-expanded="openRow === row.id"
                                                 @click="toggleRow(row.id)"
@@ -851,6 +861,9 @@
                                         <div :id="'st-detail-' + row.id.replace(':', '-')" class="st-detail">
                                             <template x-if="!row.integration">
                                                 <p class="st-help" x-text="t('Settings_ManualHelp')"></p>
+                                            </template>
+                                            <template x-if="row.key === 'ollama'">
+                                                <p class="st-help" x-text="t('Settings_OllamaHelp')"></p>
                                             </template>
                                             <template x-if="row.key === 'reddit'">
                                                 <p class="st-help" x-text="t('Settings_RedditHelp', 'Arctic Shift', 'PullPush')"></p>
@@ -1269,6 +1282,42 @@
                                        @change="void setPreferenceSwitch('enableSentimentAnalysis', $event.target.checked); if (!$event.target.checked) sentimentCategory = 'all'"
                                        class="switch-input"
                                        id="pref-sentiment"
+                                       type="checkbox">
+                                <span class="switch-slider"></span>
+                            </label>
+                        </span>
+                    </div>
+                    <div class="st-pref" x-show="access.isAdmin">
+                        <div>
+                            <label class="st-pref-l" for="pref-translate-language" x-text="t('Settings_TranslateLanguage')"></label>
+                            <p class="st-pref-s" x-text="t('Settings_TranslateLanguageHelp')"></p>
+                        </div>
+                        <span class="st-pref-ctl">
+                            <span :class="fieldStatus['WatchBack__TranslateTargetLanguage']?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="prefNote('WatchBack__TranslateTargetLanguage')"></span>
+                            <div class="wb-select-wrap">
+                                <select @change="void setTranslateLanguage($event.target.value)"
+                                        class="wb-select st-input st-select"
+                                        id="pref-translate-language">
+                                    <option :selected="!prefEdits.translateTargetLanguage" value="" x-text="t('Settings_TranslateOff')"></option>
+                                    <template :key="opt.code" x-for="opt in translateLanguageOptions()">
+                                        <option :selected="prefEdits.translateTargetLanguage === opt.code" :value="opt.code" x-text="opt.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </span>
+                    </div>
+                    <div class="st-pref" x-show="access.isAdmin &amp;&amp; prefEdits.translateTargetLanguage">
+                        <div>
+                            <label class="st-pref-l cursor-pointer" for="pref-auto-translate" x-text="t('Settings_AutoTranslate')"></label>
+                            <p class="st-pref-s" x-text="t('Settings_AutoTranslateHelp')"></p>
+                        </div>
+                        <span class="st-pref-ctl">
+                            <span :class="fieldStatus['WatchBack__AutoTranslate']?.state === 'saved' ? 'wb-success-text' : ''" class="st-note" x-text="prefNote('WatchBack__AutoTranslate')"></span>
+                            <label class="switch-container">
+                                <input :checked="prefEdits.autoTranslate"
+                                       @change="void setPreferenceSwitch('autoTranslate', $event.target.checked)"
+                                       class="switch-input"
+                                       id="pref-auto-translate"
                                        type="checkbox">
                                 <span class="switch-slider"></span>
                             </label>
@@ -2091,11 +2140,19 @@
                                                class="block text-xs thread-title truncate leading-tight font-semibold"
                                                rel="noopener noreferrer"
                                                target="_blank"
-                                               x-text="group.title">
+                                               x-text="postText(group.title, group.originalTitle, postKey(group.title, group.originalTitle))">
                                             </a>
+                                            <template x-if="group.translatedFrom">
+                                                <button :aria-pressed="!!showOriginal['post:' + postKey(group.title, group.originalTitle)]"
+                                                        :title="t(showOriginal['post:' + postKey(group.title, group.originalTitle)] ? 'Comments_ShowTranslation' : 'Comments_ShowOriginal')"
+                                                        @click.stop="togglePostOriginal(postKey(group.title, group.originalTitle))"
+                                                        class="wb-tr-tag shrink-0 ml-1"
+                                                        type="button"
+                                                        x-text="postBadge(group.translatedFrom, postKey(group.title, group.originalTitle))"></button>
+                                            </template>
                                         </div>
                                         <div class="text-xs wb-text-muted leading-relaxed mb-2 wb-md"
-                                             x-html="renderMarkdown(group.body || '')"
+                                             x-html="renderMarkdown(postText(group.body, group.originalBody, postKey(group.title, group.originalTitle)))"
                                              x-show="group.body && !collapsed">
                                         </div>
                                     </div>
@@ -2140,7 +2197,7 @@
                                                            class="text-[11px] thread-title truncate leading-tight block"
                                                            rel="noopener noreferrer"
                                                            target="_blank"
-                                                           x-text="thought.postTitle">
+                                                           x-text="postText(thought.postTitle, thought.originalPostTitle, postKey(thought.postTitle, thought.originalPostTitle))">
                                                         </a>
                                                     </div>
                                                     <div :class="groupByThread || !thought.postTitle ? 'ml-auto' : 'shrink-0'"
@@ -2165,7 +2222,7 @@
                                                 </div>
 
                                                 <div class="wb-text-secondary text-sm leading-relaxed mb-3 wb-md"
-                                                     x-html="renderMarkdown(thought.content)">
+                                                     x-html="renderMarkdown(thoughtText(thought))">
                                                 </div>
 
                                                 <template x-if="thought.images && thought.images.length > 0">
@@ -2201,6 +2258,12 @@
                                             <span aria-hidden="true"
                                                   x-text="'&#9650; ' + formatScore(thought.score)"></span>
                                         </span>
+                                                        <template x-if="translationOf(thought)">
+                                                            <button :aria-pressed="!!showOriginal[thought.id]" :title="translationToggleTitle(thought)" @click.stop="toggleOriginal(thought)" class="wb-tr-tag" type="button" x-text="translationBadge(thought)"></button>
+                                                        </template>
+                                                        <template x-if="canTranslate(thought)">
+                                                            <button :disabled="translateState[thought.id] === 'busy'" @click.stop="void translateThought(thought)" class="wb-tr-tag" type="button" x-text="translateButtonLabel(thought)"></button>
+                                                        </template>
                                                         <span :title="formatFullTimestamp(thought.createdAt)" x-text="formatThoughtDate(thought.createdAt)"></span>
                                                     </div>
                                                 </div>
@@ -2214,7 +2277,7 @@
                                                             <li x-data="{ collapsed: false }">
                                                                 <article class="reply-bg p-3 rounded-lg">
                                                                     <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
-                                                                         x-html="renderMarkdown(reply.content)">
+                                                                         x-html="renderMarkdown(thoughtText(reply))">
                                                                     </div>
                                                                     <div class="flex justify-between items-center text-xs wb-text-faint"
                                                                          :class="reply.replies && reply.replies.length > 0 ? 'cursor-pointer select-none' : ''"
@@ -2246,6 +2309,12 @@
                                                                 <span aria-hidden="true"
                                                                       x-text="'&#9650; ' + formatScore(reply.score)"></span>
                                                             </span>
+                                                                            <template x-if="translationOf(reply)">
+                                                                                <button :aria-pressed="!!showOriginal[reply.id]" :title="translationToggleTitle(reply)" @click.stop="toggleOriginal(reply)" class="wb-tr-tag" type="button" x-text="translationBadge(reply)"></button>
+                                                                            </template>
+                                                                            <template x-if="canTranslate(reply)">
+                                                                                <button :disabled="translateState[reply.id] === 'busy'" @click.stop="void translateThought(reply)" class="wb-tr-tag" type="button" x-text="translateButtonLabel(reply)"></button>
+                                                                            </template>
                                                                             <span
                                                                                     :title="formatFullTimestamp(reply.createdAt)" x-text="formatThoughtDate(reply.createdAt)">
                                                             </span>
@@ -2266,7 +2335,7 @@
                                                                                 <article
                                                                                         class="reply-bg p-3 rounded-lg">
                                                                                     <div class="wb-text-secondary text-sm leading-relaxed mb-2 wb-md"
-                                                                                         x-html="renderMarkdown(subreply.content)">
+                                                                                         x-html="renderMarkdown(thoughtText(subreply))">
                                                                                     </div>
                                                                                     <div
                                                                                             class="flex justify-between items-center text-xs wb-text-faint">
@@ -2283,7 +2352,13 @@
                                                                                 <span aria-hidden="true"
                                                                                       x-text="'&#9650; ' + formatScore(subreply.score)"></span>
                                                                             </span>
-                                                                                            <span
+                                                                                                            <template x-if="translationOf(subreply)">
+                                                                                                <button :aria-pressed="!!showOriginal[subreply.id]" :title="translationToggleTitle(subreply)" @click.stop="toggleOriginal(subreply)" class="wb-tr-tag" type="button" x-text="translationBadge(subreply)"></button>
+                                                                                            </template>
+                                                                                            <template x-if="canTranslate(subreply)">
+                                                                                                <button :disabled="translateState[subreply.id] === 'busy'" @click.stop="void translateThought(subreply)" class="wb-tr-tag" type="button" x-text="translateButtonLabel(subreply)"></button>
+                                                                                            </template>
+                                                                            <span
                                                                                                     :title="formatFullTimestamp(subreply.createdAt)" x-text="formatThoughtDate(subreply.createdAt)">
                                                                             </span>
                                                                                         </div>

@@ -298,7 +298,80 @@ describe('preferences', () => {
 
         expect(ctx.prefEdits.enableSentimentAnalysis).toBe(false);
     });
+
+    it('setPreferenceSwitch saves auto-translate under its own key', async () => {
+        const ctx = makeCtx();
+        ctx.prefEdits.autoTranslate = false;
+        const fetchMock = respond({ ok: true });
+
+        await ctx.setPreferenceSwitch('autoTranslate', true);
+
+        expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ 'WatchBack__AutoTranslate': 'true' });
+        expect(ctx.prefEdits.autoTranslate).toBe(true);
+        expect(ctx.configData.preferences.autoTranslate).toBe(true);
+    });
+
+    it('setTranslateLanguage saves the language and forgets translations made for the old one', async () => {
+        const ctx = makeCtx({ manualTranslations: { a: { text: 'Hola', translatedFrom: 'en' } }, showOriginal: { a: true } });
+        const fetchMock = respond({ ok: true });
+
+        await ctx.setTranslateLanguage('es');
+
+        expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ 'WatchBack__TranslateTargetLanguage': 'es' });
+        expect(ctx.configData.preferences.translateTargetLanguage).toBe('es');
+        expect(ctx.manualTranslations).toEqual({});
+        expect(ctx.showOriginal).toEqual({});
+    });
+
+    it('setTranslateLanguage reverts the choice when the save fails', async () => {
+        const ctx = makeCtx();
+        ctx.prefEdits.translateTargetLanguage = 'fr';
+        ctx.configData.preferences.translateTargetLanguage = 'fr';
+        respond({ ok: false });
+
+        await ctx.setTranslateLanguage('es');
+
+        expect(ctx.prefEdits.translateTargetLanguage).toBe('fr');
+        expect(ctx.configData.preferences.translateTargetLanguage).toBe('fr');
+    });
+
+    it('lists the translation connections and falls back to the first when none is saved', () => {
+        const ctx = translationCtx('');
+        expect(ctx.translationProviderKeys()).toEqual(['ollama', 'libretranslate']);
+        expect(ctx.activeTranslationProvider()).toBe('ollama');
+        expect(translationCtx('LibreTranslate').activeTranslationProvider()).toBe('libretranslate');
+    });
+
+    it('chooseTranslationProvider saves the choice and reverts it when the save fails', async () => {
+        const ctx = translationCtx('ollama');
+        const fetchMock = respond({ ok: true });
+
+        await ctx.chooseTranslationProvider('libretranslate');
+        expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ 'WatchBack__TranslationProvider': 'libretranslate' });
+        expect(ctx.configData.preferences.translationProvider).toBe('libretranslate');
+
+        respond({ ok: false });
+        await ctx.chooseTranslationProvider('ollama');
+        expect(ctx.configData.preferences.translationProvider).toBe('libretranslate');
+    });
+
+    it('chooseTranslationProvider does nothing for the engine already in use', async () => {
+        const ctx = translationCtx('ollama');
+        const fetchMock = respond({ ok: true });
+
+        await ctx.chooseTranslationProvider('ollama');
+
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
 });
+
+function translationCtx(saved: string): Ctx {
+    const engine = (name: string) => ({ name, configured: true, disabled: false, providerTypes: ['translation'], fields: [] });
+    const ctx = makeCtx();
+    ctx.configData.integrations = { ...ctx.configData.integrations, ollama: engine('Ollama'), libretranslate: engine('LibreTranslate') };
+    ctx.configData.preferences.translationProvider = saved;
+    return ctx;
+}
 
 describe('rowStatus', () => {
     it('reports off, failed, connected, ready and needs setup', () => {

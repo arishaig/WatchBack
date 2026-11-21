@@ -204,6 +204,46 @@ const autosaveMethods: Record<string, unknown> & ThisType<AppData> = {
         if (await this.setPreference(key, String(n)) && prefs) prefs.timeMachineDays = n;
     },
 
+    /** The language comments are translated into; an empty code turns translation off. */
+    async setTranslateLanguage(code: string) {
+        const prefs = (this.configData as ConfigData | null)?.preferences;
+        const previous = prefs?.translateTargetLanguage ?? '';
+        this.prefEdits = { ...this.prefEdits, translateTargetLanguage: code };
+        if (await this.setPreference('WatchBack__TranslateTargetLanguage', code)) {
+            if (prefs) prefs.translateTargetLanguage = code;
+            // Translations made for the old language no longer apply.
+            this.manualTranslations = {};
+            this.showOriginal = {};
+        } else {
+            this.prefEdits = { ...this.prefEdits, translateTargetLanguage: previous };
+        }
+    },
+
+    /** The translation connections, by key. They are the integrations that translate. */
+    translationProviderKeys(): string[] {
+        const integrations = (this.configData as ConfigData | null)?.integrations ?? {};
+        return Object.entries(integrations)
+            .filter(([, i]) => i.providerTypes.includes('translation'))
+            .map(([key]) => key);
+    },
+
+    /** The translator in use: the saved one, else the first (the server falls back the same way). */
+    activeTranslationProvider(): string {
+        const keys = this.translationProviderKeys();
+        const saved = ((this.configData as ConfigData | null)?.preferences?.translationProvider ?? '').toLowerCase();
+        return keys.find(k => k.toLowerCase() === saved) ?? keys[0] ?? '';
+    },
+
+    async chooseTranslationProvider(key: string) {
+        const prefs = (this.configData as ConfigData | null)?.preferences;
+        if (!prefs || this.activeTranslationProvider() === key) return;
+        const previous = prefs.translationProvider;
+        prefs.translationProvider = key;
+        if (!await this.setPreference('WatchBack__TranslationProvider', key)) {
+            prefs.translationProvider = previous;
+        }
+    },
+
     async setSearchEngine(engine: string) {
         const prefs = (this.configData as ConfigData | null)?.preferences;
         this.prefEdits = { ...this.prefEdits, searchEngine: engine };
@@ -217,8 +257,12 @@ const autosaveMethods: Record<string, unknown> & ThisType<AppData> = {
         if (await this.setPreference('WatchBack__CustomSearchUrl', url) && prefs) prefs.customSearchUrl = url;
     },
 
-    async setPreferenceSwitch(prefKey: 'segmentedProgressBar' | 'enableSentimentAnalysis', on: boolean) {
-        const keys = { segmentedProgressBar: 'WatchBack__SegmentedProgressBar', enableSentimentAnalysis: 'WatchBack__EnableSentimentAnalysis' };
+    async setPreferenceSwitch(prefKey: 'segmentedProgressBar' | 'enableSentimentAnalysis' | 'autoTranslate', on: boolean) {
+        const keys = {
+            segmentedProgressBar: 'WatchBack__SegmentedProgressBar',
+            enableSentimentAnalysis: 'WatchBack__EnableSentimentAnalysis',
+            autoTranslate: 'WatchBack__AutoTranslate',
+        };
         const previous = (this.prefEdits as Record<string, unknown>)[prefKey];
         this.prefEdits = { ...this.prefEdits, [prefKey]: on };
         if (!await this.setPreference(keys[prefKey], String(on))) {

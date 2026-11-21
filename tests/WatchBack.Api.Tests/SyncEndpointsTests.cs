@@ -13,6 +13,7 @@ using NSubstitute;
 
 using WatchBack.Core.Interfaces;
 using WatchBack.Core.Models;
+using WatchBack.Core.Services;
 
 using Xunit;
 
@@ -281,6 +282,72 @@ public class SyncEndpointsTests : IAsyncLifetime, IDisposable
         int sentimentIdx = json.IndexOf("\"sentiment\":", StringComparison.Ordinal);
         string afterSentiment = json[(sentimentIdx + "\"sentiment\":".Length)..];
         afterSentiment.TrimStart()[0].Should().NotBe('n'); // not null
+    }
+
+    [Fact]
+    public async Task GetSync_WithAutoTranslate_ReturnsTranslatedContentTagAndOriginal()
+    {
+        // Arrange
+        IThoughtProvider mockProvider = Substitute.For<IThoughtProvider>();
+        mockProvider.Metadata.Returns(new DataProviderMetadata("Test", "Test", BrandData: new BrandData("", "")));
+        mockProvider.ExpectedWeight.Returns(1);
+        Thought original = new("t1", null, null, "Bonjour", null, [], "user", null,
+            DateTimeOffset.UtcNow, "Test", []);
+        mockProvider.GetThoughtsAsync(Arg.Any<MediaContext>(), Arg.Any<IProgress<SyncProgressTick>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new ThoughtResult("Test", null, null, null, [original], null));
+
+        IThoughtTranslationService translation = Substitute.For<IThoughtTranslationService>();
+        translation.TranslateAsync(Arg.Any<IReadOnlyList<ThoughtResult>>(), "en", Arg.Any<CancellationToken>())
+            .Returns(_ => (IReadOnlyList<ThoughtResult>)
+            [
+                new ThoughtResult("Test", null, null, null,
+                    [original with { Content = "Hello", OriginalContent = "Bonjour", TranslatedFrom = "fr" }], null)
+            ]);
+
+        using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                PasswordHasher<string> hasher = new();
+                string hash = hasher.HashPassword("", TestPassword);
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Auth:Username"] = TestUsername,
+                        ["Auth:PasswordHash"] = hash,
+                        ["Auth:OnboardingComplete"] = "true",
+                        ["WatchBack:AutoTranslate"] = "true",
+                        ["WatchBack:TranslateTargetLanguage"] = "en"
+                    });
+                });
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IWatchStateProvider>();
+                    services.RemoveAll<IThoughtProvider>();
+                    services.RemoveAll<IThoughtTranslationService>();
+
+                    IWatchStateProvider watch = Substitute.For<IWatchStateProvider>();
+                    watch.Metadata.Returns(new WatchStateDataProviderMetadata("Jellyfin", "Test"));
+                    watch.GetCurrentMediaContextAsync(Arg.Any<CancellationToken>())
+                        .Returns(new EpisodeContext("Test Show", null, "Pilot", 1, 1));
+                    services.AddScoped(_ => watch);
+                    services.AddScoped(_ => mockProvider);
+                    services.AddSingleton(translation);
+                });
+            });
+        using HttpClient client = factory.CreateClient();
+        await client.PostAsJsonAsync("/api/auth/login", new { username = TestUsername, password = TestPassword });
+
+        // Act
+        HttpResponseMessage response = await client.GetAsync("/api/sync");
+        string json = await response.Content.ReadAsStringAsync();
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        json.Should().Contain("\"content\":\"Hello\"");
+        json.Should().Contain("\"translatedFrom\":\"fr\"");
+        json.Should().Contain("\"originalContent\":\"Bonjour\"");
     }
 
     [Fact]
