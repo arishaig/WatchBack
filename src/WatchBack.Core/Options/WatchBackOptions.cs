@@ -21,8 +21,8 @@ public class WatchBackOptions
 
     public bool EnableSentimentAnalysis { get; init; }
 
-    /// <summary>Two-letter language code thoughts are translated into (e.g. "es"). Empty disables translation.</summary>
-    public string TranslateTargetLanguage { get; init; } = "";
+    /// <summary>Two-letter language code thoughts are translated into (e.g. "es"). Defaults to English; empty disables translation.</summary>
+    public string TranslateTargetLanguage { get; init; } = "en";
 
     /// <summary>When true and a target language is set, thoughts in other languages are translated automatically.</summary>
     public bool AutoTranslate { get; init; }

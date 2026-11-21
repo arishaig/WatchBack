@@ -356,7 +356,7 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
 
         string json = await response.Content.ReadAsStringAsync();
         json.Should().Contain("\"autoTranslate\":false");
-        json.Should().Contain("\"translateTargetLanguage\":\"\"");
+        json.Should().Contain("\"translateTargetLanguage\":\"en\"");
         json.Should().Contain("\"ollamaBaseUrl\":");
         json.Should().Contain("\"ollamaModel\":");
     }
