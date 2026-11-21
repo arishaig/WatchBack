@@ -24,6 +24,9 @@ public class WatchBackOptions
     /// <summary>Two-letter language code thoughts are translated into (e.g. "es"). Defaults to English; empty disables translation.</summary>
     public string TranslateTargetLanguage { get; init; } = "en";
 
+    /// <summary>Name of the translation provider to use (e.g. "ollama", "libretranslate").</summary>
+    public string TranslationProvider { get; init; } = "ollama";
+
     /// <summary>When true and a target language is set, thoughts in other languages are translated automatically.</summary>
     public bool AutoTranslate { get; init; }
 

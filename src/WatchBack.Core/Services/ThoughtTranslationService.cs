@@ -84,6 +84,15 @@ public sealed class ThoughtTranslationService(
             pending[thought.Content] = GetOrStart(thought.Content, target);
         }
 
+        // The post title and body repeat on every thought of a thread; identical texts share one translation.
+        foreach (string? postText in new[] { thought.PostTitle, thought.PostBody })
+        {
+            if (!string.IsNullOrWhiteSpace(postText) && !pending.ContainsKey(postText))
+            {
+                pending[postText] = GetOrStart(postText, target);
+            }
+        }
+
         foreach (Thought reply in thought.Replies)
         {
             Collect(reply, target, pending);
@@ -149,8 +158,28 @@ public sealed class ThoughtTranslationService(
             };
         }
 
+        TranslationResult? title = TranslatedOrNull(thought.PostTitle, pending);
+        TranslationResult? body = TranslatedOrNull(thought.PostBody, pending);
+        if (title is not null || body is not null)
+        {
+            result = result with
+            {
+                PostTitle = title?.Text ?? thought.PostTitle,
+                PostBody = body?.Text ?? thought.PostBody,
+                OriginalPostTitle = title is null ? null : thought.PostTitle,
+                OriginalPostBody = body is null ? null : thought.PostBody,
+                PostTranslatedFrom = title?.DetectedLanguage ?? body?.DetectedLanguage
+            };
+        }
+
         return thought.Replies.Count == 0
             ? result
             : result with { Replies = thought.Replies.Select(r => Apply(r, pending)).ToList() };
     }
+
+    private static TranslationResult? TranslatedOrNull(string? text, Dictionary<string, Task<TranslationResult>> pending) =>
+        text is not null && pending.TryGetValue(text, out Task<TranslationResult>? task) &&
+        task is { IsCompletedSuccessfully: true, Result: { WasTranslated: true } translation }
+            ? translation
+            : null;
 }

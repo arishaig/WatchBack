@@ -49,6 +49,9 @@ public record ThoughtImage(
 /// <param name="PostBody">The body/selftext of the original post (e.g. Reddit OP selftext), distinct from comment content</param>
 /// <param name="TranslatedFrom">Two-letter code of the original language when Content was machine-translated; null otherwise</param>
 /// <param name="OriginalContent">The untranslated text, populated only when Content was machine-translated</param>
+/// <param name="PostTranslatedFrom">Two-letter language of the post when its title or body was machine-translated; null otherwise</param>
+/// <param name="OriginalPostTitle">The untranslated post title, populated only when PostTitle was machine-translated</param>
+/// <param name="OriginalPostBody">The untranslated post body, populated only when PostBody was machine-translated</param>
 public record Thought(
     string Id,
     string? ParentId,
@@ -65,7 +68,10 @@ public record Thought(
     string? PostUrl = null,
     string? PostBody = null,
     string? TranslatedFrom = null,
-    string? OriginalContent = null);
+    string? OriginalContent = null,
+    string? PostTranslatedFrom = null,
+    string? OriginalPostTitle = null,
+    string? OriginalPostBody = null);
 
 /// <summary>
 ///     A collection of one or more Thoughts related to a given post

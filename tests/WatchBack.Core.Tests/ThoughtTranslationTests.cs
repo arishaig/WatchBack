@@ -184,6 +184,50 @@ public sealed class ThoughtTranslationServiceTests
     }
 
     [Fact]
+    public async Task TranslateAsync_TranslatesPostTitleAndBody_KeepingTheOriginals()
+    {
+        // Arrange
+        ITranslator translator = Substitute.For<ITranslator>();
+        translator.TranslateAsync("Titre", "en", Arg.Any<CancellationToken>())
+            .Returns(new TranslationResult("Title", "fr", true));
+        translator.TranslateAsync("Corps du fil", "en", Arg.Any<CancellationToken>())
+            .Returns(new TranslationResult("Thread body", "fr", true));
+        translator.TranslateAsync("Hello", "en", Arg.Any<CancellationToken>())
+            .Returns(new TranslationResult("Hello", "en", false));
+        using ThoughtTranslationService service = CreateService(translator);
+        Thought thought = MakeThought("1", "Hello") with { PostTitle = "Titre", PostBody = "Corps du fil" };
+
+        // Act
+        Thought output = (await service.TranslateAsync([MakeResult(thought)], "en"))[0].Thoughts!.Single();
+
+        // Assert
+        output.PostTitle.Should().Be("Title");
+        output.PostBody.Should().Be("Thread body");
+        output.OriginalPostTitle.Should().Be("Titre");
+        output.OriginalPostBody.Should().Be("Corps du fil");
+        output.PostTranslatedFrom.Should().Be("fr");
+        output.TranslatedFrom.Should().BeNull("the comment itself was already in English");
+    }
+
+    [Fact]
+    public async Task TranslateAsync_ThreadSharedByManyThoughts_TranslatesItsTitleOnce()
+    {
+        // Arrange
+        ITranslator translator = Substitute.For<ITranslator>();
+        translator.TranslateAsync(Arg.Any<string>(), "en", Arg.Any<CancellationToken>())
+            .Returns(ci => new TranslationResult(ci.ArgAt<string>(0), "en", false));
+        using ThoughtTranslationService service = CreateService(translator);
+        Thought a = MakeThought("1", "A") with { PostTitle = "Titre" };
+        Thought b = MakeThought("2", "B") with { PostTitle = "Titre" };
+
+        // Act
+        await service.TranslateAsync([MakeResult(a, b)], "en");
+
+        // Assert
+        await translator.Received(1).TranslateAsync("Titre", "en", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task TranslateAsync_EmptyTargetLanguage_ReturnsInputUntouched()
     {
         // Arrange
@@ -289,5 +333,38 @@ public sealed class SyncServiceTranslationTests
     private sealed class SynchronousProgress(List<SyncProgressTick> sink) : IProgress<SyncProgressTick>
     {
         public void Report(SyncProgressTick value) => sink.Add(value);
+    }
+}
+
+public sealed class TranslatorSelectionTests
+{
+    private static ITranslator Named(string name)
+    {
+        ITranslator t = Substitute.For<ITranslator>();
+        t.Metadata.Returns(new DataProviderMetadata(name, "test"));
+        return t;
+    }
+
+    [Fact]
+    public void Select_MatchesTheChosenNameIgnoringCase()
+    {
+        ITranslator ollama = Named("Ollama");
+        ITranslator libre = Named("LibreTranslate");
+
+        TranslatorSelection.Select([ollama, libre], "libretranslate").Should().BeSameAs(libre);
+    }
+
+    [Fact]
+    public void Select_UnknownName_FallsBackToTheFirst()
+    {
+        ITranslator ollama = Named("Ollama");
+
+        TranslatorSelection.Select([ollama, Named("LibreTranslate")], "gone").Should().BeSameAs(ollama);
+    }
+
+    [Fact]
+    public void Select_NoTranslators_ReturnsNull()
+    {
+        TranslatorSelection.Select([], "ollama").Should().BeNull();
     }
 }
