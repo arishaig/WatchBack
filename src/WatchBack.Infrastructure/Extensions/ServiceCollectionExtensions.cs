@@ -16,6 +16,7 @@ using WatchBack.Infrastructure.Http;
 using WatchBack.Infrastructure.Omdb;
 using WatchBack.Infrastructure.Services;
 using WatchBack.Infrastructure.ThoughtProviders;
+using WatchBack.Infrastructure.Translators;
 using WatchBack.Infrastructure.WatchStateProviders;
 
 namespace WatchBack.Infrastructure.Extensions;
@@ -70,6 +71,11 @@ public static class ServiceCollectionExtensions
         services.AddWatchBackClient<OmdbMediaSearchProvider>();
         services.AddScoped<IMediaSearchProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
         services.AddScoped<IRatingsProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
+
+        // Translation goes to the user's own Ollama: no breaker, and a generous timeout since a local
+        // model can take a while on the first request while it loads.
+        services.AddWatchBackClient<OllamaTranslator>(TimeSpan.FromSeconds(60), ClientPolicy.None);
+        services.AddScoped<ITranslator>(sp => sp.GetRequiredService<OllamaTranslator>());
 
         return services;
     }

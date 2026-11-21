@@ -110,6 +110,12 @@ builder.Services
     .ValidateOnStart();
 
 builder.Services
+    .AddOptions<OllamaOptions>()
+    .BindConfiguration("Ollama")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services
     .AddOptions<TraktOptions>()
     .BindConfiguration("Trakt")
     .ValidateDataAnnotations()
