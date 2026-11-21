@@ -74,6 +74,19 @@ describe('translationBadge', () => {
     });
 });
 
+describe('translateLanguageOptions', () => {
+    it('lists languages by name in the viewer\'s language, in order', () => {
+        const names = makeCtx().translateLanguageOptions().map((o: Ctx) => o.name);
+        expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en')));
+        expect(names).toContain('French');
+    });
+
+    it('keeps a saved language that is not in the list selectable', () => {
+        const codes = makeCtx({ translateTargetLanguage: 'fi' }).translateLanguageOptions().map((o: Ctx) => o.code);
+        expect(codes).toContain('fi');
+    });
+});
+
 describe('canTranslate', () => {
     it('offers the button only with a target language, auto-translate off and nothing translated yet', () => {
         expect(makeCtx().canTranslate(plain)).toBe(true);

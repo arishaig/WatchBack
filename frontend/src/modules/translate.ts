@@ -15,6 +15,11 @@ interface TranslationView {
     original: string;
 }
 
+/** Languages offered as a translation target: widely spoken ones a small local model handles well. */
+const TRANSLATE_LANGUAGES = [
+    'ar', 'zh', 'nl', 'en', 'fr', 'de', 'hi', 'id', 'it', 'ja', 'ko', 'pl', 'pt', 'ru', 'es', 'sv', 'tr', 'uk', 'vi',
+];
+
 const translateMethods: Record<string, unknown> & ThisType<AppData> = {
     /** The language comments are translated into; empty when translation is off. */
     translationTarget(): string {
@@ -28,6 +33,15 @@ const translateMethods: Record<string, unknown> & ThisType<AppData> = {
         } catch {
             return code;
         }
+    },
+
+    /** The target-language choices, named in the viewer's language. A saved code outside the list stays selectable. */
+    translateLanguageOptions(): { code: string; name: string }[] {
+        const saved = this.translationTarget();
+        const codes = saved && !TRANSLATE_LANGUAGES.includes(saved) ? [...TRANSLATE_LANGUAGES, saved] : TRANSLATE_LANGUAGES;
+        return codes
+            .map(code => ({ code, name: this.languageName(code) }))
+            .sort((a, b) => a.name.localeCompare(b.name, this.locale));
     },
 
     /** Both texts of a translated thought: translated by the server (auto) or on demand (the button). */

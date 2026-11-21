@@ -480,6 +480,7 @@ export interface AppData {
     formatDate(iso: string): string;
     translationTarget(): string;
     languageName(code: string): string;
+    translateLanguageOptions(): { code: string; name: string }[];
     translationOf(thought: { id: string; content: string; translatedFrom?: string | null; originalContent?: string | null }): { from: string; text: string; original: string } | null;
     thoughtText(thought: { id: string; content: string; translatedFrom?: string | null; originalContent?: string | null }): string;
     translationBadge(thought: { id: string; content: string; translatedFrom?: string | null; originalContent?: string | null }): string;
