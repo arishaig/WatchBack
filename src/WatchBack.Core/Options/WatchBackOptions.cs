@@ -21,6 +21,12 @@ public class WatchBackOptions
 
     public bool EnableSentimentAnalysis { get; init; }
 
+    /// <summary>Two-letter language code thoughts are translated into (e.g. "es"). Empty disables translation.</summary>
+    public string TranslateTargetLanguage { get; init; } = "";
+
+    /// <summary>When true and a target language is set, thoughts in other languages are translated automatically.</summary>
+    public bool AutoTranslate { get; init; }
+
     /// <summary>Comma-separated list of provider config-section names to skip during sync (e.g. "Lemmy,Bluesky").</summary>
     public string DisabledProviders { get; init; } = "";
 }

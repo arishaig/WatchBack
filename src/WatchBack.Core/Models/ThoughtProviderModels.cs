@@ -47,6 +47,8 @@ public record ThoughtImage(
 /// <param name="PostTitle">The title of the post, such as the thread title for Reddit or the article title for a review</param>
 /// <param name="PostUrl">The URL for the post as served by the source</param>
 /// <param name="PostBody">The body/selftext of the original post (e.g. Reddit OP selftext), distinct from comment content</param>
+/// <param name="TranslatedFrom">Two-letter code of the original language when Content was machine-translated; null otherwise</param>
+/// <param name="OriginalContent">The untranslated text, populated only when Content was machine-translated</param>
 public record Thought(
     string Id,
     string? ParentId,
@@ -61,7 +63,9 @@ public record Thought(
     IReadOnlyList<Thought> Replies,
     string? PostTitle = null,
     string? PostUrl = null,
-    string? PostBody = null);
+    string? PostBody = null,
+    string? TranslatedFrom = null,
+    string? OriginalContent = null);
 
 /// <summary>
 ///     A collection of one or more Thoughts related to a given post
