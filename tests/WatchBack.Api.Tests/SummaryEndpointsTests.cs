@@ -32,7 +32,7 @@ public sealed class SummaryEndpointsTests
     {
         IThoughtSummaryService summaries = Substitute.For<IThoughtSummaryService>();
         summaries.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<Thought>>(), Arg.Any<string>(),
-                Arg.Any<CancellationToken>())
+                Arg.Any<IReadOnlyList<Thought>?>(), Arg.Any<CancellationToken>())
             .Returns(new ThoughtSummary(SummaryStatus.Ready, "Loved it.", 5));
         ISummarizer summarizer = Substitute.For<ISummarizer>();
         summarizer.IsConfigured.Returns(modelConfigured);
@@ -78,7 +78,7 @@ public sealed class SummaryEndpointsTests
             json.GetProperty("text").GetString().Should().Be("Loved it.");
             json.GetProperty("commentCount").GetInt32().Should().Be(5);
             await summaries.Received(1).SummarizeAsync("Breaking Bad",
-                Arg.Is<IReadOnlyList<Thought>>(t => t.Single().Content == "All"), "en", Arg.Any<CancellationToken>());
+                Arg.Is<IReadOnlyList<Thought>>(t => t.Single().Content == "All"), "en", Arg.Any<IReadOnlyList<Thought>?>(), Arg.Any<CancellationToken>());
         }
     }
 
@@ -93,7 +93,57 @@ public sealed class SummaryEndpointsTests
             await client.GetAsync("/api/summary?timeMachine=true");
 
             await summaries.Received(1).SummarizeAsync(Arg.Any<string>(),
-                Arg.Is<IReadOnlyList<Thought>>(t => t.Single().Content == "Window"), "es", Arg.Any<CancellationToken>());
+                Arg.Is<IReadOnlyList<Thought>>(t => t.Single().Content == "Window"), "es", Arg.Any<IReadOnlyList<Thought>?>(), Arg.Any<CancellationToken>());
+        }
+    }
+
+    [Fact]
+    public async Task GetSummary_AllTimeView_PassesTheTimeMachineThoughtsToCompareWith()
+    {
+        (WebApplicationFactory<Program> factory, HttpClient client, IThoughtSummaryService summaries) =
+            await StartAsync([], true);
+        using (factory)
+        using (client)
+        {
+            await client.GetAsync("/api/summary");
+
+            await summaries.Received(1).SummarizeAsync(Arg.Any<string>(),
+                Arg.Is<IReadOnlyList<Thought>>(t => t.Single().Content == "All"), Arg.Any<string>(),
+                Arg.Is<IReadOnlyList<Thought>?>(e => e != null && e.Single().Content == "Window"),
+                Arg.Any<CancellationToken>());
+        }
+    }
+
+    [Fact]
+    public async Task GetSummary_TimeMachineView_ComparesNothing()
+    {
+        (WebApplicationFactory<Program> factory, HttpClient client, IThoughtSummaryService summaries) =
+            await StartAsync([], true);
+        using (factory)
+        using (client)
+        {
+            await client.GetAsync("/api/summary?timeMachine=true");
+
+            await summaries.Received(1).SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<Thought>>(),
+                Arg.Any<string>(), null, Arg.Any<CancellationToken>());
+        }
+    }
+
+    [Fact]
+    public async Task GetSummary_ReportsWhetherTheSummaryComparedEarlyAndLaterReactions()
+    {
+        (WebApplicationFactory<Program> factory, HttpClient client, IThoughtSummaryService summaries) =
+            await StartAsync([], true);
+        using (factory)
+        using (client)
+        {
+            summaries.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<Thought>>(), Arg.Any<string>(),
+                    Arg.Any<IReadOnlyList<Thought>?>(), Arg.Any<CancellationToken>())
+                .Returns(new ThoughtSummary(SummaryStatus.Ready, "Cooled.", 9, true));
+
+            JsonElement json = await client.GetFromJsonAsync<JsonElement>("/api/summary");
+
+            json.GetProperty("compared").GetBoolean().Should().BeTrue();
         }
     }
 
@@ -126,7 +176,7 @@ public sealed class SummaryEndpointsTests
             await client.GetAsync("/api/summary");
 
             await summaries.Received(1).SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<Thought>>(),
-                Arg.Any<string>(), Arg.Any<CancellationToken>());
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<Thought>?>(), Arg.Any<CancellationToken>());
         }
     }
 

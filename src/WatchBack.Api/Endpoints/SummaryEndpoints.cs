@@ -18,7 +18,8 @@ public static class SummaryEndpoints
             .WithName("GetSummary")
             .WithSummary("Summarize the discussion of what is being watched")
             .WithDescription(
-                "Writes a short summary of the current thoughts with the configured language model. Answers pending " +
+                "Writes a short summary of the current thoughts with the configured language model; the all-time view also " +
+                "compares the early (time machine) reactions with the later ones when there are enough of each. Answers pending " +
                 "while it is still writing (ask again shortly), and hidden without calling the model when the summary mode is hidden.")
             .Produces<SummaryResponse>();
     }
@@ -46,8 +47,12 @@ public static class SummaryEndpoints
         }
 
         string language = string.IsNullOrWhiteSpace(o.TranslateTargetLanguage) ? "en" : o.TranslateTargetLanguage;
-        ThoughtSummary summary = await summaries.SummarizeAsync(sync.Title ?? "",
-            timeMachine ? sync.TimeMachineThoughts : sync.AllThoughts, language, ct);
-        return new SummaryResponse(summary.Status.ToString().ToLowerInvariant(), summary.Text, summary.CommentCount);
+        // The time-machine view is about the early window alone. The all-time view is about everything, and
+        // where there are both early and later comments it also says how the early reactions compare.
+        ThoughtSummary summary = timeMachine
+            ? await summaries.SummarizeAsync(sync.Title ?? "", sync.TimeMachineThoughts, language, ct: ct)
+            : await summaries.SummarizeAsync(sync.Title ?? "", sync.AllThoughts, language, sync.TimeMachineThoughts, ct);
+        return new SummaryResponse(summary.Status.ToString().ToLowerInvariant(), summary.Text, summary.CommentCount,
+            summary.Compared);
     }
 }
