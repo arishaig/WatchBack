@@ -36,6 +36,7 @@ public static class IntegrationCatalog
         "WatchBack__EnableSentimentAnalysis",
         "WatchBack__AutoTranslate",
         "WatchBack__TranslationProvider",
+        "WatchBack__SummaryMode",
         "WatchBack__TranslateTargetLanguage",
         "WatchBack__DisabledProviders"
     ];

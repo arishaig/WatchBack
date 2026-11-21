@@ -398,6 +398,24 @@ public class ConfigEndpointsTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task GetConfig_SummaryMode_IsHiddenUntilOllamaIsSetUp()
+    {
+        JsonElement prefs = (await _client.GetFromJsonAsync<JsonElement>("/api/config")).GetProperty("preferences");
+
+        prefs.GetProperty("summaryMode").GetString().Should().Be("hidden");
+    }
+
+    [Fact]
+    public async Task SaveConfig_SummaryMode_IsAllowedAndReadBack()
+    {
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/config",
+            new Dictionary<string, string> { ["WatchBack__SummaryMode"] = "open" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await File.ReadAllTextAsync(_tempConfigPath)).Should().Contain("\"SummaryMode\"").And.Contain("open");
+    }
+
+    [Fact]
     public async Task SaveConfig_RejectsUnknownSections()
     {
         Dictionary<string, string> payload = new()

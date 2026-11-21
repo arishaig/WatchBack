@@ -153,7 +153,8 @@ public sealed class McpSetupToolTests : IDisposable
             {
                 ["WatchBack__TranslateTargetLanguage"] = "es",
                 ["WatchBack__AutoTranslate"] = "true",
-                ["WatchBack__TranslationProvider"] = "libretranslate"
+                ["WatchBack__TranslationProvider"] = "libretranslate",
+                ["WatchBack__SummaryMode"] = "collapsed"
             }
         });
         (_, JsonElement bad) = await CallAsync(client, "update_config", new
@@ -162,17 +163,18 @@ public sealed class McpSetupToolTests : IDisposable
             {
                 ["WatchBack__TranslateTargetLanguage"] = "spanish",
                 ["WatchBack__AutoTranslate"] = "yes",
-                ["WatchBack__TranslationProvider"] = "deepl"
+                ["WatchBack__TranslationProvider"] = "deepl",
+                ["WatchBack__SummaryMode"] = "always"
             }
         });
 
         json.GetProperty("applied").EnumerateArray().Select(a => a.GetString())
             .Should().BeEquivalentTo("WatchBack__TranslateTargetLanguage", "WatchBack__AutoTranslate",
-                "WatchBack__TranslationProvider");
+                "WatchBack__TranslationProvider", "WatchBack__SummaryMode");
         bad.GetProperty("applied").GetArrayLength().Should().Be(0);
         bad.GetProperty("rejected").EnumerateArray().Select(r => r.GetProperty("key").GetString())
             .Should().BeEquivalentTo("WatchBack__TranslateTargetLanguage", "WatchBack__AutoTranslate",
-                "WatchBack__TranslationProvider");
+                "WatchBack__TranslationProvider", "WatchBack__SummaryMode");
     }
 
     [Fact]

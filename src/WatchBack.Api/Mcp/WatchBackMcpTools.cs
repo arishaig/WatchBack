@@ -139,6 +139,8 @@ public sealed partial class WatchBackMcpTools(
                 enableSentimentAnalysis = w.EnableSentimentAnalysis,
                 autoTranslate = w.AutoTranslate,
                 translationProvider = w.TranslationProvider,
+                summaryMode = SummaryModes.Resolve(w.SummaryMode,
+                    translators.Any(t => t.ConfigSection == "Ollama" && t.IsConfigured)),
                 translateTargetLanguage = w.TranslateTargetLanguage,
                 disabledProviders = w.DisabledProviders
             },
