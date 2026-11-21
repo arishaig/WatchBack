@@ -81,6 +81,15 @@ public static class ServiceCollectionExtensions
         services.AddWatchBackClient<OllamaTranslator>(TimeSpan.FromSeconds(60), ClientPolicy.None);
         services.AddWatchBackClient<LibreTranslateTranslator>(TimeSpan.FromSeconds(30), ClientPolicy.None);
         services.AddScoped<ITranslator>(sp => sp.GetRequiredService<OllamaTranslator>());
+
+        // The summary at the top of the feed is written by the same Ollama server. A model can be slow to
+        // write a paragraph, so the deadline is longer than for a translation.
+        services.AddWatchBackClient<OllamaSummarizer>(TimeSpan.FromSeconds(90), ClientPolicy.None);
+        services.AddScoped<ISummarizer>(sp => sp.GetRequiredService<OllamaSummarizer>());
+        services.AddSingleton<IThoughtSummaryService>(sp => new ThoughtSummaryService(
+            () => sp.GetRequiredService<OllamaSummarizer>(),
+            sp.GetRequiredService<ILogger<ThoughtSummaryService>>(),
+            sp.GetRequiredService<TimeProvider>()));
         services.AddScoped<ITranslator>(sp => sp.GetRequiredService<LibreTranslateTranslator>());
 
         // Singleton: it holds the in-flight translations and failure cool-down shared by every sync.
