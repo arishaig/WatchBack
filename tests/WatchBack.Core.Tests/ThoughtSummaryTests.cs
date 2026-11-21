@@ -84,7 +84,7 @@ public sealed class ThoughtSummaryServiceTests
     public async Task SummarizeAsync_ReturnsTheSummaryAndCommentCount()
     {
         ISummarizer summarizer = Summarizer();
-        summarizer.SummarizeAsync("Show", Arg.Any<IReadOnlyList<string>>(), "es", Arg.Any<CancellationToken>())
+        summarizer.SummarizeAsync("Show", Arg.Any<IReadOnlyList<string>>(), "es", Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>())
             .Returns(new SummaryResult("Gustó mucho."));
 
         ThoughtSummary result = await Service(summarizer)
@@ -99,7 +99,7 @@ public sealed class ThoughtSummaryServiceTests
         TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         ISummarizer summarizer = Summarizer();
         summarizer.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>(),
-            Arg.Any<CancellationToken>()).Returns(async _ =>
+            Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>()).Returns(async _ =>
         {
             await gate.Task;
             return new SummaryResult("Done.");
@@ -116,7 +116,7 @@ public sealed class ThoughtSummaryServiceTests
         first.Status.Should().Be(SummaryStatus.Pending);
         joined.Status.Should().Be(SummaryStatus.Pending);
         await summarizer.Received(2).SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(),
-            Arg.Any<string>(), Arg.Any<CancellationToken>()); // the third ask finds nothing in flight and goes to the (cached) summarizer
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>()); // the third ask finds nothing in flight and goes to the (cached) summarizer
         later.Status.Should().Be(SummaryStatus.Ready);
     }
 
@@ -126,7 +126,7 @@ public sealed class ThoughtSummaryServiceTests
         TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         ISummarizer summarizer = Summarizer();
         summarizer.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>(),
-            Arg.Any<CancellationToken>()).Returns(async _ =>
+            Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>()).Returns(async _ =>
         {
             await gate.Task;
             return new SummaryResult("Done.");
@@ -139,7 +139,7 @@ public sealed class ThoughtSummaryServiceTests
         gate.SetResult();
 
         await summarizer.Received(1).SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(),
-            Arg.Any<string>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class ThoughtSummaryServiceTests
     {
         ISummarizer summarizer = Summarizer();
         summarizer.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>(),
-            Arg.Any<CancellationToken>()).Returns(new SummaryResult(null, true));
+            Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>()).Returns(new SummaryResult(null, true));
         ThoughtSummaryService service = Service(summarizer);
         Thought[] thoughts = [MakeThought("A")];
 
@@ -157,7 +157,7 @@ public sealed class ThoughtSummaryServiceTests
         first.Status.Should().Be(SummaryStatus.Failed);
         second.Status.Should().Be(SummaryStatus.Failed);
         await summarizer.Received(1).SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(),
-            Arg.Any<string>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -165,11 +165,131 @@ public sealed class ThoughtSummaryServiceTests
     {
         ISummarizer summarizer = Summarizer();
         summarizer.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>(),
-            Arg.Any<CancellationToken>()).Returns<SummaryResult>(_ => throw new InvalidOperationException("boom"));
+            Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>()).Returns<SummaryResult>(_ => throw new InvalidOperationException("boom"));
 
         ThoughtSummary result = await Service(summarizer).SummarizeAsync("Show", [MakeThought("A")], "en");
 
         result.Status.Should().Be(SummaryStatus.Failed);
+    }
+
+    private static Thought[] Many(string prefix, int count) =>
+        Enumerable.Range(0, count).Select(i => MakeThought($"{prefix}{i}")).ToArray();
+
+    [Fact]
+    public async Task SummarizeAsync_EarlyAndLaterBothHaveEnough_ComparesThem()
+    {
+        // Arrange
+        Thought[] early = Many("early", 4);
+        Thought[] later = Many("later", 5);
+        IReadOnlyList<string>? sentEarly = null;
+        IReadOnlyList<string>? sentComments = null;
+        ISummarizer summarizer = Summarizer();
+        summarizer.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>()).Returns(ci =>
+        {
+            sentComments = ci.ArgAt<IReadOnlyList<string>>(1);
+            sentEarly = ci.ArgAt<IReadOnlyList<string>?>(3);
+            return new SummaryResult("Opinion cooled.");
+        });
+
+        // Act
+        ThoughtSummary result = await Service(summarizer)
+            .SummarizeAsync("Show", [.. early, .. later], "en", early);
+
+        // Assert
+        result.Should().Be(new ThoughtSummary(SummaryStatus.Ready, "Opinion cooled.", 9, true));
+        sentEarly.Should().BeEquivalentTo(early.Select(t => t.Content));
+        sentComments.Should().BeEquivalentTo(later.Select(t => t.Content), "the later side holds only what came after");
+    }
+
+    [Theory]
+    [InlineData(2, 5)]
+    [InlineData(5, 2)]
+    [InlineData(5, 0)]
+    public async Task SummarizeAsync_ASideTooSmallToCompare_SummarizesEverythingTogether(int earlyCount, int laterCount)
+    {
+        // Arrange
+        Thought[] early = Many("early", earlyCount);
+        Thought[] later = Many("later", laterCount);
+        IReadOnlyList<string>? sentEarly = ["sentinel"];
+        IReadOnlyList<string>? sentComments = null;
+        ISummarizer summarizer = Summarizer();
+        summarizer.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>()).Returns(ci =>
+        {
+            sentComments = ci.ArgAt<IReadOnlyList<string>>(1);
+            sentEarly = ci.ArgAt<IReadOnlyList<string>?>(3);
+            return new SummaryResult("Fine.");
+        });
+
+        // Act
+        ThoughtSummary result = await Service(summarizer)
+            .SummarizeAsync("Show", [.. early, .. later], "en", early);
+
+        // Assert
+        result.Compared.Should().BeFalse();
+        result.CommentCount.Should().Be(earlyCount + laterCount);
+        sentEarly.Should().BeNull();
+        sentComments.Should().HaveCount(earlyCount + laterCount);
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_EarlyReactionsStillCountWhenLaterOnesAreMissing_NotCompared()
+    {
+        // Arrange: the time machine window holds everything, so there is nothing later to compare with
+        Thought[] all = Many("c", 6);
+        ISummarizer summarizer = Summarizer();
+        summarizer.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>()).Returns(new SummaryResult("Fine."));
+
+        // Act
+        ThoughtSummary result = await Service(summarizer).SummarizeAsync("Show", all, "en", all);
+
+        // Assert
+        result.Compared.Should().BeFalse();
+        result.CommentCount.Should().Be(6);
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_RepliesBelongToTheSideOfTheThoughtTheyAnswer()
+    {
+        // Arrange
+        Thought early = MakeThought("early top", replies: [MakeThought("early reply 1"), MakeThought("early reply 2")]);
+        Thought[] later = Many("later", 3);
+        IReadOnlyList<string>? sentEarly = null;
+        ISummarizer summarizer = Summarizer();
+        summarizer.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>()).Returns(ci =>
+        {
+            sentEarly = ci.ArgAt<IReadOnlyList<string>?>(3);
+            return new SummaryResult("Fine.");
+        });
+
+        // Act
+        await Service(summarizer).SummarizeAsync("Show", [early, .. later], "en", [early]);
+
+        // Assert
+        sentEarly.Should().BeEquivalentTo("early top", "early reply 1", "early reply 2");
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_ComparedAndPlainSummariesOfTheSameCommentsAreDifferentRequests()
+    {
+        // Arrange
+        Thought[] early = Many("early", 3);
+        Thought[] later = Many("later", 3);
+        ISummarizer summarizer = Summarizer();
+        summarizer.SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>()).Returns(new SummaryResult("S"));
+        ThoughtSummaryService service = Service(summarizer);
+
+        // Act
+        await service.SummarizeAsync("Show", [.. early, .. later], "en", early);
+        await service.SummarizeAsync("Show", [.. early, .. later], "en");
+
+        // Assert
+        await summarizer.Received(2).SummarizeAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(),
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

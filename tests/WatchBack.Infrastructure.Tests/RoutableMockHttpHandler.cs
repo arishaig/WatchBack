@@ -15,8 +15,13 @@ internal sealed class RoutableMockHttpHandler : HttpMessageHandler
     private readonly List<Uri> _recordedUris = [];
     private Func<HttpRequestMessage, HttpResponseMessage>? _default;
 
+    private readonly List<string> _recordedBodies = [];
+
     /// <summary>Every URI that was requested, in call order.</summary>
     public IReadOnlyList<Uri> RecordedUris => _recordedUris;
+
+    /// <summary>The body of every request that had one, in call order.</summary>
+    public IReadOnlyList<string> RecordedBodies => _recordedBodies;
 
     /// <summary>
     ///     Registers a route that matches when the URL-decoded request URI string contains
@@ -65,6 +70,10 @@ internal sealed class RoutableMockHttpHandler : HttpMessageHandler
         CancellationToken cancellationToken)
     {
         _recordedUris.Add(request.RequestUri!);
+        if (request.Content is not null)
+        {
+            _recordedBodies.Add(request.Content.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult());
+        }
 
         foreach ((Func<Uri, bool> predicate, Func<HttpRequestMessage, HttpResponseMessage> factory) in _routes)
         {

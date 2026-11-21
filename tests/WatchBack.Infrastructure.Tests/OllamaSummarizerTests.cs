@@ -80,6 +80,54 @@ public sealed class OllamaSummarizerTests : IDisposable
     }
 
     [Fact]
+    public async Task SummarizeAsync_WithEarlyComments_SendsBothGroupsAndAsksForTheComparison()
+    {
+        // Arrange
+        string? sent = null;
+        _handler.RespondTo("/api/chat", Reply("Cooled."));
+        OllamaSummarizer summarizer = Create();
+
+        // Act
+        await summarizer.SummarizeAsync("Show", ["later one", "later two"], "en", ["early one"]);
+        sent = _handler.RecordedBodies.Single();
+
+        // Assert
+        sent.Should().Contain("Early reactions:").And.Contain("1. early one")
+            .And.Contain("Later comments:").And.Contain("1. later one").And.Contain("2. later two")
+            .And.Contain("comparing the early reactions with the later ones");
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_WithoutEarlyComments_AsksNoComparison()
+    {
+        // Arrange
+        _handler.RespondTo("/api/chat", Reply("S"));
+
+        // Act
+        await Create().SummarizeAsync("Show", ["one"], "en");
+
+        // Assert
+        _handler.RecordedBodies.Single().Should().Contain("Comments:").And.NotContain("Early reactions")
+            .And.NotContain("comparing the early");
+    }
+
+    [Fact]
+    public async Task SummarizeAsync_ComparedAndPlainSummaries_DoNotShareACacheEntry()
+    {
+        // Arrange
+        _handler.RespondTo("/api/chat", Reply("S"));
+        OllamaSummarizer summarizer = Create();
+
+        // Act
+        await summarizer.SummarizeAsync("Show", ["later"], "en", ["early"]);
+        await summarizer.SummarizeAsync("Show", ["later"], "en");
+        await summarizer.SummarizeAsync("Show", ["later"], "en", ["early"]);
+
+        // Assert
+        _handler.RecordedUris.Should().HaveCount(2);
+    }
+
+    [Fact]
     public async Task SummarizeAsync_UpstreamError_IsTransientAndNotCached()
     {
         _handler.Default("{}", HttpStatusCode.InternalServerError);
