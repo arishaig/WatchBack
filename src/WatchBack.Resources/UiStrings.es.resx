@@ -154,4 +154,22 @@
     <data name="TraktThoughtProvider_ShowComments" xml:space="preserve">
         <value>Comentarios sobre toda la serie</value>
     </data>
+    <data name="Translators_Model" xml:space="preserve">
+        <value>Modelo</value>
+    </data>
+    <data name="Translators_Optional" xml:space="preserve">
+        <value>Opcional</value>
+    </data>
+    <data name="Translators_NeedsUrl" xml:space="preserve">
+        <value>Se requiere la URL del servidor</value>
+    </data>
+    <data name="Translators_ModelMissing" xml:space="preserve">
+        <value>Conectado, pero el modelo {0} no está instalado. Ejecuta: ollama pull {0}</value>
+    </data>
+    <data name="Translators_Description_Ollama" xml:space="preserve">
+        <value>Traduce comentarios con un modelo de lenguaje en tu propio servidor de Ollama</value>
+    </data>
+    <data name="Translators_Description_LibreTranslate" xml:space="preserve">
+        <value>Traduce comentarios con tu propio servidor de LibreTranslate</value>
+    </data>
 </root>

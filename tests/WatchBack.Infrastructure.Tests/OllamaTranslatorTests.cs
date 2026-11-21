@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 
 using WatchBack.Core.Interfaces;
+using WatchBack.Core.Models;
 using WatchBack.Core.Options;
 using WatchBack.Infrastructure.Caching;
 using WatchBack.Infrastructure.Translators;
@@ -177,6 +178,73 @@ public sealed class OllamaTranslatorTests : IDisposable
 
         // Assert
         _handler.RecordedUris.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_ModelInstalled_IsHealthy()
+    {
+        // Arrange: Ollama lists installed models with their tag
+        _handler.RespondTo("/api/tags", """{"models":[{"name":"test-model:latest"}]}""");
+
+        // Act
+        ServiceHealth health = await CreateTranslator().TestConnectionAsync(
+            new Dictionary<string, string> { ["Ollama__BaseUrl"] = "http://ollama.test", ["Ollama__Model"] = "test-model" });
+
+        // Assert
+        health.IsHealthy.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_ModelNotInstalled_SaysHowToPullIt()
+    {
+        // Arrange
+        _handler.RespondTo("/api/tags", """{"models":[{"name":"other:latest"}]}""");
+
+        // Act
+        ServiceHealth health = await CreateTranslator().TestConnectionAsync(
+            new Dictionary<string, string> { ["Ollama__BaseUrl"] = "http://ollama.test", ["Ollama__Model"] = "test-model" });
+
+        // Assert
+        health.IsHealthy.Should().BeFalse();
+        health.Message.Should().Contain("ollama pull test-model");
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_NotAnHttpUrl_IsRejectedWithoutARequest()
+    {
+        // Act
+        ServiceHealth health = await CreateTranslator().TestConnectionAsync(
+            new Dictionary<string, string> { ["Ollama__BaseUrl"] = "file:///etc/passwd", ["Ollama__Model"] = "m" });
+
+        // Assert
+        health.IsHealthy.Should().BeFalse();
+        _handler.RecordedUris.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_ServerDown_IsUnhealthy()
+    {
+        // Arrange
+        _handler.Default("{}", HttpStatusCode.BadGateway);
+
+        // Act
+        ServiceHealth health = await CreateTranslator().TestConnectionAsync(
+            new Dictionary<string, string> { ["Ollama__BaseUrl"] = "http://ollama.test", ["Ollama__Model"] = "m" });
+
+        // Assert
+        health.IsHealthy.Should().BeFalse();
+        health.Message.Should().Contain("502");
+    }
+
+    [Fact]
+    public void GetConfigSchema_DescribesUrlModelAndSecretApiKey()
+    {
+        // Act
+        IReadOnlyList<ProviderConfigField> fields = CreateTranslator().GetConfigSchema(_ => "", (_, _) => false);
+
+        // Assert
+        fields.Select(f => (f.Key, f.Type)).Should().Equal(
+            ("Ollama__BaseUrl", "text"), ("Ollama__Model", "text"), ("Ollama__ApiKey", "password"));
     }
 
     private sealed class FakeLookupCache : IDurableLookupCache

@@ -5,12 +5,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using Polly;
 using Polly.Retry;
 using Polly.Timeout;
 
 using WatchBack.Core.Interfaces;
+using WatchBack.Core.Options;
 using WatchBack.Core.Services;
 using WatchBack.Infrastructure.Caching;
 using WatchBack.Infrastructure.Http;
@@ -73,15 +75,21 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMediaSearchProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
         services.AddScoped<IRatingsProvider>(sp => sp.GetRequiredService<OmdbMediaSearchProvider>());
 
-        // Translation goes to the user's own Ollama: no breaker, and a generous timeout since a local
-        // model can take a while on the first request while it loads.
+        // Translation engines are the user's own servers: no breaker, and a generous timeout since a local
+        // model can take a while on the first request while it loads. The user picks one with
+        // WatchBack:TranslationProvider.
         services.AddWatchBackClient<OllamaTranslator>(TimeSpan.FromSeconds(60), ClientPolicy.None);
+        services.AddWatchBackClient<LibreTranslateTranslator>(TimeSpan.FromSeconds(30), ClientPolicy.None);
         services.AddScoped<ITranslator>(sp => sp.GetRequiredService<OllamaTranslator>());
+        services.AddScoped<ITranslator>(sp => sp.GetRequiredService<LibreTranslateTranslator>());
 
         // Singleton: it holds the in-flight translations and failure cool-down shared by every sync.
-        // The translator is a transient typed client, so each translation gets a fresh one.
+        // The translators are transient typed clients, so each translation gets a fresh one, and the
+        // selected one is looked up at that moment so a settings change applies straight away.
         services.AddSingleton<IThoughtTranslationService>(sp => new ThoughtTranslationService(
-            () => sp.GetRequiredService<OllamaTranslator>(),
+            () => TranslatorSelection.Select(
+                      [sp.GetRequiredService<OllamaTranslator>(), sp.GetRequiredService<LibreTranslateTranslator>()],
+                      sp.GetRequiredService<IOptionsMonitor<WatchBackOptions>>().CurrentValue.TranslationProvider)!,
             sp.GetRequiredService<ILogger<ThoughtTranslationService>>(),
             sp.GetRequiredService<TimeProvider>()));
 
