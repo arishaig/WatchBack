@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **.NET Target**: .NET 11.0 (`LangVersion: latest`)
 - **Frontend**: TypeScript, Alpine.js 3.15, Tailwind CSS 4.2, built with Vite 8
-- **Database**: SQLite via EF Core 10
+- **Database**: SQLite via EF Core 11
 - **Authentication**: Cookie-based (30-day sliding) with optional reverse-proxy forward auth
 - **Localization**: en-US (default), es — via .resx files in WatchBack.Resources
 - **Containerization**: Multi-stage Dockerfile, port 8484
