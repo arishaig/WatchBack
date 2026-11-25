@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **WatchBack** is a self-hosted .NET web application that tracks what you're currently watching (movies/TV shows) and aggregates community discussion and ratings from multiple sources. It uses a provider-based architecture with a .NET backend and an Alpine.js + Tailwind CSS frontend.
 
-- **.NET Target**: .NET 10.0 (`LangVersion: latest`)
+- **.NET Target**: .NET 11.0 (`LangVersion: latest`)
 - **Frontend**: TypeScript, Alpine.js 3.15, Tailwind CSS 4.2, built with Vite 8
 - **Database**: SQLite via EF Core 10
 - **Authentication**: Cookie-based (30-day sliding) with optional reverse-proxy forward auth
