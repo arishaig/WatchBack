@@ -80,7 +80,7 @@ public class McpEndpointTests
         // Generate a key via the API
         HttpResponseMessage genRes = await client.PostAsJsonAsync("/api/keys", new { name = "test-key" });
         genRes.EnsureSuccessStatusCode();
-        JsonElement genBody = JsonDocument.Parse(await genRes.Content.ReadAsStringAsync()).RootElement;
+        JsonElement genBody = JsonElement.Parse(await genRes.Content.ReadAsStringAsync());
         string apiKey = genBody.GetProperty("key").GetString()!;
 
         // Make an unauthenticated client (no cookie) and use the API key as bearer
@@ -109,12 +109,12 @@ public class McpEndpointTests
 
         HttpResponseMessage genRes = await client.PostAsJsonAsync("/api/keys", new { name = "listed-key" });
         genRes.EnsureSuccessStatusCode();
-        JsonElement genBody = JsonDocument.Parse(await genRes.Content.ReadAsStringAsync()).RootElement;
+        JsonElement genBody = JsonElement.Parse(await genRes.Content.ReadAsStringAsync());
         int newKeyId = genBody.GetProperty("id").GetInt32();
 
         HttpResponseMessage listRes = await client.GetAsync("/api/keys");
         listRes.EnsureSuccessStatusCode();
-        JsonElement listBody = JsonDocument.Parse(await listRes.Content.ReadAsStringAsync()).RootElement;
+        JsonElement listBody = JsonElement.Parse(await listRes.Content.ReadAsStringAsync());
 
         listBody.EnumerateArray().Should().ContainSingle(k => k.GetProperty("id").GetInt32() == newKeyId,
             because: "the newly generated key must be visible in the list from the next request");
@@ -130,7 +130,7 @@ public class McpEndpointTests
 
         HttpResponseMessage genRes = await sessionClient.PostAsJsonAsync("/api/keys", new { name = "guard-test" });
         genRes.EnsureSuccessStatusCode();
-        JsonElement genBody = JsonDocument.Parse(await genRes.Content.ReadAsStringAsync()).RootElement;
+        JsonElement genBody = JsonElement.Parse(await genRes.Content.ReadAsStringAsync());
         string apiKey = genBody.GetProperty("key").GetString()!;
 
         using HttpClient bearerClient = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
