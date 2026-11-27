@@ -86,14 +86,14 @@ public sealed class McpSetupToolTests : IDisposable
         response.EnsureSuccessStatusCode();
         string body = await response.Content.ReadAsStringAsync();
         string json = body.Split('\n').FirstOrDefault(l => l.StartsWith("data: ", StringComparison.Ordinal))?[6..] ?? body;
-        return JsonDocument.Parse(json).RootElement.GetProperty("result");
+        return JsonElement.Parse(json).GetProperty("result");
     }
 
     private static async Task<(string Raw, JsonElement Json)> CallAsync(HttpClient client, string tool, object? args = null)
     {
         JsonElement result = await RpcAsync(client, "tools/call", new { name = tool, arguments = args ?? new { } });
         string text = result.GetProperty("content")[0].GetProperty("text").GetString()!;
-        return (text, JsonDocument.Parse(text).RootElement);
+        return (text, JsonElement.Parse(text));
     }
 
     private Dictionary<string, Dictionary<string, string>> Saved() =>

@@ -26,7 +26,7 @@ RUN npm run build
 # ──────────────────────────────────────────
 # Stage 2: .NET build & publish
 # ──────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 
 ARG VERSION=0.0.0-dev
 
@@ -65,7 +65,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 # ──────────────────────────────────────────
 # Stage 3: Runtime image
 # ──────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
+FROM mcr.microsoft.com/dotnet/aspnet:11.0-alpine
 
 WORKDIR /app
 
