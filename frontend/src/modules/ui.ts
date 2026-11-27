@@ -15,6 +15,7 @@ const uiMethods: Record<string, unknown> & ThisType<AppData> = {
         console.log("[WatchBack] Initializing");
         uiLog("app.init", "App initializing", undefined, "Information");
         this.applyTheme(this.theme);
+        this.$watch('mode', () => void this.refreshSummary());
         this.$watch('showConfig', (v: unknown) => { if (!v) this.closeLogStream(); });
         window.addEventListener('hashchange', () => this.handleSettingsHash());
 

@@ -76,7 +76,7 @@ public sealed class LibreTranslateTranslator(
         return
         [
             new ProviderConfigField("LibreTranslate__BaseUrl", UiStrings.ConfigEndpoints_GetConfig_Server_URL, "text",
-                DefaultBaseUrl, !string.IsNullOrEmpty(o.BaseUrl) && o.BaseUrl != DefaultBaseUrl, o.BaseUrl,
+                DefaultBaseUrl, !string.IsNullOrEmpty(o.BaseUrl), o.BaseUrl,
                 envVal("LibreTranslate__BaseUrl"), isOverridden("LibreTranslate", "BaseUrl")),
             new ProviderConfigField("LibreTranslate__ApiKey", UiStrings.ConfigEndpoints_GetConfig_API_Key, "password",
                 UiStrings.Translators_Optional, !string.IsNullOrEmpty(o.ApiKey), "", "",

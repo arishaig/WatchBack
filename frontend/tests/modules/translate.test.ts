@@ -6,7 +6,11 @@ type Ctx = Record<string, any>;
 function makeCtx(prefs: Ctx = {}, overrides: Ctx = {}): Ctx {
     const ctx: Ctx = {
         locale: 'en',
-        configData: { preferences: { translateTargetLanguage: 'en', autoTranslate: false, ...prefs } },
+        configData: {
+            preferences: { translateTargetLanguage: 'en', autoTranslate: false, ...prefs },
+            integrations: { ollama: { configured: true } },
+        },
+        activeTranslationProvider: () => 'ollama',
         showOriginal: {},
         manualTranslations: {},
         translateState: {},
@@ -120,6 +124,13 @@ describe('translateLanguageOptions', () => {
 });
 
 describe('canTranslate', () => {
+    it('is not offered until the chosen translation connection is set up', () => {
+        const ctx = makeCtx();
+        ctx.configData.integrations.ollama.configured = false;
+        expect(ctx.translatorConfigured()).toBe(false);
+        expect(ctx.canTranslate(plain)).toBe(false);
+    });
+
     it('offers the button only with a target language, auto-translate off and nothing translated yet', () => {
         expect(makeCtx().canTranslate(plain)).toBe(true);
         expect(makeCtx({ translateTargetLanguage: '' }).canTranslate(plain)).toBe(false);

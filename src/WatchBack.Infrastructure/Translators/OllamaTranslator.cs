@@ -97,7 +97,7 @@ public sealed class OllamaTranslator(
         return
         [
             new ProviderConfigField("Ollama__BaseUrl", UiStrings.ConfigEndpoints_GetConfig_Server_URL, "text",
-                DefaultBaseUrl, !string.IsNullOrEmpty(o.BaseUrl) && o.BaseUrl != DefaultBaseUrl, o.BaseUrl,
+                DefaultBaseUrl, !string.IsNullOrEmpty(o.BaseUrl), o.BaseUrl,
                 envVal("Ollama__BaseUrl"), isOverridden("Ollama", "BaseUrl")),
             new ProviderConfigField("Ollama__Model", UiStrings.Translators_Model, "text", "llama3.2",
                 !string.IsNullOrEmpty(o.Model), o.Model, envVal("Ollama__Model"), isOverridden("Ollama", "Model")),

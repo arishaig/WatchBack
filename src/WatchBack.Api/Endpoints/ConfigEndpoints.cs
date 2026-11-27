@@ -168,6 +168,9 @@ public static class ConfigEndpoints
                 autoTranslate = w.AutoTranslate,
                 translateTargetLanguage = w.TranslateTargetLanguage,
                 translationProvider = w.TranslationProvider,
+                // The mode in effect, so an unset mode reads as collapsed once Ollama is set up and hidden before.
+                summaryMode = SummaryModes.Resolve(w.SummaryMode,
+                    translators.Any(t => t.ConfigSection == "Ollama" && t.IsConfigured)),
                 envValues = new Dictionary<string, string>
                 {
                     ["WatchBack__TimeMachineDays"] = EnvVal("WatchBack__TimeMachineDays"),
@@ -176,7 +179,8 @@ public static class ConfigEndpoints
                     ["WatchBack__CustomSearchUrl"] = EnvVal("WatchBack__CustomSearchUrl"),
                     ["WatchBack__DisabledProviders"] = EnvVal("WatchBack__DisabledProviders"),
                     ["WatchBack__TranslateTargetLanguage"] = EnvVal("WatchBack__TranslateTargetLanguage"),
-                    ["WatchBack__TranslationProvider"] = EnvVal("WatchBack__TranslationProvider")
+                    ["WatchBack__TranslationProvider"] = EnvVal("WatchBack__TranslationProvider"),
+                    ["WatchBack__SummaryMode"] = EnvVal("WatchBack__SummaryMode")
                 },
                 overrides = new Dictionary<string, bool>
                 {
@@ -186,7 +190,8 @@ public static class ConfigEndpoints
                     ["WatchBack__CustomSearchUrl"] = IsOverridden("WatchBack", "CustomSearchUrl"),
                     ["WatchBack__DisabledProviders"] = IsOverridden("WatchBack", "DisabledProviders"),
                     ["WatchBack__TranslateTargetLanguage"] = IsOverridden("WatchBack", "TranslateTargetLanguage"),
-                    ["WatchBack__TranslationProvider"] = IsOverridden("WatchBack", "TranslationProvider")
+                    ["WatchBack__TranslationProvider"] = IsOverridden("WatchBack", "TranslationProvider"),
+                    ["WatchBack__SummaryMode"] = IsOverridden("WatchBack", "SummaryMode")
                 }
             }
         };
