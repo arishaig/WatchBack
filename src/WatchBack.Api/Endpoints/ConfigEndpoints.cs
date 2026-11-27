@@ -84,6 +84,7 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+        [FromServices] IEnumerable<ITranslator> translators,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         IOptionsSnapshot<WatchBackOptions> watchback,
         IConfiguration configuration,
@@ -115,7 +116,7 @@ public static class ConfigEndpoints
 
         // Providers sharing a section (e.g. Trakt as both watch-state and thought) merge into one card.
         Dictionary<string, object> integrations = IntegrationCatalog.Build(watchStateProviderList, thoughtProviderList,
-                ratingsProviderList, mediaSearchProviderList, EnvVal, IsOverridden, w.DisabledProviders)
+                ratingsProviderList, mediaSearchProviderList, translators, EnvVal, IsOverridden, w.DisabledProviders)
             .ToDictionary(
                 i => i.Section.ToLowerInvariant(),
                 i => (object)new
@@ -164,13 +165,22 @@ public static class ConfigEndpoints
                 customSearchUrl = w.CustomSearchUrl,
                 segmentedProgressBar = w.SegmentedProgressBar,
                 enableSentimentAnalysis = w.EnableSentimentAnalysis,
+                autoTranslate = w.AutoTranslate,
+                translateTargetLanguage = w.TranslateTargetLanguage,
+                translationProvider = w.TranslationProvider,
+                // The mode in effect, so an unset mode reads as collapsed once Ollama is set up and hidden before.
+                summaryMode = SummaryModes.Resolve(w.SummaryMode,
+                    translators.Any(t => t.ConfigSection == "Ollama" && t.IsConfigured)),
                 envValues = new Dictionary<string, string>
                 {
                     ["WatchBack__TimeMachineDays"] = EnvVal("WatchBack__TimeMachineDays"),
                     ["WatchBack__WatchProvider"] = EnvVal("WatchBack__WatchProvider"),
                     ["WatchBack__SearchEngine"] = EnvVal("WatchBack__SearchEngine"),
                     ["WatchBack__CustomSearchUrl"] = EnvVal("WatchBack__CustomSearchUrl"),
-                    ["WatchBack__DisabledProviders"] = EnvVal("WatchBack__DisabledProviders")
+                    ["WatchBack__DisabledProviders"] = EnvVal("WatchBack__DisabledProviders"),
+                    ["WatchBack__TranslateTargetLanguage"] = EnvVal("WatchBack__TranslateTargetLanguage"),
+                    ["WatchBack__TranslationProvider"] = EnvVal("WatchBack__TranslationProvider"),
+                    ["WatchBack__SummaryMode"] = EnvVal("WatchBack__SummaryMode")
                 },
                 overrides = new Dictionary<string, bool>
                 {
@@ -178,7 +188,10 @@ public static class ConfigEndpoints
                     ["WatchBack__WatchProvider"] = IsOverridden("WatchBack", "WatchProvider"),
                     ["WatchBack__SearchEngine"] = IsOverridden("WatchBack", "SearchEngine"),
                     ["WatchBack__CustomSearchUrl"] = IsOverridden("WatchBack", "CustomSearchUrl"),
-                    ["WatchBack__DisabledProviders"] = IsOverridden("WatchBack", "DisabledProviders")
+                    ["WatchBack__DisabledProviders"] = IsOverridden("WatchBack", "DisabledProviders"),
+                    ["WatchBack__TranslateTargetLanguage"] = IsOverridden("WatchBack", "TranslateTargetLanguage"),
+                    ["WatchBack__TranslationProvider"] = IsOverridden("WatchBack", "TranslationProvider"),
+                    ["WatchBack__SummaryMode"] = IsOverridden("WatchBack", "SummaryMode")
                 }
             }
         };
@@ -189,12 +202,14 @@ public static class ConfigEndpoints
         IEnumerable<IWatchStateProvider> watchStateProviders,
         IEnumerable<IThoughtProvider> thoughtProviders,
         IEnumerable<IRatingsProvider> ratingsProviders,
-        IEnumerable<IMediaSearchProvider> mediaSearchProviders)
+        IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+        IEnumerable<ITranslator> translators)
     {
         return watchStateProviders
             .Concat(thoughtProviders.Cast<IDataProvider>())
             .Concat(ratingsProviders)
-            .Concat(mediaSearchProviders);
+            .Concat(mediaSearchProviders)
+            .Concat(translators);
     }
 
     /// <summary>Derives the set of allowable config sections from registered providers plus WatchBack itself.</summary>
@@ -215,6 +230,7 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+        [FromServices] IEnumerable<ITranslator> translators,
         UserConfigFile configFile,
         CancellationToken ct)
     {
@@ -225,7 +241,7 @@ public static class ConfigEndpoints
         }
 
         HashSet<string> allowedSections = GetAllowedSections(GetAllDataProviders(watchStateProviders, thoughtProviders,
-            ratingsProviders, mediaSearchProviders));
+            ratingsProviders, mediaSearchProviders, translators));
 
         await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
         try
@@ -278,6 +294,7 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+        [FromServices] IEnumerable<ITranslator> translators,
         UserConfigFile configFile,
         CancellationToken ct)
     {
@@ -288,7 +305,7 @@ public static class ConfigEndpoints
         }
 
         HashSet<string> allowedSections = GetAllowedSections(GetAllDataProviders(watchStateProviders, thoughtProviders,
-            ratingsProviders, mediaSearchProviders));
+            ratingsProviders, mediaSearchProviders, translators));
 
         await AuthEndpoints.ConfigFileLock.WaitAsync(ct);
         try
@@ -333,10 +350,11 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IWatchStateProvider> watchStateProviders,
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
-        [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders)
+        [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+        [FromServices] IEnumerable<ITranslator> translators)
     {
         string? value =
-            GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders)
+            GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders, translators)
                 .Select(p => p.RevealSecret(key))
                 .FirstOrDefault(v => v is not null);
 
@@ -385,13 +403,14 @@ public static class ConfigEndpoints
         [FromServices] IEnumerable<IThoughtProvider> thoughtProviders,
         [FromServices] IEnumerable<IRatingsProvider> ratingsProviders,
         [FromServices] IEnumerable<IMediaSearchProvider> mediaSearchProviders,
+        [FromServices] IEnumerable<ITranslator> translators,
         CancellationToken ct)
     {
         Dictionary<string, string> formValues = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>(ct)
                                                 ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         IDataProvider? provider =
-            GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders)
+            GetAllDataProviders(watchStateProviders, thoughtProviders, ratingsProviders, mediaSearchProviders, translators)
                 .FirstOrDefault(p => string.Equals(p.ConfigSection, service, StringComparison.OrdinalIgnoreCase));
 
         if (provider is null)

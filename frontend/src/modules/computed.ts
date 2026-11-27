@@ -11,7 +11,7 @@ const MANUAL_LOGO = '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.
 export interface SettingsRow {
     id: string;
     key: string;
-    kind: 'watch' | 'toggle';
+    kind: 'watch' | 'toggle' | 'translation';
     integration: ConfigIntegration | undefined;
     name: string;
     sub: string;
@@ -75,11 +75,16 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
                 && !i.providerTypes.includes('thought') && !i.providerTypes.includes('watchState'))
             .map(([key, i]) => make('ratings', key, 'toggle', i.name, this.rowSummary(key), this.rowStatus(key)));
 
+        // Translation: one engine at a time, chosen like the watch source. Which language comes from Preferences.
+        const translation = entries.filter(([, i]) => i.providerTypes.includes('translation')).map(([key, i]) =>
+            make('translation', key, 'translation', i.name, this.rowSummary(key), this.rowStatus(key, true)));
+
         const on = thought.filter(r => !r.integration?.disabled).length;
         return [
             { id: 'watch', title: this.t('Settings_WatchingFrom'), hint: this.t('Settings_WatchingHint'), rows: watch },
             { id: 'thought', title: this.t('Settings_DiscussionGroup'), hint: this.t('Settings_OnCount', on, thought.length), rows: thought },
             { id: 'ratings', title: this.t('Settings_RatingsGroup'), hint: '', rows: ratings },
+            { id: 'translation', title: this.t('Settings_TranslationGroup'), hint: this.t('Settings_TranslationHint'), rows: translation },
         ].filter(g => g.rows.length > 0);
     },
 
@@ -235,19 +240,24 @@ const _computed: Record<string, unknown> & ThisType<AppData> = {
     },
 
     get groupedThoughts(): unknown[] {
-        const thoughts = this.activeThoughts as { postTitle?: string; postUrl?: string; postBody?: string; source: string; brandColor?: string }[];
+        const thoughts = this.activeThoughts as { postTitle?: string; postUrl?: string; postBody?: string; postTranslatedFrom?: string | null; originalPostTitle?: string | null; originalPostBody?: string | null; source: string; brandColor?: string }[];
 
         // Cache hit: activeThoughts reference is stable when its own cache is valid
         if (this._cGtInput === (thoughts as unknown[]) && this._cGtResult !== null) {
             return this._cGtResult;
         }
 
-        const groups: { title: string | null; url: string | null; body: string | null; brandColor: string; thoughts: unknown[] }[] = [];
-        const map = new Map<string, { title: string | null; url: string | null; body: string | null; brandColor: string; thoughts: unknown[] }>();
+        type Group = { title: string | null; url: string | null; body: string | null; translatedFrom: string | null; originalTitle: string | null; originalBody: string | null; brandColor: string; thoughts: unknown[] };
+        const groups: Group[] = [];
+        const map = new Map<string, Group>();
         for (const c of thoughts) {
             const key = c.postTitle || '';
             if (!map.has(key)) {
-                const g = { title: c.postTitle || null, url: c.postUrl || null, body: c.postBody || null, brandColor: c.brandColor ?? '', thoughts: [] as unknown[] };
+                const g: Group = {
+                    title: c.postTitle || null, url: c.postUrl || null, body: c.postBody || null,
+                    translatedFrom: c.postTranslatedFrom ?? null, originalTitle: c.originalPostTitle ?? null, originalBody: c.originalPostBody ?? null,
+                    brandColor: c.brandColor ?? '', thoughts: [],
+                };
                 map.set(key, g);
                 groups.push(g);
             }

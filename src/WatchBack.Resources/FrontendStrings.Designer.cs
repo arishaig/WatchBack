@@ -1902,5 +1902,173 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("Settings_Maintenance", resourceCulture);
             }
         }
+        
+        public static string Comments_TranslatedFrom {
+            get {
+                return ResourceManager.GetString("Comments_TranslatedFrom", resourceCulture);
+            }
+        }
+        
+        public static string Comments_ShowingOriginal {
+            get {
+                return ResourceManager.GetString("Comments_ShowingOriginal", resourceCulture);
+            }
+        }
+        
+        public static string Comments_ShowOriginal {
+            get {
+                return ResourceManager.GetString("Comments_ShowOriginal", resourceCulture);
+            }
+        }
+        
+        public static string Comments_ShowTranslation {
+            get {
+                return ResourceManager.GetString("Comments_ShowTranslation", resourceCulture);
+            }
+        }
+        
+        public static string Comments_Translate {
+            get {
+                return ResourceManager.GetString("Comments_Translate", resourceCulture);
+            }
+        }
+        
+        public static string Comments_Translating {
+            get {
+                return ResourceManager.GetString("Comments_Translating", resourceCulture);
+            }
+        }
+        
+        public static string Comments_TranslateFailed {
+            get {
+                return ResourceManager.GetString("Comments_TranslateFailed", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslateLanguage {
+            get {
+                return ResourceManager.GetString("Settings_TranslateLanguage", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslateLanguageHelp {
+            get {
+                return ResourceManager.GetString("Settings_TranslateLanguageHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslateOff {
+            get {
+                return ResourceManager.GetString("Settings_TranslateOff", resourceCulture);
+            }
+        }
+        
+        public static string Settings_AutoTranslate {
+            get {
+                return ResourceManager.GetString("Settings_AutoTranslate", resourceCulture);
+            }
+        }
+        
+        public static string Settings_AutoTranslateHelp {
+            get {
+                return ResourceManager.GetString("Settings_AutoTranslateHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_OllamaHelp {
+            get {
+                return ResourceManager.GetString("Settings_OllamaHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslationGroup {
+            get {
+                return ResourceManager.GetString("Settings_TranslationGroup", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslationHint {
+            get {
+                return ResourceManager.GetString("Settings_TranslationHint", resourceCulture);
+            }
+        }
+        
+        public static string Settings_TranslateWith {
+            get {
+                return ResourceManager.GetString("Settings_TranslateWith", resourceCulture);
+            }
+        }
+        
+        public static string Summary_Title {
+            get {
+                return ResourceManager.GetString("Summary_Title", resourceCulture);
+            }
+        }
+        
+        public static string Summary_Writing {
+            get {
+                return ResourceManager.GetString("Summary_Writing", resourceCulture);
+            }
+        }
+        
+        public static string Summary_Failed {
+            get {
+                return ResourceManager.GetString("Summary_Failed", resourceCulture);
+            }
+        }
+        
+        public static string Summary_Retry {
+            get {
+                return ResourceManager.GetString("Summary_Retry", resourceCulture);
+            }
+        }
+        
+        public static string Summary_NeedsModel {
+            get {
+                return ResourceManager.GetString("Summary_NeedsModel", resourceCulture);
+            }
+        }
+        
+        public static string Summary_Basis {
+            get {
+                return ResourceManager.GetString("Summary_Basis", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SummaryMode {
+            get {
+                return ResourceManager.GetString("Settings_SummaryMode", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SummaryModeHelp {
+            get {
+                return ResourceManager.GetString("Settings_SummaryModeHelp", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SummaryHidden {
+            get {
+                return ResourceManager.GetString("Settings_SummaryHidden", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SummaryCollapsed {
+            get {
+                return ResourceManager.GetString("Settings_SummaryCollapsed", resourceCulture);
+            }
+        }
+        
+        public static string Settings_SummaryOpen {
+            get {
+                return ResourceManager.GetString("Settings_SummaryOpen", resourceCulture);
+            }
+        }
+        
+        public static string Summary_BasisCompared {
+            get {
+                return ResourceManager.GetString("Summary_BasisCompared", resourceCulture);
+            }
+        }
     }
 }

@@ -357,5 +357,41 @@ namespace WatchBack.Resources {
                 return ResourceManager.GetString("ManualWatchStateEndpoints_SetManualWatchState_Title_is_required_", resourceCulture);
             }
         }
+        
+        public static string Translators_Model {
+            get {
+                return ResourceManager.GetString("Translators_Model", resourceCulture);
+            }
+        }
+        
+        public static string Translators_Optional {
+            get {
+                return ResourceManager.GetString("Translators_Optional", resourceCulture);
+            }
+        }
+        
+        public static string Translators_NeedsUrl {
+            get {
+                return ResourceManager.GetString("Translators_NeedsUrl", resourceCulture);
+            }
+        }
+        
+        public static string Translators_ModelMissing {
+            get {
+                return ResourceManager.GetString("Translators_ModelMissing", resourceCulture);
+            }
+        }
+        
+        public static string Translators_Description_Ollama {
+            get {
+                return ResourceManager.GetString("Translators_Description_Ollama", resourceCulture);
+            }
+        }
+        
+        public static string Translators_Description_LibreTranslate {
+            get {
+                return ResourceManager.GetString("Translators_Description_LibreTranslate", resourceCulture);
+            }
+        }
     }
 }

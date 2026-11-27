@@ -15,6 +15,10 @@ jobs:
   test:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      # Every WebApplicationFactory host registers inotify watchers for its config files;
+      # the runner's 128-instance limit is exhausted partway through the suite.
+      DOTNET_USE_POLLING_FILE_WATCHER: "true"
     steps:
       - uses: actions/checkout@v6.0.2
 
@@ -44,7 +48,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5.2.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       - name: Restore dependencies
         run: dotnet restore
@@ -67,10 +71,10 @@ jobs:
         uses: actions/cache@v5.0.4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('tests/WatchBack.Api.Tests/bin/Debug/net10.0/playwright.ps1') }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/WatchBack.Api.Tests/bin/Debug/net11.0/playwright.ps1') }}
             
       - name: Install Playwright browsers
-        run: pwsh tests/WatchBack.Api.Tests/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
+        run: pwsh tests/WatchBack.Api.Tests/bin/Debug/net11.0/playwright.ps1 install chromium --with-deps
 
       - name: Run accessibility tests
         run: dotnet test tests/WatchBack.Api.Tests --no-build --filter "Category=Accessibility" --verbosity normal --logger "trx;LogFileName=accessibility.trx" --results-directory ./TestResults

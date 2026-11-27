@@ -13,6 +13,8 @@ import systemMethods from './modules/system';
 import wizardMethods from './modules/wizard';
 import computedDescriptors from './modules/computed';
 import uiMethods from './modules/ui';
+import translateMethods from './modules/translate';
+import summaryMethods from './modules/summary';
 import subredditMappingsMethods from './modules/subredditMappings';
 import mcpMethods from './modules/mcp';
 import { sanitizeSvg } from './utils/svg';
@@ -157,6 +159,15 @@ Alpine.data('app', (): AppData => {
         mappingShareCopied: '',
         mappingFilter: '',
         sentimentCategory: 'all',
+        summary: null,
+        summaryExpanded: false,
+        _summaryKey: '',
+        _summaryAt: 0,
+        _summaryTicket: 0,
+        _summaryTimer: null,
+        showOriginal: {},
+        manualTranslations: {},
+        translateState: {},
         apiKeys: [],
         newApiKeyName: '',
         apiKeySaveStatus: null,
@@ -173,6 +184,8 @@ Alpine.data('app', (): AppData => {
         ...systemMethods,
         ...wizardMethods,
         ...uiMethods,
+        ...translateMethods,
+        ...summaryMethods,
         ...subredditMappingsMethods,
         ...mcpMethods,
     };

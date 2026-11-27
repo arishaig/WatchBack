@@ -1093,4 +1093,88 @@
     <data name="Settings_Maintenance" xml:space="preserve">
         <value>Maintenance</value>
     </data>
+    <data name="Comments_TranslatedFrom" xml:space="preserve">
+        <value>Translated from {0}</value>
+    </data>
+    <data name="Comments_ShowingOriginal" xml:space="preserve">
+        <value>Original ({0})</value>
+    </data>
+    <data name="Comments_ShowOriginal" xml:space="preserve">
+        <value>Show original</value>
+    </data>
+    <data name="Comments_ShowTranslation" xml:space="preserve">
+        <value>Show translation</value>
+    </data>
+    <data name="Comments_Translate" xml:space="preserve">
+        <value>Translate</value>
+    </data>
+    <data name="Comments_Translating" xml:space="preserve">
+        <value>Translating…</value>
+    </data>
+    <data name="Comments_TranslateFailed" xml:space="preserve">
+        <value>Couldn't translate this</value>
+    </data>
+    <data name="Settings_TranslateLanguage" xml:space="preserve">
+        <value>Translate comments to</value>
+    </data>
+    <data name="Settings_TranslateLanguageHelp" xml:space="preserve">
+        <value>Comments in other languages can be translated into this one</value>
+    </data>
+    <data name="Settings_TranslateOff" xml:space="preserve">
+        <value>Don't translate</value>
+    </data>
+    <data name="Settings_AutoTranslate" xml:space="preserve">
+        <value>Translate automatically</value>
+    </data>
+    <data name="Settings_AutoTranslateHelp" xml:space="preserve">
+        <value>Otherwise each comment gets a Translate button</value>
+    </data>
+    <data name="Settings_OllamaHelp" xml:space="preserve">
+        <value>Translation runs on your own Ollama server</value>
+    </data>
+    <data name="Settings_TranslationGroup" xml:space="preserve">
+        <value>Translation</value>
+    </data>
+    <data name="Settings_TranslationHint" xml:space="preserve">
+        <value>Used for the comment language above</value>
+    </data>
+    <data name="Settings_TranslateWith" xml:space="preserve">
+        <value>Translate with {0}</value>
+    </data>
+    <data name="Summary_Title" xml:space="preserve">
+        <value>Summary</value>
+    </data>
+    <data name="Summary_Writing" xml:space="preserve">
+        <value>Writing the summary…</value>
+    </data>
+    <data name="Summary_Failed" xml:space="preserve">
+        <value>Couldn't write the summary</value>
+    </data>
+    <data name="Summary_Retry" xml:space="preserve">
+        <value>Try again</value>
+    </data>
+    <data name="Summary_NeedsModel" xml:space="preserve">
+        <value>Set up Ollama in Settings to get summaries</value>
+    </data>
+    <data name="Summary_Basis" xml:space="preserve">
+        <value>From {0} comments</value>
+    </data>
+    <data name="Settings_SummaryMode" xml:space="preserve">
+        <value>Discussion summary</value>
+    </data>
+    <data name="Settings_SummaryModeHelp" xml:space="preserve">
+        <value>Written by your Ollama server</value>
+    </data>
+    <data name="Settings_SummaryHidden" xml:space="preserve">
+        <value>Hidden</value>
+    </data>
+    <data name="Settings_SummaryCollapsed" xml:space="preserve">
+        <value>Collapsed</value>
+    </data>
+    <data name="Settings_SummaryOpen" xml:space="preserve">
+        <value>Open</value>
+    </data>
+    <data name="Summary_BasisCompared" xml:space="preserve">
+        <value>From {0} comments, early vs. later</value>
+    </data>
 </root>

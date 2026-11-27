@@ -86,14 +86,14 @@ public sealed class McpSetupToolTests : IDisposable
         response.EnsureSuccessStatusCode();
         string body = await response.Content.ReadAsStringAsync();
         string json = body.Split('\n').FirstOrDefault(l => l.StartsWith("data: ", StringComparison.Ordinal))?[6..] ?? body;
-        return JsonDocument.Parse(json).RootElement.GetProperty("result");
+        return JsonElement.Parse(json).GetProperty("result");
     }
 
     private static async Task<(string Raw, JsonElement Json)> CallAsync(HttpClient client, string tool, object? args = null)
     {
         JsonElement result = await RpcAsync(client, "tools/call", new { name = tool, arguments = args ?? new { } });
         string text = result.GetProperty("content")[0].GetProperty("text").GetString()!;
-        return (text, JsonDocument.Parse(text).RootElement);
+        return (text, JsonElement.Parse(text));
     }
 
     private Dictionary<string, Dictionary<string, string>> Saved() =>
@@ -140,6 +140,41 @@ public sealed class McpSetupToolTests : IDisposable
             .GetProperty("value").GetString().Should().Be("http://jellyfin.test:8096");
         jellyfin.GetProperty("settingsLink").GetString().Should().EndWith("/#settings/jellyfin");
         jellyfin.GetProperty("roles").EnumerateArray().Select(r => r.GetString()).Should().Contain("watching");
+    }
+
+    [Fact]
+    public async Task UpdateConfig_TranslationSettings_AreValidated()
+    {
+        using HttpClient client = await ClientAsync();
+
+        (_, JsonElement json) = await CallAsync(client, "update_config", new
+        {
+            values = new Dictionary<string, string>
+            {
+                ["WatchBack__TranslateTargetLanguage"] = "es",
+                ["WatchBack__AutoTranslate"] = "true",
+                ["WatchBack__TranslationProvider"] = "libretranslate",
+                ["WatchBack__SummaryMode"] = "collapsed"
+            }
+        });
+        (_, JsonElement bad) = await CallAsync(client, "update_config", new
+        {
+            values = new Dictionary<string, string>
+            {
+                ["WatchBack__TranslateTargetLanguage"] = "spanish",
+                ["WatchBack__AutoTranslate"] = "yes",
+                ["WatchBack__TranslationProvider"] = "deepl",
+                ["WatchBack__SummaryMode"] = "always"
+            }
+        });
+
+        json.GetProperty("applied").EnumerateArray().Select(a => a.GetString())
+            .Should().BeEquivalentTo("WatchBack__TranslateTargetLanguage", "WatchBack__AutoTranslate",
+                "WatchBack__TranslationProvider", "WatchBack__SummaryMode");
+        bad.GetProperty("applied").GetArrayLength().Should().Be(0);
+        bad.GetProperty("rejected").EnumerateArray().Select(r => r.GetProperty("key").GetString())
+            .Should().BeEquivalentTo("WatchBack__TranslateTargetLanguage", "WatchBack__AutoTranslate",
+                "WatchBack__TranslationProvider", "WatchBack__SummaryMode");
     }
 
     [Fact]

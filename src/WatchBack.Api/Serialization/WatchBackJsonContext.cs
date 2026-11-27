@@ -10,6 +10,9 @@ namespace WatchBack.Api.Serialization;
 
 [JsonSerializable(typeof(SetManualWatchStateRequest))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
+[JsonSerializable(typeof(SummaryResponse))]
+[JsonSerializable(typeof(TranslateRequest))]
+[JsonSerializable(typeof(TranslateResponse))]
 [JsonSerializable(typeof(SyncResponse))]
 [JsonSerializable(typeof(ThoughtResponse))]
 [JsonSerializable(typeof(ThoughtImageResponse))]

@@ -26,7 +26,7 @@ public sealed class McpWatchStateToolTests
         sync.SyncAsync(Arg.Any<IProgress<SyncProgressTick>?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<CancellationToken>()).Returns(result);
         return new WatchBackMcpTools(sync, new SyncTrigger(), Substitute.For<IManualWatchStateProvider>(), [], [], [],
-            [], Snapshot(new WatchBackOptions()), new UserConfigFile("unused.json"),
+            [], [], Snapshot(new WatchBackOptions()), new UserConfigFile("unused.json"),
             Substitute.For<IHttpContextAccessor>());
     }
 

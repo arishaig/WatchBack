@@ -94,6 +94,7 @@ const systemMethods: Record<string, unknown> & ThisType<AppData> = {
                     showBarTimerArmed: showBarTimer !== null,
                 }, "Information");
                 this.data = newData;
+                void this.refreshSummary();
 
                 // The cycle is done — cancel any pending show timer so late
                 // cached cycles don't flash the bar after status arrives.

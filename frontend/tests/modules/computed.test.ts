@@ -417,6 +417,20 @@ describe('availableSources', () => {
 // ── groupedThoughts ───────────────────────────────────────────────────────────
 
 describe('groupedThoughts', () => {
+    it('carries a translated thread\'s language and original title and body onto its group', () => {
+        const thoughts = [{
+            postTitle: 'Title', postBody: 'Body', postUrl: 'http://a', source: 'reddit',
+            postTranslatedFrom: 'fr', originalPostTitle: 'Titre', originalPostBody: 'Corps',
+        }];
+        const [group] = get('groupedThoughts', makeState({ activeThoughts: thoughts })) as Record<string, unknown>[];
+        expect(group).toMatchObject({ title: 'Title', body: 'Body', translatedFrom: 'fr', originalTitle: 'Titre', originalBody: 'Corps' });
+    });
+
+    it('leaves the translation fields empty for an untranslated thread', () => {
+        const [group] = get('groupedThoughts', makeState({ activeThoughts: [{ postTitle: 'A', source: 'reddit' }] })) as Record<string, unknown>[];
+        expect(group).toMatchObject({ translatedFrom: null, originalTitle: null, originalBody: null });
+    });
+
     it('groups thoughts with the same postTitle together', () => {
         const thoughts = [
             { postTitle: 'Thread A', postUrl: 'http://a', source: 'reddit' },
@@ -852,6 +866,21 @@ describe('settingsGroups', () => {
         expect(ids(0)).toEqual(['watch:jellyfin', 'watch:trakt', 'watch:manual']);
         expect(ids(1)).toEqual(['thought:trakt', 'thought:reddit', 'thought:lemmy']);
         expect(ids(2)).toEqual(['ratings:omdb']);
+    });
+
+    it('lists the translation engines as a group of their own, chosen like the watch source', () => {
+        const c = ctx();
+        Object.assign(c.configData.integrations, {
+            ollama: integ('Ollama', ['translation']),
+            libretranslate: integ('LibreTranslate', ['translation']),
+        });
+
+        const groups = get('settingsGroups', c);
+
+        expect(groups.map((g: { id: string }) => g.id)).toEqual(['watch', 'thought', 'ratings', 'translation']);
+        expect(groups[3].rows.map((r: { id: string }) => r.id)).toEqual(['translation:ollama', 'translation:libretranslate']);
+        expect(groups[3].rows[0]).toMatchObject({ kind: 'translation', name: 'Ollama', status: { label: 'watch-ollama' } });
+        expect(groups[1].rows.map((r: { key: string }) => r.key)).not.toContain('ollama');
     });
 
     it('shows Trakt twice: as a watch source and as comments using that connection', () => {
